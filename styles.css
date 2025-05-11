@@ -1,8 +1,10 @@
-/*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
-*/
+/* Hide controls by default */
+video::-webkit-media-controls {
+  opacity: 0 !important;
+  transition: opacity 0.3s ease;
+}
+/* Show only on hover or JS 'hovered' */
+video.hovered::-webkit-media-controls,
+video:hover::-webkit-media-controls {
+  opacity: 1 !important;
+}

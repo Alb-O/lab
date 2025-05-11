@@ -2,12 +2,12 @@ import { MarkdownView, Notice, Plugin, WorkspaceLeaf } from 'obsidian';
 import { VideoDetector } from './video-detector';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp } from './utils';
+import { setupVideoControls } from './video-controls';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
 	videoDetector: VideoDetector;
-	statusBarItemEl: HTMLElement;
-	async onload() {
+	statusBarItemEl: HTMLElement;	async onload() {
 		// Load settings and initialize the video detector
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 		this.videoDetector = new VideoDetector();
@@ -24,6 +24,9 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 			new Notice('Video detection complete');
 		});
 		ribbonIconEl.addClass('video-timestamps-ribbon');
+		
+		// Setup video hover controls
+		setupVideoControls();
 
 		// Register for file changes to update video detection
 		this.registerEvent(
@@ -496,8 +499,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 			this.applyTimestampHandlers(videoEl, startTimeSeconds, endTimeSeconds, videoData.path);
 		}
 	}
-	
-	/**
+		/**
 	 * Apply timestamp handlers to a video element
 	 */	private applyTimestampHandlers(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string): void {
 		// First, add a custom data attribute to mark this video with its timestamp range
@@ -506,25 +508,38 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		videoEl.dataset.endTime = endTime === Infinity ? 'end' : endTime.toString();
 		videoEl.dataset.timestampPath = path;
 		
+		// Add flag to prevent recursive timeupdate events
+		let isHandlingTimeUpdate = false;
+		
 		// Set initial playback position to the start timestamp
 		videoEl.currentTime = startTime;
 		
 		// Add event listener to restrict playback to the timestamp range
 		const restrictSeekHandler = () => {
+			// Prevent recursive calls that can cause the feedback loop
+			if (isHandlingTimeUpdate) return;
+			
 			// Only log every 1s to reduce console spam
 			if (Math.floor(videoEl.currentTime * 10) % 10 === 0) {
 				console.log(`Debug - Video ${path}: Current time: ${videoEl.currentTime}, Range: ${startTime} to ${endTime === Infinity ? 'end' : endTime}`);
 			}
 			
-			// If before start time, move to start
-			if (videoEl.currentTime < startTime) {
-				console.log(`Debug - Video ${path}: Correcting playback position to start time ${startTime}`);
-				videoEl.currentTime = startTime;
-			}
-			// If after end time (and end time is specified), move to start
-			else if (endTime !== Infinity && videoEl.currentTime > endTime) {
-				console.log(`Debug - Video ${path}: Reached end time ${endTime}, restarting from start time ${startTime}`);
-				videoEl.currentTime = startTime;
+			try {
+				isHandlingTimeUpdate = true;
+				
+				// If before start time, move to start
+				if (videoEl.currentTime < startTime) {
+					console.log(`Debug - Video ${path}: Correcting playback position to start time ${startTime}`);
+					videoEl.currentTime = startTime;
+				}
+				// If after end time (and end time is specified), move to start
+				else if (endTime !== Infinity && videoEl.currentTime > endTime) {
+					console.log(`Debug - Video ${path}: Reached end time ${endTime}, restarting from start time ${startTime}`);
+					videoEl.currentTime = startTime;
+				}
+			} finally {
+				// Always reset the flag
+				setTimeout(() => { isHandlingTimeUpdate = false; }, 50);
 			}
 		};
 		
@@ -532,18 +547,35 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		videoEl.removeEventListener('timeupdate', restrictSeekHandler);
 		videoEl.addEventListener('timeupdate', restrictSeekHandler);
 		
-		// Also handle seeking directly
-		videoEl.removeEventListener('seeked', restrictSeekHandler);
-		videoEl.addEventListener('seeked', restrictSeekHandler);
+		// Handle seeking directly with debouncing to prevent rapid consecutive calls
+		let seekTimeout: NodeJS.Timeout | null = null;
+		const debouncedSeekHandler = () => {
+			if (seekTimeout) clearTimeout(seekTimeout);
+			seekTimeout = setTimeout(() => {
+				restrictSeekHandler();
+				seekTimeout = null;
+			}, 50);
+		};
+		
+		videoEl.removeEventListener('seeked', debouncedSeekHandler);
+		videoEl.addEventListener('seeked', debouncedSeekHandler);
 			
 		// Handle reaching the end of the range
 		const timeRangeEndHandler = () => {
+			if (isHandlingTimeUpdate) return;
+			
 			if (endTime !== Infinity) {
 				// If we're at or past the end time, pause the video and set time exactly to end
 				if (videoEl.currentTime >= endTime) {
 					console.log(`Debug - Video ${path}: Reached end time ${endTime}, pausing video`);
-					videoEl.pause();
-					videoEl.currentTime = endTime; // Ensure we stop exactly at end point
+					
+					try {
+						isHandlingTimeUpdate = true;
+						videoEl.pause();
+						videoEl.currentTime = endTime; // Ensure we stop exactly at end point
+					} finally {
+						setTimeout(() => { isHandlingTimeUpdate = false; }, 50);
+					}
 				}
 			}
 		};
