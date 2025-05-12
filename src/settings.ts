@@ -11,12 +11,10 @@ export interface IVideoTimestampsPlugin extends Plugin {
 }
 
 export interface VideoTimestampsSettings {
-    showStatusBarInfo: boolean;
     debugMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: VideoTimestampsSettings = {
-    showStatusBarInfo: true,
     debugMode: false
 }
 
@@ -34,21 +32,7 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
-        
-        containerEl.createEl('h2', { text: 'Video Timestamps Settings' });
-        
-        new Setting(containerEl)
-            .setName('Show info in status bar')
-            .setDesc('Display information about detected videos in the status bar')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.showStatusBarInfo)
-                .onChange(async (value) => {
-                    this.plugin.settings.showStatusBarInfo = value;
-                    await this.plugin.saveSettings();
-                    // Update the status bar immediately
-                    this.plugin.detectVideosInActiveView();
-                }));
-        
+                
         new Setting(containerEl)
             .setName('Debug mode')
             .setDesc('Log detailed information about detected videos to the console')

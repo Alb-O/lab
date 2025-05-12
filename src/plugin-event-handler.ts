@@ -17,11 +17,6 @@ export class PluginEventHandler {
         if (leaf && leaf.view instanceof MarkdownView) {
 			// Only process markdown views
 			this.plugin.detectVideosInActiveView();
-		} else {
-			// Clear status bar when not in a markdown view
-            if (this.plugin.statusBarController) {
-                this.plugin.statusBarController.updateStatusBar([]);
-            }
 		}
 	}
 

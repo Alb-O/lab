@@ -3,16 +3,17 @@ import { VideoDetector } from './video-detector';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp } from './utils';
 import { setupVideoControls } from './video-controls';
+import { setupVideoContextMenu } from './video-context-menu';
 import { TimestampController } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
 	videoDetector: VideoDetector;
-	statusBarItemEl: HTMLElement;
 	timestampController: TimestampController;
 	pluginEventHandler: PluginEventHandler;
 	private videoObserver: MutationObserver | null = null;
+	private contextMenuCleanup: (() => void) | null = null;
 
 	async onload() {
 		// Load settings
@@ -20,9 +21,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 		// Initialize components
 		this.videoDetector = new VideoDetector();
-		this.statusBarItemEl = this.addStatusBarItem();
-		this.statusBarItemEl.setText('No videos detected');
-		this.statusBarItemEl.addClass('video-timestamps-status');
 
 		this.timestampController = new TimestampController(this.settings, this);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
@@ -36,6 +34,16 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		
 		// Setup video hover controls
 		setupVideoControls();
+		
+		// Setup Obsidian-native context menu for videos
+		this.contextMenuCleanup = setupVideoContextMenu(this.app, this.videoDetector);
+		
+		// Register for plugin cleanup on unload
+		this.register(() => {
+			if (this.contextMenuCleanup) {
+				this.contextMenuCleanup();
+			}
+		});
 
 		// Register for file changes to update video detection
 		this.registerEvent(
