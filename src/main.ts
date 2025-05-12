@@ -3,8 +3,7 @@ import { VideoDetector } from './video-detector';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp } from './utils';
 import { setupVideoControls } from './video-controls';
-import { TimestampController } from './timestamp-controller';
-import { StatusBarController } from './status-bar-controller';
+import { TimestampController } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
@@ -12,7 +11,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 	videoDetector: VideoDetector;
 	statusBarItemEl: HTMLElement;
 	timestampController: TimestampController;
-	public statusBarController: StatusBarController; // Made public for PluginEventHandler
 	pluginEventHandler: PluginEventHandler;
 	private videoObserver: MutationObserver | null = null;
 
@@ -27,7 +25,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		this.statusBarItemEl.addClass('video-timestamps-status');
 
 		this.timestampController = new TimestampController(this.settings, this);
-		this.statusBarController = new StatusBarController(this.statusBarItemEl, this.settings);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
 		
 		// Add a ribbon icon to manually trigger video detection
@@ -103,7 +100,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		
 		if (markdownViews.length === 0) {
 			console.log('Debug - No markdown views found');
-            this.statusBarController.updateStatusBar([]); // Update status bar even if no markdown views
 			return [];
 		}
 		
@@ -115,15 +111,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		}
 		
 		console.log('Debug - Total videos detected across all views:', allVideos.length, allVideos);
-		
-		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (activeView) {
-			const activeViewVideos = allVideos.filter(v => v.file?.path === activeView.file?.path);
-			this.statusBarController.updateStatusBar(activeViewVideos);
-		} else {
-			this.statusBarController.updateStatusBar([]);
-		}
-		
+
 		this.timestampController.applyTimestampRestrictions(allVideos);
 		
 		if (this.settings.debugMode && allVideos.length > 0) {
