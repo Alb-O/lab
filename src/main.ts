@@ -1,6 +1,6 @@
-import { MarkdownView, Notice, Plugin, WorkspaceLeaf, TFile } from 'obsidian';
+import { MarkdownView, Notice, Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
-import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './utils';
+import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './video';
 import { setupVideoContextMenu } from './context-menu';
 import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';

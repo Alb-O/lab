@@ -1,5 +1,5 @@
 import { MarkdownView, Plugin } from 'obsidian';
-import { VideoWithTimestamp } from '../utils';
+import { VideoWithTimestamp } from '../video';
 import { VideoTimestampsSettings } from '../settings';
 import { TimestampHandler } from './types';
 import { VideoEventHandler } from './video-event-handler';

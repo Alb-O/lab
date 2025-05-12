@@ -1,6 +1,10 @@
 import { MarkdownView, TFile } from "obsidian";
 import { splitSubpath } from "obsidian-dev-utils/obsidian/Link";
-import { TempFragment, parseTempFrag } from "./time";
+import { TempFragment, parseTempFrag } from "../timestamps/utils";
+
+// Export video-related utilities
+export { VideoDetector } from './utils/detector';
+export { setupVideoControls } from './utils/controls';
 
 /**
  * Represents a video with timestamp information found in a markdown document
