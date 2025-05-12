@@ -3,7 +3,7 @@ import { VideoDetector } from './video-detector';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp } from './utils';
 import { setupVideoControls } from './video-controls';
-import { setupVideoContextMenu } from './video-context-menu';
+import { setupVideoContextMenu } from './context-menu';
 import { TimestampController } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
 

@@ -1,5 +1,5 @@
-import { Menu, Notice, TFile } from 'obsidian';
-import { formatTimestamp } from './utils';
+import { Menu, Notice, TFile, MarkdownView } from 'obsidian';
+import { formatTimestamp, extractVideosFromMarkdownView } from '../utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 
 /**
@@ -71,6 +71,29 @@ export function setupVideoContextMenu(app: any): () => void {
           .setTitle('Placeholder Action 2')
           .onClick(() => {
             // TODO: implement action
+          })
+      );
+      menu.addItem(item =>
+        item
+          .setIcon('trash')
+          .setTitle('Remove embed link')
+          .onClick(async () => {
+            // Collect videos from current markdown view
+            const view = app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view) return;
+            const videos = extractVideosFromMarkdownView(view);
+            // Find the VideoWithTimestamp matching this video element by path
+            const target = videos.find(v => v.path === video.dataset.timestampPath);
+            if (!target) return;
+            // Remove only the specific embed link at position
+            const { start, end } = target.position;
+            const editor = view.editor;
+            editor.replaceRange(
+              '',
+              { line: start.line, ch: start.col },
+              { line: end.line, ch: end.col }
+            );
+            new Notice('Removed video embed link');
           })
       );
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
