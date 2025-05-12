@@ -1,5 +1,6 @@
 import { Menu, Notice, TFile, MarkdownView } from 'obsidian';
-import { formatTimestamp, extractVideosFromMarkdownView, observeVideos } from '../utils';
+import { extractVideosFromMarkdownView, observeVideos } from '../video';
+import { formatTimestamp } from '../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 
 /**
