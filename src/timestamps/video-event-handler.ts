@@ -35,7 +35,8 @@ export class VideoEventHandler implements TimestampHandler {
         // Tolerance to avoid snapping when within threshold (to handle keyframe misalignment)
         const TOLERANCE = 0.05; // seconds
         // Prepare frame-based clamp callback if supported
-        let frameRequestHandle: number;        const clampFrameCallback = (_now: number, metadata: any) => {
+        let frameRequestHandle: number;        
+        const clampFrameCallback = (_now: number, metadata: any) => {
             // On each video frame, check if we've reached or passed the max time
             if (metadata.mediaTime >= endTime) {
                 isProgrammaticPause = true;
@@ -136,7 +137,7 @@ export class VideoEventHandler implements TimestampHandler {
                         }, 100);
                     }
                     break;
-                      case 'seeking':
+                case 'seeking':
                     console.log(`[VideoTimestamps] Seeking event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
                     // Immediately pause video during any seeking operation to prevent unwanted playback
                     if (!videoEl.paused) {
@@ -172,7 +173,8 @@ export class VideoEventHandler implements TimestampHandler {
                             console.log(`[VideoTimestamps] Set shouldAutoPlay: true (autoResume: true, userPaused: false, seekingToValidPosition: true)`);
                         }
                     }
-                    break;                case 'seeked':
+                    break;                
+                case 'seeked':
                     console.log(`[VideoTimestamps] Seeked event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
                     console.log(`[VideoTimestamps] State flags - reachedEnd: ${state.reachedEnd}, seekedPastEnd: ${state.seekedPastEnd}, userPaused: ${state.userPaused}, autoResume: ${state.autoResume}`);
                     
@@ -230,7 +232,8 @@ export class VideoEventHandler implements TimestampHandler {
                             isProgrammaticPause = false; 
                             console.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`);
                         }, 20);
-                    }                    // If seeking to a valid position between start and end, but not exactly at end (to handle 
+                    }                    
+                    // If seeking to a valid position between start and end, but not exactly at end (to handle 
                     // seeked events that follow a "seeking past end" that was corrected)
                     else if (endTime === Infinity || videoEl.currentTime < endTime - 0.01) {
                         // Reset relevant flags
@@ -259,53 +262,58 @@ export class VideoEventHandler implements TimestampHandler {
                             }
                         } else {
                             console.log(`[VideoTimestamps] Near end but within bounds, not resetting reachedEnd flag`);
-                        }                    } else {
+                        }                    
+                    } else {
                         console.log(`[VideoTimestamps] At exact endTime (${endTime.toFixed(2)}), preserving seekedPastEnd flag: ${state.seekedPastEnd}`);
                         // Only handle automatic reset in the play event handler, not in the seeked event handler
                         // This prevents auto-reset when just seeking to the end without playing
                     }
-                    break;                case 'play':
+                    break;                
+                case 'play':
                     console.log(`[VideoTimestamps] Play event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
                     console.log(`[VideoTimestamps] Play event flags - reachedEnd: ${state.reachedEnd}, seekedPastEnd: ${state.seekedPastEnd}, userPaused: ${state.userPaused}`);
                     
+                    // User initiated play: clear userPaused and autoResume
+                    state.userPaused = false;
+                    videoEl.dataset.userPaused = 'false';
+                    state.autoResume = false; 
+                    videoEl.dataset.autoResume = 'false';
+
                     // For play attempts after seeking past end, just reset the flags but keep current position
                     if (state.seekedPastEnd && endTime !== Infinity && Math.abs(videoEl.currentTime - endTime) < TOLERANCE) {
                         console.log(`[VideoTimestamps] User explicitly played after seekedPastEnd - just resetting flags without repositioning`);
                         state.seekedPastEnd = false;
                         videoEl.dataset.seekedPastEnd = 'false';
-                        state.reachedEnd = false;
+                        state.reachedEnd = true; // We are at the end, but allowing play to attempt to move past it
+                        videoEl.dataset.reachedEnd = 'true';
                         // No seeking here, allow playback from current position
                         break; // allow play to continue
                     }
-                    
                     // Prevent playback if we manually seeked past the end (and not at exact endTime)
-                    if (state.seekedPastEnd) {
+                    else if (state.seekedPastEnd) {
                         console.log(`[VideoTimestamps] Preventing play because seekedPastEnd: true`);
                         event.preventDefault();
                         event.stopImmediatePropagation();
                         videoEl.pause();
                         return false;
                     }
-                      // If user hits play at the end timestamp after natural playback completion, restart from beginning
-                    if (endTime !== Infinity && videoEl.currentTime >= endTime - TOLERANCE && !state.seekedPastEnd) {
-                        console.log(`[VideoTimestamps] Playing at/after endTime after natural completion - resetting to startTime: ${startTime}`);
+                    // If user hits play at the end timestamp (replay scenario)
+                    else if (endTime !== Infinity && videoEl.currentTime >= endTime - TOLERANCE) {
+                        console.log(`[VideoTimestamps] Playing at/after endTime - resetting to startTime: ${startTime} and enabling autoPlay.`);
                         state.reachedEnd = false;
+                        videoEl.dataset.reachedEnd = 'false';
                         videoEl.currentTime = startTime;
-                        break; // allow play to continue
+                        state.shouldAutoPlay = true;
+                        videoEl.dataset.shouldAutoPlay = 'true';
+                        // No break here; let common play handler logic run. Play initiated by 'seeked' event.
                     }
-                    
-                    // Clear user paused flag on deliberate play
-                    state.userPaused = false;
-                    videoEl.dataset.userPaused = 'false';
-                    
-                    // If we reached the end naturally, restart from beginning
-                    if (state.reachedEnd && !state.seekedPastEnd) {
-                        console.log(`[VideoTimestamps] Reached end naturally, restarting from startTime: ${startTime}`);
-                        videoEl.currentTime = startTime;
+                    // If playing from a point before end, but reachedEnd was true (e.g., seeked back from end then played)
+                    else if (state.reachedEnd) {
+                        console.log(`[VideoTimestamps] Play: Resuming before end, but reachedEnd was true. Clearing reachedEnd.`);
                         state.reachedEnd = false;
                         videoEl.dataset.reachedEnd = 'false';
                     }
-
+                    
                     // Schedule frame-based clamping when playing
                     if ((videoEl as any).requestVideoFrameCallback) {
                         frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
