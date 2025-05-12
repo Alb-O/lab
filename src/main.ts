@@ -1,16 +1,14 @@
 import { MarkdownView, Notice, Plugin, WorkspaceLeaf, TFile } from 'obsidian';
-import { VideoDetector } from './video-detector';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
-import { VideoWithTimestamp } from './utils';
-import { setupVideoControls } from './video-controls';
+import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './utils';
 import { setupVideoContextMenu } from './context-menu';
-import { TimestampController } from './timestamps';
+import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
 	videoDetector: VideoDetector;
-	timestampController: TimestampController;
+	timestampController: TimestampManager;
 	pluginEventHandler: PluginEventHandler;
 	private videoObserver: MutationObserver | null = null;
 	private contextMenuCleanup: (() => void) | null = null;
@@ -22,7 +20,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		// Initialize components
 		this.videoDetector = new VideoDetector();
 
-		this.timestampController = new TimestampController(this.settings, this);
+		this.timestampController = new TimestampManager(this.settings, this);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
 		
 		// Add a ribbon icon to manually trigger video detection

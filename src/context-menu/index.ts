@@ -1,5 +1,5 @@
 import { Menu, Notice, TFile, MarkdownView } from 'obsidian';
-import { formatTimestamp, extractVideosFromMarkdownView } from '../utils';
+import { formatTimestamp, extractVideosFromMarkdownView, observeVideos } from '../utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 
 /**
@@ -102,35 +102,7 @@ export function setupVideoContextMenu(app: any): () => void {
     video.dataset.contextMenuInitialized = 'true';
   };
 
-  // Setup observer for new videos
-  const observer = new MutationObserver(mutations => {
-    let videoAdded = false;
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
-        for (const node of Array.from(mutation.addedNodes)) {
-          if (node instanceof HTMLVideoElement) {
-            initContext(node);
-            videoAdded = true;
-          } else if (node instanceof Element) {
-            const newVideos = node.querySelectorAll('video');
-            if (newVideos.length > 0) {
-              newVideos.forEach(initContext);
-              videoAdded = true;
-            }
-          }
-        }
-      }
-    }
-  });
-  
-  // Start observing the document
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  // Initialize existing videos
-  document.querySelectorAll('video').forEach(initContext);
-  
-  // Return a cleanup function
-  return () => {
-    observer.disconnect();
-  };
+  // Observe all videos and initialize context menu once per element
+  const cleanup = observeVideos(initContext);
+  return cleanup;
 }
