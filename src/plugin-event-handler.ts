@@ -1,11 +1,11 @@
-import { MarkdownView, WorkspaceLeaf, TFile, App } from 'obsidian';
+import { MarkdownView, WorkspaceLeaf, TFile } from 'obsidian';
 import VideoTimestamps from './main'; // Import the main plugin class
 
 export class PluginEventHandler {
     private plugin: VideoTimestamps;
-    private app: App;
+    private app: any;
 
-    constructor(plugin: VideoTimestamps, app: App) {
+    constructor(plugin: VideoTimestamps, app: any) {
         this.plugin = plugin;
         this.app = app;
     }
