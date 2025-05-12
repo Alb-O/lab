@@ -50,8 +50,8 @@ export function setupVideoContextMenu(app: any): () => void {
                 alias: formattedTime
               });
             } else {
-              // Fallback to simple wiki link if file not found
-              linkText = `![[${path}#${timestampParam}|${formattedTime}]]`;
+              new Notice('File not found.');
+              return;
             }
             
             // Copy to clipboard
@@ -65,14 +65,7 @@ export function setupVideoContextMenu(app: any): () => void {
               });
           })
       );
-      menu.addItem(item =>
-        item
-          .setIcon('gear')
-          .setTitle('Placeholder Action 2')
-          .onClick(() => {
-            // TODO: implement action
-          })
-      );
+
       menu.addItem(item =>
         item
           .setIcon('trash')
@@ -93,6 +86,14 @@ export function setupVideoContextMenu(app: any): () => void {
               { line: start.line, ch: start.col },
               { line: end.line, ch: end.col }
             );
+            // If the line is now empty, remove it completely
+            if (editor.getLine(start.line).trim() === '') {
+              editor.replaceRange(
+                '',
+                { line: start.line, ch: 0 },
+                { line: start.line + 1, ch: 0 }
+              );
+            }
             new Notice('Removed video embed link');
           })
       );
