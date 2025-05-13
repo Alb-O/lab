@@ -1,5 +1,5 @@
 import { MarkdownView, WorkspaceLeaf, TFile } from 'obsidian';
-import VideoTimestamps from './main'; // Import the main plugin class
+import VideoTimestamps from './main';
 
 export class PluginEventHandler {
     private plugin: VideoTimestamps;

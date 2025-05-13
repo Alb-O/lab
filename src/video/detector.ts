@@ -1,5 +1,5 @@
 import { MarkdownView } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithTimestamp } from '../index';
+import { extractVideosFromMarkdownView, VideoWithTimestamp } from './index';
 
 /**
  * Class that handles detecting videos in Markdown views

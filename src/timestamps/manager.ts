@@ -2,7 +2,7 @@ import { MarkdownView, Plugin } from 'obsidian';
 import { VideoWithTimestamp } from '../video';
 import { VideoTimestampsSettings } from '../settings';
 import { TimestampHandler } from './types';
-import { VideoEventHandler } from './video-event-handler';
+import { VideoRestrictionHandler } from '../video/restriction-handler';
 
 /**
  * Manages timestamp restrictions for videos in Obsidian
@@ -15,7 +15,7 @@ export class TimestampManager {
     constructor(settings: VideoTimestampsSettings, plugin: Plugin) {
         this.settings = settings;
         this.plugin = plugin;
-        this.videoHandler = new VideoEventHandler();
+        this.videoHandler = new VideoRestrictionHandler();
     }
     
     /**
