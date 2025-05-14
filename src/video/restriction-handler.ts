@@ -1,3 +1,4 @@
+import * as debug from 'debug';
 import { TimestampHandler, VideoState } from '../timestamps/types';
 
 /**
@@ -45,16 +46,16 @@ export class VideoRestrictionHandler implements TimestampHandler {
                 videoEl.currentTime = endTime;
                 state.shouldAutoPlay = true;
                 videoEl.dataset.shouldAutoPlay = 'true';
-                console.log(`[VideoTimestamps] Frame callback: Paused at endTime: ${endTime.toFixed(2)}`);
+                debug.log(`[VideoTimestamps] Frame callback: Paused at endTime: ${endTime.toFixed(2)}`);
                 setTimeout(() => { 
                     isProgrammaticPause = false; 
-                    console.log(`[VideoTimestamps] Frame callback: Reset isProgrammaticPause`);
+                    debug.log(`[VideoTimestamps] Frame callback: Reset isProgrammaticPause`);
                 }, 50);
             } else if (metadata.mediaTime < startTime - TOLERANCE) {
                 // Only clamp to minimum time if needed, but do NOT pause
                 if (Math.abs(videoEl.currentTime - startTime) > TOLERANCE) {
                     videoEl.currentTime = startTime;
-                    console.log(`[VideoTimestamps] Frame callback: Clamped to startTime: ${startTime.toFixed(2)}`);
+                    debug.log(`[VideoTimestamps] Frame callback: Clamped to startTime: ${startTime.toFixed(2)}`);
                 }
             }
             
@@ -75,50 +76,50 @@ export class VideoRestrictionHandler implements TimestampHandler {
                 case 'timeupdate':
                     // Skip enforcing restrictions right after resetting from end
                     if ((videoEl as any)._justResetFromEnd) {
-                        console.log(`[VideoTimestamps] Skipping timeupdate checks - just reset from end`);
+                        debug.log(`[VideoTimestamps] Skipping timeupdate checks - just reset from end`);
                         break;
                     }
                     
                     // Keep video within min bound during playback, with tolerance for keyframes
                     if (videoEl.currentTime < startTime - TOLERANCE) {
-                        console.log(`[VideoTimestamps] Timeupdate: currentTime (${videoEl.currentTime.toFixed(2)}) < startTime (${startTime.toFixed(2)}) - adjusting`);
+                        debug.log(`[VideoTimestamps] Timeupdate: currentTime (${videoEl.currentTime.toFixed(2)}) < startTime (${startTime.toFixed(2)}) - adjusting`);
                         videoEl.currentTime = startTime;
-                        console.log(`[VideoTimestamps] Set currentTime to startTime: ${startTime}`);
+                        debug.log(`[VideoTimestamps] Set currentTime to startTime: ${startTime}`);
                     }
                     
                     // Handle when video approaches or reaches max time during playback (with tolerance)
                     if (endTime !== Infinity && videoEl.currentTime >= endTime - TOLERANCE && !videoEl.paused) {
-                        console.log(`[VideoTimestamps] Timeupdate: approaching/at endTime - currentTime: ${videoEl.currentTime.toFixed(2)}, endTime: ${endTime.toFixed(2)}`);
+                        debug.log(`[VideoTimestamps] Timeupdate: approaching/at endTime - currentTime: ${videoEl.currentTime.toFixed(2)}, endTime: ${endTime.toFixed(2)}`);
                         // Flag this as an automatic/programmatic pause
                         isProgrammaticPause = true;
-                        console.log(`[VideoTimestamps] Set isProgrammaticPause: true`);
+                        debug.log(`[VideoTimestamps] Set isProgrammaticPause: true`);
                         
                         // Use VideoFrame callback if available for precise clamping
                         if ((videoEl as any).requestVideoFrameCallback) {
                             const clampFrame = (_now: number, metadata: any) => {
-                                console.log(`[VideoTimestamps] VideoFrame callback - mediaTime: ${metadata.mediaTime.toFixed(2)}, endTime: ${endTime.toFixed(2)}`);
+                                debug.log(`[VideoTimestamps] VideoFrame callback - mediaTime: ${metadata.mediaTime.toFixed(2)}, endTime: ${endTime.toFixed(2)}`);
                                 // Clamp exactly at or after endTime to avoid undershoot
                                 if (metadata.mediaTime >= endTime) {
-                                    console.log(`[VideoTimestamps] VideoFrame callback - mediaTime >= endTime, pausing`);
+                                    debug.log(`[VideoTimestamps] VideoFrame callback - mediaTime >= endTime, pausing`);
                                     videoEl.pause();
                                     videoEl.currentTime = endTime;
                                     state.shouldAutoPlay = true;
                                     videoEl.dataset.shouldAutoPlay = 'true';
-                                    console.log(`[VideoTimestamps] Set currentTime to endTime: ${endTime.toFixed(2)}`);
+                                    debug.log(`[VideoTimestamps] Set currentTime to endTime: ${endTime.toFixed(2)}`);
                                     // Reset programmatic flag after clamping
                                     setTimeout(() => { 
                                         isProgrammaticPause = false; 
-                                        console.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`);
+                                        debug.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`);
                                     }, 20);
                                 } else {
-                                    console.log(`[VideoTimestamps] VideoFrame callback - mediaTime < endTime, scheduling next frame check`);
+                                    debug.log(`[VideoTimestamps] VideoFrame callback - mediaTime < endTime, scheduling next frame check`);
                                     (videoEl as any).requestVideoFrameCallback(clampFrame);
                                 }
                             };
-                            console.log(`[VideoTimestamps] Scheduling VideoFrame callback`);
+                            debug.log(`[VideoTimestamps] Scheduling VideoFrame callback`);
                             (videoEl as any).requestVideoFrameCallback(clampFrame);
                         } else {
-                            console.log(`[VideoTimestamps] VideoFrameCallback not available, using standard pause`);
+                            debug.log(`[VideoTimestamps] VideoFrameCallback not available, using standard pause`);
                             videoEl.pause();
                             videoEl.currentTime = endTime;
                             state.shouldAutoPlay = true;
@@ -126,11 +127,11 @@ export class VideoRestrictionHandler implements TimestampHandler {
                             // Enforce clamp on next frame
                             requestAnimationFrame(() => { 
                                 videoEl.currentTime = endTime;
-                                console.log(`[VideoTimestamps] requestAnimationFrame - enforcing endTime: ${endTime.toFixed(2)}`); 
+                                debug.log(`[VideoTimestamps] requestAnimationFrame - enforcing endTime: ${endTime.toFixed(2)}`); 
                             });
                             setTimeout(() => { 
                                 isProgrammaticPause = false; 
-                                console.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`);
+                                debug.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`);
                             }, 20);
                         }
                         
@@ -141,16 +142,16 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         videoEl.dataset.reachedEnd = 'true';
                         videoEl.dataset.autoResume = 'true';
                         videoEl.dataset.shouldAutoPlay = 'true';
-                        console.log(`[VideoTimestamps] Set flags - reachedEnd: true, autoResume: true`);
+                        debug.log(`[VideoTimestamps] Set flags - reachedEnd: true, autoResume: true`);
                         // Reset the flag after a longer delay to ensure we don't get unwanted frames
                         setTimeout(() => { 
                             isProgrammaticPause = false;
-                            console.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`); 
+                            debug.log(`[VideoTimestamps] Reset isProgrammaticPause to false after timeout`); 
                         }, 100);
                     }
                     break;
                 case 'seeking':
-                    console.log(`[VideoTimestamps] Seeking event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
+                    debug.log(`[VideoTimestamps] Seeking event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
                     
                     // Set seeking flag
                     state.isSeeking = true;
@@ -164,7 +165,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     
                     // Clamp seeking above max timestamp immediately to avoid overshoot
                     if (endTime !== Infinity && videoEl.currentTime > endTime + TOLERANCE) {
-                        console.log(`[VideoTimestamps] Seeking past max timestamp (${endTime.toFixed(2)})`);
+                        debug.log(`[VideoTimestamps] Seeking past max timestamp (${endTime.toFixed(2)})`);
                         videoEl.currentTime = endTime;
                         state.seekedPastEnd = true;
                         videoEl.dataset.seekedPastEnd = 'true';
@@ -179,23 +180,23 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         
                         // Mark that this was a seek operation, not a user hitting play at end
                         (videoEl as any)._seekedToEnd = true;
-                        console.log(`[VideoTimestamps] Paused video due to seeking past end time, marked as _seekedToEnd`);
+                        debug.log(`[VideoTimestamps] Paused video due to seeking past end time, marked as _seekedToEnd`);
                         
                         // Set a timeout to clear the seek flag after a short delay
                         // This ensures it won't affect future play button presses
                         (videoEl as any)._seekedToEndTimeout = setTimeout(() => {
                             delete (videoEl as any)._seekedToEnd;
                             delete (videoEl as any)._seekedToEndTimeout;
-                            console.log(`[VideoTimestamps] Auto-cleared _seekedToEnd flag after timeout`);
+                            debug.log(`[VideoTimestamps] Auto-cleared _seekedToEnd flag after timeout`);
                         }, 500);
                         
                         setTimeout(() => { isProgrammaticPause = false; }, 50);
-                        console.log(`[VideoTimestamps] Set seekedPastEnd: true, userPaused: ${state.userPaused}`);
+                        debug.log(`[VideoTimestamps] Set seekedPastEnd: true, userPaused: ${state.userPaused}`);
                     }
                     
                     // If seeking before start, clamp to start time
                     if (videoEl.currentTime < startTime - TOLERANCE) {
-                        console.log(`[VideoTimestamps] Seeking before startTime (${startTime.toFixed(2)})`);
+                        debug.log(`[VideoTimestamps] Seeking before startTime (${startTime.toFixed(2)})`);
                         videoEl.currentTime = startTime;
                     }
                     
@@ -208,13 +209,13 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         if (seekingToValidPosition) {
                             state.shouldAutoPlay = true;
                             videoEl.dataset.shouldAutoPlay = 'true';
-                            console.log(`[VideoTimestamps] Set shouldAutoPlay: true (autoResume: true, userPaused: false, seekingToValidPosition: true)`);
+                            debug.log(`[VideoTimestamps] Set shouldAutoPlay: true (autoResume: true, userPaused: false, seekingToValidPosition: true)`);
                         }
                     }
                     break;                
                 case 'seeked':
-                    console.log(`[VideoTimestamps] Seeked event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
-                    console.log(`[VideoTimestamps] State flags - reachedEnd: ${state.reachedEnd}, seekedPastEnd: ${state.seekedPastEnd}, userPaused: ${state.userPaused}, autoResume: ${state.autoResume}`);
+                    debug.log(`[VideoTimestamps] Seeked event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
+                    debug.log(`[VideoTimestamps] State flags - reachedEnd: ${state.reachedEnd}, seekedPastEnd: ${state.seekedPastEnd}, userPaused: ${state.userPaused}, autoResume: ${state.autoResume}`);
                     
                     // Clear seeking state flag
                     state.isSeeking = false;
@@ -232,7 +233,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     }
                     // Otherwise, auto-resume if we were playing and user didn't manually pause
                     else if (state.shouldAutoPlay && !state.userPaused) {
-                        console.log(`[VideoTimestamps] Auto-resuming playback after seeking`);
+                        debug.log(`[VideoTimestamps] Auto-resuming playback after seeking`);
                         // Reset seeking flags
                         state.seekedPastEnd = false;
                         videoEl.dataset.seekedPastEnd = 'false';
@@ -250,7 +251,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         // Use setTimeout to ensure this happens after event handling is complete
                         setTimeout(() => {
                             if (!state.userPaused) {
-                                videoEl.play().catch(e => console.log(`[VideoTimestamps] Play error: ${e}`));
+                                videoEl.play().catch(e => debug.log(`[VideoTimestamps] Play error: ${e}`));
                             }
                         }, 0);
                     }
@@ -258,12 +259,12 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     // Set up frame callback for ongoing boundary enforcement if playing
                     if (!videoEl.paused && (videoEl as any).requestVideoFrameCallback) {
                         frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
-                        console.log(`[VideoTimestamps] Set up post-seek frame callback`);
+                        debug.log(`[VideoTimestamps] Set up post-seek frame callback`);
                     }
                     break;                
                 case 'play':
-                    console.log(`[VideoTimestamps] Play event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
-                    console.log(`[VideoTimestamps] Play event flags - reachedEnd: ${state.reachedEnd}, seekedPastEnd: ${state.seekedPastEnd}, userPaused: ${state.userPaused}`);
+                    debug.log(`[VideoTimestamps] Play event - currentTime: ${videoEl.currentTime.toFixed(2)}, startTime: ${startTime.toFixed(2)}, endTime: ${endTime === Infinity ? 'Infinity' : endTime.toFixed(2)}`);
+                    debug.log(`[VideoTimestamps] Play event flags - reachedEnd: ${state.reachedEnd}, seekedPastEnd: ${state.seekedPastEnd}, userPaused: ${state.userPaused}`);
                     
                     // User initiated play: clear userPaused
                     state.userPaused = false;
@@ -277,7 +278,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         // Only reset to beginning if this is a deliberate play at the end,
                         // not if we just seeked past end and are getting an automatic play event
                         if (!(videoEl as any)._seekedToEnd || !isRecentSeek) {
-                            console.log(`[VideoTimestamps] Play button pressed at end position - resetting to startTime: ${startTime}`);
+                            debug.log(`[VideoTimestamps] Play button pressed at end position - resetting to startTime: ${startTime}`);
                             
                             // Create a flag to prevent immediate pausing in case of event race conditions
                             (videoEl as any)._justResetFromEnd = true;
@@ -294,11 +295,11 @@ export class VideoRestrictionHandler implements TimestampHandler {
                             // Clear the prevention flag after a short delay
                             setTimeout(() => {
                                 delete (videoEl as any)._justResetFromEnd;
-                                console.log(`[VideoTimestamps] Cleared reset-from-end protection flag`);
+                                debug.log(`[VideoTimestamps] Cleared reset-from-end protection flag`);
                             }, 100);
                         } else {
                             // We just seeked past end, so stay at end and don't restart
-                            console.log(`[VideoTimestamps] Not resetting to start - this was a seek past end operation`);
+                            debug.log(`[VideoTimestamps] Not resetting to start - this was a seek past end operation`);
                         }
                         
                         // Always clean up the seek flag after handling to prevent interference with future play attempts
@@ -321,7 +322,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     // Set up frame-based clamping
                     if ((videoEl as any).requestVideoFrameCallback) {
                         frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
-                        console.log(`[VideoTimestamps] Set up video frame callback for end time clamping`);
+                        debug.log(`[VideoTimestamps] Set up video frame callback for end time clamping`);
                     }
                     break;
                     
@@ -333,9 +334,9 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         // Disable auto-resume for manual pauses
                         state.autoResume = false;
                         videoEl.dataset.autoResume = 'false';
-                        console.log(`[VideoTimestamps] User paused video`);
+                        debug.log(`[VideoTimestamps] User paused video`);
                     } else {
-                        console.log(`[VideoTimestamps] Programmatic pause detected, not marking as user-paused`);
+                        debug.log(`[VideoTimestamps] Programmatic pause detected, not marking as user-paused`);
                     }
                     break;
                     
@@ -345,7 +346,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     videoEl.dataset.userPaused = 'true';
                     state.autoResume = false;
                     videoEl.dataset.autoResume = 'false';
-                    console.log(`[VideoTimestamps] Manual pause event received`);
+                    debug.log(`[VideoTimestamps] Manual pause event received`);
                     break;
             }
         };

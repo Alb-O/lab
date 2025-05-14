@@ -3,15 +3,23 @@ import { extractVideosFromMarkdownView, observeVideos } from '../video';
 import { formatTimestamp } from '../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 
+// Track which elements already have context menus to prevent duplicates
+const initializedElements = new WeakSet<HTMLVideoElement>();
+
 /**
  * Sets up an Obsidian-native context menu on video elements.
  * Enables copying video links with timestamps.
  */
 export function setupVideoContextMenu(app: any): () => void {
+  // Clean up any previously initialized elements
+  cleanupVideoContextMenu();
+  
   const initContext = (video: HTMLVideoElement) => {
-    if (video.dataset.contextMenuInitialized === 'true') return;
+    // Skip if already initialized
+    if (initializedElements.has(video)) return;
 
-    video.addEventListener('contextmenu', (event: MouseEvent) => {
+    // Create the handler function for the context menu
+    const contextMenuHandler = (event: MouseEvent) => {
       event.preventDefault();
 
       const menu = new Menu();
@@ -19,7 +27,8 @@ export function setupVideoContextMenu(app: any): () => void {
         item
           .setIcon('link')
           .setTitle('Copy embed link at current time')
-          .onClick(() => {            // Get the current time of the video
+          .onClick(() => {
+            // Get the current time of the video
             const currentTime = video.currentTime;
             const formattedTime = formatTimestamp(currentTime);
             
@@ -32,7 +41,7 @@ export function setupVideoContextMenu(app: any): () => void {
             let file: TFile | null = null;
             
             try {
-              file = this.app.vault.getFileByPath(path);
+              file = app.vault.getFileByPath(path);
             } catch (error) {
               console.error('Error finding video file:', error);
             }
@@ -44,9 +53,9 @@ export function setupVideoContextMenu(app: any): () => void {
             if (file) {
               // If we found the actual file, use generateMarkdownLink
               linkText = generateMarkdownLink({
-                app: this.app,
+                app: app,
                 targetPathOrFile: file,
-                sourcePathOrFile: this.app.workspace.getActiveFile() || '',
+                sourcePathOrFile: app.workspace.getActiveFile() || '',
                 subpath: timestampParam,
                 alias: formattedTime
               });
@@ -99,12 +108,34 @@ export function setupVideoContextMenu(app: any): () => void {
           })
       );
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
-    });
+    };
+    
+    // Store the handler on the element for later cleanup
+    (video as any)._videoContextMenuHandler = contextMenuHandler;
 
+    // Add the event listener
+    video.addEventListener('contextmenu', contextMenuHandler);
+    
+    // Mark as initialized
+    initializedElements.add(video);
     video.dataset.contextMenuInitialized = 'true';
   };
 
   // Observe all videos and initialize context menu once per element
   const cleanup = observeVideos(initContext);
   return cleanup;
+}
+
+/**
+ * Clean up context menu handlers from all videos
+ */
+export function cleanupVideoContextMenu(): void {
+  document.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
+    if ((video as any)._videoContextMenuHandler) {
+      video.removeEventListener('contextmenu', (video as any)._videoContextMenuHandler);
+      delete (video as any)._videoContextMenuHandler;
+      video.dataset.contextMenuInitialized = 'false';
+      // Don't remove from initializedElements as we can't modify a WeakSet
+    }
+  });
 }

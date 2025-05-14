@@ -1,9 +1,10 @@
 import { MarkdownView, Notice, Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './video';
-import { setupVideoContextMenu } from './context-menu';
+import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
 import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
+import * as debug from 'debug';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
@@ -33,6 +34,9 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		// Setup video hover controls
 		setupVideoControls();
 		
+		// Clean up any existing context menu handlers first (in case of reload)
+		cleanupVideoContextMenu();
+		
 		// Setup Obsidian-native context menu for videos
 		this.contextMenuCleanup = setupVideoContextMenu(this.app);
 		
@@ -40,7 +44,10 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		this.register(() => {
 			if (this.contextMenuCleanup) {
 				this.contextMenuCleanup();
+				this.contextMenuCleanup = null;
 			}
+			// Also directly clean up any remaining context menu handlers
+			cleanupVideoContextMenu();
 		});
 
 		// Register for file changes to update video detection
@@ -83,9 +90,15 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 	}
 	
 	public onunload() {
-		// Clean up any resources or event listeners
-		console.log('Video Timestamps plugin unloaded');
-		// The MutationObserver is disconnected via this.register in onload
+		// Clean up context menu handlers
+		if (this.contextMenuCleanup) {
+			this.contextMenuCleanup();
+			this.contextMenuCleanup = null;
+		}
+		cleanupVideoContextMenu();
+		
+		// Other cleanup is handled by register() calls in onload
+		debug.log('[Main] Plugin unloaded, context menu cleaned up');
 	}
 
 	/**
@@ -93,7 +106,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 	 * @returns Array of detected videos with timestamps across all views
 	 */
 	public detectVideosInActiveView(): VideoWithTimestamp[] {
-		console.log('Debug - detectVideosInActiveView called');
+		debug.log('[Main] detectVideosInActiveView called');
 		
 		const markdownViews: MarkdownView[] = [];
 		this.app.workspace.iterateAllLeaves(leaf => {
@@ -102,27 +115,25 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 			}
 		});
 		
-		console.log(`Debug - Found ${markdownViews.length} markdown views`);
+		debug.log(`[Main] Found ${markdownViews.length} markdown views`);
 		
 		if (markdownViews.length === 0) {
-			console.log('Debug - No markdown views found');
+			debug.log('[Main] No markdown views found');
 			return [];
 		}
 		
 		const allVideos: VideoWithTimestamp[] = [];
 		for (const view of markdownViews) {
 			const videos = this.videoDetector.getVideosFromActiveView(view);
-			console.log(`Debug - Detected ${videos.length} videos in view: ${view.file?.path}`);
+			debug.log(`[Main] Detected ${videos.length} videos in view: ${view.file?.path}`);
 			allVideos.push(...videos);
 		}
 		
-		console.log('Debug - Total videos detected across all views:', allVideos.length, allVideos);
+		debug.log('[Main] Total videos detected across all views:', allVideos.length, allVideos);
 
 		this.timestampController.applyTimestampRestrictions(allVideos);
 		
-		if (this.settings.debugMode && allVideos.length > 0) {
-			this.videoDetector.debugVideos(allVideos);
-		}
+		if (allVideos.length > 0) this.videoDetector.debugVideos(allVideos);
 		
 		return allVideos;
 	}

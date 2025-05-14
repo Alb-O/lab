@@ -1,5 +1,6 @@
 import { MarkdownView } from 'obsidian';
 import { extractVideosFromMarkdownView, VideoWithTimestamp } from './index';
+import * as debug from 'debug';
 
 /**
  * Class that handles detecting videos in Markdown views
@@ -42,25 +43,25 @@ export class VideoDetector {
     }
     
     /**
-     * Debug method to log detected videos to the console
+     * Debug method to log detected videos to the debug
      */
     public debugVideos(videos: VideoWithTimestamp[]): void {
         if (videos.length === 0) {
-            console.log('No videos detected in current view');
+            debug.log('No videos detected in current view');
             return;
         }
         
-        console.log('Detected videos:', videos.length);
+        debug.log('Detected videos:', videos.length);
         videos.forEach((video, index) => {
-            console.log(`Video ${index + 1}:`);
-            console.log(`  Path: ${video.path}`);
-            console.log(`  Embedded: ${video.isEmbedded}`);
+            debug.log(`Video ${index + 1}:`);
+            debug.log(`  Path: ${video.path}`);
+            debug.log(`  Embedded: ${video.isEmbedded}`);
             if (video.timestamp) {
-                console.log(`  Timestamp: start=${video.timestamp.start}s, end=${video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's'}`);
+                debug.log(`  Timestamp: start=${video.timestamp.start}s, end=${video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's'}`);
             } else {
-                console.log('  No timestamp');
+                debug.log('  No timestamp');
             }
-            console.log(`  Position: line ${video.position.start.line}`);
+            debug.log(`  Position: line ${video.position.start.line}`);
         });
     }
 }

@@ -5,17 +5,14 @@ export interface IVideoTimestampsPlugin extends Plugin {
     settings: VideoTimestampsSettings;
     saveSettings(): Promise<void>;
     detectVideosInActiveView(): any[];
-    videoDetector: {
-        debugVideos(videos: any[]): void;
-    };
 }
 
 export interface VideoTimestampsSettings {
-    debugMode: boolean;
+    loopMaxTimestamp: boolean;
 }
 
 export const DEFAULT_SETTINGS: VideoTimestampsSettings = {
-    debugMode: false
+    loopMaxTimestamp: false
 }
 
 /**
@@ -34,17 +31,15 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
         containerEl.empty();
                 
         new Setting(containerEl)
-            .setName('Debug mode')
-            .setDesc('Log detailed information about detected videos to the console')
+            .setName('Loop when reaching maximum timestamp')
+            .setDesc('The video will automatically loop when it reaches the maximum timestamp.')
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.debugMode)
+                .setValue(this.plugin.settings.loopMaxTimestamp)
                 .onChange(async (value) => {
-                    this.plugin.settings.debugMode = value;
+                    this.plugin.settings.loopMaxTimestamp = value;
                     await this.plugin.saveSettings();
                     if (value) {
-                        // If debug mode is enabled, immediately show debug info
-                        const videos = this.plugin.detectVideosInActiveView();
-                        this.plugin.videoDetector.debugVideos(videos);
+                        
                     }
                 }));
     }
