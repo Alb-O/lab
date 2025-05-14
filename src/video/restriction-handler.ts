@@ -1,24 +1,6 @@
 import { TimestampHandler, VideoState } from '../timestamps/types';
 
 /**
- * TODO: Handle pausing at max time when user seeks past max time.
- * Currently seeking past max time will bounce back to min time instead of pausing at max time.
- * Need to try implement this behavior with as little 'overshoot' as possible, so no frames of the video where the user seeked to past max time actually show, instantly clamp to max time instead.
- * The follow logs are me repeatedly seeking past max time and getting bounced back to min time:
- * Set seekedPastEnd: true, userPaused: true
- * Seeking event - currentTime: 7.00, startTime: 5.00, endTime: 7.00
- * Play event - currentTime: 7.00, startTime: 5.00, endTime: 7.00
- * Play event flags - reachedEnd: false, seekedPastEnd: true, userPaused: true
- * Playing at end position - resetting to startTime: 5
- * Set up video frame callback for end time clamping
- * Seeking event - currentTime: 5.00, startTime: 5.00, endTime: 7.00
- * Seeked event - currentTime: 5.00, startTime: 5.00, endTime: 7.00
- * State flags - reachedEnd: false, seekedPastEnd: false, userPaused: false, autoResume: false
- * Auto-resuming playback after seeking
- * Set up post-seek frame callback
- */
-
-/**
  * Handles video events and enforces timestamp restrictions
  */
 export class VideoRestrictionHandler implements TimestampHandler {
@@ -91,6 +73,12 @@ export class VideoRestrictionHandler implements TimestampHandler {
             
             switch (eventType) {
                 case 'timeupdate':
+                    // Skip enforcing restrictions right after resetting from end
+                    if ((videoEl as any)._justResetFromEnd) {
+                        console.log(`[VideoTimestamps] Skipping timeupdate checks - just reset from end`);
+                        break;
+                    }
+                    
                     // Keep video within min bound during playback, with tolerance for keyframes
                     if (videoEl.currentTime < startTime - TOLERANCE) {
                         console.log(`[VideoTimestamps] Timeupdate: currentTime (${videoEl.currentTime.toFixed(2)}) < startTime (${startTime.toFixed(2)}) - adjusting`);
@@ -183,7 +171,24 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         // Pause the video when seeking beyond end time
                         isProgrammaticPause = true;
                         videoEl.pause();
-                        console.log(`[VideoTimestamps] Paused video due to seeking past end time`);
+                        
+                        // Clear any existing timeout for this flag
+                        if ((videoEl as any)._seekedToEndTimeout) {
+                            clearTimeout((videoEl as any)._seekedToEndTimeout);
+                        }
+                        
+                        // Mark that this was a seek operation, not a user hitting play at end
+                        (videoEl as any)._seekedToEnd = true;
+                        console.log(`[VideoTimestamps] Paused video due to seeking past end time, marked as _seekedToEnd`);
+                        
+                        // Set a timeout to clear the seek flag after a short delay
+                        // This ensures it won't affect future play button presses
+                        (videoEl as any)._seekedToEndTimeout = setTimeout(() => {
+                            delete (videoEl as any)._seekedToEnd;
+                            delete (videoEl as any)._seekedToEndTimeout;
+                            console.log(`[VideoTimestamps] Auto-cleared _seekedToEnd flag after timeout`);
+                        }, 500);
+                        
                         setTimeout(() => { isProgrammaticPause = false; }, 50);
                         console.log(`[VideoTimestamps] Set seekedPastEnd: true, userPaused: ${state.userPaused}`);
                     }
@@ -264,30 +269,52 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     state.userPaused = false;
                     videoEl.dataset.userPaused = 'false';
                     
-                    // Handle the end position differently based on how we got there
+                    // Check if seekedToEnd flag is recent enough (within 300ms of seeking)
+                    const isRecentSeek = (videoEl as any)._seekedToEndTimeout !== undefined;
+                    
+                    // Handle the end position - restart only if not directly after seeking past end
                     if (endTime !== Infinity && Math.abs(videoEl.currentTime - endTime) < TOLERANCE) {
-                        if (state.seekedPastEnd) {
-                            // If we're at the end time because the user seeked past the end,
-                            // stay at the end rather than resetting to start
-                            console.log(`[VideoTimestamps] Play attempt at end position after seeking past end - pausing at endTime`);
-                            isProgrammaticPause = true;
-                            videoEl.pause();
-                            event.preventDefault();
-                            setTimeout(() => { isProgrammaticPause = false; }, 50);
-                        } else if (state.reachedEnd) {
-                            // If we reached the end naturally and user wants to play again,
-                            // reset to start time (normal looping behavior)
-                            console.log(`[VideoTimestamps] Play at end position after natural end - resetting to startTime: ${startTime}`);
+                        // Only reset to beginning if this is a deliberate play at the end,
+                        // not if we just seeked past end and are getting an automatic play event
+                        if (!(videoEl as any)._seekedToEnd || !isRecentSeek) {
+                            console.log(`[VideoTimestamps] Play button pressed at end position - resetting to startTime: ${startTime}`);
+                            
+                            // Create a flag to prevent immediate pausing in case of event race conditions
+                            (videoEl as any)._justResetFromEnd = true;
+                            
+                            // Reset to start time
                             videoEl.currentTime = startTime;
+                            
+                            // Reset state flags
                             state.reachedEnd = false;
                             videoEl.dataset.reachedEnd = 'false';
+                            state.seekedPastEnd = false;
+                            videoEl.dataset.seekedPastEnd = 'false';
+                            
+                            // Clear the prevention flag after a short delay
+                            setTimeout(() => {
+                                delete (videoEl as any)._justResetFromEnd;
+                                console.log(`[VideoTimestamps] Cleared reset-from-end protection flag`);
+                            }, 100);
                         } else {
-                            // Default case - we're at the end but not sure how we got there
-                            // Stay at end position and pause
-                            console.log(`[VideoTimestamps] Play at end position (unknown origin) - pausing at endTime`);
-                            isProgrammaticPause = true;
-                            videoEl.pause();
-                            setTimeout(() => { isProgrammaticPause = false; }, 50);
+                            // We just seeked past end, so stay at end and don't restart
+                            console.log(`[VideoTimestamps] Not resetting to start - this was a seek past end operation`);
+                        }
+                        
+                        // Always clean up the seek flag after handling to prevent interference with future play attempts
+                        if ((videoEl as any)._seekedToEndTimeout) {
+                            clearTimeout((videoEl as any)._seekedToEndTimeout);
+                            delete (videoEl as any)._seekedToEndTimeout;
+                        }
+                        delete (videoEl as any)._seekedToEnd;
+                    } else {
+                        // Not at end position, clear seek flag if it exists
+                        if ((videoEl as any)._seekedToEnd) {
+                            delete (videoEl as any)._seekedToEnd;
+                        }
+                        if ((videoEl as any)._seekedToEndTimeout) {
+                            clearTimeout((videoEl as any)._seekedToEndTimeout);
+                            delete (videoEl as any)._seekedToEndTimeout;
                         }
                     }
                     
@@ -350,6 +377,12 @@ export class VideoRestrictionHandler implements TimestampHandler {
         
         // Clean up state and data attributes
         delete (videoEl as any)._timestampState;
+        delete (videoEl as any)._justResetFromEnd;
+        delete (videoEl as any)._seekedToEnd;
+        if ((videoEl as any)._seekedToEndTimeout) {
+            clearTimeout((videoEl as any)._seekedToEndTimeout);
+            delete (videoEl as any)._seekedToEndTimeout;
+        }
         delete videoEl.dataset.reachedEnd;
         delete videoEl.dataset.seekedPastEnd;
         delete videoEl.dataset.autoResume;
