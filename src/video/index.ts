@@ -26,30 +26,65 @@ export interface VideoWithTimestamp {
  */
 export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTimestamp[] {
     const result: VideoWithTimestamp[] = [];
-    if (!view || !view.file) return result;
+    const activeFile = view.file;
+    if (!view || !activeFile) return result;
 
-    const fileCache = view.app.metadataCache.getFileCache(view.file);
-    if (!fileCache) return result;
+    const editor = view.editor;
+    const text = editor.getValue();
+    const lines = text.split(/\r?\n/);
 
-    const embeds = fileCache.embeds || [];
-    const links = fileCache.links || [];
-
-    for (const embed of embeds) {
-        const { link, position } = embed;
-        const { linkPath: path, subpath } = splitSubpath(link);
-        const file = view.app.metadataCache.getFirstLinkpathDest(path, view.file.path);
-        if (file && isVideoFile(file)) {
-            result.push({ file, path, linktext: link, timestamp: parseTempFrag(subpath), isEmbedded: true, position });
+    // 1) Wiki‐style embeds/links: ![[...]] and [[...]]
+    const wikiRegex = /(!)?\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g;
+    lines.forEach((line, i) => {
+        let m: RegExpExecArray | null;
+        while ((m = wikiRegex.exec(line))) {
+            const isEmbedded = !!m[1];
+            const raw = m[2];
+            const { linkPath: path, subpath } = splitSubpath(raw);
+            const file = view.app.metadataCache.getFirstLinkpathDest(path, activeFile.path) || null;
+            if (!file || !isVideoFile(file)) continue;
+            const position = {
+                start: { line: i, col: m.index },
+                end:   { line: i, col: m.index + m[0].length }
+            };
+            const timestamp = parseTempFrag(subpath);
+            result.push({
+                file,
+                path,
+                linktext: m[0],
+                timestamp,
+                isEmbedded,
+                position
+            });
         }
-    }
-    for (const linkObj of links) {
-        const { link: linktext, position } = linkObj;
-        const { linkPath: path, subpath } = splitSubpath(linktext);
-        const file = view.app.metadataCache.getFirstLinkpathDest(path, view.file.path);
-        if (file && isVideoFile(file)) {
-            result.push({ file, path, linktext, timestamp: parseTempFrag(subpath), isEmbedded: false, position });
+    });
+
+    // 2) Markdown‐style links: [alias](path#t=…)
+    const mdRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    lines.forEach((line, i) => {
+        let m: RegExpExecArray | null;
+        while ((m = mdRegex.exec(line))) {
+            const linktext = m[0];
+            const url = m[2];
+            const { linkPath: path, subpath } = splitSubpath(url);
+            const file = view.app.metadataCache.getFirstLinkpathDest(path, activeFile.path) || null;
+            if (!file || !isVideoFile(file)) continue;
+            const position = {
+                start: { line: i, col: m.index },
+                end:   { line: i, col: m.index + linktext.length }
+            };
+            const timestamp = parseTempFrag(subpath);
+            result.push({
+                file,
+                path,
+                linktext,
+                timestamp,
+                isEmbedded: false,
+                position
+            });
         }
-    }
+    });
+
     return result;
 }
 

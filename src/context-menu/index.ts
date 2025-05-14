@@ -81,13 +81,16 @@ export function setupVideoContextMenu(app: any): () => void {
           .setIcon('trash')
           .setTitle('Remove embed link')
           .onClick(async () => {
-            // Collect videos from current markdown view
             const view = app.workspace.getActiveViewOfType(MarkdownView);
             if (!view) return;
             const videos = extractVideosFromMarkdownView(view);
-            // Find the VideoWithTimestamp matching this video element by path
-            const target = videos.find(v => v.path === video.dataset.timestampPath);
-            if (!target) return;
+
+            // Match this <video> element to its metadata by index
+            const els = view.contentEl.querySelectorAll('video');
+            const idx = Array.from(els).indexOf(video);
+            if (idx < 0 || idx >= videos.length) return;
+            const target = videos[idx];
+
             // Remove only the specific embed link at position
             const { start, end } = target.position;
             const editor = view.editor;
@@ -96,7 +99,6 @@ export function setupVideoContextMenu(app: any): () => void {
               { line: start.line, ch: start.col },
               { line: end.line, ch: end.col }
             );
-            // If the line is now empty, remove it completely
             if (editor.getLine(start.line).trim() === '') {
               editor.replaceRange(
                 '',

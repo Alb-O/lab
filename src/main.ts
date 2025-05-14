@@ -107,7 +107,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 	 */
 	public detectVideosInActiveView(): VideoWithTimestamp[] {
 		debug.log('[Main] detectVideosInActiveView called');
-		
 		const markdownViews: MarkdownView[] = [];
 		this.app.workspace.iterateAllLeaves(leaf => {
 			if (leaf.view instanceof MarkdownView) {

@@ -197,13 +197,16 @@ export class TimestampManager {
             
             for (const [src, elements] of elementsBySource.entries()) {
                 const filename = path.split('/').pop()?.split('\\').pop();
-                if (filename) {
-                    elements.forEach(el => {
-                        if (!processedVideos.has(el) && (isReadingMode ? src.includes(filename) : src.includes(path))) {
-                            matchingElements.push(el);
-                        }
-                    });
-                }
+                if (!filename) continue;
+                elements.forEach(el => {
+                    // only match elements whose src contains a timestamp fragment
+                    if (!processedVideos.has(el)
+                        && src.includes('#t=')
+                        && (isReadingMode ? src.includes(filename) : src.includes(path))
+                    ) {
+                        matchingElements.push(el);
+                    }
+                });
             }
 
             const maxToProcess = Math.min(matchingElements.length, videoGroup.length);
@@ -230,15 +233,17 @@ export class TimestampManager {
         processedVideos: Set<HTMLVideoElement>,
         videosByPath: Map<string, VideoWithTimestamp[]>
     ): void {
-        const unprocessedVideoElements = Array.from(allVideoElements).filter(v => !processedVideos.has(v));
-        if (unprocessedVideoElements.length === 0) return;
+        // start with only unprocessed <video> tags that have a #t= fragment
+        const unprocessed = Array.from(allVideoElements).filter(v => !processedVideos.has(v));
+        const eligibleVideoElements = unprocessed.filter(el => el.src.includes('#t='));
+        if (eligibleVideoElements.length === 0) return;
 
         const allVideoData: VideoWithTimestamp[] = Array.from(videosByPath.values()).flat();
         if (allVideoData.length === 0) return;
 
-        const maxToProcess = Math.min(unprocessedVideoElements.length, allVideoData.length);
+        const maxToProcess = Math.min(eligibleVideoElements.length, allVideoData.length);
         for (let i = 0; i < maxToProcess; i++) {
-            const videoEl = unprocessedVideoElements[i];
+            const videoEl = eligibleVideoElements[i];
             const videoData = allVideoData[i];
             if (videoData.timestamp) {
                 const startTimeSeconds = videoData.timestamp.start;
