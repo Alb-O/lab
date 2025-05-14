@@ -118,7 +118,23 @@ export class TimestampManager {
     ): void {
         for (const videoEl of Array.from(videoElements)) {
             if (processedVideos.has(videoEl)) continue;
-            
+
+            const rawSrc = videoEl.getAttribute('src');
+            if (rawSrc && rawSrc.includes('#t=')) {
+                // skip rewrite for absolute file URLs
+                if (!/^file:\/\//.test(rawSrc) && !/^[A-Za-z]:\\/.test(rawSrc)) {
+                    const [linkPath, frag] = rawSrc.split('#t=');
+                    const dest = this.plugin.app.metadataCache.getFirstLinkpathDest(
+                        linkPath,
+                        this.plugin.app.workspace.getActiveFile()?.path || ''
+                    );
+                    if (dest) {
+                        const url = this.plugin.app.vault.getResourcePath(dest);
+                        videoEl.src = `${url}#t=${frag}`;
+                    }
+                }
+            }
+
             const { startTime, endTime, path } = this.extractTimestampsFromDom(videoEl);
             
             if (startTime !== undefined) {
