@@ -67,11 +67,11 @@ export function setupVideoContextMenu(app: any): () => void {
             // Copy to clipboard
             navigator.clipboard.writeText(linkText)
               .then(() => {
-                new Notice(`Copied link with timestamp (${formattedTime})`);
+                new Notice(`Copied link with timestamp (${formattedTime}).`);
               })
               .catch(err => {
                 console.error('Failed to copy link: ', err);
-                new Notice('Failed to copy link to clipboard');
+                new Notice('Failed to copy link to clipboard.');
               });
           })
       );
@@ -83,6 +83,11 @@ export function setupVideoContextMenu(app: any): () => void {
           .onClick(async () => {
             const view = app.workspace.getActiveViewOfType(MarkdownView);
             if (!view) return;
+            // prevent removal in preview (reading) mode
+            if (view.getMode() === 'preview') {
+              new Notice('Cannot remove while in reading view.');
+              return;
+            }
             const videos = extractVideosFromMarkdownView(view);
 
             // Match this <video> element to its metadata by index
@@ -106,7 +111,6 @@ export function setupVideoContextMenu(app: any): () => void {
                 { line: start.line + 1, ch: 0 }
               );
             }
-            new Notice('Removed video embed link');
           })
       );
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
