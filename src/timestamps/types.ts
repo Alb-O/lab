@@ -13,6 +13,7 @@ export interface VideoState {
     autoResume: boolean;
     shouldAutoPlay: boolean;
     userPaused: boolean;
+    isSeeking: boolean;
 }
 
 /**
