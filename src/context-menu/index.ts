@@ -1,4 +1,4 @@
-import { Menu, Notice, TFile, MarkdownView } from 'obsidian';
+import { Menu, Notice, TFile, MarkdownView, FileManager } from 'obsidian';
 import { extractVideosFromMarkdownView, observeVideos } from '../video';
 import { formatTimestamp } from '../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
@@ -33,15 +33,46 @@ export function setupVideoContextMenu(app: any): () => void {
             const formattedTime = formatTimestamp(currentTime);
             
             // Get the path and file of the video
-            const path = video.dataset.timestampPath || 
-                         video.src.split('/').pop() || 
-                         'video';
+            const view = app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view) {
+              new Notice('Cannot copy timestamp outside markdown view.');
+              return;
+            }
+            const videosMeta = extractVideosFromMarkdownView(view);
+            const els = view.contentEl.querySelectorAll('video');
+            const idx = Array.from(els).indexOf(video);
+            if (idx < 0 || idx >= videosMeta.length) {
+              new Notice('Video metadata not found.');
+              return;
+            }
+            const path = videosMeta[idx].path;
+
+            console.log('Video path:', path);
                          
             // Find the actual file if possible
             let file: TFile | null = null;
-            
             try {
-              file = app.vault.getFileByPath(path);
+              const activeFile = app.workspace.getActiveFile();
+              // First try metadataCache for relative links (handles subfolders)
+              if (activeFile) {
+                const dest = app.metadataCache.getFirstLinkpathDest(path, activeFile.path);
+                if (dest instanceof TFile) {
+                  file = dest;
+                  console.log('Resolved via metadataCache:', dest);
+                }
+              }
+              // Fallback to vault lookup with normalized slashes
+              if (!file) {
+                const normalized = path.replace(/\\/g, '/').replace(/^\//, '');
+                const dest2 = app.vault.getAbstractFileByPath(normalized);
+                if (dest2 instanceof TFile) {
+                  file = dest2;
+                  console.log('Resolved via vault:', dest2);
+                }
+              }
+              if (!file) {
+                console.log('Could not resolve file for path:', path);
+              }
             } catch (error) {
               console.error('Error finding video file:', error);
             }
