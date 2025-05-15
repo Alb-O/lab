@@ -166,21 +166,25 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
   
   // Also create external styles as fallback
   const cssContent = `
-    /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}% to ${endPercent.toFixed(2)}% */
+    /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
     .${videoId} {
       --ts-start-percent: ${startPercent}%;
       --ts-end-percent: ${endPercent}%;
+      --ts-green-width: calc(var(--ts-end-percent) - var(--ts-start-percent));
+      --ts-right-width: calc(100% - var(--ts-end-percent));
+      --red-solid: linear-gradient(rgba(240,50,50,0.8), rgba(240,50,50,0.8));
+      --green-solid: linear-gradient(rgba(76,175,80,0.8), rgba(76,175,80,0.8));
     }
-    
-    /* Chrome/Edge approach: multi-layered targeting */
+
     .${videoId}::-webkit-media-controls-timeline {
-      background: linear-gradient(to right, 
-        rgba(240, 50, 50, 0.8) 0%, 
-        rgba(240, 50, 50, 0.8) var(--ts-start-percent), 
-        rgba(76, 175, 80, 0.8) var(--ts-start-percent), 
-        rgba(76, 175, 80, 0.8) var(--ts-end-percent), 
-        rgba(240, 50, 50, 0.8) var(--ts-end-percent), 
-        rgba(240, 50, 50, 0.8) 100%) !important;
+      background:
+        /* left red */
+        var(--red-solid) 0% 0% / var(--ts-start-percent) 100% no-repeat content-box,
+        /* green */
+        var(--green-solid) var(--ts-start-percent) 0% / var(--ts-green-width) 100% no-repeat content-box,
+        /* right red */
+        var(--red-solid) var(--ts-end-percent) 0% / var(--ts-right-width) 100% no-repeat content-box
+      !important;
     }
   `;
   
