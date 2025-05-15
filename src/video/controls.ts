@@ -90,89 +90,167 @@ function setupSingleVideoControls(videoEl: HTMLVideoElement): void {
   videoEl.addEventListener('mouseenter', () => videoEl.classList.add('hovered'));
   videoEl.addEventListener('mouseleave', () => videoEl.classList.remove('hovered'));
   
-  // Add filename label inline before the video container
-  const fileName = videoEl.dataset.timestampPath
-      || videoEl.src.split('/').pop() 
-      || '';
-  const label = document.createElement('div');
-  label.className = 'video-timestamps-filename';
-  label.textContent = fileName;
-  const container = videoEl.parentElement;
-  // insert label as a sibling before the container
-  if (container?.parentElement) {
-      container.parentElement.insertBefore(label, container);
-  }
-
   // Mark as initialized
   videoEl.dataset.controlsInitialized = 'true';
 }
 
 /**
  * Clears custom timeline styling for the allowed segment.
+ * @param videoEl The video element.
  */
 export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
+  // Remove injected style element if it exists
+  if (videoEl.parentNode) {
+    const container = videoEl.parentNode as HTMLElement;
+    const styleEl = container.querySelector('.video-timestamps-style');
+    if (styleEl) {
+      styleEl.remove();
+    }
+  }
+  
+  // Remove shadow DOM injected style if it exists
+  try {
+    if (videoEl.shadowRoot && (videoEl as any)._shadowStyle) {
+      (videoEl as any)._shadowStyle.remove();
+      delete (videoEl as any)._shadowStyle;
+    }
+  } catch (e) {
+    // Ignore shadow DOM access errors
+  }
+  
   // Remove debug overlay if it exists
-  const overlay = (videoEl as any)._debugOverlay as HTMLElement;
-  if (overlay) {
-    overlay.remove();
+  if ((videoEl as any)._debugOverlay) {
+    (videoEl as any)._debugOverlay.remove();
     delete (videoEl as any)._debugOverlay;
   }
+  
+  // Remove any unique class we added
+  Array.from(videoEl.classList).forEach(cls => {
+    if (cls.startsWith('video-ts-')) {
+      videoEl.classList.remove(cls);
+    }
+  });
+  
+  // Remove custom data attributes
+  delete videoEl.dataset.startTimePercent;
+  delete videoEl.dataset.endTimePercent;
 }
 
 /**
  * Updates the video timeline to visually represent the allowed segment.
+ * @param videoEl The video element.
+ * @param startTime The start time of the restricted segment.
+ * @param endTime The end time of the restricted segment (can be Infinity).
+ * @param duration The total duration of the video.
  */
-export function updateTimelineStyles(
-  videoEl: HTMLVideoElement,
-  startTime: number,
-  endTime: number,
-  duration: number
-): void {
+export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: number, endTime: number, duration: number): void {
+  // Clear any existing styles first
   clearTimelineStyles(videoEl);
-  if (!duration || !isFinite(duration) || duration <= 0) return;
+  
+  if (!duration || !isFinite(duration) || duration <= 0) {
+    console.debug('[VideoTimestamps] Cannot style timeline - invalid duration');
+    return;
+  }
 
+  // Calculate percentages for CSS
   const startPercent = Math.max(0, Math.min(100, (startTime / duration) * 100));
-  const endPercent = endTime === Infinity
-    ? 100
-    : Math.max(0, Math.min(100, (endTime / duration) * 100));
-
-  addVisualTimelineDebugOverlay(videoEl, startPercent, endPercent);
+  const endPercent = endTime === Infinity ? 100 : Math.max(0, Math.min(100, (endTime / duration) * 100));
+  
+  // Store percentages as data attributes for potential JavaScript usage
+  videoEl.dataset.startTimePercent = startPercent.toFixed(2);
+  videoEl.dataset.endTimePercent = endPercent.toFixed(2);
+  
+  // Create unique ID for this video element to target CSS
+  const videoId = `video-ts-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  videoEl.classList.add(videoId);
+  
+  // Also create external styles as fallback
+  const cssContent = `
+    /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}% to ${endPercent.toFixed(2)}% */
+    .${videoId} {
+      --ts-start-percent: ${startPercent}%;
+      --ts-end-percent: ${endPercent}%;
+    }
+    
+    /* Chrome/Edge approach: multi-layered targeting */
+    .${videoId}::-webkit-media-controls-timeline {
+      background: linear-gradient(to right, 
+        rgba(240, 50, 50, 0.8) 0%, 
+        rgba(240, 50, 50, 0.8) var(--ts-start-percent), 
+        rgba(76, 175, 80, 0.8) var(--ts-start-percent), 
+        rgba(76, 175, 80, 0.8) var(--ts-end-percent), 
+        rgba(240, 50, 50, 0.8) var(--ts-end-percent), 
+        rgba(240, 50, 50, 0.8) 100%) !important;
+    }
+  `;
+  
+  // Create and inject style element next to the video
+  const styleEl = document.createElement('style');
+  styleEl.className = 'video-timestamps-style';
+  styleEl.textContent = cssContent;
+  
+  // Add to parent if possible, otherwise add directly to document head
+  if (videoEl.parentNode) {
+    videoEl.parentNode.insertBefore(styleEl, videoEl.nextSibling);
+  } else {
+    document.head.appendChild(styleEl);
+  }
+  
+  // Try to force a reflow of the timeline
+  setTimeout(() => {
+    try {
+      if (videoEl.shadowRoot) {
+        const timeline = videoEl.shadowRoot.querySelector('input[pseudo="-webkit-media-controls-timeline"]');
+        if (timeline) {
+          // Force a style recalculation - cast to HTMLElement properly
+          const htmlTimeline = timeline as HTMLElement;
+          htmlTimeline.style.display = 'none';
+          void htmlTimeline.offsetHeight; // Trigger reflow
+          htmlTimeline.style.display = '';
+        }
+      }
+    } catch (e) {
+      // Ignore errors accessing shadow DOM
+    }
+  }, 100);
+  
+  console.debug('[VideoTimestamps] Applied timeline styling for range', startTime, 'to', endTime);
 }
 
 /**
- * Add a visual overlay for allowed/restricted regions.
+ * Dump shadow DOM structure to help debug styling issues
  */
-function addVisualTimelineDebugOverlay(
-  videoEl: HTMLVideoElement,
-  startPercent: number,
-  endPercent: number
-): void {
-  const container = videoEl.parentElement;
-  if (!container) return;
-  container.style.position = container.style.position || 'relative';
-
-  const overlay = document.createElement('div');
-  overlay.className = 'video-timestamps-debug-overlay';
-
-  // build segment definitions
-  const segments = [
-    { cls: 'video-timestamps-before-segment', width: startPercent },
-    { cls: 'video-timestamps-allowed-segment', width: endPercent - startPercent },
-    { cls: 'video-timestamps-after-segment', width: 100 - endPercent }
-  ];
-
-  // only append segments with positive width
-  for (const seg of segments) {
-    if (seg.width > 0) {
-      const el = document.createElement('div');
-      el.className = seg.cls;
-      el.style.width = `${seg.width}%`;
-      overlay.appendChild(el);
+function dumpShadowDomStructure(videoEl: HTMLVideoElement): void {
+  try {
+    if (!videoEl.shadowRoot) {
+      console.debug('[VideoTimestamps] No shadow root available for inspection');
+      return;
     }
+    
+    const timeline = videoEl.shadowRoot.querySelector('input[pseudo="-webkit-media-controls-timeline"]');
+    console.debug('[VideoTimestamps] Timeline element:', timeline);
+    
+    if (timeline) {
+      console.debug('[VideoTimestamps] Timeline attributes:', 
+                  Array.from(timeline.attributes).map(attr => `${attr.name}="${attr.value}"`).join(' '));
+                  
+      if (timeline.shadowRoot) {
+        console.debug('[VideoTimestamps] Timeline has its own shadow root:', timeline.shadowRoot);
+        const trackSegments = timeline.shadowRoot.querySelectorAll('div[pseudo]');
+        console.debug('[VideoTimestamps] Track segments:', trackSegments, 
+                    Array.from(trackSegments).map(el => el.getAttribute('pseudo')));
+      } else {
+        console.debug('[VideoTimestamps] Timeline does not have its own shadow root');
+      }
+    }
+    
+    // Log all shadow elements with pseudo attributes
+    const allPseudoElements = videoEl.shadowRoot.querySelectorAll('[pseudo]');
+    console.debug('[VideoTimestamps] All pseudo elements in shadow DOM:', 
+                Array.from(allPseudoElements).map(el => `${el.tagName}[pseudo="${el.getAttribute('pseudo')}"]`));
+  } catch (e) {
+    console.debug('[VideoTimestamps] Error inspecting shadow DOM:', e);
   }
-
-  container.appendChild(overlay);
-  (videoEl as any)._debugOverlay = overlay;
 }
 
 /**
@@ -183,12 +261,4 @@ function dumpVideoStructure(videoEl: HTMLVideoElement): void {
   console.debug('[VideoTimestamps] Video controls enabled:', videoEl.controls);
   console.debug('[VideoTimestamps] Video classes:', videoEl.className);
   console.debug('[VideoTimestamps] Video parent:', videoEl.parentElement);
-}
-
-// Helper function kept for backwards compatibility
-function getTimelineSegments(videoEl: HTMLVideoElement): { 
-  before: HTMLElement | null; 
-  after: HTMLElement | null; 
-} | null {
-  return null; // No longer used but kept for API compatibility
 }
