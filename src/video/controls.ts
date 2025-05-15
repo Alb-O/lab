@@ -90,6 +90,105 @@ function setupSingleVideoControls(videoEl: HTMLVideoElement): void {
   videoEl.addEventListener('mouseenter', () => videoEl.classList.add('hovered'));
   videoEl.addEventListener('mouseleave', () => videoEl.classList.remove('hovered'));
   
+  // Add filename label inline before the video container
+  const fileName = videoEl.dataset.timestampPath
+      || videoEl.src.split('/').pop() 
+      || '';
+  const label = document.createElement('div');
+  label.className = 'video-timestamps-filename';
+  label.textContent = fileName;
+  const container = videoEl.parentElement;
+  // insert label as a sibling before the container
+  if (container?.parentElement) {
+      container.parentElement.insertBefore(label, container);
+  }
+
   // Mark as initialized
   videoEl.dataset.controlsInitialized = 'true';
+}
+
+/**
+ * Clears custom timeline styling for the allowed segment.
+ */
+export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
+  // Remove debug overlay if it exists
+  const overlay = (videoEl as any)._debugOverlay as HTMLElement;
+  if (overlay) {
+    overlay.remove();
+    delete (videoEl as any)._debugOverlay;
+  }
+}
+
+/**
+ * Updates the video timeline to visually represent the allowed segment.
+ */
+export function updateTimelineStyles(
+  videoEl: HTMLVideoElement,
+  startTime: number,
+  endTime: number,
+  duration: number
+): void {
+  clearTimelineStyles(videoEl);
+  if (!duration || !isFinite(duration) || duration <= 0) return;
+
+  const startPercent = Math.max(0, Math.min(100, (startTime / duration) * 100));
+  const endPercent = endTime === Infinity
+    ? 100
+    : Math.max(0, Math.min(100, (endTime / duration) * 100));
+
+  addVisualTimelineDebugOverlay(videoEl, startPercent, endPercent);
+}
+
+/**
+ * Add a visual overlay for allowed/restricted regions.
+ */
+function addVisualTimelineDebugOverlay(
+  videoEl: HTMLVideoElement,
+  startPercent: number,
+  endPercent: number
+): void {
+  const container = videoEl.parentElement;
+  if (!container) return;
+  container.style.position = container.style.position || 'relative';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'video-timestamps-debug-overlay';
+
+  // build segment definitions
+  const segments = [
+    { cls: 'video-timestamps-before-segment', width: startPercent },
+    { cls: 'video-timestamps-allowed-segment', width: endPercent - startPercent },
+    { cls: 'video-timestamps-after-segment', width: 100 - endPercent }
+  ];
+
+  // only append segments with positive width
+  for (const seg of segments) {
+    if (seg.width > 0) {
+      const el = document.createElement('div');
+      el.className = seg.cls;
+      el.style.width = `${seg.width}%`;
+      overlay.appendChild(el);
+    }
+  }
+
+  container.appendChild(overlay);
+  (videoEl as any)._debugOverlay = overlay;
+}
+
+/**
+ * Dump basic video structure
+ */
+function dumpVideoStructure(videoEl: HTMLVideoElement): void {
+  console.debug('[VideoTimestamps] Video element:', videoEl);
+  console.debug('[VideoTimestamps] Video controls enabled:', videoEl.controls);
+  console.debug('[VideoTimestamps] Video classes:', videoEl.className);
+  console.debug('[VideoTimestamps] Video parent:', videoEl.parentElement);
+}
+
+// Helper function kept for backwards compatibility
+function getTimelineSegments(videoEl: HTMLVideoElement): { 
+  before: HTMLElement | null; 
+  after: HTMLElement | null; 
+} | null {
+  return null; // No longer used but kept for API compatibility
 }

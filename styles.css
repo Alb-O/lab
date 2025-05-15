@@ -1,10 +1,75 @@
 /* Hide controls by default */
 video::-webkit-media-controls {
-  opacity: 0 !important;
-  transition: opacity 0.3s ease;
+    opacity: 0 !important;
+    transition: opacity 0.3s ease;
 }
+
 /* Show only on hover or JS 'hovered' */
 video.hovered::-webkit-media-controls,
 video:hover::-webkit-media-controls {
-  opacity: 1 !important;
+    opacity: 1 !important;
+}
+
+/* Overlay debug segments */
+.video-timestamps-debug-overlay {
+    position: absolute;
+    bottom: 8px;
+    left: 0;
+    width: 100%;
+    padding: 0 16px;
+    height: 6px;
+    pointer-events: none;
+    display: flex;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* Each segment fills height */
+.video-timestamps-debug-overlay > div {
+    height: 100%;
+    flex-shrink: 0;
+}
+
+/* Round whichever segment is first */
+.video-timestamps-debug-overlay > div:first-child {
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+/* Round whichever segment is last */
+.video-timestamps-debug-overlay > div:last-child {
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+/* Red before segment */
+.video-timestamps-before-segment {
+    background: rgba(220, 53, 69, 0.6);
+}
+
+/* Green allowed segment */
+.video-timestamps-allowed-segment {
+    background: rgba(40, 167, 69, 0.6);
+    margin-left: 0;
+}
+
+/* Red after segment */
+.video-timestamps-after-segment {
+    background: rgba(220, 53, 69, 0.6);
+    margin-left: 0;
+}
+
+/* Video filename label */
+.video-timestamps-filename {
+    position: absolute;
+    top: -18px;
+    left: 16px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 6px;
+    border-radius: 3px;
+    pointer-events: none;
+    white-space: nowrap;
+    user-select: none;
 }

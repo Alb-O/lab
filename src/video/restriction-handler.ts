@@ -1,5 +1,6 @@
 import * as debug from 'debug';
 import { TimestampHandler, VideoState } from '../timestamps/types';
+import { updateTimelineStyles } from './controls';
 
 /**
  * Handles video events and enforces timestamp restrictions
@@ -31,6 +32,20 @@ export class VideoRestrictionHandler implements TimestampHandler {
         
         // Store the state object on the video element for persistence
         (videoEl as any)._timestampState = state;
+        
+        // Apply timeline styling if video has loaded metadata
+        if (videoEl.duration) {
+            updateTimelineStyles(videoEl, startTime, endTime, videoEl.duration);
+        }
+        
+        // Add event listener for loaded metadata to style timeline when ready
+        const metadataHandler = () => {
+            if (videoEl.duration) {
+                updateTimelineStyles(videoEl, startTime, endTime, videoEl.duration);
+            }
+        };
+        videoEl.addEventListener('loadedmetadata', metadataHandler);
+        (videoEl as any)._metadataHandler = metadataHandler;
         
         // Flag to track programmatic pauses
         let isProgrammaticPause = false;
@@ -370,6 +385,12 @@ export class VideoRestrictionHandler implements TimestampHandler {
      * Clean up all timestamp handlers from a video element
      */
     public cleanup(videoEl: HTMLVideoElement): void {
+        // Remove the loadedmetadata handler if it exists
+        if ((videoEl as any)._metadataHandler) {
+            videoEl.removeEventListener('loadedmetadata', (videoEl as any)._metadataHandler);
+            delete (videoEl as any)._metadataHandler;
+        }
+        
         const masterHandler = (videoEl as any)._timestampMasterHandler;
         if (masterHandler) {
             this.detachEventHandlers(videoEl, masterHandler);
