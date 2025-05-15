@@ -136,6 +136,14 @@ export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
   delete videoEl.dataset.endTimePercent;
 }
 
+// === Video timeline color variables ===
+const TIMELINE_GREEN = 'rgba(76,175,80,0.8)';
+const TIMELINE_GREEN_FADE = 'rgba(76,175,80,0)';
+const TIMELINE_BG = 'rgba(240,50,50,0)';
+const TIMELINE_RIGHT = 'rgba(76,175,80,0)';
+
+const FADE_LENGTH = 32; // Length of the fade effect in pixels
+
 /**
  * Updates the video timeline to visually represent the allowed segment.
  * @param videoEl The video element.
@@ -146,78 +154,122 @@ export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
 export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: number, endTime: number, duration: number): void {
   // Clear any existing styles first
   clearTimelineStyles(videoEl);
-  
+
   if (!duration || !isFinite(duration) || duration <= 0) {
     console.debug('[VideoTimestamps] Cannot style timeline - invalid duration');
     return;
   }
 
-  // Calculate percentages for CSS
   const startPercent = Math.max(0, Math.min(100, (startTime / duration) * 100));
   const endPercent = endTime === Infinity ? 100 : Math.max(0, Math.min(100, (endTime / duration) * 100));
-  
-  // Store percentages as data attributes for potential JavaScript usage
   videoEl.dataset.startTimePercent = startPercent.toFixed(2);
   videoEl.dataset.endTimePercent = endPercent.toFixed(2);
-  
-  // Create unique ID for this video element to target CSS
+
   const videoId = `video-ts-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   videoEl.classList.add(videoId);
-  
-  // Also create external styles as fallback
-  const cssContent = `
-    /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
-    .${videoId} {
-      --ts-start-percent: ${startPercent}%;
-      --ts-end-percent: ${endPercent}%;
-      --ts-green-width: calc(var(--ts-end-percent) - var(--ts-start-percent));
-      --ts-right-width: calc(100% - var(--ts-end-percent));
-      --red-solid: linear-gradient(rgba(240,50,50,0.8), rgba(240,50,50,0.8));
-      --green-solid: linear-gradient(rgba(76,175,80,0.8), rgba(76,175,80,0.8));
-    }
 
-    .${videoId}::-webkit-media-controls-timeline {
-      background:
-        /* left red */
-        var(--red-solid) 0% 0% / var(--ts-start-percent) 100% no-repeat content-box,
-        /* green */
-        var(--green-solid) var(--ts-start-percent) 0% / var(--ts-green-width) 100% no-repeat content-box,
-        /* right red */
-        var(--red-solid) var(--ts-end-percent) 0% / var(--ts-right-width) 100% no-repeat content-box
-      !important;
+  // Try to get the track bar's left offset and width from the shadow DOM
+  let trackLeft = 16, trackWidth = 0, totalWidth = 0;
+  try {
+    if (videoEl.shadowRoot) {
+      const track = videoEl.shadowRoot.querySelector('div[pseudo="-internal-media-controls-segmented-track"]') as HTMLElement;
+      if (track) {
+        const rect = track.getBoundingClientRect();
+        const parentRect = (track.parentElement as HTMLElement)?.getBoundingClientRect();
+        trackLeft = rect.left - (parentRect?.left ?? 0);
+        trackWidth = rect.width;
+        totalWidth = (track.parentElement as HTMLElement)?.offsetWidth ?? (trackWidth + 2 * trackLeft);
+      }
     }
-  `;
-  
-  // Create and inject style element next to the video
+  } catch (e) {
+    trackLeft = 16;
+    trackWidth = 0;
+    totalWidth = 0;
+  }
+
+  // Account for 6px thumb radius on both sides
+  const thumbRadius = 6;
+  let effectiveTrackLeft = trackLeft + thumbRadius;
+  let effectiveTrackWidth = trackWidth ? trackWidth - 2 * thumbRadius : 0;
+
+  // If we have the real track width, use it; otherwise, fallback to 16px+6px padding and 100% width minus 12px
+  let startPx = `calc(${trackLeft + thumbRadius}px + ${startPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100)`;
+  let endPx = `calc(${trackLeft + thumbRadius}px + ${endPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100)`;
+
+  if (trackWidth && totalWidth) {
+    startPx = `${effectiveTrackLeft + (effectiveTrackWidth * startPercent / 100)}px`;
+    endPx = `${effectiveTrackLeft + (effectiveTrackWidth * endPercent / 100)}px`;
+  }
+
+  let cssContent: string;
+
+  if (endTime === Infinity) {
+    // Draw a green segment that starts at startPx and fades out to transparent over 16px
+    let fadeStartPx: string, fadeEndPx: string;
+    if (trackWidth && totalWidth) {
+      const center = effectiveTrackLeft + (effectiveTrackWidth * startPercent / 100);
+      fadeStartPx = `${center}px`;
+      fadeEndPx = `${center + FADE_LENGTH}px`;
+    } else {
+      fadeStartPx = `calc(${trackLeft + thumbRadius}px + ${startPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100)`;
+      fadeEndPx = `calc(${trackLeft + thumbRadius}px + ${startPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100 + ${FADE_LENGTH}px)`;
+    }
+    cssContent = `
+      /* Timeline styling: green segment fades out from start, customizable right side */
+      .${videoId}::-webkit-media-controls-timeline {
+        background-origin: content-box !important;
+        background-clip: content-box !important;
+        background: linear-gradient(to right,
+          ${TIMELINE_BG} 0px,
+          ${TIMELINE_BG} ${fadeStartPx},
+          ${TIMELINE_GREEN} ${fadeStartPx},
+          ${TIMELINE_GREEN_FADE} ${fadeEndPx},
+          ${TIMELINE_RIGHT} ${fadeEndPx},
+          ${TIMELINE_RIGHT} 100%
+        ) !important;
+      }
+    `;
+  } else {
+    cssContent = `
+      /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
+      .${videoId}::-webkit-media-controls-timeline {
+        background-origin: content-box !important;
+        background-clip: content-box !important;
+        background: linear-gradient(to right,
+          ${TIMELINE_BG} 0px,
+          ${TIMELINE_BG} ${startPx},
+          ${TIMELINE_GREEN} ${startPx},
+          ${TIMELINE_GREEN} ${endPx},
+          ${TIMELINE_BG} ${endPx},
+          ${TIMELINE_BG} 100%
+        ) !important;
+      }
+    `;
+  }
+
   const styleEl = document.createElement('style');
   styleEl.className = 'video-timestamps-style';
   styleEl.textContent = cssContent;
-  
-  // Add to parent if possible, otherwise add directly to document head
   if (videoEl.parentNode) {
     videoEl.parentNode.insertBefore(styleEl, videoEl.nextSibling);
   } else {
     document.head.appendChild(styleEl);
   }
-  
-  // Try to force a reflow of the timeline
+
   setTimeout(() => {
     try {
       if (videoEl.shadowRoot) {
         const timeline = videoEl.shadowRoot.querySelector('input[pseudo="-webkit-media-controls-timeline"]');
         if (timeline) {
-          // Force a style recalculation - cast to HTMLElement properly
           const htmlTimeline = timeline as HTMLElement;
           htmlTimeline.style.display = 'none';
-          void htmlTimeline.offsetHeight; // Trigger reflow
+          void htmlTimeline.offsetHeight;
           htmlTimeline.style.display = '';
         }
       }
-    } catch (e) {
-      // Ignore errors accessing shadow DOM
-    }
+    } catch (e) {}
   }, 100);
-  
+
   console.debug('[VideoTimestamps] Applied timeline styling for range', startTime, 'to', endTime);
 }
 
@@ -255,14 +307,4 @@ function dumpShadowDomStructure(videoEl: HTMLVideoElement): void {
   } catch (e) {
     console.debug('[VideoTimestamps] Error inspecting shadow DOM:', e);
   }
-}
-
-/**
- * Dump basic video structure
- */
-function dumpVideoStructure(videoEl: HTMLVideoElement): void {
-  console.debug('[VideoTimestamps] Video element:', videoEl);
-  console.debug('[VideoTimestamps] Video controls enabled:', videoEl.controls);
-  console.debug('[VideoTimestamps] Video classes:', videoEl.className);
-  console.debug('[VideoTimestamps] Video parent:', videoEl.parentElement);
 }
