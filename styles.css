@@ -10,8 +10,8 @@ video:hover::-webkit-media-controls {
 }
 
 body {
-  --video-ts-timeline-playable: var(--color-accent);
-  --video-ts-timeline-playable-fade: rgba(76,175,80,0);
-  --video-ts-timeline-playable-right: rgba(76,175,80,0);
-  --video-ts-timeline-bg: rgba(240,50,50,0);
+  --video-ts-timeline-playable: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.5);
+  --video-ts-timeline-playable-fade: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
+  --video-ts-timeline-playable-right: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
+  --video-ts-timeline-bg: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
 }

@@ -1,9 +1,10 @@
-import { MarkdownView, Notice, Plugin } from 'obsidian';
+import { MarkdownView, Notice, Plugin, WorkspaceLeaf } from 'obsidian';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './video';
 import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
 import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
+import { updateTimelineStyles } from './video/styles';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
@@ -12,6 +13,8 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 	pluginEventHandler: PluginEventHandler;
 	private videoObserver: MutationObserver | null = null;
 	private contextMenuCleanup: (() => void) | null = null;
+	private resizeHandler: (() => void) | null = null;
+	private origLeafOnResize: ((...args: any[]) => any) | null = null;
 
 	async onload() {
 		// Load settings
@@ -77,11 +80,46 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		// Add a settings tab
 		this.addSettingTab(new VideoTimestampsSettingTab(this.app, this));
 
+		// Add a window resize handler to update timeline styles
+		this.resizeHandler = () => {
+			document.querySelectorAll('video').forEach((videoEl) => {
+				const state = (videoEl as any)._timestampState;
+				if (state && typeof state.startTime === 'number' && typeof state.endTime === 'number') {
+					updateTimelineStyles(
+						videoEl as HTMLVideoElement,
+						state.startTime,
+						state.endTime,
+						(videoEl as HTMLVideoElement).duration
+					);
+				}
+			});
+		};
+		window.addEventListener('resize', this.resizeHandler);
+
+		// Patch WorkspaceLeaf.onResize to also update timeline styles
+		const self = this;
+		let proto: any = null;
+		let foundLeaf: WorkspaceLeaf | undefined = undefined;
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (!foundLeaf) foundLeaf = leaf;
+		});
+		proto = (foundLeaf ? Object.getPrototypeOf(foundLeaf) : WorkspaceLeaf.prototype);
+		if (proto && proto.onResize && !proto._videoTsPatched) {
+			this.origLeafOnResize = proto.onResize;
+			proto.onResize = function (...args: any[]) {
+				const result = self.origLeafOnResize?.apply(this, args);
+				self.resizeHandler?.();
+				return result;
+			};
+			proto._videoTsPatched = true;
+		}
+
 		// Initial detection on load, deferred until layout is ready
 		this.app.workspace.onLayoutReady(() => {
 			// Add a small delay to allow video elements to fully initialize their dimensions
 			setTimeout(() => {
 				this.detectVideosInActiveView();
+				this.resizeHandler?.(); // Ensure timeline styles are correct after layout
 			}, 500); // 500ms delay, can be adjusted
 		});
 	}
@@ -93,6 +131,25 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 			this.contextMenuCleanup = null;
 		}
 		cleanupVideoContextMenu();
+
+		// Clean up resize handler
+		if (this.resizeHandler) {
+			window.removeEventListener('resize', this.resizeHandler);
+			this.resizeHandler = null;
+		}
+
+		// Restore original WorkspaceLeaf.onResize if patched
+		let proto: any = null;
+		let foundLeaf: WorkspaceLeaf | undefined = undefined;
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (!foundLeaf) foundLeaf = leaf;
+		});
+		proto = (foundLeaf ? Object.getPrototypeOf(foundLeaf) : WorkspaceLeaf.prototype);
+		if (proto && proto._videoTsPatched && this.origLeafOnResize) {
+			proto.onResize = this.origLeafOnResize;
+			delete proto._videoTsPatched;
+			this.origLeafOnResize = null;
+		}
 	}
 
 	/**
