@@ -1,6 +1,6 @@
 import * as debug from 'debug';
 import { TimestampHandler, VideoState } from '../timestamps/types';
-import { updateTimelineStyles } from './controls';
+import { updateTimelineStyles } from './styles';
 
 /**
  * Handles video events and enforces timestamp restrictions

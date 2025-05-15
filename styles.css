@@ -8,3 +8,10 @@ video.hovered::-webkit-media-controls,
 video:hover::-webkit-media-controls {
   opacity: 1 !important;
 }
+
+body {
+  --video-ts-timeline-playable: var(--color-accent);
+  --video-ts-timeline-playable-fade: rgba(76,175,80,0);
+  --video-ts-timeline-playable-right: rgba(76,175,80,0);
+  --video-ts-timeline-bg: rgba(240,50,50,0);
+}
