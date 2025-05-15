@@ -82,37 +82,12 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 		// Add a window resize handler to update timeline styles
 		this.resizeHandler = () => {
-			document.querySelectorAll('video').forEach((videoEl) => {
-				const state = (videoEl as any)._timestampState;
-				if (state && typeof state.startTime === 'number' && typeof state.endTime === 'number') {
-					updateTimelineStyles(
-						videoEl as HTMLVideoElement,
-						state.startTime,
-						state.endTime,
-						(videoEl as HTMLVideoElement).duration
-					);
-				}
-			});
+			this.pluginEventHandler.handleResize();
 		};
 		window.addEventListener('resize', this.resizeHandler);
 
 		// Patch WorkspaceLeaf.onResize to also update timeline styles
-		const self = this;
-		let proto: any = null;
-		let foundLeaf: WorkspaceLeaf | undefined = undefined;
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			if (!foundLeaf) foundLeaf = leaf;
-		});
-		proto = (foundLeaf ? Object.getPrototypeOf(foundLeaf) : WorkspaceLeaf.prototype);
-		if (proto && proto.onResize && !proto._videoTsPatched) {
-			this.origLeafOnResize = proto.onResize;
-			proto.onResize = function (...args: any[]) {
-				const result = self.origLeafOnResize?.apply(this, args);
-				self.resizeHandler?.();
-				return result;
-			};
-			proto._videoTsPatched = true;
-		}
+		this.origLeafOnResize = this.pluginEventHandler.patchWorkspaceLeafOnResize();
 
 		// Initial detection on load, deferred until layout is ready
 		this.app.workspace.onLayoutReady(() => {
@@ -139,17 +114,8 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		}
 
 		// Restore original WorkspaceLeaf.onResize if patched
-		let proto: any = null;
-		let foundLeaf: WorkspaceLeaf | undefined = undefined;
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			if (!foundLeaf) foundLeaf = leaf;
-		});
-		proto = (foundLeaf ? Object.getPrototypeOf(foundLeaf) : WorkspaceLeaf.prototype);
-		if (proto && proto._videoTsPatched && this.origLeafOnResize) {
-			proto.onResize = this.origLeafOnResize;
-			delete proto._videoTsPatched;
-			this.origLeafOnResize = null;
-		}
+		this.pluginEventHandler.unpatchWorkspaceLeafOnResize(this.origLeafOnResize);
+		this.origLeafOnResize = null;
 	}
 
 	/**
