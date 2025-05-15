@@ -4,7 +4,6 @@ import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './video';
 import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
 import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
-import * as debug from 'debug';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
@@ -23,23 +22,16 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 		this.timestampController = new TimestampManager(this.settings, this);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
-		
-		// Add a ribbon icon to manually trigger video detection
-		const ribbonIconEl = this.addRibbonIcon('video', 'Detect Videos', (evt: MouseEvent) => {
-			this.detectVideosInActiveView();
-			new Notice('Video detection complete');
-		});
-		ribbonIconEl.addClass('video-timestamps-ribbon');
-		
+
 		// Setup video hover controls
 		setupVideoControls();
-		
+
 		// Clean up any existing context menu handlers first (in case of reload)
 		cleanupVideoContextMenu();
-		
+
 		// Setup Obsidian-native context menu for videos
 		this.contextMenuCleanup = setupVideoContextMenu(this.app);
-		
+
 		// Register for plugin cleanup on unload
 		this.register(() => {
 			if (this.contextMenuCleanup) {
@@ -56,14 +48,14 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 				this.pluginEventHandler.handleActiveLeafChange(leaf);
 			})
 		);
-		
+
 		// Register for file content changes
 		this.registerEvent(
 			this.app.metadataCache.on('changed', (file) => {
 				this.pluginEventHandler.handleMetadataChange(file);
 			})
 		);
-		
+
 		// Add a command to detect videos in current view
 		this.addCommand({
 			id: 'detect-videos-in-current-view',
@@ -73,7 +65,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 				new Notice(`Detected ${videos.length} video${videos.length !== 1 ? 's' : ''}`);
 			}
 		});
-		
+
 		// Set up MutationObserver to watch for dynamically added videos
 		this.videoObserver = this.timestampController.setupVideoObserver(() => this.detectVideosInActiveView());
 		this.register(() => {
@@ -81,14 +73,19 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 				this.videoObserver.disconnect();
 			}
 		});
-		
+
 		// Add a settings tab
 		this.addSettingTab(new VideoTimestampsSettingTab(this.app, this));
-		
-		// Initial detection on load
-		this.detectVideosInActiveView();
+
+		// Initial detection on load, deferred until layout is ready
+		this.app.workspace.onLayoutReady(() => {
+			// Add a small delay to allow video elements to fully initialize their dimensions
+			setTimeout(() => {
+				this.detectVideosInActiveView();
+			}, 500); // 500ms delay, can be adjusted
+		});
 	}
-	
+
 	public onunload() {
 		// Clean up context menu handlers
 		if (this.contextMenuCleanup) {
@@ -96,9 +93,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 			this.contextMenuCleanup = null;
 		}
 		cleanupVideoContextMenu();
-		
-		// Other cleanup is handled by register() calls in onload
-		debug.log('[Main] Plugin unloaded, context menu cleaned up');
 	}
 
 	/**
@@ -106,34 +100,28 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 	 * @returns Array of detected videos with timestamps across all views
 	 */
 	public detectVideosInActiveView(): VideoWithTimestamp[] {
-		debug.log('[Main] detectVideosInActiveView called');
 		const markdownViews: MarkdownView[] = [];
 		this.app.workspace.iterateAllLeaves(leaf => {
 			if (leaf.view instanceof MarkdownView) {
 				markdownViews.push(leaf.view);
 			}
 		});
-		
-		debug.log(`[Main] Found ${markdownViews.length} markdown views`);
-		
+
+
 		if (markdownViews.length === 0) {
-			debug.log('[Main] No markdown views found');
 			return [];
 		}
-		
+
 		const allVideos: VideoWithTimestamp[] = [];
 		for (const view of markdownViews) {
 			const videos = this.videoDetector.getVideosFromActiveView(view);
-			debug.log(`[Main] Detected ${videos.length} videos in view: ${view.file?.path}`);
 			allVideos.push(...videos);
 		}
-		
-		debug.log('[Main] Total videos detected across all views:', allVideos.length, allVideos);
 
 		this.timestampController.applyTimestampRestrictions(allVideos);
-		
+
 		if (allVideos.length > 0) this.videoDetector.debugVideos(allVideos);
-		
+
 		return allVideos;
 	}
 
