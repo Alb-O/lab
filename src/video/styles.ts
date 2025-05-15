@@ -26,6 +26,12 @@ export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
   if ((videoEl as any)._debugOverlay) {
     (videoEl as any)._debugOverlay.remove();
     delete (videoEl as any)._debugOverlay;
+  }  
+  // Remove any fullscreen change listeners
+  if ((videoEl as any)._fullscreenChangeHandler) {
+    document.removeEventListener('fullscreenchange', (videoEl as any)._fullscreenChangeHandler);
+    document.removeEventListener('webkitfullscreenchange', (videoEl as any)._fullscreenChangeHandler);
+    delete (videoEl as any)._fullscreenChangeHandler;
   }
   
   // Remove any unique class we added
@@ -63,11 +69,41 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
 
   const videoId = `video-ts-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   videoEl.classList.add(videoId);
-
+  
+  // Remove any existing fullscreen listeners
+  if ((videoEl as any)._fullscreenChangeHandler) {
+    document.removeEventListener('fullscreenchange', (videoEl as any)._fullscreenChangeHandler);
+    document.removeEventListener('webkitfullscreenchange', (videoEl as any)._fullscreenChangeHandler);
+  }
   // Try to get the track bar's left offset and width from the shadow DOM
+  const isFullscreen = document.fullscreenElement === videoEl || (document as any).webkitFullscreenElement === videoEl;
+  console.debug('[VideoTimestamps] Calculating track metrics - fullscreen:', isFullscreen);
   let trackLeft = 16, trackWidth = 0, totalWidth = 0;
+  
+  // Set up fullscreen change listener to re-apply styles when fullscreen state changes
+  const fullscreenChangeHandler = () => {
+    const newIsFullscreen = document.fullscreenElement === videoEl || (document as any).webkitFullscreenElement === videoEl;
+    console.debug('[VideoTimestamps] Fullscreen change detected:', newIsFullscreen);
+    // Short delay to allow browser to stabilize the fullscreen state
+    setTimeout(() => {
+      updateTimelineStyles(videoEl, startTime, endTime, duration);
+    }, 150);
+  };
+  
+  // Store the handler on the video element for later removal
+  (videoEl as any)._fullscreenChangeHandler = fullscreenChangeHandler;
+  document.addEventListener('fullscreenchange', fullscreenChangeHandler);
+  document.addEventListener('webkitfullscreenchange', fullscreenChangeHandler);
+  
   try {
-    if (videoEl.shadowRoot) {
+    if (isFullscreen) {
+      // Fullscreen mode requires different metrics
+      const fsControlsScale = 1.8; // Controls are approx. 1.8x larger in fullscreen
+      trackLeft = 16 * fsControlsScale;
+      trackWidth = window.innerWidth - (32 * fsControlsScale);
+      totalWidth = window.innerWidth;
+      console.debug('[VideoTimestamps] Using fullscreen metrics:', trackLeft, trackWidth, totalWidth);
+    } else if (videoEl.shadowRoot) {
       const track = videoEl.shadowRoot.querySelector('div[pseudo="-internal-media-controls-segmented-track"]') as HTMLElement;
       if (track) {
         const rect = track.getBoundingClientRect();
@@ -88,61 +124,45 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
   let effectiveTrackLeft = trackLeft + thumbRadius;
   let effectiveTrackWidth = trackWidth ? trackWidth - 2 * thumbRadius : 0;
 
-  // If we have the real track width, use it; otherwise, fallback to 16px+6px padding and 100% width minus 12px
-  let startPx = `calc(${trackLeft + thumbRadius}px + ${startPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100)`;
-  let endPx = `calc(${trackLeft + thumbRadius}px + ${endPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100)`;
-
-  if (trackWidth && totalWidth) {
-    startPx = `${effectiveTrackLeft + (effectiveTrackWidth * startPercent / 100)}px`;
-    endPx = `${effectiveTrackLeft + (effectiveTrackWidth * endPercent / 100)}px`;
+  // Fallback when track dimensions couldn't be measured
+  if (!effectiveTrackWidth || !totalWidth) {
+    const videoWidth = videoEl.offsetWidth;
+    totalWidth = videoWidth;
+    const defaultPadding = 16; // browser control side padding
+    effectiveTrackLeft = defaultPadding + thumbRadius;
+    effectiveTrackWidth = videoWidth - 2 * (defaultPadding + thumbRadius);
   }
 
-  let cssContent: string;
+  // Compute full control-relative gradient stops in percent
+  const fullStartPercent = totalWidth
+    ? ((effectiveTrackLeft + effectiveTrackWidth * (startPercent / 100)) / totalWidth) * 100
+    : startPercent;
+  const fullEndPercent = totalWidth
+    ? ((effectiveTrackLeft + effectiveTrackWidth * (endPercent / 100)) / totalWidth) * 100
+    : endPercent;
 
-  if (endTime === Infinity) {
-    // Draw a green segment that starts at startPx and fades out to transparent over fade length
-    let fadeStartPx: string, fadeEndPx: string;
-    const FADE_LENGTH = parseFloat(getCssVar('--video-ts-fade-length') || '32');
-    if (trackWidth && totalWidth) {
-      const center = effectiveTrackLeft + (effectiveTrackWidth * startPercent / 100);
-      fadeStartPx = `${center}px`;
-      fadeEndPx = `${center + FADE_LENGTH}px`;
-    } else {
-      fadeStartPx = `calc(${trackLeft + thumbRadius}px + ${startPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100)`;
-      fadeEndPx = `calc(${trackLeft + thumbRadius}px + ${startPercent} * (${trackWidth ? (trackWidth - 2 * thumbRadius) : '100% - 32px - 12px'}) / 100 + ${FADE_LENGTH}px)`;
+  // Prevent true edge snap: add small epsilon to account for padding gap
+  const epsilon = (thumbRadius / totalWidth) * 100;
+  const clampStart = Math.max(epsilon, Math.min(100 - epsilon, fullStartPercent));
+  const clampEnd = Math.max(epsilon, Math.min(100 - epsilon, fullEndPercent));
+
+  const bgColor = getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)';
+  const fgColor = getCssVar('--video-ts-timeline-playable') || 'rgba(76,175,80,0.8)';
+  const cssContent = `
+    /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
+    .${videoId}::-webkit-media-controls-timeline {
+      background-origin: content-box !important;
+      background-clip: content-box !important;
+      background: linear-gradient(to right,
+        ${bgColor} 0%,
+        ${bgColor} ${clampStart.toFixed(2)}%,
+        ${fgColor} ${clampStart.toFixed(2)}%,
+        ${fgColor} ${clampEnd.toFixed(2)}%,
+        ${bgColor} ${clampEnd.toFixed(2)}%,
+        ${bgColor} 100%
+      ) !important;
     }
-    cssContent = `
-      /* Timeline styling: green segment fades out from start, customizable right side */
-      .${videoId}::-webkit-media-controls-timeline {
-        background-origin: content-box !important;
-        background-clip: content-box !important;
-        background: linear-gradient(to right,
-          ${getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)'} 0px,
-          ${getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)'} ${fadeStartPx},
-          ${getCssVar('--video-ts-timeline-playable') || 'rgba(76,175,80,0.8)'} ${fadeStartPx},
-          ${getCssVar('--video-ts-timeline-playable-fade') || 'rgba(76,175,80,0)'} ${fadeEndPx},
-          ${getCssVar('--video-ts-timeline-playable-right') || 'rgba(76,175,80,0)'} ${fadeEndPx},
-          ${getCssVar('--video-ts-timeline-playable-right') || 'rgba(76,175,80,0)'} 100%
-        ) !important;
-      }
-    `;
-  } else {
-    cssContent = `
-      /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
-      .${videoId}::-webkit-media-controls-timeline {
-        background-origin: content-box !important;
-        background-clip: content-box !important;
-        background: linear-gradient(to right,
-          ${getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)'} 0px,
-          ${getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)'} ${startPx},
-          ${getCssVar('--video-ts-timeline-playable') || 'rgba(76,175,80,0.8)'} ${startPx},
-          ${getCssVar('--video-ts-timeline-playable') || 'rgba(76,175,80,0.8)'} ${endPx},
-          ${getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)'} ${endPx},
-          ${getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)'} 100%
-        ) !important;
-      }
-    `;
-  }
+  `;
 
   const styleEl = document.createElement('style');
   styleEl.className = 'video-timestamps-style';
