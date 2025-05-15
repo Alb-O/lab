@@ -103,7 +103,11 @@ export function isVideoFile(file: TFile): boolean {
  */
 export function observeVideos(onVideo: (video: HTMLVideoElement) => void): () => void {
   // Initialize existing videos
-  document.querySelectorAll('video').forEach(onVideo);
+  document.querySelectorAll('video').forEach(video => {
+    const videoSrc = video.currentSrc || video.src;
+    video.dataset.timestampPath = videoSrc;
+    onVideo(video);
+  });
 
   // Observe for new video elements
   const observer = new MutationObserver(mutations => {
@@ -111,9 +115,15 @@ export function observeVideos(onVideo: (video: HTMLVideoElement) => void): () =>
       if (mutation.type === 'childList') {
         for (const node of Array.from(mutation.addedNodes)) {
           if (node instanceof HTMLVideoElement) {
+            const videoSrc = node.currentSrc || node.src;
+            node.dataset.timestampPath = videoSrc;
             onVideo(node);
           } else if (node instanceof Element) {
-            node.querySelectorAll('video').forEach(onVideo);
+            node.querySelectorAll('video').forEach(video => {
+              const videoSrc = video.currentSrc || video.src;
+              video.dataset.timestampPath = videoSrc;
+              onVideo(video);
+            });
           }
         }
       }

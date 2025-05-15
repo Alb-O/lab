@@ -1,4 +1,4 @@
-import { Menu, Notice, TFile, MarkdownView } from 'obsidian';
+import { Menu, Notice, TFile, MarkdownView, FileManager } from 'obsidian';
 import { extractVideosFromMarkdownView, observeVideos } from '../video';
 import { formatTimestamp } from '../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
@@ -33,17 +33,48 @@ export function setupVideoContextMenu(app: any): () => void {
             const formattedTime = formatTimestamp(currentTime);
             
             // Get the path and file of the video
-            const path = video.dataset.timestampPath || 
-                         video.src.split('/').pop() || 
-                         'video';
+            const view = app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view) {
+              new Notice('Cannot copy timestamp outside markdown view.');
+              return;
+            }
+            const els = view.contentEl.querySelectorAll('video');
+            const idx = Array.from(els).indexOf(video);
+            let path: string;
+            if (view.getMode() === 'preview') {
+              path = video.dataset.timestampPath || '';
+            } else {
+              const videosMeta = extractVideosFromMarkdownView(view);
+              if (idx < 0 || idx >= videosMeta.length) {
+                new Notice('Video metadata not found.');
+                return;
+              }
+              path = videosMeta[idx].path;
+            }
+
+            console.log('Video path:', path);
                          
-            // Find the actual file if possible
+            // Find the actual file via metadataCache or vault path
+            const activeFile = app.workspace.getActiveFile();
             let file: TFile | null = null;
-            
-            try {
-              file = app.vault.getFileByPath(path);
-            } catch (error) {
-              console.error('Error finding video file:', error);
+            if (activeFile) {
+              const dest = app.metadataCache.getFirstLinkpathDest(path, activeFile.path);
+              if (dest instanceof TFile) {
+                file = dest;
+                console.log('Resolved via metadataCache:', file);
+              }
+            }
+            if (!file) {
+              const normalized = path.replace(/\\/g, '/').replace(/^\//, '');
+              const found = app.vault.getAbstractFileByPath(normalized);
+              if (found instanceof TFile) {
+                file = found;
+                console.log('Resolved via vault:', file);
+              }
+            }
+            if (!file) {
+              new Notice(`File not found: ${path}`);
+              return;
             }
             
             // Create a markdown link with timestamp

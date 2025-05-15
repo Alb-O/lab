@@ -2,10 +2,21 @@
  * Clears custom timeline styling for the allowed segment.
  * @param videoEl The video element.
  */
+interface CustomVideoElement extends HTMLVideoElement {
+  _shadowStyle?: HTMLStyleElement;
+  _debugOverlay?: HTMLElement;
+  _fullscreenChangeHandler?: () => void;
+}
+
+interface CustomDocument extends Document {
+  webkitFullscreenElement?: Element;
+}
+
 export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
+  const customVideoEl = videoEl as CustomVideoElement;
   // Remove injected style element if it exists
-  if (videoEl.parentNode) {
-    const container = videoEl.parentNode as HTMLElement;
+  if (customVideoEl.parentNode) {
+    const container = customVideoEl.parentNode as HTMLElement;
     const styleEl = container.querySelector('.video-timestamps-style');
     if (styleEl) {
       styleEl.remove();
@@ -14,25 +25,25 @@ export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
 
   // Remove shadow DOM injected style if it exists
   try {
-    if (videoEl.shadowRoot && (videoEl as any)._shadowStyle) {
-      (videoEl as any)._shadowStyle.remove();
-      delete (videoEl as any)._shadowStyle;
+    if (customVideoEl.shadowRoot && customVideoEl._shadowStyle) {
+      customVideoEl._shadowStyle.remove();
+      delete customVideoEl._shadowStyle;
     }
   } catch (e) {
     // Ignore shadow DOM access errors
   }
 
   // Remove debug overlay if it exists
-  if ((videoEl as any)._debugOverlay) {
-    (videoEl as any)._debugOverlay.remove();
-    delete (videoEl as any)._debugOverlay;
+  if (customVideoEl._debugOverlay) {
+    customVideoEl._debugOverlay.remove();
+    delete customVideoEl._debugOverlay;
   }
 
   // Remove any fullscreen change listeners
-  if ((videoEl as any)._fullscreenChangeHandler) {
-    document.removeEventListener('fullscreenchange', (videoEl as any)._fullscreenChangeHandler);
-    document.removeEventListener('webkitfullscreenchange', (videoEl as any)._fullscreenChangeHandler);
-    delete (videoEl as any)._fullscreenChangeHandler;
+  if (customVideoEl._fullscreenChangeHandler) {
+    document.removeEventListener('fullscreenchange', customVideoEl._fullscreenChangeHandler);
+    document.removeEventListener('webkitfullscreenchange', customVideoEl._fullscreenChangeHandler);
+    delete customVideoEl._fullscreenChangeHandler;
   }
 
   // Remove any unique class we added
@@ -55,9 +66,12 @@ export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
  * @param initialDuration The initial reported duration of the video.
  */
 export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: number, endTime: number, initialDuration: number): void {
+  const customVideoEl = videoEl as CustomVideoElement;
+  const customDocument = document as CustomDocument;
+
   const performStyling = (currentDuration: number) => {
     // Ensure styles are clear before applying new ones
-    clearTimelineStyles(videoEl);
+    clearTimelineStyles(customVideoEl);
 
     if (!currentDuration || !isFinite(currentDuration) || currentDuration <= 0) {
       return;
@@ -72,20 +86,20 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
     videoEl.classList.add(videoId);
 
     // Remove any existing fullscreen listeners
-    if ((videoEl as any)._fullscreenChangeHandler) {
-      document.removeEventListener('fullscreenchange', (videoEl as any)._fullscreenChangeHandler);
-      document.removeEventListener('webkitfullscreenchange', (videoEl as any)._fullscreenChangeHandler);
+    if (customVideoEl._fullscreenChangeHandler) {
+      document.removeEventListener('fullscreenchange', customVideoEl._fullscreenChangeHandler);
+      document.removeEventListener('webkitfullscreenchange', customVideoEl._fullscreenChangeHandler);
     }
 
     const fullscreenChangeHandler = () => {
-        performStyling(videoEl.duration);
+        performStyling(customVideoEl.duration);
     };
 
-    (videoEl as any)._fullscreenChangeHandler = fullscreenChangeHandler;
+    customVideoEl._fullscreenChangeHandler = fullscreenChangeHandler;
     document.addEventListener('fullscreenchange', fullscreenChangeHandler);
     document.addEventListener('webkitfullscreenchange', fullscreenChangeHandler);
 
-    const isFullscreen = document.fullscreenElement === videoEl || (document as any).webkitFullscreenElement === videoEl;
+    const isFullscreen = customDocument.fullscreenElement === customVideoEl || customDocument.webkitFullscreenElement === customVideoEl;
     let trackLeft = 16, trackWidth = 0, totalWidth = 0;
 
     try {
@@ -155,8 +169,8 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
 
     setTimeout(() => {
       try {
-        if (videoEl.shadowRoot) {
-          const timeline = videoEl.shadowRoot.querySelector('input[pseudo="-webkit-media-controls-timeline"]');
+        if (customVideoEl.shadowRoot) {
+          const timeline = customVideoEl.shadowRoot.querySelector('input[pseudo="-webkit-media-controls-timeline"]');
           if (timeline) {
             const htmlTimeline = timeline as HTMLElement;
             htmlTimeline.style.display = 'none';
