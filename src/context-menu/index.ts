@@ -1,4 +1,4 @@
-import { Menu, Notice, TFile, MarkdownView, FileManager } from 'obsidian';
+import { Menu, Notice, TFile, MarkdownView, FileManager, normalizePath } from 'obsidian';
 import { extractVideosFromMarkdownView, observeVideos } from '../video';
 import { formatTimestamp } from '../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
@@ -39,40 +39,69 @@ export function setupVideoContextMenu(app: any): () => void {
 
             let targetFile: TFile | null = null;
             let sourcePathForLink: string = '';
-            let videoPathToResolve: string | null = null;
+            let originalVideoSrcForNotice: string | null = video.dataset.timestampPath || video.currentSrc || video.src;
 
             if (activeLeaf.view instanceof MarkdownView) {
               const mdView = activeLeaf.view;
               sourcePathForLink = mdView.file?.path || '';
 
               if (mdView.getMode() === 'preview') {
-                videoPathToResolve = video.dataset.timestampPath || null;
+                const currentVideoSrc = video.dataset.timestampPath || video.currentSrc || video.src;
+                if (currentVideoSrc) {
+                    if (currentVideoSrc.startsWith('app://')) {
+                        try {
+                            const url = new URL(currentVideoSrc);
+                            let absPathFromUrl = decodeURIComponent(url.pathname); // Already decoded by URL constructor
+
+                            // Normalize: remove leading slash if it's not part of a Windows drive, and use forward slashes
+                            if (absPathFromUrl.startsWith('/') && absPathFromUrl.length > 1 && absPathFromUrl[1] !== ':') {
+                                absPathFromUrl = absPathFromUrl.substring(1);
+                            }
+                            absPathFromUrl = normalizePath(absPathFromUrl); // Obsidian's normalizePath handles separators
+
+                            const vaultBasePath = normalizePath(app.vault.adapter.getBasePath());
+                            
+                            if (absPathFromUrl.toLowerCase().startsWith(vaultBasePath.toLowerCase())) {
+                                const relativePath = normalizePath(absPathFromUrl.substring(vaultBasePath.length + (vaultBasePath.endsWith('/') ? 0 : 1) ));
+                                targetFile = app.vault.getFileByPath(relativePath);
+                            }
+                            
+                            if (!targetFile) {
+                                 console.warn(`VideoTimestamps: Could not find TFile for app:// URL. Derived relative path: ${absPathFromUrl.substring(vaultBasePath.length + 1)}. Original src: ${currentVideoSrc}`);
+                            }
+                        } catch (e) {
+                            console.error('VideoTimestamps: Error parsing app:// URL for video path:', currentVideoSrc, e);
+                        }
+                    } else { // Not an app:// URL, try resolving normally (e.g. relative path or linktext from dataset)
+                        const pathFromDataset = currentVideoSrc.split('#')[0];
+                        const resolvedFile = app.metadataCache.getFirstLinkpathDest(pathFromDataset, sourcePathForLink);
+                        if (resolvedFile instanceof TFile) {
+                            targetFile = resolvedFile;
+                        } else {
+                            const normalizedDirectPath = normalizePath(pathFromDataset);
+                            const foundFile = app.vault.getFileByPath(normalizedDirectPath);
+                            if (foundFile instanceof TFile) {
+                                targetFile = foundFile;
+                            }
+                        }
+                    }
+                }
               } else { // Source or Live Preview mode
                 const videosMeta = extractVideosFromMarkdownView(mdView);
                 const els = mdView.contentEl.querySelectorAll('video');
                 const idx = Array.from(els).indexOf(video);
                 if (idx >= 0 && idx < videosMeta.length) {
-                  videoPathToResolve = videosMeta[idx].path; // This should be the resolved TFile path
-                } else {
-                  new Notice('Video metadata not found in editor view.');
-                  return;
+                  const videoMetaPath = videosMeta[idx].path; 
+                  const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath); // .path is already vault-relative
+                  if (resolvedFile instanceof TFile) {
+                    targetFile = resolvedFile;
+                  }
+                }
+                if (!targetFile) {
+                    new Notice('Video metadata not found or file unresolved in editor view.');
+                    return;
                 }
               }
-              
-              if (videoPathToResolve) {
-                const resolvedFile = app.metadataCache.getFirstLinkpathDest(videoPathToResolve, sourcePathForLink);
-                if (resolvedFile instanceof TFile) {
-                  targetFile = resolvedFile;
-                } else {
-                    // Fallback for paths that might be absolute or need direct vault lookup
-                    const normalizedPath = videoPathToResolve.replace(/\\/g, '/').replace(/^\//, '');
-                    const foundFile = app.vault.getAbstractFileByPath(normalizedPath);
-                    if (foundFile instanceof TFile) {
-                        targetFile = foundFile;
-                    }
-                }
-              }
-
             } else if (activeLeaf.view.getViewType() === 'video' && activeLeaf.view.file instanceof TFile) {
               targetFile = activeLeaf.view.file;
               sourcePathForLink = ''; // For vault-absolute link
@@ -82,7 +111,7 @@ export function setupVideoContextMenu(app: any): () => void {
             }
 
             if (!targetFile) {
-              new Notice(`Video file not found for path: ${videoPathToResolve || 'unknown'}`);
+              new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
               return;
             }
             
@@ -92,8 +121,8 @@ export function setupVideoContextMenu(app: any): () => void {
               targetPathOrFile: targetFile,
               sourcePathOrFile: sourcePathForLink,
               subpath: timestampParam,
-              alias: formattedTime, // Use formatted time as alias
-              isEmbed: true // Make it an embed link ![[...]]
+              alias: formattedTime,
+              isEmbed: true
             });
             
             // Copy to clipboard
