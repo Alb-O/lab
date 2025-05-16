@@ -11,14 +11,16 @@ export { setupVideoControls } from './controls';
  */
 export interface VideoWithTimestamp {
     file: TFile | null;
-    path: string;
-    linktext: string;
+    path: string; // Resolved path to the TFile
+    linktext: string; // Full original link text, e.g., ![[video.mp4#t=1]]
     timestamp: TempFragment | null;
     isEmbedded: boolean;
     position: {
         start: { line: number; col: number };
         end: { line: number; col: number };
     };
+    originalLinkPath: string; // The path part of the link before any #subpath, e.g., "video.mp4"
+    originalSubpath: string | null; // The subpath part of the link, e.g., "#t=1", or null if none
 }
 
 /**
@@ -39,22 +41,24 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
         let m: RegExpExecArray | null;
         while ((m = wikiRegex.exec(line))) {
             const isEmbedded = !!m[1];
-            const raw = m[2];
-            const { linkPath: path, subpath } = splitSubpath(raw);
-            const file = view.app.metadataCache.getFirstLinkpathDest(path, activeFile.path) || null;
+            const rawLinkContent = m[2]; // e.g., "video.mp4#t=1" or "video.mp4"
+            const { linkPath: parsedLinkPath, subpath: parsedSubpath } = splitSubpath(rawLinkContent);
+            const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, activeFile.path) || null;
             if (!file || !isVideoFile(file)) continue;
             const position = {
                 start: { line: i, col: m.index },
                 end:   { line: i, col: m.index + m[0].length }
             };
-            const timestamp = parseTempFrag(subpath);
+            const timestamp = parseTempFrag(parsedSubpath);
             result.push({
                 file,
-                path,
+                path: file.path, // Store resolved file path
                 linktext: m[0],
                 timestamp,
                 isEmbedded,
-                position
+                position,
+                originalLinkPath: parsedLinkPath,
+                originalSubpath: parsedSubpath ? parsedSubpath : null
             });
         }
     });
@@ -65,22 +69,24 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
         let m: RegExpExecArray | null;
         while ((m = mdRegex.exec(line))) {
             const linktext = m[0];
-            const url = m[2];
-            const { linkPath: path, subpath } = splitSubpath(url);
-            const file = view.app.metadataCache.getFirstLinkpathDest(path, activeFile.path) || null;
+            const url = m[2]; // e.g., "video.mp4#t=1" or "video.mp4"
+            const { linkPath: parsedLinkPath, subpath: parsedSubpath } = splitSubpath(url);
+            const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, activeFile.path) || null;
             if (!file || !isVideoFile(file)) continue;
             const position = {
                 start: { line: i, col: m.index },
                 end:   { line: i, col: m.index + linktext.length }
             };
-            const timestamp = parseTempFrag(subpath);
+            const timestamp = parseTempFrag(parsedSubpath);
             result.push({
                 file,
-                path,
+                path: file.path, // Store resolved file path
                 linktext,
                 timestamp,
-                isEmbedded: false,
-                position
+                isEmbedded: false, // Markdown links are not considered "embeds" in the same way as ![[...]] for this logic
+                position,
+                originalLinkPath: parsedLinkPath,
+                originalSubpath: parsedSubpath ? parsedSubpath : null
             });
         }
     });

@@ -72,7 +72,7 @@ function getTimeSpan(
 /**
  * Convert a time string to seconds
  */
-function convertTime(time: string): number | null {
+export function convertTime(time: string): number | null {
     if (timePatterns.npt_sec.test(time)) {
         return parseFloat(time);
     }

@@ -3,6 +3,7 @@ import { VideoWithTimestamp } from '../video';
 import { VideoTimestampsSettings } from '../settings';
 import { TimestampHandler } from './types';
 import { VideoRestrictionHandler } from '../video/restriction-handler';
+import { convertTime } from './utils'; 
 
 /**
  * Manages timestamp restrictions for videos in Obsidian
@@ -21,23 +22,67 @@ export class TimestampManager {
     /**
      * Apply timestamp restrictions to videos in the current view
      */
-    public applyTimestampRestrictions(videos: VideoWithTimestamp[]): void {
-        const videosWithTimestamps = videos.filter(v => v.timestamp !== null);
-        if (videosWithTimestamps.length === 0) {
-            return;
+    public applyTimestampRestrictions(videosFromMarkdown: VideoWithTimestamp[]): void {
+        const allVideoElementsInDom = Array.from(document.querySelectorAll('video'));
+        const processedDomVideoElements = new Set<HTMLVideoElement>();
+
+        // 1. Cleanup handlers from all video elements first
+        allVideoElementsInDom.forEach(videoEl => this.videoHandler.cleanup(videoEl));
+
+        // 2. Process videos defined in Markdown
+        for (const videoData of videosFromMarkdown) {
+            // Construct the expected 'src' attribute value of the parent .internal-embed div
+            const expectedEmbedParentSrc = videoData.originalSubpath
+                ? `${videoData.originalLinkPath}${videoData.originalSubpath}`
+                : videoData.originalLinkPath;
+
+            let matchedVideoElement: HTMLVideoElement | null = null;
+
+            for (const videoEl of allVideoElementsInDom) {
+                if (processedDomVideoElements.has(videoEl)) continue;
+
+                const parentEmbedDiv = videoEl.closest('.internal-embed[src]');
+                if (parentEmbedDiv) {
+                    const actualEmbedParentSrc = (parentEmbedDiv as HTMLElement).getAttribute('src');
+                    // TODO: Enhance robustness of this comparison if Obsidian URI encodes or fully resolves paths in 'src'
+                    if (actualEmbedParentSrc === expectedEmbedParentSrc) {
+                        matchedVideoElement = videoEl;
+                        break;
+                    }
+                }
+            }
+
+            if (matchedVideoElement) {
+                if (videoData.timestamp) {
+                    // Apply timestamp from Markdown data
+                    this.videoHandler.apply(
+                        matchedVideoElement,
+                        videoData.timestamp.start,
+                        videoData.timestamp.end !== -1 ? videoData.timestamp.end : Infinity,
+                        videoData.path // Use the resolved TFile path for identification
+                    );
+                }
+                // If videoData.timestamp is null, no restrictions are applied (cleanup already handled it)
+                processedDomVideoElements.add(matchedVideoElement);
+            }
         }
 
-        const videoElements = document.querySelectorAll('video');
-        const videosByPath = this.groupVideosByPath(videosWithTimestamps);
-        const elementsBySource = this.groupElementsBySource(videoElements);
-        const isReadingMode = this.checkIfReadingMode();
-        
-        const processedVideos = new Set<HTMLVideoElement>();
-
-        // Apply timestamp restrictions using three strategies in order of priority
-        this.applyDirectDomExtraction(videoElements, processedVideos);
-        this.applyMetadataMatching(videosByPath, elementsBySource, isReadingMode, processedVideos);
-        this.applyFallbackMatching(videoElements, processedVideos, videosByPath);
+        // 3. Process any remaining (unmanaged) video elements in the DOM
+        // These might be from other plugins or direct HTML, not linked via standard Markdown
+        for (const videoEl of allVideoElementsInDom) {
+            if (!processedDomVideoElements.has(videoEl)) {
+                const { startTime, endTime, path: domPath } = this.extractTimestampsFromDom(videoEl);
+                if (startTime !== undefined) {
+                    this.videoHandler.apply(
+                        videoEl,
+                        startTime,
+                        endTime !== undefined && endTime >= 0 ? endTime : Infinity,
+                        domPath || "unmanaged DOM video"
+                    );
+                }
+                // No need to add to processedDomVideoElements here as this is the final loop for them
+            }
+        }
     }
     
     /**
@@ -73,84 +118,9 @@ export class TimestampManager {
     }
     
     /**
-     * Group videos by their file path
-     */
-    private groupVideosByPath(videos: VideoWithTimestamp[]): Map<string, VideoWithTimestamp[]> {
-        const videosByPath = new Map<string, VideoWithTimestamp[]>();
-        for (const video of videos) {
-            if (!videosByPath.has(video.path)) {
-                videosByPath.set(video.path, []);
-            }
-            videosByPath.get(video.path)?.push(video);
-        }
-        return videosByPath;
-    }
-    
-    /**
-     * Group video elements by their source URL
-     */
-    private groupElementsBySource(videoElements: NodeListOf<HTMLVideoElement>): Map<string, HTMLVideoElement[]> {
-        const elementsBySource = new Map<string, HTMLVideoElement[]>();
-        for (const videoEl of Array.from(videoElements)) {
-            const videoSrc = videoEl.src || videoEl.querySelector('source')?.src || '';
-            if (!elementsBySource.has(videoSrc)) {
-                elementsBySource.set(videoSrc, []);
-            }
-            elementsBySource.get(videoSrc)?.push(videoEl);
-        }
-        return elementsBySource;
-    }
-    
-    /**
-     * Check if we're in reading mode
-     */
-    private checkIfReadingMode(): boolean {
-        const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        return activeView ? activeView.getMode() === 'preview' : false;
-    }
-    
-    /**
-     * Strategy 1: Apply timestamp restrictions based on direct DOM extraction
-     */
-    private applyDirectDomExtraction(
-        videoElements: NodeListOf<HTMLVideoElement>, 
-        processedVideos: Set<HTMLVideoElement>
-    ): void {
-        for (const videoEl of Array.from(videoElements)) {
-            if (processedVideos.has(videoEl)) continue;
-
-            const rawSrc = videoEl.getAttribute('src');
-            if (rawSrc && rawSrc.includes('#t=')) {
-                // skip rewrite for absolute file URLs
-                if (!/^file:\/\//.test(rawSrc) && !/^[A-Za-z]:\\/.test(rawSrc)) {
-                    const [linkPath, frag] = rawSrc.split('#t=');
-                    const dest = this.plugin.app.metadataCache.getFirstLinkpathDest(
-                        linkPath,
-                        this.plugin.app.workspace.getActiveFile()?.path || ''
-                    );
-                    if (dest) {
-                        const url = this.plugin.app.vault.getResourcePath(dest);
-                        videoEl.src = `${url}#t=${frag}`;
-                    }
-                }
-            }
-
-            const { startTime, endTime, path } = this.extractTimestampsFromDom(videoEl);
-            
-            if (startTime !== undefined) {
-                this.videoHandler.apply(
-                    videoEl, 
-                    startTime, 
-                    endTime !== undefined && endTime >= 0 ? endTime : Infinity, 
-                    path || "extracted from DOM"
-                );
-                processedVideos.add(videoEl);
-            }
-        }
-    }
-    
-    /**
-     * Extract timestamps from the DOM
+     * Extract timestamps from the DOM (primarily for unmanaged videos)
+     * Timestamps (start/end) are ONLY taken from video.src or source child src.
+     * Path can be inferred from parent if video.src is a blob.
      */
     private extractTimestampsFromDom(videoEl: HTMLVideoElement): { 
         startTime?: number; 
@@ -159,129 +129,79 @@ export class TimestampManager {
     } {
         let start: number | undefined;
         let end: number | undefined;
-        let path = "";
+        let pathAttributeVal = ""; // Store the attribute value from which path is derived
+        let foundTimestampInVideoSrc = false;
 
-        const videoSrc = videoEl.src || videoEl.querySelector('source')?.src || '';
-        const srcTimeMatch = videoSrc.match(/#t=([0-9:.]+),?([0-9:.]+)?/);
-        if (srcTimeMatch && srcTimeMatch[1] !== '0.001') {
-            start = this.parseTimeToSeconds(srcTimeMatch[1]);
-            end = srcTimeMatch[2] ? this.parseTimeToSeconds(srcTimeMatch[2]) : undefined;
+        // Priority 1: Timestamp from video.src or source tag src
+        const videoSources = [videoEl.src];
+        const sourceTags = videoEl.querySelectorAll('source');
+        sourceTags.forEach(source => {
+            if (source.src) videoSources.push(source.src);
+        });
+
+        for (const srcAttr of videoSources) {
+            if (!srcAttr) continue;
+            
+            let currentSrcPathPart = srcAttr.split('#t=')[0];
+            const srcTimeMatch = srcAttr.match(/#t=([^,]+)(?:,([^,]+))?/);
+
+            if (srcTimeMatch && srcTimeMatch[1]) {
+                // Ensure we don't use the placeholder '0.001' from media-extended
+                if (srcTimeMatch[1] === '0.001' && (srcTimeMatch[2] === undefined || srcTimeMatch[2] === '0.001')) {
+                    // This is likely a placeholder, ignore it for timestamping purposes
+                } else {
+                    const parsedStart = convertTime(srcTimeMatch[1]);
+                    if (parsedStart !== null) {
+                        start = parsedStart;
+                        foundTimestampInVideoSrc = true; // Mark that timestamp came from video/source src
+                    }
+                    if (srcTimeMatch[2]) {
+                        const parsedEnd = convertTime(srcTimeMatch[2]);
+                        if (parsedEnd !== null) {
+                            end = parsedEnd;
+                        }
+                    }
+                    // If we found a timestamp in video.src or source.src, this src is definitive for path
+                    pathAttributeVal = currentSrcPathPart;
+                    break; // Found timestamp from video/source, no need to check other source tags
+                }
+            }
+            
+            // If this is the first path we've identified from video/source, store it.
+            // This will be overwritten if a subsequent source tag contains a timestamp.
+            if (!pathAttributeVal) { 
+                pathAttributeVal = currentSrcPathPart;
+            }
         }
-
-        if (!start) {
+        
+        // Priority 2: Path from parent embed elements if not found or unclear from video/source src.
+        // This part should NOT extract timestamps, only path information.
+        if (!pathAttributeVal || pathAttributeVal.startsWith('blob:') || pathAttributeVal.startsWith('data:')) {
             const parentEl = videoEl.closest('.internal-embed.media-embed');
             if (parentEl) {
-                const parentElem = parentEl as HTMLElement;
-                const altText = parentElem.getAttribute('alt');
-                const srcText = parentElem.getAttribute('src');
-                if (altText && altText.includes(' > t=')) {
-                    const timeMatch = altText.match(/ > t=([0-9:.]+),?([0-9:.]+)?/);
-                    if (timeMatch) {
-                        start = this.parseTimeToSeconds(timeMatch[1]);
-                        end = timeMatch[2] ? this.parseTimeToSeconds(timeMatch[2]) : undefined;
-                        const pathMatch = altText.match(/^(.+?) >/);
-                        if (pathMatch) path = pathMatch[1];
-                    }
-                }
-                if (!start && srcText) {
-                    const timeMatch = srcText.match(/#t=([0-9:.]+),?([0-9:.]+)?/);
-                    if (timeMatch) {
-                        start = this.parseTimeToSeconds(timeMatch[1]);
-                        end = timeMatch[2] ? this.parseTimeToSeconds(timeMatch[2]) : undefined;
-                        const pathMatch = srcText.match(/^(.+?)#t=/);
-                        if (pathMatch) path = pathMatch[1];
-                    }
+                const parentSrcAttr = (parentEl as HTMLElement).getAttribute('src');
+                if (parentSrcAttr) {
+                    // Only use parent's src for path, do not parse timestamp from it.
+                    pathAttributeVal = parentSrcAttr.split('#t=')[0]; 
                 }
             }
         }
         
-        return { startTime: start, endTime: end, path };
-    }
-    
-    /**
-     * Strategy 2: Apply timestamp restrictions based on metadata matching
-     */
-    private applyMetadataMatching(
-        videosByPath: Map<string, VideoWithTimestamp[]>,
-        elementsBySource: Map<string, HTMLVideoElement[]>,
-        isReadingMode: boolean,
-        processedVideos: Set<HTMLVideoElement>
-    ): void {
-        for (const [path, videoGroup] of videosByPath.entries()) {
-            if (videoGroup.length === 0) continue;
-            const matchingElements: HTMLVideoElement[] = [];
-            
-            for (const [src, elements] of elementsBySource.entries()) {
-                const filename = path.split('/').pop()?.split('\\').pop();
-                if (!filename) continue;
-                elements.forEach(el => {
-                    // only match elements whose src contains a timestamp fragment
-                    if (!processedVideos.has(el)
-                        && src.includes('#t=')
-                        && (isReadingMode ? src.includes(filename) : src.includes(path))
-                    ) {
-                        matchingElements.push(el);
-                    }
-                });
-            }
-
-            const maxToProcess = Math.min(matchingElements.length, videoGroup.length);
-            for (let i = 0; i < maxToProcess; i++) {
-                const videoEl = matchingElements[i];
-                const videoData = videoGroup[i];
-                if (videoData.timestamp) {
-                    const startTimeSeconds = videoData.timestamp.start;
-                    const endTimeSeconds = videoData.timestamp?.end !== undefined && videoData.timestamp?.end >= 0 
-                        ? videoData.timestamp?.end 
-                        : Infinity;
-                    this.videoHandler.apply(videoEl, startTimeSeconds, endTimeSeconds, videoData.path);
-                    processedVideos.add(videoEl);
+        let finalPath = pathAttributeVal;
+        try {
+            if (pathAttributeVal && pathAttributeVal.includes('://')) {
+                const url = new URL(pathAttributeVal);
+                finalPath = decodeURIComponent(url.pathname); 
+                if (finalPath.startsWith('/') && !/^[A-Za-z]:/.test(finalPath.substring(1))) {
+                    finalPath = finalPath.substring(1);
                 }
             }
+        } catch (e) {
+            // Not a valid URL, use pathAttributeVal as is (could be relative path)
         }
-    }
-    
-    /**
-     * Strategy 3: Apply fallback matching for unprocessed videos
-     */
-    private applyFallbackMatching(
-        allVideoElements: NodeListOf<HTMLVideoElement>,
-        processedVideos: Set<HTMLVideoElement>,
-        videosByPath: Map<string, VideoWithTimestamp[]>
-    ): void {
-        // start with only unprocessed <video> tags that have a #t= fragment
-        const unprocessed = Array.from(allVideoElements).filter(v => !processedVideos.has(v));
-        const eligibleVideoElements = unprocessed.filter(el => el.src.includes('#t='));
-        if (eligibleVideoElements.length === 0) return;
 
-        const allVideoData: VideoWithTimestamp[] = Array.from(videosByPath.values()).flat();
-        if (allVideoData.length === 0) return;
-
-        const maxToProcess = Math.min(eligibleVideoElements.length, allVideoData.length);
-        for (let i = 0; i < maxToProcess; i++) {
-            const videoEl = eligibleVideoElements[i];
-            const videoData = allVideoData[i];
-            if (videoData.timestamp) {
-                const startTimeSeconds = videoData.timestamp.start;
-                const endTimeSeconds = videoData.timestamp?.end !== undefined && videoData.timestamp?.end >= 0
-                    ? videoData.timestamp?.end
-                    : Infinity;
-                this.videoHandler.apply(videoEl, startTimeSeconds, endTimeSeconds, videoData.path);
-                processedVideos.add(videoEl);
-            }
-        }
-    }
-    
-    /**
-     * Parse a time string to seconds
-     */
-    private parseTimeToSeconds(timeStr: string): number {
-        if (!timeStr.includes(':')) {
-            return parseFloat(timeStr);
-        }
-        const parts = timeStr.split(':');
-        const minutes = parseInt(parts[0], 10);
-        const seconds = parseFloat(parts[1]);
-        return minutes * 60 + seconds;
+        // If a timestamp was found, it must have come from video.src or source.src
+        // Otherwise, start/end remain undefined.
+        return { startTime: foundTimestampInVideoSrc ? start : undefined, endTime: foundTimestampInVideoSrc ? end : undefined, path: finalPath || "" };
     }
 }
