@@ -1,10 +1,10 @@
-import { MarkdownView, Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
 import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './video';
 import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
 import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
-import { updateTimelineStyles } from './video/styles';
+import { VideoRestrictionHandler } from './video/restriction-handler';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
@@ -23,7 +23,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		// Initialize components
 		this.videoDetector = new VideoDetector();
 
-		this.timestampController = new TimestampManager(this.settings, this);
+		this.timestampController = new TimestampManager(this.settings);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
 
 		// Setup video hover controls
@@ -58,16 +58,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 				this.pluginEventHandler.handleMetadataChange(file);
 			})
 		);
-
-		// Add a command to detect videos in current view
-		this.addCommand({
-			id: 'detect-videos-in-current-view',
-			name: 'Detect videos in current view',
-			callback: () => {
-				const videos = this.detectVideosInActiveView();
-				new Notice(`Detected ${videos.length} video${videos.length !== 1 ? 's' : ''}`);
-			}
-		});
 
 		// Set up MutationObserver to watch for dynamically added videos
 		this.videoObserver = this.timestampController.setupVideoObserver(() => this.detectVideosInActiveView());
@@ -150,5 +140,19 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	/**
+	 * Reapply timestamp restriction handlers without full plugin reload
+	 */
+	public reinitializeRestrictionHandlers(): void {
+		const handler = new VideoRestrictionHandler();
+		const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
+		videos.forEach(videoEl => {
+			const state = (videoEl as any)._timestampState;
+			if (state) {
+				handler.apply(videoEl, state.startTime, state.endTime, state.path, this.settings, true);
+			}
+		});
 	}
 }

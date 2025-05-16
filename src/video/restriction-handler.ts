@@ -9,7 +9,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
     /**
      * Apply timestamp restrictions to a video element
      */
-    public apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings ): void {
+    public apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings, skipInitialSeek = false ): void {
         this.cleanup(videoEl);
 
         // Store metadata on the video element
@@ -107,8 +107,10 @@ export class VideoRestrictionHandler implements TimestampHandler {
             }
         };
 
-        // Set up initial time position
-        this.setInitialTime(videoEl, startTime);
+        // Set up initial time position unless preserving current playback
+        if (!skipInitialSeek) {
+            this.setInitialTime(videoEl, startTime);
+        }
 
         // Create the master handler for all events
         const masterHandler = (event: Event) => {

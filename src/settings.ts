@@ -5,6 +5,7 @@ export interface IVideoTimestampsPlugin extends Plugin {
     settings: VideoTimestampsSettings;
     saveSettings(): Promise<void>;
     detectVideosInActiveView(): any[];
+    reinitializeRestrictionHandlers(): void;
 }
 
 export interface VideoTimestampsSettings {
@@ -38,9 +39,7 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.loopMaxTimestamp = value;
                     await this.plugin.saveSettings();
-                    if (value) {
-                        
-                    }
+                    this.plugin.reinitializeRestrictionHandlers();
                 }));
     }
 }
