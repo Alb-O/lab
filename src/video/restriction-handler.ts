@@ -1,5 +1,6 @@
 import { TimestampHandler, VideoState } from '../timestamps/types';
 import { updateTimelineStyles } from './styles';
+import { VideoTimestampsSettings } from '../settings';
 
 /**
  * Handles video events and enforces timestamp restrictions
@@ -8,7 +9,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
     /**
      * Apply timestamp restrictions to a video element
      */
-    public apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string): void {
+    public apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings ): void {
         this.cleanup(videoEl);
 
         // Store metadata on the video element
@@ -67,14 +68,29 @@ export class VideoRestrictionHandler implements TimestampHandler {
 
             // On each video frame, check if we've reached or passed the max time
             if (metadata.mediaTime >= getEffectiveEnd()) {
-                isProgrammaticPause = true;
-                videoEl.pause();
-                videoEl.currentTime = getEffectiveEnd();
-                state.shouldAutoPlay = true;
-                videoEl.dataset.shouldAutoPlay = 'true';
-                setTimeout(() => {
-                    isProgrammaticPause = false;
-                }, 50);
+                if (settings.loopMaxTimestamp) {
+                    const wasPaused = videoEl.paused;
+                    videoEl.currentTime = startTime;
+                    state.reachedEnd = false; // Reset as it's looping
+                    videoEl.dataset.reachedEnd = 'false';
+                    if (wasPaused) { // If it had paused upon reaching the end
+                        videoEl.play().catch(e => console.warn("Loop play failed in clampFrameCallback:", e));
+                    }
+                    // Continue to schedule next frame if playing
+                    if (!videoEl.paused) {
+                        frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
+                    }
+                    return; // Skip original pause logic
+                } else {
+                    isProgrammaticPause = true;
+                    videoEl.pause();
+                    videoEl.currentTime = getEffectiveEnd();
+                    state.shouldAutoPlay = true;
+                    videoEl.dataset.shouldAutoPlay = 'true';
+                    setTimeout(() => {
+                        isProgrammaticPause = false;
+                    }, 50);
+                }
             } else if (metadata.mediaTime < startTime - TOLERANCE) {
                 // Only clamp to minimum time if needed, but do NOT pause
                 if (Math.abs(videoEl.currentTime - startTime) > TOLERANCE) {
@@ -107,54 +123,65 @@ export class VideoRestrictionHandler implements TimestampHandler {
                         videoEl.currentTime = startTime;
                     }
 
-                    // Handle when video approaches or reaches max time during playback (with tolerance)
-                    if (videoEl.currentTime >= getEffectiveEnd() - TOLERANCE && !videoEl.paused) {
-                        // Flag this as an automatic/programmatic pause
-                        isProgrammaticPause = true;
+                    // Handle when video approaches or reaches max time
+                    if (videoEl.currentTime >= getEffectiveEnd() - TOLERANCE) {
+                        if (settings.loopMaxTimestamp) {
+                            const wasPausedAndAtEnd = videoEl.paused; // Check if it paused right at the end
+                            videoEl.currentTime = startTime;
+                            state.reachedEnd = false; // Looping, so not "reached end"
+                            videoEl.dataset.reachedEnd = 'false';
+                            if (wasPausedAndAtEnd) {
+                                // Attempt to resume play if it paused at the very end before looping.
+                                videoEl.play().catch(e => console.warn("Loop play failed in timeupdate:", e));
+                            }
+                        } else if (!videoEl.paused) { // For non-looping, only act if playing
+                            // Flag this as an automatic/programmatic pause
+                            isProgrammaticPause = true;
 
-                        // Use VideoFrame callback if available for precise clamping
-                        if ((videoEl as any).requestVideoFrameCallback) {
-                            const clampFrame = (_now: number, metadata: any) => {
-                                // Clamp exactly at or after endTime to avoid undershoot
-                                if (metadata.mediaTime >= getEffectiveEnd()) {
-                                    videoEl.pause();
-                                    videoEl.currentTime = getEffectiveEnd();
-                                    state.shouldAutoPlay = true;
-                                    videoEl.dataset.shouldAutoPlay = 'true';
-                                    // Reset programmatic flag after clamping
-                                    setTimeout(() => {
-                                        isProgrammaticPause = false;
-                                    }, 20);
-                                } else {
-                                    (videoEl as any).requestVideoFrameCallback(clampFrame);
-                                }
-                            };
-                            (videoEl as any).requestVideoFrameCallback(clampFrame);
-                        } else {
-                            videoEl.pause();
-                            videoEl.currentTime = getEffectiveEnd();
-                            state.shouldAutoPlay = true;
-                            videoEl.dataset.shouldAutoPlay = 'true';
-                            // Enforce clamp on next frame
-                            requestAnimationFrame(() => {
+                            // Use VideoFrame callback if available for precise clamping
+                            if ((videoEl as any).requestVideoFrameCallback) {
+                                const clampFrame = (_now: number, metadata: any) => {
+                                    // Clamp exactly at or after endTime to avoid undershoot
+                                    if (metadata.mediaTime >= getEffectiveEnd()) {
+                                        videoEl.pause();
+                                        videoEl.currentTime = getEffectiveEnd();
+                                        state.shouldAutoPlay = true;
+                                        videoEl.dataset.shouldAutoPlay = 'true';
+                                        // Reset programmatic flag after clamping
+                                        setTimeout(() => {
+                                            isProgrammaticPause = false;
+                                        }, 20);
+                                    } else {
+                                        (videoEl as any).requestVideoFrameCallback(clampFrame);
+                                    }
+                                };
+                                (videoEl as any).requestVideoFrameCallback(clampFrame);
+                            } else {
+                                videoEl.pause();
                                 videoEl.currentTime = getEffectiveEnd();
-                            });
+                                state.shouldAutoPlay = true;
+                                videoEl.dataset.shouldAutoPlay = 'true';
+                                // Enforce clamp on next frame
+                                requestAnimationFrame(() => {
+                                    videoEl.currentTime = getEffectiveEnd();
+                                });
+                                setTimeout(() => {
+                                    isProgrammaticPause = false;
+                                }, 20);
+                            }
+
+                            // Set state flags
+                            state.reachedEnd = true;
+                            state.autoResume = true; // Enable auto-resume for automatic pauses
+                            state.shouldAutoPlay = true; // Set shouldAutoPlay on programmatic pause
+                            videoEl.dataset.reachedEnd = 'true';
+                            videoEl.dataset.autoResume = 'true';
+                            videoEl.dataset.shouldAutoPlay = 'true';
+                            // Reset the flag after a longer delay to ensure we don't get unwanted frames
                             setTimeout(() => {
                                 isProgrammaticPause = false;
-                            }, 20);
+                            }, 100);
                         }
-
-                        // Set state flags
-                        state.reachedEnd = true;
-                        state.autoResume = true; // Enable auto-resume for automatic pauses
-                        state.shouldAutoPlay = true; // Set shouldAutoPlay on programmatic pause
-                        videoEl.dataset.reachedEnd = 'true';
-                        videoEl.dataset.autoResume = 'true';
-                        videoEl.dataset.shouldAutoPlay = 'true';
-                        // Reset the flag after a longer delay to ensure we don't get unwanted frames
-                        setTimeout(() => {
-                            isProgrammaticPause = false;
-                        }, 100);
                     }
                     break;
                 case 'seeking':
@@ -340,20 +367,26 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     break;
 
                 case 'pause':
-                    // Handle natural end of video first if no specific endTime is set
-                    if (endTime === Infinity && videoEl.ended) {
+                    // Handle programmatic pauses or pauses during seeking first
+                    if (isProgrammaticPause || state.isSeeking) {
+                        // This is not a user pause, do nothing regarding userPaused state.
+                    } else if (settings.loopMaxTimestamp && Math.abs(videoEl.currentTime - getEffectiveEnd()) < TOLERANCE) {
+                        // If looping is enabled and video paused at the exact loop point, this is part of the loop mechanism.
+                        // It should not be treated as a user pause. The loop handlers (clampFrameCallback/timeupdate)
+                        // are responsible for calling play().
+                        state.shouldAutoPlay = false; // Loop itself is the auto-play
+                        videoEl.dataset.shouldAutoPlay = 'false';
+                    } else if (endTime === Infinity && videoEl.ended && !settings.loopMaxTimestamp) {
+                        // Handle natural end of video ONLY IF NOT LOOPING
                         state.reachedEnd = true;
                         videoEl.dataset.reachedEnd = 'true';
                         state.autoResume = true; 
                         videoEl.dataset.autoResume = 'true';
-                        // Ensure shouldAutoPlay is also true to signal intent if seeking immediately
                         state.shouldAutoPlay = true; 
                         videoEl.dataset.shouldAutoPlay = 'true';
-                        // Do not mark as userPaused here, as it's a natural completion
                     } 
-                    // Critical: Only mark as user-paused if NOT a programmatic pause, 
-                    // NOT during seeking, and NOT a natural end handled above.
-                    else if (!isProgrammaticPause && !state.isSeeking) {
+                    // Critical: Only mark as user-paused if not handled by above conditions.
+                    else {
                         state.userPaused = true;
                         videoEl.dataset.userPaused = 'true';
                         // Disable auto-resume for manual pauses

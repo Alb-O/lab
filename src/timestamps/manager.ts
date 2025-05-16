@@ -1,4 +1,3 @@
-import { MarkdownView, Plugin } from 'obsidian';
 import { VideoWithTimestamp } from '../video';
 import { VideoTimestampsSettings } from '../settings';
 import { TimestampHandler } from './types';
@@ -10,12 +9,10 @@ import { convertTime } from './utils';
  */
 export class TimestampManager {
     private settings: VideoTimestampsSettings;
-    private plugin: Plugin;
     private videoHandler: TimestampHandler;
     
-    constructor(settings: VideoTimestampsSettings, plugin: Plugin) {
+    constructor(settings: VideoTimestampsSettings) {
         this.settings = settings;
-        this.plugin = plugin;
         this.videoHandler = new VideoRestrictionHandler();
     }
     
@@ -59,7 +56,8 @@ export class TimestampManager {
                         matchedVideoElement,
                         videoData.timestamp.start,
                         videoData.timestamp.end !== -1 ? videoData.timestamp.end : Infinity,
-                        videoData.path // Use the resolved TFile path for identification
+                        videoData.path,
+                        this.settings
                     );
                 }
                 // If videoData.timestamp is null, no restrictions are applied (cleanup already handled it)
@@ -77,7 +75,8 @@ export class TimestampManager {
                         videoEl,
                         startTime,
                         endTime !== undefined && endTime >= 0 ? endTime : Infinity,
-                        domPath || "unmanaged DOM video"
+                        domPath || "unmanaged DOM video",
+                        this.settings
                     );
                 }
                 // No need to add to processedDomVideoElements here as this is the final loop for them

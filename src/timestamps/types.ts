@@ -1,4 +1,3 @@
-import { Plugin } from 'obsidian';
 import { VideoTimestampsSettings } from '../settings';
 
 /**
@@ -20,14 +19,6 @@ export interface VideoState {
  * Interface for classes that handle video timestamp enforcement
  */
 export interface TimestampHandler {
-    apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string): void;
+    apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings ): void;
     cleanup(videoEl: HTMLVideoElement): void;
-}
-
-/**
- * Context object for timestamp handlers
- */
-export interface TimestampContext {
-    settings: VideoTimestampsSettings;
-    plugin: Plugin;
 }
