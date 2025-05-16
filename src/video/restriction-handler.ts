@@ -39,6 +39,9 @@ export class VideoRestrictionHandler implements TimestampHandler {
         // Compute a virtual end if no max timestamp
         const getEffectiveEnd = () => (endTime === Infinity && videoEl.duration > 0) ? videoEl.duration - TOLERANCE : endTime;
 
+        // Determine if segment looping is enabled
+        const doSegmentLoop = settings.loopMaxTimestamp || videoEl.loop;
+
         // Apply timeline styling if video has loaded metadata
         if (videoEl.duration) {
             updateTimelineStyles(videoEl, startTime, getEffectiveEnd(), videoEl.duration);
@@ -68,7 +71,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
 
             // On each video frame, check if we've reached or passed the max time
             if (metadata.mediaTime >= getEffectiveEnd()) {
-                if (settings.loopMaxTimestamp) {
+                if (doSegmentLoop) {
                     const wasPaused = videoEl.paused;
                     videoEl.currentTime = startTime;
                     state.reachedEnd = false; // Reset as it's looping
@@ -125,7 +128,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
 
                     // Handle when video approaches or reaches max time
                     if (videoEl.currentTime >= getEffectiveEnd() - TOLERANCE) {
-                        if (settings.loopMaxTimestamp) {
+                        if (doSegmentLoop) {
                             const wasPausedAndAtEnd = videoEl.paused; // Check if it paused right at the end
                             videoEl.currentTime = startTime;
                             state.reachedEnd = false; // Looping, so not "reached end"
@@ -370,13 +373,13 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     // Handle programmatic pauses or pauses during seeking first
                     if (isProgrammaticPause || state.isSeeking) {
                         // This is not a user pause, do nothing regarding userPaused state.
-                    } else if (settings.loopMaxTimestamp && Math.abs(videoEl.currentTime - getEffectiveEnd()) < TOLERANCE) {
+                    } else if (doSegmentLoop && Math.abs(videoEl.currentTime - getEffectiveEnd()) < TOLERANCE) {
                         // If looping is enabled and video paused at the exact loop point, this is part of the loop mechanism.
                         // It should not be treated as a user pause. The loop handlers (clampFrameCallback/timeupdate)
                         // are responsible for calling play().
                         state.shouldAutoPlay = false; // Loop itself is the auto-play
                         videoEl.dataset.shouldAutoPlay = 'false';
-                    } else if (endTime === Infinity && videoEl.ended && !settings.loopMaxTimestamp) {
+                    } else if (endTime === Infinity && videoEl.ended && !doSegmentLoop) {
                         // Handle natural end of video ONLY IF NOT LOOPING
                         state.reachedEnd = true;
                         videoEl.dataset.reachedEnd = 'true';
