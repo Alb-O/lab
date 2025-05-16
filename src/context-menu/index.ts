@@ -28,72 +28,73 @@ export function setupVideoContextMenu(app: any): () => void {
           .setIcon('link')
           .setTitle('Copy embed link at current time')
           .onClick(() => {
-            // Get the current time of the video
             const currentTime = video.currentTime;
             const formattedTime = formatTimestamp(currentTime);
             
-            // Get the path and file of the video
-            const view = app.workspace.getActiveViewOfType(MarkdownView);
-            if (!view) {
-              new Notice('Cannot copy timestamp outside markdown view.');
+            const activeLeaf = app.workspace.activeLeaf;
+            if (!activeLeaf) {
+              new Notice('No active leaf found.');
               return;
-            }
-            const els = view.contentEl.querySelectorAll('video');
-            const idx = Array.from(els).indexOf(video);
-            let path: string;
-            if (view.getMode() === 'preview') {
-              path = video.dataset.timestampPath || '';
-            } else {
-              const videosMeta = extractVideosFromMarkdownView(view);
-              if (idx < 0 || idx >= videosMeta.length) {
-                new Notice('Video metadata not found.');
-                return;
-              }
-              path = videosMeta[idx].path;
             }
 
-            console.log('Video path:', path);
-                         
-            // Find the actual file via metadataCache or vault path
-            const activeFile = app.workspace.getActiveFile();
-            let file: TFile | null = null;
-            if (activeFile) {
-              const dest = app.metadataCache.getFirstLinkpathDest(path, activeFile.path);
-              if (dest instanceof TFile) {
-                file = dest;
-                console.log('Resolved via metadataCache:', file);
+            let targetFile: TFile | null = null;
+            let sourcePathForLink: string = '';
+            let videoPathToResolve: string | null = null;
+
+            if (activeLeaf.view instanceof MarkdownView) {
+              const mdView = activeLeaf.view;
+              sourcePathForLink = mdView.file?.path || '';
+
+              if (mdView.getMode() === 'preview') {
+                videoPathToResolve = video.dataset.timestampPath || null;
+              } else { // Source or Live Preview mode
+                const videosMeta = extractVideosFromMarkdownView(mdView);
+                const els = mdView.contentEl.querySelectorAll('video');
+                const idx = Array.from(els).indexOf(video);
+                if (idx >= 0 && idx < videosMeta.length) {
+                  videoPathToResolve = videosMeta[idx].path; // This should be the resolved TFile path
+                } else {
+                  new Notice('Video metadata not found in editor view.');
+                  return;
+                }
               }
-            }
-            if (!file) {
-              const normalized = path.replace(/\\/g, '/').replace(/^\//, '');
-              const found = app.vault.getAbstractFileByPath(normalized);
-              if (found instanceof TFile) {
-                file = found;
-                console.log('Resolved via vault:', file);
+              
+              if (videoPathToResolve) {
+                const resolvedFile = app.metadataCache.getFirstLinkpathDest(videoPathToResolve, sourcePathForLink);
+                if (resolvedFile instanceof TFile) {
+                  targetFile = resolvedFile;
+                } else {
+                    // Fallback for paths that might be absolute or need direct vault lookup
+                    const normalizedPath = videoPathToResolve.replace(/\\/g, '/').replace(/^\//, '');
+                    const foundFile = app.vault.getAbstractFileByPath(normalizedPath);
+                    if (foundFile instanceof TFile) {
+                        targetFile = foundFile;
+                    }
+                }
               }
-            }
-            if (!file) {
-              new Notice(`File not found: ${path}`);
-              return;
-            }
-            
-            // Create a markdown link with timestamp
-            const timestampParam = `#t=${currentTime}`;
-            let linkText: string;
-            
-            if (file) {
-              // If we found the actual file, use generateMarkdownLink
-              linkText = generateMarkdownLink({
-                app: app,
-                targetPathOrFile: file,
-                sourcePathOrFile: app.workspace.getActiveFile() || '',
-                subpath: timestampParam,
-                alias: formattedTime
-              });
+
+            } else if (activeLeaf.view.getViewType() === 'video' && activeLeaf.view.file instanceof TFile) {
+              targetFile = activeLeaf.view.file;
+              sourcePathForLink = ''; // For vault-absolute link
             } else {
-              new Notice('File not found.');
+              new Notice('Cannot copy timestamp: Not a Markdown or direct video view.');
               return;
             }
+
+            if (!targetFile) {
+              new Notice(`Video file not found for path: ${videoPathToResolve || 'unknown'}`);
+              return;
+            }
+            
+            const timestampParam = `#t=${currentTime}`;
+            const linkText = generateMarkdownLink({
+              app: app,
+              targetPathOrFile: targetFile,
+              sourcePathOrFile: sourcePathForLink,
+              subpath: timestampParam,
+              alias: formattedTime, // Use formatted time as alias
+              isEmbed: true // Make it an embed link ![[...]]
+            });
             
             // Copy to clipboard
             navigator.clipboard.writeText(linkText)
@@ -113,7 +114,10 @@ export function setupVideoContextMenu(app: any): () => void {
           .setTitle('Remove embed link')
           .onClick(async () => {
             const view = app.workspace.getActiveViewOfType(MarkdownView);
-            if (!view) return;
+            if (!view) {
+              new Notice('Removing embed links only works from a Markdown note.');
+              return;
+            }
             // prevent removal in preview (reading) mode
             if (view.getMode() === 'preview') {
               new Notice('Cannot remove while in reading view.');
