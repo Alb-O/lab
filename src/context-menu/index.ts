@@ -39,7 +39,7 @@ export function setupVideoContextMenu(app: any): () => void {
               return;
             }
 
-            const { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl } = linkDetails;
+            const { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl, attributesString } = linkDetails;
 
             if (!targetFile && !isExternalFileUrl) {
               new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
@@ -51,38 +51,8 @@ export function setupVideoContextMenu(app: any): () => void {
             if (isExternalFileUrl && externalFileUrl) {
                 const baseSrc = externalFileUrl.split('#')[0];
                 const newSrcWithTimestamp = `${baseSrc}#t=${currentTime}`;
-                const excludedAttributes = [
-                    'data-controls-initialized', 'data-timestamp-path', 'data-context-menu-initialized',
-                    'data-start-time', 'data-end-time', 'data-start-time-percent', 'data-end-time-percent',
-                    'data-reached-end', 'data-seeked-past-end', 'data-auto-resume', 'data-should-auto-play',
-                    'data-user-paused', 'data-is-seeking'
-                ];
-                
-                let attributesString = "";
-                for (const attr of Array.from(video.attributes)) {
-                    const attrNameLower = attr.name.toLowerCase();
-                    if (excludedAttributes.includes(attrNameLower) || attrNameLower.startsWith('video-ts-')) { // Exclude dynamic class
-                        continue;
-                    }
-                    if (attrNameLower === 'class' && attr.value === '') {
-                        continue;
-                    }
-
-                    if (attrNameLower === 'src') {
-                        attributesString += ` src="${newSrcWithTimestamp}"`;
-                    } else {
-                        if (attr.value === '') { // Boolean attribute
-                            attributesString += ` ${attr.name}`;
-                        } else {
-                            attributesString += ` ${attr.name}="${attr.value}"`;
-                        }
-                    }
-                }
-                // Ensure src is present if it wasn't an attribute but derived from externalFileUrl
-                if (!video.hasAttribute('src') && !attributesString.includes(' src=')) {
-                    attributesString += ` src="${newSrcWithTimestamp}"`;
-                }
-                linkText = `<video${attributesString}></video>`;
+                // attributesString already has filtered attributes. We just need to add the correct src.
+                linkText = `<video src="${newSrcWithTimestamp}"${attributesString}></video>`;
             } else if (targetFile) {
                 const timestampParam = `#t=${currentTime}`;
                 linkText = generateMarkdownLink({
@@ -121,7 +91,7 @@ export function setupVideoContextMenu(app: any): () => void {
               return;
             }
 
-            const { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl } = linkDetails;
+            const { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl, attributesString } = linkDetails;
 
             if (!targetFile && !isExternalFileUrl) {
               new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
@@ -131,41 +101,9 @@ export function setupVideoContextMenu(app: any): () => void {
             let linkText: string;
 
             if (isExternalFileUrl && externalFileUrl) {
-                // This line strips any existing fragment (like #t=...) from the externalFileUrl
                 const baseSrc = externalFileUrl.split('#')[0]; 
-                const excludedAttributes = [
-                    'data-controls-initialized', 'data-timestamp-path', 'data-context-menu-initialized',
-                    'data-start-time', 'data-end-time', 'data-start-time-percent', 'data-end-time-percent',
-                    'data-reached-end', 'data-seeked-past-end', 'data-auto-resume', 'data-should-auto-play',
-                    'data-user-paused', 'data-is-seeking'
-                ];
-                
-                let attributesString = "";
-                for (const attr of Array.from(video.attributes)) {
-                    const attrNameLower = attr.name.toLowerCase();
-                    if (excludedAttributes.includes(attrNameLower) || attrNameLower.startsWith('video-ts-')) { // Exclude dynamic class
-                        continue;
-                    }
-                    if (attrNameLower === 'class' && attr.value === '') {
-                        continue;
-                    }
-                    
-                    if (attrNameLower === 'src') {
-                        // The src attribute is set to the baseSrc, which has no timestamp
-                        attributesString += ` src="${baseSrc}"`; 
-                    } else {
-                        if (attr.value === '') { // Boolean attribute
-                            attributesString += ` ${attr.name}`;
-                        } else {
-                            attributesString += ` ${attr.name}="${attr.value}"`;
-                        }
-                    }
-                }
-                // Ensure src is present if it wasn't an attribute but derived from externalFileUrl
-                if (!video.hasAttribute('src') && !attributesString.includes(' src=')) {
-                     attributesString += ` src="${baseSrc}"`; // Use baseSrc here as well
-                }
-                linkText = `<video${attributesString}></video>`;
+                // attributesString already has filtered attributes. We just need to add the correct src.
+                linkText = `<video src="${baseSrc}"${attributesString}></video>`;
             } else if (targetFile) {
                 linkText = generateMarkdownLink({
                   app: app,

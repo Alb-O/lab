@@ -7,9 +7,13 @@ export interface VideoLinkDetails {
     originalVideoSrcForNotice: string | null;
     isExternalFileUrl: boolean;
     externalFileUrl: string | null; // Full src attribute for external file URLs
+    attributesString: string; // String of filtered HTML attributes
 }
 
 export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoLinkDetails | null {
+    // Original class list for attribute generation
+    const originalClassList = Array.from(videoEl.classList).join(' ');
+
     const activeLeaf = app.workspace.activeLeaf;
     if (!activeLeaf) {
         return null;
@@ -20,6 +24,47 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
     const originalVideoSrcForNotice: string | null = videoEl.dataset.timestampPath || videoEl.currentSrc || videoEl.src;
     let isExternalFileUrl = false;
     let externalFileUrl: string | null = null;
+    let attributesString: string = "";
+
+    const excludedAttributes = [
+        'data-controls-initialized', 'data-timestamp-path', 'data-context-menu-initialized',
+        'data-start-time', 'data-end-time', 'data-start-time-percent', 'data-end-time-percent',
+        'data-reached-end', 'data-seeked-past-end', 'data-auto-resume', 'data-should-auto-play',
+        'data-user-paused', 'data-is-seeking', 'src' // src will be handled separately
+    ];
+
+    for (const attr of Array.from(videoEl.attributes)) {
+        const attrNameLower = attr.name.toLowerCase();
+        if (excludedAttributes.includes(attrNameLower)) {
+            continue;
+        }
+        if (attrNameLower === 'class') {
+            // Filter out video-ts-* and paused from the original class list for the new attribute string
+            const filteredClasses = originalClassList.split(' ')
+                .filter(cls => !cls.startsWith('video-ts-') && cls !== 'paused' && cls !== '')
+                .join(' ');
+            if (filteredClasses) {
+                attributesString += ` class="${filteredClasses}"`;
+            }
+            continue;
+        }
+        if (attr.value === '') { // Boolean attribute
+            attributesString += ` ${attr.name}`;
+        } else {
+            attributesString += ` ${attr.name}="${attr.value}"`;
+        }
+    }
+    // If the original element had classes but not a class attribute (e.g. added via JS .classList.add)
+    // and we haven't added a class attribute yet (e.g. because it wasn't in videoEl.attributes)
+    // we should construct it from originalClassList
+    if (!videoEl.hasAttribute('class') && !attributesString.includes(' class=')) {
+        const filteredClasses = originalClassList.split(' ')
+            .filter(cls => !cls.startsWith('video-ts-') && cls !== 'paused' && cls !== '')
+            .join(' ');
+        if (filteredClasses) {
+            attributesString += ` class="${filteredClasses}"`;
+        }
+    }
 
     if (activeLeaf.view instanceof MarkdownView) {
         const mdView = activeLeaf.view;
@@ -73,7 +118,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                 console.warn(`VideoTimestamps: app:// URL path '${absPathFromUrl}' is outside the vault base path '${vaultBasePath}'. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
                                 isExternalFileUrl = true;
                                 let fileUrlPath = absPathFromUrl;
-                                if (!absPathFromUrl.startsWith('/') && !/^[A-Za-z]:/.test(absPathFromUrl)) {
+                                if (!absPathFromUrl.startsWith('/')) {
                                     fileUrlPath = '/' + absPathFromUrl;
                                 }
                                 externalFileUrl = `file://${fileUrlPath}`; 
@@ -82,7 +127,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                         } else {
                             console.warn(`VideoTimestamps: Vault adapter is not FileSystemAdapter, cannot resolve app:// URL. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
                             let fileUrlPath = absPathFromUrl; // absPathFromUrl was derived from URL(currentVideoSrc).pathname
-                            if (!absPathFromUrl.startsWith('/') && !/^[A-Za-z]:/.test(absPathFromUrl)) {
+                            if (!absPathFromUrl.startsWith('/')) {
                                 fileUrlPath = '/' + absPathFromUrl;
                             }
                             externalFileUrl = `file://${fileUrlPath}`;
@@ -164,7 +209,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                 console.warn(`VideoTimestamps: app:// URL path '${absPathFromUrl}' is outside the vault base path '${vaultBasePath}'. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
                                 isExternalFileUrl = true;
                                 let fileUrlPath = absPathFromUrl;
-                                if (!absPathFromUrl.startsWith('/') && !/^[A-Za-z]:/.test(absPathFromUrl)) {
+                                if (!absPathFromUrl.startsWith('/')) {
                                     fileUrlPath = '/' + absPathFromUrl;
                                 }
                                 externalFileUrl = `file://${fileUrlPath}`; 
@@ -173,7 +218,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                         } else {
                             console.warn("VideoTimestamps: Vault adapter is not FileSystemAdapter, cannot resolve app:// URL. Converting to file:/// protocol. Original src: ${currentVideoSrc}");
                             let fileUrlPath = absPathFromUrl;
-                            if (!absPathFromUrl.startsWith('/') && !/^[A-Za-z]:/.test(absPathFromUrl)) {
+                            if (!absPathFromUrl.startsWith('/')) {
                                 fileUrlPath = '/' + absPathFromUrl;
                             }
                             externalFileUrl = `file://${fileUrlPath}`;
@@ -230,5 +275,5 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
         return null;
     }
 
-    return { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl };
+    return { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl, attributesString };
 }
