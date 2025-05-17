@@ -2,7 +2,7 @@ import { Menu } from 'obsidian';
 import { observeVideos } from '../video';
 import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
 import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
-import { addRemoveEmbedLink } from './items/remove';
+import { addRemoveEmbedLink, addRemoveTimestampFromEmbedLink } from './items/remove';
 
 // Track which elements already have context menus to prevent duplicates
 const initializedElements = new WeakSet<HTMLVideoElement>();
@@ -25,19 +25,20 @@ export function setupVideoContextMenu(app: any): () => void {
 
       const menu = new Menu();
 
-      addOpenLink(menu, app, video);
-      addOpenInNewTab(menu, app, video);
-      addOpenToRight(menu, app, video);
-      addOpenInNewWindow(menu, app, video);
+      addOpenLink(menu, this.app, video);
+      addOpenInNewTab(menu, this.app, video);
+      addOpenToRight(menu, this.app, video);
+      addOpenInNewWindow(menu, this.app, video);
 
       menu.addSeparator();
 
-      addCopyEmbedLink(menu, app, video);
-      addCopyEmbedAtCurrentTime(menu, app, video);
+      addCopyEmbedLink(menu, this.app, video);
+      addCopyEmbedAtCurrentTime(menu, this.app, video);
 
       menu.addSeparator();
 
-      addRemoveEmbedLink(menu, app, video);
+      addRemoveEmbedLink(menu, video);
+      addRemoveTimestampFromEmbedLink(menu, video);
 
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
     };

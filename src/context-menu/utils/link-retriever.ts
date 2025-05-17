@@ -1,5 +1,5 @@
 import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView } from 'obsidian';
-import { extractVideosFromMarkdownView } from '../video';
+import { extractVideosFromMarkdownView } from '../../video';
 
 export interface VideoLinkDetails {
     targetFile: TFile | null;

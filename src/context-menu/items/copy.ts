@@ -1,7 +1,7 @@
 import { Menu, Notice } from 'obsidian';
 import { formatTimestamp } from '../../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
-import { getVideoLinkDetails } from '../link-retriever';
+import { getVideoLinkDetails } from '../utils/link-retriever';
 
 // Helper to get video current time rounded to 2 decimal places if needed
 function getCurrentTimeRounded(video: HTMLVideoElement): number {
