@@ -75,9 +75,12 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     const wasPaused = videoEl.paused;
                     videoEl.currentTime = startTime;
                     state.reachedEnd = false; // Reset as it's looping
-                    videoEl.dataset.reachedEnd = 'false';
-                    if (wasPaused) { // If it had paused upon reaching the end
-                        videoEl.play().catch(e => console.warn("Loop play failed in clampFrameCallback:", e));
+                    videoEl.dataset.reachedEnd = 'false';                    if (wasPaused) { // If it had paused upon reaching the end
+                        videoEl.play().catch(e => {
+                            if (process.env.NODE_ENV !== 'production') {
+                                console.warn("Loop play failed in clampFrameCallback:", e);
+                            }
+                        });
                     }
                     // Continue to schedule next frame if playing
                     if (!videoEl.paused) {
@@ -134,10 +137,13 @@ export class VideoRestrictionHandler implements TimestampHandler {
                             const wasPausedAndAtEnd = videoEl.paused; // Check if it paused right at the end
                             videoEl.currentTime = startTime;
                             state.reachedEnd = false; // Looping, so not "reached end"
-                            videoEl.dataset.reachedEnd = 'false';
-                            if (wasPausedAndAtEnd) {
+                            videoEl.dataset.reachedEnd = 'false';                            if (wasPausedAndAtEnd) {
                                 // Attempt to resume play if it paused at the very end before looping.
-                                videoEl.play().catch(e => console.warn("Loop play failed in timeupdate:", e));
+                                videoEl.play().catch(e => {
+                                    if (process.env.NODE_ENV !== 'production') {
+                                        console.warn("Loop play failed in timeupdate:", e);
+                                    }
+                                });
                             }
                         } else if (!videoEl.paused) { // For non-looping, only act if playing
                             // Flag this as an automatic/programmatic pause
@@ -499,4 +505,18 @@ export class VideoRestrictionHandler implements TimestampHandler {
         videoEl.removeEventListener('pause', handler, true);
         videoEl.removeEventListener('manual-pause', handler, true);
     }
+}
+
+/**
+ * Reapply timestamp restriction handlers without full plugin reload
+ */
+export function reinitializeRestrictionHandlers(settings: VideoTimestampsSettings): void {
+    const handler = new VideoRestrictionHandler();
+    const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
+    videos.forEach(videoEl => {
+        const state = (videoEl as any)._timestampState;
+        if (state) {
+            handler.apply(videoEl, state.startTime, state.endTime, state.path, settings, true);
+        }
+    });
 }

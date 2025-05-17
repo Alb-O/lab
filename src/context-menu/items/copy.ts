@@ -1,15 +1,14 @@
-import { Menu, Notice } from 'obsidian';
+import { Menu, Notice, App, Plugin } from 'obsidian';
 import { formatTimestamp } from '../../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
 
-export function addCopyEmbedLink(menu: Menu, app: any, video: HTMLVideoElement) {
-  menu.addItem(item =>
+export function addCopyEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {  menu.addItem(item =>
     item
       .setIcon('copy')
       .setTitle('Copy embed link')
       .onClick(() => {
-        const linkDetails = getVideoLinkDetails(app, video);
+        const linkDetails = getVideoLinkDetails(plugin.app, video);
         if (!linkDetails) {
           new Notice('Cannot copy link: View type not supported or active leaf not found.');
           return;
@@ -23,9 +22,8 @@ export function addCopyEmbedLink(menu: Menu, app: any, video: HTMLVideoElement) 
         if (isExternalFileUrl && externalFileUrl) {
           const baseSrc = externalFileUrl.split('#')[0];
           linkText = `<video src="${baseSrc}"${attributesString}></video>`;
-        } else if (targetFile) {
-          linkText = generateMarkdownLink({
-            app: app,
+        } else if (targetFile) {          linkText = generateMarkdownLink({
+            app: plugin.app,
             targetPathOrFile: targetFile,
             sourcePathOrFile: sourcePathForLink,
             isEmbed: true
@@ -33,28 +31,28 @@ export function addCopyEmbedLink(menu: Menu, app: any, video: HTMLVideoElement) 
         } else {
           new Notice('Could not determine link type.');
           return;
-        }
-        navigator.clipboard.writeText(linkText)
+        }        navigator.clipboard.writeText(linkText)
           .then(() => {
             new Notice('Copied embed link.');
           })
           .catch(err => {
-            console.error('Failed to copy link: ', err);
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('Failed to copy link: ', err);
+            }
             new Notice('Failed to copy link to clipboard.');
           });
       })
   );
 }
 
-export function addCopyEmbedAtCurrentTime(menu: Menu, app: any, video: HTMLVideoElement) {
+export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
   menu.addItem(item =>
-    item
-      .setIcon('copy')
+    item      .setIcon('copy')
       .setTitle('Copy embed at current time')
       .onClick(() => {
         const currentTime = getCurrentTimeRounded(video);
         const formattedTime = formatTimestamp(currentTime);
-        const linkDetails = getVideoLinkDetails(app, video);
+        const linkDetails = getVideoLinkDetails(plugin.app, video);
         if (!linkDetails) {
           new Notice('Cannot copy link: View type not supported or active leaf not found.');
           return;
@@ -70,9 +68,8 @@ export function addCopyEmbedAtCurrentTime(menu: Menu, app: any, video: HTMLVideo
           const newSrcWithTimestamp = `${baseSrc}#t=${currentTime}`;
           linkText = `<video src="${newSrcWithTimestamp}"${attributesString}></video>`;
         } else if (targetFile) {
-          const timestampParam = `#t=${currentTime}`;
-          linkText = generateMarkdownLink({
-            app: app,
+          const timestampParam = `#t=${currentTime}`;          linkText = generateMarkdownLink({
+            app: plugin.app,
             targetPathOrFile: targetFile,
             sourcePathOrFile: sourcePathForLink,
             subpath: timestampParam,
@@ -82,13 +79,14 @@ export function addCopyEmbedAtCurrentTime(menu: Menu, app: any, video: HTMLVideo
         } else {
           new Notice('Could not determine link type.');
           return;
-        }
-        navigator.clipboard.writeText(linkText)
+        }        navigator.clipboard.writeText(linkText)
           .then(() => {
             new Notice(`Copied link with timestamp (${formattedTime}).`);
           })
           .catch(err => {
-            console.error('Failed to copy link: ', err);
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('Failed to copy link: ', err);
+            }
             new Notice('Failed to copy link to clipboard.');
           });
       })

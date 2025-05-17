@@ -133,14 +133,13 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
       : startPercent;
     const fullEndPercent = totalWidth
       ? ((effectiveTrackLeft + effectiveTrackWidth * (endPercent / 100)) / totalWidth) * 100
-      : endPercent;
-
-    const epsilon = totalWidth ? (thumbRadius / totalWidth) * 100 : 0.1; // Ensure epsilon is small but non-zero
+      : endPercent;    const epsilon = totalWidth ? (thumbRadius / totalWidth) * 100 : 0.1; // Ensure epsilon is small but non-zero
     const clampStart = Math.max(epsilon, Math.min(100 - epsilon, fullStartPercent));
     const clampEnd = Math.max(epsilon, Math.min(100 - epsilon, fullEndPercent));
 
-    const bgColor = getCssVar('--video-ts-timeline-bg') || 'rgba(240,50,50,0)';
-    const fgColor = getCssVar('--video-ts-timeline-playable') || 'rgba(76,175,80,0.8)';
+    // Use Obsidian CSS variables with fallbacks
+    const bgColor = getCssVar('--video-ts-timeline-bg') || getCssVar('--background-modifier-error') || 'rgba(240,50,50,0)';
+    const fgColor = getCssVar('--video-ts-timeline-playable') || getCssVar('--interactive-accent') || 'rgba(76,175,80,0.8)';
     const cssContent = `
       /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
       .${videoId}::-webkit-media-controls-timeline {

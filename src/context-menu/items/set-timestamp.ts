@@ -1,38 +1,41 @@
-import { Menu, Notice, App, Modal, MarkdownView } from 'obsidian';
+import { Menu, Notice, App, Modal, MarkdownView, Plugin } from 'obsidian';
 import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
 import { parseTimestampToSeconds } from '../../timestamps/utils';
 import { VideoWithTimestamp } from '../../video';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
+import { reinitializeRestrictionHandlers } from '../../video/restriction-handler';
 
-export function addSetStartTime(menu: Menu, app: App, video: HTMLVideoElement) {
+export function addSetStartTime(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
   menu.addItem(item =>
     item
       .setIcon('log-in')
       .setTitle('Set start time')
       .onClick(() => {
-        new TimestampInputModal(app, video, 'start').open();
+        new TimestampInputModal(plugin, video, 'start').open(); // Pass plugin directly
       })
   );
 }
 
-export function addSetEndTime(menu: Menu, app: App, video: HTMLVideoElement) {
+export function addSetEndTime(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
   menu.addItem(item =>
     item
       .setIcon('log-out')
       .setTitle('Set end time')
       .onClick(() => {
-        new TimestampInputModal(app, video, 'end').open();
+        new TimestampInputModal(plugin, video, 'end').open(); // Pass plugin directly
       })
   );
 }
 
 class TimestampInputModal extends Modal {
+  pluginInstance: Plugin; // Store the plugin instance
   video: HTMLVideoElement;
   type: 'start' | 'end';
   textareaEl: HTMLTextAreaElement | null = null;
 
-  constructor(app: App, video: HTMLVideoElement, type: 'start' | 'end') {
-    super(app);
+  constructor(plugin: Plugin, video: HTMLVideoElement, type: 'start' | 'end') { // Accept plugin instance
+    super(plugin.app); // Pass app from plugin to super
+    this.pluginInstance = plugin; // Store plugin instance
     this.video = video;
     this.type = type;
   }
@@ -75,19 +78,17 @@ class TimestampInputModal extends Modal {
     if (this.type === 'start' && this.video.dataset.startTime && !isNaN(Number(this.video.dataset.startTime))) {
       initialValue = this.video.dataset.startTime;
     } else if (this.type === 'end' && this.video.dataset.endTime && !isNaN(Number(this.video.dataset.endTime))) {
-      initialValue = this.video.dataset.endTime;
-    } else {
+      initialValue = this.video.dataset.endTime;    } else {
       initialValue = currentTimestamp.toString();
     }
     const formattedCurrent = require('../../timestamps/utils').formatTimestamp(currentTimestamp);
-
+    
     this.textareaEl = content.createEl('textarea', {
       cls: 'video-ts-textarea',
-      attr: { rows: 1, style: 'height: 29px;' }
+      attr: { rows: 1 }
     });
     this.textareaEl.value = initialValue;
     this.textareaEl.placeholder = `Enter ${this.type} time (e.g., 1:23 or 83.5)`;
-    this.textareaEl.style.width = '100%';
     this.textareaEl.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -206,19 +207,19 @@ class TimestampInputModal extends Modal {
       try {
         const { extractVideosFromMarkdownView } = require('../../video');
         const allVideosInEditor: VideoWithTimestamp[] = extractVideosFromMarkdownView(mdView);
-        let updatedInMarkdown = false;
-
-        const domVideoElements = Array.from(mdView.contentEl.querySelectorAll('video'));
+        let updatedInMarkdown = false;        const domVideoElements = Array.from(mdView.contentEl.querySelectorAll('video'));
         const currentVideoDomIndex = domVideoElements.indexOf(this.video);
-
+        
         if (currentVideoDomIndex !== -1 && currentVideoDomIndex < allVideosInEditor.length) {
           const currentVideoInfo = allVideosInEditor[currentVideoDomIndex];
           // Create a loggable version of currentVideoInfo to avoid circular JSON errors
           const loggableVideoInfo = {
             ...currentVideoInfo,
             file: currentVideoInfo.file ? currentVideoInfo.file.path : null // Replace TFile with its path for logging
-          };
-          console.log("TimestampInputModal: Matched video by index:", JSON.parse(JSON.stringify(loggableVideoInfo)));
+          };          // Only log in development builds
+          if (process.env.NODE_ENV !== 'production') {
+            console.log("TimestampInputModal: Matched video by index:", JSON.parse(JSON.stringify(loggableVideoInfo)));
+          }
 
           // Use currentVideoInfo.type to determine how to update
           if ((currentVideoInfo.type === 'wiki' || currentVideoInfo.type === 'md') && currentVideoInfo.file) {
@@ -254,15 +255,13 @@ class TimestampInputModal extends Modal {
             if (/^\s*<video[\s>]/i.test(htmlLinkText)) { // Test against the reliable linktext
               const currentBlockText = editor.getRange(blockStartPos, blockEndPos);
               const blockLines = currentBlockText.split('\n');
-              let lineIdxInBlock = -1;
-
-              for (let i = 0; i < blockLines.length; i++) {
+              let lineIdxInBlock = -1;              for (let i = 0; i < blockLines.length; i++) {
                 if (blockLines[i].trim().match(/<video\s[^>]*src=/i)) {
                   lineIdxInBlock = i;
                   break;
                 }
               }
-
+              
               if (lineIdxInBlock !== -1) {
                 blockLines[lineIdxInBlock] = blockLines[lineIdxInBlock].replace(
                   /src=("|')[^"'#]+(#[^"']*)?("|')/i,
@@ -272,30 +271,49 @@ class TimestampInputModal extends Modal {
                 new Notice('HTML video tag updated with timestamp.');
                 updatedInMarkdown = true;
               } else {
-                console.warn("TimestampInputModal: Found HTML video block but couldn't find src attribute line.", currentVideoInfo, blockLines);
+                if (process.env.NODE_ENV !== 'production') {
+                  console.warn("TimestampInputModal: Found HTML video block but couldn't find src attribute line.", currentVideoInfo, blockLines);
+                }
               }
             } else {
-              console.warn("TimestampInputModal: Indexed HTML video info's linktext does not appear to be a video tag.", currentVideoInfo);
+              if (process.env.NODE_ENV !== 'production') {
+                console.warn("TimestampInputModal: Indexed HTML video info's linktext does not appear to be a video tag.", currentVideoInfo);
+              }
             }
           } else {
-            console.warn("TimestampInputModal: Matched video by index has unknown or unsuitable type:", currentVideoInfo);
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn("TimestampInputModal: Matched video by index has unknown or unsuitable type:", currentVideoInfo);
+            }
           }
         } else {
-          console.warn("TimestampInputModal: Clicked video not found by DOM index or index out of bounds.", 
-            { domIndex: currentVideoDomIndex, extractedCount: allVideosInEditor.length });
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn("TimestampInputModal: Clicked video not found by DOM index or index out of bounds.",
+              { domIndex: currentVideoDomIndex, extractedCount: allVideosInEditor.length });
+          }
         }
 
         if (!updatedInMarkdown) {
           new Notice(`Timestamp set, but could not find or update matching embed/HTML block in markdown.`);
         }
       } catch (e: any) {
-        console.error('Failed to update embed link:', e);
-        new Notice('Error updating embed link in markdown: ' + e.message);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Failed to update embed link:', e);
+        }        new Notice('Error updating embed link in markdown: ' + e.message);
       }
     }
-
+    
     new Notice(`Video ${this.type} time set to ${parsedSeconds.toFixed(2)}s.`);
-    this.close();
+
+    // Access plugin instance directly
+    // @ts-ignore - Assuming 'settings' exists on the plugin instance. 
+    // It would be better to cast to a specific plugin type that guarantees 'settings'
+    // e.g., if VideoTimestampsPlugin is the actual class: const currentPlugin = this.pluginInstance as VideoTimestampsPlugin;
+    if (this.pluginInstance && (this.pluginInstance as any).settings) {
+      // Reinitialize video restriction handlers to apply the new timestamp
+      reinitializeRestrictionHandlers((this.pluginInstance as any).settings);
+    }
+    
+    this.close(); // Fixed typo from this.close();his.close();
   }
 
   onClose() {

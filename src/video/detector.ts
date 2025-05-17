@@ -1,6 +1,5 @@
 import { MarkdownView } from 'obsidian';
 import { extractVideosFromMarkdownView, VideoWithTimestamp } from './index';
-import * as debug from 'debug';
 
 /**
  * Class that handles detecting videos in Markdown views
@@ -41,27 +40,31 @@ export class VideoDetector {
         this.lastProcessedView = null;
         this.lastVideos = [];
     }
-    
-    /**
-     * Debug method to log detected videos to the debug
+      /**
+     * Debug method to log detected videos
+     * Only logs in development environment
      */
     public debugVideos(videos: VideoWithTimestamp[]): void {
+        if (process.env.NODE_ENV === 'production') {
+            return; // Don't log anything in production
+        }
+        
         if (videos.length === 0) {
-            debug.log('No videos detected in current view');
+            console.debug('No videos detected in current view');
             return;
         }
         
-        debug.log('Detected videos:', videos.length);
+        console.debug('Detected videos:', videos.length);
         videos.forEach((video, index) => {
-            debug.log(`Video ${index + 1}:`);
-            debug.log(`  Path: ${video.path}`);
-            debug.log(`  Embedded: ${video.isEmbedded}`);
+            console.debug(`Video ${index + 1}:`);
+            console.debug(`  Path: ${video.path}`);
+            console.debug(`  Embedded: ${video.isEmbedded}`);
             if (video.timestamp) {
-                debug.log(`  Timestamp: start=${video.timestamp.start}s, end=${video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's'}`);
+                console.debug(`  Timestamp: start=${video.timestamp.start}s, end=${video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's'}`);
             } else {
-                debug.log('  No timestamp');
+                console.debug('  No timestamp');
             }
-            debug.log(`  Position: line ${video.position.start.line}`);
+            console.debug(`  Position: line ${video.position.start.line}`);
         });
     }
 }

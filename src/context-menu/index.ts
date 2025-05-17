@@ -1,4 +1,4 @@
-import { Menu } from 'obsidian';
+import { Menu, App, Plugin } from 'obsidian';
 import { observeVideos } from '../video';
 import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
 import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
@@ -12,11 +12,10 @@ const initializedElements = new WeakSet<HTMLVideoElement>();
  * Sets up an Obsidian-native context menu on video elements.
  * Enables copying video links with timestamps.
  */
-export function setupVideoContextMenu(app: any): () => void {
+export function setupVideoContextMenu(plugin: any): () => void {
   // Clean up any previously initialized elements
   cleanupVideoContextMenu();
-  
-  const initContext = (video: HTMLVideoElement) => {
+    const initContext = (video: HTMLVideoElement) => {
     // Skip if already initialized
     if (initializedElements.has(video)) return;
 
@@ -26,25 +25,15 @@ export function setupVideoContextMenu(app: any): () => void {
 
       const menu = new Menu();
 
-      addOpenLink(menu, this.app, video);
-      addOpenInNewTab(menu, this.app, video);
-      addOpenToRight(menu, this.app, video);
-      addOpenInNewWindow(menu, this.app, video);
+      addOpenLink(menu, plugin, video);
+      addOpenInNewTab(menu, plugin, video);
+      addOpenToRight(menu, plugin, video);
+      addOpenInNewWindow(menu, plugin, video);menu.addSeparator();      addCopyEmbedLink(menu, plugin, video);
+      addCopyEmbedAtCurrentTime(menu, plugin, video);
 
-      menu.addSeparator();
-
-      addCopyEmbedLink(menu, this.app, video);
-      addCopyEmbedAtCurrentTime(menu, this.app, video);
-
-      menu.addSeparator();
-
-      addSetStartTime(menu, this.app, video);
-      addSetEndTime(menu, this.app, video);
-
-      menu.addSeparator();
-
-      addRemoveEmbedLink(menu, video);
-      addRemoveTimestampFromEmbedLink(menu, video);
+      menu.addSeparator();      addSetStartTime(menu, plugin, video);
+      addSetEndTime(menu, plugin, video);      menu.addSeparator();      addRemoveEmbedLink(menu, plugin, video);
+      addRemoveTimestampFromEmbedLink(menu, plugin, video);
 
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
     };

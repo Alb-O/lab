@@ -1,11 +1,11 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { reinitializeRestrictionHandlers } from './video/restriction-handler';
 
 // Define an interface that represents the methods we need from the VideoTimestamps class
 export interface IVideoTimestampsPlugin extends Plugin {
     settings: VideoTimestampsSettings;
     saveSettings(): Promise<void>;
     detectVideosInActiveView(): any[];
-    reinitializeRestrictionHandlers(): void;
 }
 
 export interface VideoTimestampsSettings {
@@ -35,11 +35,11 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
             .setName('Loop when reaching maximum timestamp')
             .setDesc('The video will automatically loop when it reaches the maximum timestamp.')
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.loopMaxTimestamp)
-                .onChange(async (value) => {
+                .setValue(this.plugin.settings.loopMaxTimestamp)                .onChange(async (value) => {
                     this.plugin.settings.loopMaxTimestamp = value;
                     await this.plugin.saveSettings();
-                    this.plugin.reinitializeRestrictionHandlers();
+                    // Call directly from the imported function instead of through the plugin
+                    reinitializeRestrictionHandlers(this.plugin.settings);
                 }));
     }
 }

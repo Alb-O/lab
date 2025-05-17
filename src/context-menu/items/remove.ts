@@ -1,13 +1,13 @@
-import { Menu, Notice, MarkdownView } from 'obsidian';
+import { Menu, Notice, MarkdownView, App, Plugin } from 'obsidian';
 import { extractVideosFromMarkdownView } from '../../video';
 
-export function addRemoveEmbedLink(menu: Menu, video: HTMLVideoElement) {
+export function addRemoveEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
   menu.addItem(item =>
     item
       .setIcon('trash')
       .setTitle('Remove embed link')
       .onClick(async () => {
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view) {
           new Notice('Removing embed links only works from a Markdown note.');
           return;
@@ -57,13 +57,13 @@ export function addRemoveEmbedLink(menu: Menu, video: HTMLVideoElement) {
   );
 }
 
-export function addRemoveTimestampFromEmbedLink(menu: Menu, video: HTMLVideoElement) {
+export function addRemoveTimestampFromEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
   menu.addItem(item =>
     item
       .setIcon('clock')
       .setTitle('Remove timestamp from embed link')
       .onClick(async () => {
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view) {
           new Notice('Removing timestamps only works from a Markdown note.');
           return;

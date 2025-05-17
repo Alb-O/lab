@@ -4,7 +4,6 @@ import { VideoWithTimestamp, VideoDetector, setupVideoControls } from './video';
 import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
 import { TimestampManager } from './timestamps';
 import { PluginEventHandler } from './plugin-event-handler';
-import { VideoRestrictionHandler } from './video/restriction-handler';
 
 export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
 	settings: VideoTimestampsSettings;
@@ -31,9 +30,8 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 		// Clean up any existing context menu handlers first (in case of reload)
 		cleanupVideoContextMenu();
-
 		// Setup Obsidian-native context menu for videos
-		this.contextMenuCleanup = setupVideoContextMenu(this.app);
+		this.contextMenuCleanup = setupVideoContextMenu(this);
 
 		// Register for plugin cleanup on unload
 		this.register(() => {
@@ -107,7 +105,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		this.pluginEventHandler.unpatchWorkspaceLeafOnResize(this.origLeafOnResize);
 		this.origLeafOnResize = null;
 	}
-
 	/**
 	 * Detect videos in all open markdown views
 	 * @returns Array of detected videos with timestamps across all views
@@ -119,7 +116,6 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 				markdownViews.push(leaf.view);
 			}
 		});
-
 
 		if (markdownViews.length === 0) {
 			return [];
@@ -133,26 +129,13 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 		this.timestampController.applyTimestampRestrictions(allVideos);
 
-		if (allVideos.length > 0) this.videoDetector.debugVideos(allVideos);
+		// Only debug in non-production environment
+		if (allVideos.length > 0 && process.env.NODE_ENV !== 'production') {
+			this.videoDetector.debugVideos(allVideos);
+		}
 
 		return allVideos;
-	}
-
-	async saveSettings() {
+	}	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-
-	/**
-	 * Reapply timestamp restriction handlers without full plugin reload
-	 */
-	public reinitializeRestrictionHandlers(): void {
-		const handler = new VideoRestrictionHandler();
-		const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
-		videos.forEach(videoEl => {
-			const state = (videoEl as any)._timestampState;
-			if (state) {
-				handler.apply(videoEl, state.startTime, state.endTime, state.path, this.settings, true);
-			}
-		});
 	}
 }
