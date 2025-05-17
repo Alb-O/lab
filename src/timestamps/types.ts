@@ -13,12 +13,24 @@ export interface VideoState {
     shouldAutoPlay: boolean;
     userPaused: boolean;
     isSeeking: boolean;
+    // Preserve the user's original timestamp string formats
+    startRaw?: string;
+    endRaw?: string;
 }
 
 /**
  * Interface for classes that handle video timestamp enforcement
  */
 export interface TimestampHandler {
-    apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings ): void;
+    apply(
+        videoEl: HTMLVideoElement,
+        startTime: number,
+        endTime: number,
+        path: string,
+        settings: VideoTimestampsSettings,
+        skipInitialSeek?: boolean,
+        startRaw?: string,
+        endRaw?: string
+    ): void;
     cleanup(videoEl: HTMLVideoElement): void;
 }

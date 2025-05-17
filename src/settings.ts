@@ -35,7 +35,8 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
             .setName('Loop when reaching maximum timestamp')
             .setDesc('The video will automatically loop when it reaches the maximum timestamp.')
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.loopMaxTimestamp)                .onChange(async (value) => {
+                .setValue(this.plugin.settings.loopMaxTimestamp)
+                .onChange(async (value) => {
                     this.plugin.settings.loopMaxTimestamp = value;
                     await this.plugin.saveSettings();
                     // Call directly from the imported function instead of through the plugin

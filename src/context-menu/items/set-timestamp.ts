@@ -1,6 +1,6 @@
 import { Menu, Notice, App, Modal, MarkdownView, Plugin } from 'obsidian';
 import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
-import { parseTimestampToSeconds } from '../../timestamps/utils';
+import { parseTimestampToSeconds, formatTimestamp, generateFragmentString, parseTempFrag, TempFragment } from '../../timestamps/utils';
 import { VideoWithTimestamp } from '../../video';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 
@@ -30,11 +30,64 @@ class TimestampInputModal extends Modal {
     video: HTMLVideoElement;
     type: 'start' | 'end';
     textareaEl: HTMLTextAreaElement | null = null;
+    originalFragment: TempFragment | null = null; // Store the original fragment
 
     constructor(app: App, video: HTMLVideoElement, type: 'start' | 'end') { // Accept app instance
         super(app); // Pass app to super
         this.video = video;
         this.type = type;
+
+        let initialStart: number = -1;
+        let initialEnd: number = -1;
+        let initialStartRaw: string | undefined = undefined;
+        let initialEndRaw: string | undefined = undefined;
+
+        // Prioritize raw dataset attributes
+        if (video.dataset.startTimeRaw) {
+            initialStartRaw = video.dataset.startTimeRaw;
+            const parsedStart = parseTimestampToSeconds(initialStartRaw);
+            if (parsedStart !== null) initialStart = parsedStart;
+        } else if (video.dataset.startTime) {
+            initialStartRaw = video.dataset.startTime;
+            const parsedStart = parseTimestampToSeconds(initialStartRaw);
+            if (parsedStart !== null) initialStart = parsedStart;
+        }
+
+        if (video.dataset.endTimeRaw) {
+            initialEndRaw = video.dataset.endTimeRaw;
+            const parsedEnd = parseTimestampToSeconds(initialEndRaw);
+            if (parsedEnd !== null) initialEnd = parsedEnd;
+        } else if (video.dataset.endTime) {
+            initialEndRaw = video.dataset.endTime;
+            const parsedEnd = parseTimestampToSeconds(initialEndRaw);
+            if (parsedEnd !== null) initialEnd = parsedEnd;
+        }
+
+        // Construct the fragment if we have any valid data from datasets
+        if (initialStart !== -1 || initialEnd !== -1 || initialStartRaw !== undefined || initialEndRaw !== undefined) {
+            this.originalFragment = {
+                start: initialStart,
+                end: initialEnd,
+                startRaw: initialStartRaw,
+                endRaw: initialEndRaw,
+            };
+        } else {
+            // Fallback: if dataset attributes are entirely missing or empty,
+            // try parsing the hash from currentSrc, acknowledging it might be a placeholder.
+            try {
+                if (video.currentSrc) {
+                    const currentHash = new URL(video.currentSrc).hash;
+                    this.originalFragment = parseTempFrag(currentHash);
+                } else {
+                    this.originalFragment = null;
+                }
+            } catch (e) {
+                if (process.env.NODE_ENV !== 'production') {
+                    console.warn("TimestampInputModal: Could not parse video.currentSrc to get hash", e);
+                }
+                this.originalFragment = null;
+            }
+        }
     }
 
     onOpen() {
@@ -72,14 +125,31 @@ class TimestampInputModal extends Modal {
 
         const currentTimestamp = getCurrentTimeRounded(this.video);
         let initialValue: string;
-        if (this.type === 'start' && this.video.dataset.startTime && !isNaN(Number(this.video.dataset.startTime))) {
-            initialValue = this.video.dataset.startTime;
-        } else if (this.type === 'end' && this.video.dataset.endTime && !isNaN(Number(this.video.dataset.endTime))) {
-            initialValue = this.video.dataset.endTime;
-        } else {
-            initialValue = currentTimestamp.toString();
+
+        // Use original fragment for initial value if available and relevant
+        if (this.type === 'start') {
+            if (this.originalFragment && this.originalFragment.startRaw) {
+                initialValue = this.originalFragment.startRaw;
+            } else if (this.originalFragment && this.originalFragment.start >= 0) {
+                initialValue = formatTimestamp(this.originalFragment.start, this.originalFragment.startRaw);
+            } else if (this.video.dataset.startTime) { // Fallback to dataset if needed
+                initialValue = this.video.dataset.startTime;
+            } else {
+                initialValue = formatTimestamp(currentTimestamp);
+            }
+        } else { // type === 'end'
+            if (this.originalFragment && this.originalFragment.endRaw) {
+                initialValue = this.originalFragment.endRaw;
+            } else if (this.originalFragment && this.originalFragment.end >= 0 && this.originalFragment.end !== Infinity) {
+                initialValue = formatTimestamp(this.originalFragment.end, this.originalFragment.endRaw);
+            } else if (this.video.dataset.endTime) { // Fallback to dataset
+                initialValue = this.video.dataset.endTime;
+            } else {
+                initialValue = formatTimestamp(currentTimestamp);
+            }
         }
-        const formattedCurrent = require('../../timestamps/utils').formatTimestamp(currentTimestamp);
+
+        const formattedCurrent = formatTimestamp(currentTimestamp, this.originalFragment?.startRaw); // Or a more relevant raw format
 
         this.textareaEl = content.createEl('textarea', {
             cls: 'video-ts-textarea',
@@ -101,6 +171,11 @@ class TimestampInputModal extends Modal {
         saveBtn.onclick = async () => {
             await this.submitTimestamp();
         };
+        const clearBtn = buttonContainer.createEl('button', { cls: 'mod-warning' });
+        clearBtn.textContent = 'Clear timestamp';
+        clearBtn.onclick = async () => {
+            await this.clearTimestamp();
+        };
         const useCurrentBtn = buttonContainer.createEl('button', { cls: 'mod-cta' });
         useCurrentBtn.textContent = `Use Current Time (${formattedCurrent})`;
         useCurrentBtn.onclick = async () => {
@@ -117,13 +192,16 @@ class TimestampInputModal extends Modal {
     async submitTimestamp() {
         if (!this.textareaEl) return;
         const rawInput = this.textareaEl.value.trim();
-        if (!rawInput) {
+
+        // We allow empty rawInput here if the intention is to clear, handled by clearTimestamp
+        // However, for submit, it must not be empty if not clearing.
+        if (!rawInput && this.type) { // Check this.type to ensure it's not a general call
             new Notice('Timestamp cannot be empty.');
             return;
         }
 
         const parsedSeconds = parseTimestampToSeconds(rawInput);
-        if (parsedSeconds === null) {
+        if (parsedSeconds === null && rawInput) { // only show error if rawInput was not empty
             new Notice('Invalid timestamp format. Use seconds (e.g., 65.5) or mm:ss (e.g., 1:05.5).');
             return;
         }
@@ -135,66 +213,90 @@ class TimestampInputModal extends Modal {
             return;
         }
 
-        const { targetFile, isExternalFileUrl, externalFileUrl } = linkDetails;
         let baseSrc: string;
-        const currentSrc = this.video.currentSrc || this.video.src;
+        // Use originalFragment (set in constructor) as the source of truth for current state
+        // before this modal's changes.
+        const currentSrcUrl = new URL(this.video.currentSrc || this.video.src);
+        baseSrc = `${currentSrcUrl.protocol}//${currentSrcUrl.host}${currentSrcUrl.pathname}${currentSrcUrl.search}`;
 
-        if (isExternalFileUrl && externalFileUrl) {
-            baseSrc = externalFileUrl.split('#')[0];
-        } else if (targetFile) {
-            baseSrc = this.app.vault.getResourcePath(targetFile).split('#')[0];
-        } else if (currentSrc.startsWith('app://')) {
-            const appUrlMatch = currentSrc.match(/^app:\/\/[^\/]+\/(.*)/);
-            if (appUrlMatch && appUrlMatch[1]) {
-                baseSrc = `file:///${appUrlMatch[1]}`.split('#')[0];
-            } else {
-                new Notice('Error: Could not parse app:// URL to determine base source.');
-                this.close(); return;
-            }
-        } else if (currentSrc.startsWith('file:///')) {
-            baseSrc = currentSrc.split('#')[0];
-        } else {
-            new Notice('Error: Could not determine video source for timestamping (unhandled URL scheme).');
-            this.close(); return;
-        }
+        let newFragment: TempFragment;
 
-        let startTime: number | undefined = undefined;
-        let endTime: number | undefined = undefined;
-        if (this.video.dataset.startTime && !isNaN(Number(this.video.dataset.startTime))) {
-            startTime = Number(this.video.dataset.startTime);
-        }
-        if (this.video.dataset.endTime && !isNaN(Number(this.video.dataset.endTime))) {
-            endTime = Number(this.video.dataset.endTime);
-        }
-
-        let fragment = "";
         if (this.type === 'start') {
-            if (typeof endTime === 'number' && !isNaN(endTime)) {
-                if (parsedSeconds >= endTime) {
-                    new Notice('Start time cannot be after or at the end time.'); return;
-                }
-                fragment = `t=${parsedSeconds},${endTime}`;
-            } else {
-                fragment = `t=${parsedSeconds}`;
+            const currentEndTime = this.originalFragment?.end;
+            const currentEndRaw = this.originalFragment?.endRaw;
+
+            if (parsedSeconds === null) { // This case should ideally be handled by clearTimestamp
+                new Notice('Cannot set an empty start time. Use Clear button.'); return;
             }
-            this.video.dataset.startTime = parsedSeconds.toString();
-            if (typeof endTime === 'number' && !isNaN(endTime)) this.video.dataset.endTime = endTime.toString(); else delete this.video.dataset.endTime;
+
+            if (typeof currentEndTime === 'number' && currentEndTime >= 0 && parsedSeconds >= currentEndTime) {
+                new Notice('Start time cannot be after or at the end time.'); return;
+            }
+            newFragment = {
+                start: parsedSeconds,
+                startRaw: rawInput,
+                end: currentEndTime !== undefined && currentEndTime >= 0 ? currentEndTime : -1,
+                endRaw: currentEndRaw
+            };
+            if (newFragment.startRaw) {
+                this.video.dataset.startTimeRaw = newFragment.startRaw;
+            } else {
+                delete this.video.dataset.startTimeRaw;
+            }
+            this.video.dataset.startTime = newFragment.start.toString();
+
+            if (newFragment.endRaw) {
+                this.video.dataset.endTimeRaw = newFragment.endRaw;
+            } else {
+                delete this.video.dataset.endTimeRaw;
+            }
+            if (newFragment.end >= 0) {
+                this.video.dataset.endTime = newFragment.end.toString();
+            } else {
+                delete this.video.dataset.endTime;
+            }
+
         } else { // type === 'end'
-            if (typeof startTime === 'number' && !isNaN(startTime)) {
-                if (parsedSeconds <= startTime) {
-                    new Notice('End time cannot be before or at the start time.'); return;
-                }
-                fragment = `t=${startTime},${parsedSeconds}`;
-            } else {
-                fragment = `t=0,${parsedSeconds}`;
+            const currentStartTime = this.originalFragment?.start;
+            const currentStartRaw = this.originalFragment?.startRaw;
+
+            if (parsedSeconds === null) { // This case should ideally be handled by clearTimestamp
+                new Notice('Cannot set an empty end time. Use Clear button.'); return;
             }
-            this.video.dataset.endTime = parsedSeconds.toString();
-            if (typeof startTime === 'number' && !isNaN(startTime)) this.video.dataset.startTime = startTime.toString(); else delete this.video.dataset.startTime;
+
+            if (typeof currentStartTime === 'number' && currentStartTime >= 0 && parsedSeconds <= currentStartTime) {
+                new Notice('End time cannot be before or at the start time.'); return;
+            }
+            newFragment = {
+                start: currentStartTime !== undefined && currentStartTime >= 0 ? currentStartTime : -1,
+                startRaw: currentStartRaw,
+                end: parsedSeconds,
+                endRaw: rawInput
+            };
+            if (newFragment.startRaw) {
+                this.video.dataset.startTimeRaw = newFragment.startRaw;
+            } else {
+                delete this.video.dataset.startTimeRaw;
+            }
+            this.video.dataset.startTime = newFragment.start.toString();
+
+            if (newFragment.endRaw) {
+                this.video.dataset.endTimeRaw = newFragment.endRaw;
+            } else {
+                delete this.video.dataset.endTimeRaw;
+            }
+            if (newFragment.end >= 0) {
+                this.video.dataset.endTime = newFragment.end.toString();
+            } else {
+                delete this.video.dataset.endTime;
+            }
         }
 
-        const newSrcForDom = `${baseSrc}#${fragment}`;
-        const newSrcToStoreInEditor = (targetFile && !isExternalFileUrl)
-            ? `${this.app.vault.getResourcePath(targetFile).split('#')[0]}#${fragment}`
+        const fragmentString = generateFragmentString(newFragment);
+        const suffix = fragmentString ? `#${fragmentString}` : '';
+        const newSrcForDom = `${baseSrc}${suffix}`;
+        const newSrcToStoreInEditor = (linkDetails.targetFile && !linkDetails.isExternalFileUrl)
+            ? `${this.app.vault.getResourcePath(linkDetails.targetFile).split('#')[0]}${suffix}`
             : newSrcForDom;
 
         this.video.src = newSrcForDom;
@@ -204,108 +306,8 @@ class TimestampInputModal extends Modal {
             const editor = mdView.editor;
             const currentFile = mdView.file; // Use currentFile for clarity
             try {
-                const { extractVideosFromMarkdownView } = require('../../video');
-                const allVideosInEditor: VideoWithTimestamp[] = extractVideosFromMarkdownView(mdView);
-                let updatedInMarkdown = false;
-                const domVideoElements = Array.from(mdView.contentEl.querySelectorAll('video'));
-                const currentVideoDomIndex = domVideoElements.indexOf(this.video);
-
-                if (currentVideoDomIndex !== -1 && currentVideoDomIndex < allVideosInEditor.length) {
-                    const currentVideoInfo = allVideosInEditor[currentVideoDomIndex];
-                    const loggableVideoInfo = {
-                        ...currentVideoInfo,
-                        file: currentVideoInfo.file ? currentVideoInfo.file.path : null
-                    };
-                    if (process.env.NODE_ENV !== 'production') {
-                        console.log("TimestampInputModal: Matched video by index:", JSON.parse(JSON.stringify(loggableVideoInfo)));
-                    }
-
-                    if ((currentVideoInfo.type === 'wiki' || currentVideoInfo.type === 'md') && currentVideoInfo.file) {
-                        const { line: startLine, col: startCol } = currentVideoInfo.position.start;
-                        const { line: endLine, col: endCol } = currentVideoInfo.position.end;
-
-                        const newFullMdLink = generateMarkdownLink({
-                            app: this.app,
-                            targetPathOrFile: currentVideoInfo.file,
-                            sourcePathOrFile: currentFile, // Use currentFile (TFile)
-                            subpath: `#${fragment}`,
-                            isEmbed: currentVideoInfo.isEmbedded,
-                            originalLink: currentVideoInfo.linktext,
-                            alias: currentVideoInfo.alias
-                        });
-
-                        const fileContent = await this.app.vault.read(currentFile);
-                        const lines = fileContent.split('\n');
-                        if (startLine === endLine) {
-                            lines[startLine] = lines[startLine].substring(0, startCol) + newFullMdLink + lines[startLine].substring(endCol);
-                        } else {
-                            const prefix = lines[startLine].substring(0, startCol);
-                            const suffix = lines[endLine].substring(endCol);
-                            const combinedLine = prefix + newFullMdLink + suffix;
-                            lines.splice(startLine, endLine - startLine + 1, combinedLine);
-                        }
-                        await this.app.vault.modify(currentFile, lines.join('\n'));
-                        new Notice(`Markdown embed link updated with timestamp.`);
-                        updatedInMarkdown = true;
-
-                    } else if (currentVideoInfo.type === 'html') {
-                        const { line: startLineHtml, col: startChHtml } = currentVideoInfo.position.start; // Renamed to avoid conflict
-                        const { line: endLineHtml, col: endChHtml } = currentVideoInfo.position.end;     // Renamed to avoid conflict
-                        const htmlLinkText = currentVideoInfo.linktext;
-
-                        const blockStartPosLine = startLineHtml;
-                        const blockEndPosLine = endLineHtml;
-
-                        if (/^\s*<video[\s>]/i.test(htmlLinkText)) {
-                            const fileContent = await this.app.vault.read(currentFile);
-                            const lines = fileContent.split('\n');
-
-                            const originalBlockLines = lines.slice(blockStartPosLine, blockEndPosLine + 1);
-                            let lineIdxInBlock = -1;
-                            for (let i = 0; i < originalBlockLines.length; i++) {
-                                if (originalBlockLines[i].trim().match(/<video\s[^>]*src=/i)) {
-                                    lineIdxInBlock = i;
-                                    break;
-                                }
-                            }
-
-                            if (lineIdxInBlock !== -1) {
-                                const modifiedLine = originalBlockLines[lineIdxInBlock].replace(
-                                    /src=("|')[^"'#]+(#[^"']*)?("|')/i,
-                                    `src="${newSrcToStoreInEditor}"`
-                                );
-                                const newBlockContentLines = [...originalBlockLines];
-                                newBlockContentLines[lineIdxInBlock] = modifiedLine;
-
-                                lines.splice(blockStartPosLine, blockEndPosLine - blockStartPosLine + 1, ...newBlockContentLines);
-                                await this.app.vault.modify(currentFile, lines.join('\n'));
-                                new Notice('HTML video tag updated with timestamp.');
-                                updatedInMarkdown = true;
-                            } else {
-                                if (process.env.NODE_ENV !== 'production') {
-                                    console.warn("TimestampInputModal: Found HTML video block but couldn't find src attribute line.", currentVideoInfo, originalBlockLines);
-                                }
-                            }
-                        } else {
-                            if (process.env.NODE_ENV !== 'production') {
-                                console.warn("TimestampInputModal: Indexed HTML video info's linktext does not appear to be a video tag.", currentVideoInfo);
-                            }
-                        }
-                    } else {
-                        if (process.env.NODE_ENV !== 'production') {
-                            console.warn("TimestampInputModal: Matched video by index has unknown or unsuitable type:", currentVideoInfo);
-                        }
-                    }
-                } else {
-                    if (process.env.NODE_ENV !== 'production') {
-                        console.warn("TimestampInputModal: Clicked video not found by DOM index or index out of bounds.",
-                            { domIndex: currentVideoDomIndex, extractedCount: allVideosInEditor.length });
-                    }
-                }
-
-                if (!updatedInMarkdown) {
-                    new Notice(`Timestamp set, but could not find or update matching embed/HTML block in markdown.`);
-                }
+                await this.updateEditorLink(currentFile, editor, fragmentString, linkDetails, mdView.contentEl.querySelectorAll('video'));
+                new Notice(`Video ${this.type} time set to ${rawInput}.`);
             } catch (e: any) {
                 if (process.env.NODE_ENV !== 'production') {
                     console.error('Failed to update embed link:', e);
@@ -316,9 +318,155 @@ class TimestampInputModal extends Modal {
             new Notice('Timestamp set, but cannot update link in markdown: The current file is not saved.');
         }
 
-        new Notice(`Video ${this.type} time set to ${parsedSeconds.toFixed(2)}s.`);
-
         this.close();
+    }
+
+    async clearTimestamp() {
+        const linkDetails = getVideoLinkDetails(this.app, this.video);
+        if (!linkDetails) {
+            new Notice('Error: Could not retrieve video details to update the source for clearing.');
+            this.close();
+            return;
+        }
+
+        let baseSrc: string;
+        const currentSrcUrl = new URL(this.video.currentSrc || this.video.src);
+        baseSrc = `${currentSrcUrl.protocol}//${currentSrcUrl.host}${currentSrcUrl.pathname}${currentSrcUrl.search}`;
+
+        let newFragment: TempFragment | null = null;
+
+        if (this.type === 'start') {
+            if (this.originalFragment) {
+                newFragment = {
+                    ...this.originalFragment,
+                    start: -1, // Cleared
+                    startRaw: undefined
+                };
+                // If only start existed, and now it's cleared, the whole fragment might be empty
+                if (newFragment.end < 0 && !newFragment.endRaw) newFragment = null;
+            }
+            delete this.video.dataset.startTimeRaw;
+            delete this.video.dataset.startTime;
+        } else { // type === 'end'
+            if (this.originalFragment) {
+                newFragment = {
+                    ...this.originalFragment,
+                    end: -1, // Cleared
+                    endRaw: undefined
+                };
+                // If only end existed, and now it's cleared, the whole fragment might be empty
+                // Or if start was 0 (default for only end) and end is now cleared.
+                if (newFragment.start < 0 && !newFragment.startRaw) newFragment = null;
+                else if (newFragment.start === 0 && !newFragment.startRaw && newFragment.end < 0) newFragment = null;
+
+            }
+            delete this.video.dataset.endTimeRaw;
+            delete this.video.dataset.endTime;
+        }
+
+        // If clearing one part makes the other part a single timestamp starting at 0, remove the 0.
+        if (newFragment && newFragment.start === 0 && !newFragment.startRaw && newFragment.end < 0 && !newFragment.endRaw) {
+            // This case is implicitly t=0 if only end was there, then end cleared. So, no fragment.
+            newFragment = null;
+        }
+        if (newFragment && newFragment.end === 0 && !newFragment.endRaw && newFragment.start < 0 && !newFragment.startRaw) {
+            newFragment = null;
+        }
+
+        const fragmentString = newFragment ? generateFragmentString(newFragment) : '';
+        const suffix = fragmentString ? `#${fragmentString}` : '';
+        const newSrcForDom = `${baseSrc}${suffix}`;
+        this.video.src = newSrcForDom;
+
+        const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (mdView && mdView.editor && mdView.file) {
+            try {
+                await this.updateEditorLink(mdView.file, mdView.editor, fragmentString, linkDetails, mdView.contentEl.querySelectorAll('video'));
+                new Notice(`Video ${this.type} time cleared.`);
+            } catch (e: any) {
+                new Notice('Error updating link in markdown after clearing: ' + e.message);
+            }
+        } else {
+            new Notice(`Video ${this.type} time cleared. Could not update markdown link (no active file/editor).`);
+        }
+        this.close();
+    }
+
+    async updateEditorLink(currentFile: any, editor: any, fragmentString: string, linkDetails: any, domVideoElements: NodeListOf<HTMLVideoElement>) {
+        const { extractVideosFromMarkdownView } = require('../../video');
+        const allVideosInEditor: VideoWithTimestamp[] = extractVideosFromMarkdownView(this.app.workspace.getActiveViewOfType(MarkdownView)!);
+        const currentVideoDomIndex = Array.from(domVideoElements).indexOf(this.video);
+
+        if (currentVideoDomIndex !== -1 && currentVideoDomIndex < allVideosInEditor.length) {
+            const currentVideoInfo = allVideosInEditor[currentVideoDomIndex];
+            const subpath = fragmentString ? `#${fragmentString}` : ''; // Ensure subpath is empty if fragmentString is empty
+
+            if ((currentVideoInfo.type === 'wiki' || currentVideoInfo.type === 'md') && currentVideoInfo.file) {
+                const { line: startLine, col: startCol } = currentVideoInfo.position.start;
+                const { line: endLine, col: endCol } = currentVideoInfo.position.end;
+
+                const newFullMdLink = generateMarkdownLink({
+                    app: this.app,
+                    targetPathOrFile: currentVideoInfo.file,
+                    sourcePathOrFile: currentFile,
+                    subpath: subpath,
+                    isEmbed: currentVideoInfo.isEmbedded,
+                    originalLink: currentVideoInfo.linktext, // This might need adjustment if alias/display text was part of old fragment
+                    alias: currentVideoInfo.alias
+                });
+
+                const fileContent = await this.app.vault.read(currentFile);
+                const lines = fileContent.split('\n');
+                if (startLine === endLine) {
+                    lines[startLine] = lines[startLine].substring(0, startCol) + newFullMdLink + lines[startLine].substring(endCol);
+                } else {
+                    const prefix = lines[startLine].substring(0, startCol);
+                    const suffix = lines[endLine].substring(endCol);
+                    const combinedLine = prefix + newFullMdLink + suffix;
+                    lines.splice(startLine, endLine - startLine + 1, combinedLine);
+                }
+                await this.app.vault.modify(currentFile, lines.join('\n'));
+            } else if (currentVideoInfo.type === 'html') {
+                const { line: startLineHtml, col: startChHtml } = currentVideoInfo.position.start;
+                const { line: endLineHtml, col: endChHtml } = currentVideoInfo.position.end;
+                const htmlLinkText = currentVideoInfo.linktext;
+                const blockStartPosLine = startLineHtml;
+                const blockEndPosLine = endLineHtml;
+
+                if (/^\s*<video[\s>]/i.test(htmlLinkText)) {
+                    const fileContent = await this.app.vault.read(currentFile);
+                    const lines = fileContent.split('\n');
+                    const originalBlockLines = lines.slice(blockStartPosLine, blockEndPosLine + 1);
+                    let lineIdxInBlock = -1;
+                    for (let i = 0; i < originalBlockLines.length; i++) {
+                        if (originalBlockLines[i].trim().match(/<video\s[^>]*src=/i)) {
+                            lineIdxInBlock = i;
+                            break;
+                        }
+                    }
+
+                    if (lineIdxInBlock !== -1) {
+                        // Construct the new src attribute, ensuring base path + new fragment
+                        let baseVideoSrc = "";
+                        const srcMatch = originalBlockLines[lineIdxInBlock].match(/src=("|')([^"'#]+)/i);
+                        if (srcMatch && srcMatch[2]) {
+                            baseVideoSrc = srcMatch[2];
+                        }
+                        const newHtmlSrcAttr = `src="${baseVideoSrc}${subpath}"`;
+
+                        const modifiedLine = originalBlockLines[lineIdxInBlock].replace(
+                            /src=("|')[^"'#]+(#[^"']*)?("|')/i,
+                            newHtmlSrcAttr
+                        );
+                        const newBlockContentLines = [...originalBlockLines];
+                        newBlockContentLines[lineIdxInBlock] = modifiedLine;
+
+                        lines.splice(blockStartPosLine, blockEndPosLine - blockStartPosLine + 1, ...newBlockContentLines);
+                        await this.app.vault.modify(currentFile, lines.join('\n'));
+                    } else { /* console.warn */ }
+                } else { /* console.warn */ }
+            } else { /* console.warn */ }
+        } else { /* console.warn */ }
     }
 
     onClose() {

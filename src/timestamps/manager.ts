@@ -57,7 +57,10 @@ export class TimestampManager {
                         videoData.timestamp.start,
                         videoData.timestamp.end !== -1 ? videoData.timestamp.end : Infinity,
                         videoData.path,
-                        this.settings
+                        this.settings,
+                        false,
+                        videoData.startRaw,
+                        videoData.endRaw
                     );
                 }
                 // If videoData.timestamp is null, no restrictions are applied (cleanup already handled it)
@@ -76,7 +79,10 @@ export class TimestampManager {
                         startTime,
                         endTime !== undefined && endTime >= 0 ? endTime : Infinity,
                         domPath || "unmanaged DOM video",
-                        this.settings
+                        this.settings,
+                        false,
+                        undefined,
+                        undefined
                     );
                 }
                 // No need to add to processedDomVideoElements here as this is the final loop for them

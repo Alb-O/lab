@@ -9,11 +9,22 @@ export class VideoRestrictionHandler implements TimestampHandler {
     /**
      * Apply timestamp restrictions to a video element
      */
-    public apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings, skipInitialSeek = false ): void {
+    public apply(videoEl: HTMLVideoElement, startTime: number, endTime: number, path: string, settings: VideoTimestampsSettings, skipInitialSeek = false, startRaw?: string, endRaw?: string): void {
         this.cleanup(videoEl);
 
         // Store metadata on the video element
+        if (startRaw != null) {
+            videoEl.dataset.startTimeRaw = startRaw;
+        } else {
+            delete videoEl.dataset.startTimeRaw;
+        }
         videoEl.dataset.startTime = startTime.toString();
+
+        if (endRaw != null) {
+            videoEl.dataset.endTimeRaw = endRaw;
+        } else {
+            delete videoEl.dataset.endTimeRaw;
+        }
         videoEl.dataset.endTime = endTime === Infinity ? 'end' : endTime.toString();
         videoEl.dataset.timestampPath = path;
 
@@ -21,6 +32,8 @@ export class VideoRestrictionHandler implements TimestampHandler {
         const state: VideoState = {
             startTime,
             endTime,
+            startRaw: videoEl.dataset.startTimeRaw,
+            endRaw: videoEl.dataset.endTimeRaw,
             path,
             reachedEnd: false,
             seekedPastEnd: false,
@@ -461,6 +474,8 @@ export class VideoRestrictionHandler implements TimestampHandler {
         delete videoEl.dataset.shouldAutoPlay;
         delete videoEl.dataset.userPaused;
         delete videoEl.dataset.isSeeking;
+        delete videoEl.dataset.startTimeRaw;
+        delete videoEl.dataset.endTimeRaw;
     }
 
     /**
@@ -516,7 +531,7 @@ export function reinitializeRestrictionHandlers(settings: VideoTimestampsSetting
     videos.forEach(videoEl => {
         const state = (videoEl as any)._timestampState;
         if (state) {
-            handler.apply(videoEl, state.startTime, state.endTime, state.path, settings, true);
+            handler.apply(videoEl, state.startTime, state.endTime, state.path, settings, true, state.startRaw, state.endRaw);
         }
     });
 }

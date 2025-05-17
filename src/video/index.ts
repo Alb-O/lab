@@ -16,6 +16,9 @@ export interface VideoWithTimestamp {
     linktext: string; // Full original link text, e.g., ![[video.mp4#t=1]]
     alias?: string; // Optional alias for the link
     timestamp: TempFragment | null;
+    // Keep the raw format from the link so we can preserve it
+    startRaw?: string;
+    endRaw?: string;
     isEmbedded: boolean;
     position: {
         start: { line: number; col: number };
@@ -105,11 +108,22 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             if (file && isVideoFile(file)) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + String(m[0]).length } };
                 const timestamp = parseTempFrag(parsedSubpath);
+                const startRaw = timestamp?.startRaw;
+                const endRaw = timestamp?.endRaw;
                 const parsedLink = parseLink(String(m[0])); // Parse the full link text for alias
                 videoEntry = {
                     type: 'wiki',
-                    file, path: file.path, linktext: String(m[0]), alias: parsedLink?.alias, timestamp, isEmbedded, position,
-                    originalLinkPath: parsedLinkPath, originalSubpath: parsedSubpath || null
+                    file,
+                    path: file.path,
+                    linktext: String(m[0]),
+                    alias: parsedLink?.alias,
+                    timestamp,
+                    startRaw,
+                    endRaw,
+                    isEmbedded,
+                    position,
+                    originalLinkPath: parsedLinkPath,
+                    originalSubpath: parsedSubpath || null
                 };
             }
         } else if (type === 'md') {
@@ -137,6 +151,8 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
                     timestamp = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
                 }
                 
+                const startRaw = timestamp?.startRaw;
+                const endRaw = timestamp?.endRaw;
                 const position = {
                     start: { line: i, col: m.index },
                     end: { line: i, col: m.index + m[0].length }
@@ -151,6 +167,8 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
                     linktext: m[0], 
                     alias: parsedLink?.alias,
                     timestamp, 
+                    startRaw,
+                    endRaw,
                     isEmbedded, // ![...] format is embedded, [...] format is not
                     position,
                     originalLinkPath: parsedLinkPath, 
@@ -178,10 +196,20 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             if (isLocalVideoFile || isExternalUrl) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + fullHtmlTag.length } };
                 const timestamp = parseTempFrag(subpathFragment);
+                const startRaw = timestamp?.startRaw;
+                const endRaw = timestamp?.endRaw;
                 videoEntry = {
                     type: 'html', // Added
-                    file, path: videoPath, linktext: fullHtmlTag, timestamp, isEmbedded: true, position,
-                    originalLinkPath: rawSrc, originalSubpath: subpathFragment || null
+                    file, 
+                    path: videoPath, 
+                    linktext: fullHtmlTag, 
+                    timestamp, 
+                    startRaw,
+                    endRaw,
+                    isEmbedded: true, 
+                    position,
+                    originalLinkPath: rawSrc, 
+                    originalSubpath: subpathFragment || null
                 };
             }
         }
