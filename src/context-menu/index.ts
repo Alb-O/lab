@@ -3,6 +3,7 @@ import { observeVideos } from '../video';
 import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
 import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
 import { addRemoveEmbedLink, addRemoveTimestampFromEmbedLink } from './items/remove';
+import { addSetStartTime, addSetEndTime } from './items/set-timestamp';
 
 // Track which elements already have context menus to prevent duplicates
 const initializedElements = new WeakSet<HTMLVideoElement>();
@@ -34,6 +35,11 @@ export function setupVideoContextMenu(app: any): () => void {
 
       addCopyEmbedLink(menu, this.app, video);
       addCopyEmbedAtCurrentTime(menu, this.app, video);
+
+      menu.addSeparator();
+
+      addSetStartTime(menu, this.app, video);
+      addSetEndTime(menu, this.app, video);
 
       menu.addSeparator();
 

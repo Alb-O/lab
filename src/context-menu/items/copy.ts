@@ -1,16 +1,7 @@
 import { Menu, Notice } from 'obsidian';
 import { formatTimestamp } from '../../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
-import { getVideoLinkDetails } from '../utils/link-retriever';
-
-// Helper to get video current time rounded to 2 decimal places if needed
-function getCurrentTimeRounded(video: HTMLVideoElement): number {
-    const t = video.currentTime;
-    // if time is effectively integer, return as is
-    if (Math.abs(t - Math.round(t)) < Number.EPSILON) return t;
-    return Math.round(t * 100) / 100;
-}
-
+import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
 
 export function addCopyEmbedLink(menu: Menu, app: any, video: HTMLVideoElement) {
   menu.addItem(item =>

@@ -110,3 +110,39 @@ export function formatTimestamp(seconds: number): string {
         .toString()
         .padStart(2, '0')}`;
 }
+
+/**
+ * Parse a timestamp string to seconds
+ */
+export function parseTimestampToSeconds(timestamp: string): number | null {
+    if (typeof timestamp !== 'string' || !timestamp.trim()) return null;
+    timestamp = timestamp.trim();
+
+    // Check for colon format (mm:ss or hh:mm:ss)
+    if (timestamp.includes(':')) {
+        const parts = timestamp.split(':');
+        let seconds = 0;
+        if (parts.length === 2) { // mm:ss
+            const minutes = parseFloat(parts[0]);
+            const secs = parseFloat(parts[1]);
+            if (isNaN(minutes) || isNaN(secs) || minutes < 0 || secs < 0 || secs >= 60) return null;
+            seconds = minutes * 60 + secs;
+        } else if (parts.length === 3) { // hh:mm:ss
+            const hours = parseFloat(parts[0]);
+            const minutes = parseFloat(parts[1]);
+            const secs = parseFloat(parts[2]);
+            if (isNaN(hours) || isNaN(minutes) || isNaN(secs) || hours < 0 || minutes < 0 || minutes >= 60 || secs < 0 || secs >= 60) return null;
+            seconds = hours * 3600 + minutes * 60 + secs;
+        } else {
+            return null; // Invalid colon format
+        }
+        return seconds >= 0 ? seconds : null;
+    }
+
+    // Try parsing as raw seconds (which can include a decimal)
+    const secondsValue = parseFloat(timestamp);
+    if (isNaN(secondsValue) || secondsValue < 0) {
+        return null;
+    }
+    return secondsValue;
+}

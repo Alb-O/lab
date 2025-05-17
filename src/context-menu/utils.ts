@@ -1,5 +1,5 @@
 import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView } from 'obsidian';
-import { extractVideosFromMarkdownView } from '../../video';
+import { extractVideosFromMarkdownView } from '../video';
 
 export interface VideoLinkDetails {
     targetFile: TFile | null;
@@ -276,4 +276,10 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
     }
 
     return { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl, attributesString };
+}
+
+// Helper to get video current time rounded to 2 decimal places if needed
+export function getCurrentTimeRounded(video: HTMLVideoElement): number {
+    const t = video.currentTime;
+    return parseFloat((Math.round(t * 100) / 100).toFixed(2));
 }

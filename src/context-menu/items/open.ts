@@ -1,5 +1,5 @@
 import { Menu, Notice } from 'obsidian';
-import { getVideoLinkDetails } from '../utils/link-retriever';
+import { getVideoLinkDetails } from '../utils';
 
 export function addOpenLink(menu: Menu, app: any, video: HTMLVideoElement) {
   menu.addItem(item =>
