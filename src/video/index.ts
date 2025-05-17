@@ -133,7 +133,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             if (file && isVideoFile(file)) {
                 // Extract timestamp from subpath if it exists and matches format
                 let timestamp: TempFragment | null = null;
-                if (parsedSubpath && parsedSubpath.match(/^#t=\d+(?:,\d+)?$/)) {
+                if (parsedSubpath && parsedSubpath.match(/^#t=\d+(?:\.\d+)?(?:,\d+(?:\.\d+)?)?$/)) {
                     timestamp = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
                 }
                 
