@@ -34,7 +34,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
         (videoEl as any)._timestampState = state;
 
         // Tolerance to avoid snapping when within threshold (to handle keyframe misalignment)
-        const TOLERANCE = 0.0005; // seconds
+        const TOLERANCE = 0.001; // seconds
 
         // Compute a virtual end if no max timestamp
         const getEffectiveEnd = () => (endTime === Infinity && videoEl.duration > 0) ? videoEl.duration - TOLERANCE : endTime;
