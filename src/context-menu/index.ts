@@ -1,4 +1,5 @@
-import { Menu, App, Plugin } from 'obsidian';
+import { Menu, Plugin } from 'obsidian';
+import { VideoTimestampsSettings } from '../settings';
 import { observeVideos } from '../video';
 import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
 import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
@@ -12,7 +13,7 @@ const initializedElements = new WeakSet<HTMLVideoElement>();
  * Sets up an Obsidian-native context menu on video elements.
  * Enables copying video links with timestamps.
  */
-export function setupVideoContextMenu(plugin: any): () => void {
+export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsSettings): () => void {
   // Clean up any previously initialized elements
   cleanupVideoContextMenu();
   const initContext = (video: HTMLVideoElement) => {
@@ -33,15 +34,15 @@ export function setupVideoContextMenu(plugin: any): () => void {
       menu.addSeparator();
 
       addCopyEmbedLink(menu, plugin, video);
-      addCopyEmbedAtCurrentTime(menu, plugin, video);
+      addCopyEmbedAtCurrentTime(menu, plugin, settings, video);
 
       menu.addSeparator();
 
-      addSetStartTime(menu, plugin, video);
-      addSetEndTime(menu, plugin, video);
+      addSetStartTime(menu, plugin, settings, video);
+      addSetEndTime(menu, plugin, settings, video);
 
       menu.addSeparator();
-      
+
       addRemoveEmbedLink(menu, plugin, video);
       addRemoveTimestampFromEmbedLink(menu, plugin, video);
 

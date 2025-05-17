@@ -10,10 +10,18 @@ export interface IVideoTimestampsPlugin extends Plugin {
 
 export interface VideoTimestampsSettings {
     loopMaxTimestamp: boolean;
+    trimZeroHours: boolean;
+    trimZeroMinutes: boolean;
+    trimLeadingZeros: boolean;
+    useRawSeconds: boolean;
 }
 
 export const DEFAULT_SETTINGS: VideoTimestampsSettings = {
-    loopMaxTimestamp: false
+    loopMaxTimestamp: false,
+    trimZeroHours: true,
+    trimZeroMinutes: true,
+    trimLeadingZeros: false,
+    useRawSeconds: false
 }
 
 /**
@@ -39,8 +47,49 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.loopMaxTimestamp = value;
                     await this.plugin.saveSettings();
-                    // Call directly from the imported function instead of through the plugin
                     reinitializeRestrictionHandlers(this.plugin.settings);
+                }));
+
+        new Setting(containerEl).setName("Timestamp format").setHeading();
+
+        new Setting(containerEl)
+            .setName('Trim zero hours')
+            .setDesc('Remove "00:" or "0:" hours component when generating formatted timestamps.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.trimZeroHours)
+                .onChange(async (value) => {
+                    this.plugin.settings.trimZeroHours = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Trim zero minutes')
+            .setDesc('Remove "00:" or "0:" minutes component when generating formatted timestamps.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.trimZeroMinutes)
+                .onChange(async (value) => {
+                    this.plugin.settings.trimZeroMinutes = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Trim leading zeros')
+            .setDesc('Prefer single-digit time components where possible, removing leading zeros from all components.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.trimLeadingZeros)
+                .onChange(async (value) => {
+                    this.plugin.settings.trimLeadingZeros = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Use raw seconds')
+            .setDesc('Output pure seconds for timestamps, overriding any trimming or HH:mm:ss formatting.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.useRawSeconds)
+                .onChange(async (value) => {
+                    this.plugin.settings.useRawSeconds = value;
+                    await this.plugin.saveSettings();
                 }));
     }
 }

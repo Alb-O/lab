@@ -1,3 +1,5 @@
+import { VideoTimestampsSettings } from "src/settings";
+
 /**
  * Interface representing a temporal fragment (timestamp) in a media file
  */
@@ -134,11 +136,13 @@ export function convertTime(time: string): number | null {
 /**
  * Format seconds as a human-readable timestamp (mm:ss or hh:mm:ss)
  * Prioritizes raw format if available in TempFragment.
- * Defaults to hh:mm:ss if hours > 0, otherwise mm:ss with leading zeros.
+ * Always uses HH:mm:ss as the base format, trims zero components if enabled,
+ * and outputs raw seconds if that setting is enabled.
  */
 export function formatTimestamp(
     totalSeconds: number,
-    rawFormat?: string
+    rawFormat?: string,
+    settings?: VideoTimestampsSettings
 ): string {
     if (rawFormat) {
         // Basic validation for rawFormat to ensure it's a plausible timestamp
@@ -151,37 +155,52 @@ export function formatTimestamp(
 
     if (isNaN(totalSeconds) || totalSeconds < 0) return "00:00";
 
+    // Always use raw seconds if requested
+    if (settings?.useRawSeconds) {
+        // Show decimals if present in the original seconds
+        return totalSeconds % 1 === 0 ? totalSeconds.toString() : totalSeconds.toFixed(3).replace(/\.0+$/, '').replace(/(\.[0-9]*[1-9])0+$/, '$1');
+    }
+
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
 
     // Determine if we need to show decimals for seconds
-    // Show decimals if the original raw format had them or if seconds is not an integer
     const showDecimals = (rawFormat && rawFormat.includes('.')) || (seconds % 1 !== 0);
 
     let secStr: string;
     if (showDecimals) {
-        // Aim for 1 decimal place, but allow up to 3 if present.
-        // Avoid trailing zeros unless they were in raw input or part of .0
-        if (rawFormat && rawFormat.includes('.')) {
-            const decimalPart = rawFormat.split('.')[1];
-            if (decimalPart) {
-                secStr = seconds.toFixed(Math.min(decimalPart.length, 3));
-            } else { // e.g. "10."
-                secStr = seconds.toFixed(1);
-            }
-        } else {
-            secStr = parseFloat(seconds.toFixed(1)).toString(); // toFixed(1) then remove trailing .0 if it's like 10.0
-            if (secStr.endsWith(".0")) secStr = secStr.substring(0, secStr.length - 2);
+        // Up to 3 decimals, but trim trailing zeros
+        secStr = seconds.toFixed(3)
+            .replace(/\.0+$/, '')
+            .replace(/(\.[0-9]*[1-9])0+$/, '$1');
+        // Pad single-digit integer part for decimals (1.x–9.x)
+        if (seconds >= 1 && seconds < 10) {
+            secStr = secStr.replace(/^(\d)(?=\.)/, '0$1');
         }
     } else {
         secStr = Math.floor(seconds).toString();
     }
 
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${secStr.padStart(showDecimals ? (secStr.includes('.') ? secStr.indexOf('.') + 2 : 3) : 2, '0')}`;
+    let result = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secStr.padStart(2, '0')}`;
+
+    // Split into components for trimming
+    let parts = result.split(':');
+    // Remove zero hours component
+    if (settings?.trimZeroHours && parts.length === 3 && parseInt(parts[0], 10) === 0) {
+        parts.shift();
     }
-    return `${minutes.toString().padStart(2, '0')}:${secStr.padStart(showDecimals ? (secStr.includes('.') ? secStr.indexOf('.') + 2 : 3) : 2, '0')}`;
+    // Remove zero minutes component when it's the leading segment
+    if (settings?.trimZeroMinutes && parts.length >= 2 && parseInt(parts[0], 10) === 0) {
+        parts.shift();
+    }
+    // Strip leading zeros from all remaining components
+    if (settings?.trimLeadingZeros) {
+        parts = parts.map(p => p.replace(/^0+(?=\d)/, ''));
+    }
+    result = parts.join(':');
+
+    return result;
 }
 
 /**

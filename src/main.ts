@@ -31,7 +31,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		// Clean up any existing context menu handlers first (in case of reload)
 		cleanupVideoContextMenu();
 		// Setup Obsidian-native context menu for videos
-		this.contextMenuCleanup = setupVideoContextMenu(this);
+		this.contextMenuCleanup = setupVideoContextMenu(this, this.settings);
 
 		// Register for plugin cleanup on unload
 		this.register(() => {

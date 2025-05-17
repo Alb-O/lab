@@ -3,25 +3,26 @@ import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
 import { parseTimestampToSeconds, formatTimestamp, generateFragmentString, parseTempFrag, TempFragment } from '../../timestamps/utils';
 import { VideoWithTimestamp } from '../../video';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
+import { VideoTimestampsSettings } from '../../settings';
 
-export function addSetStartTime(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
+export function addSetStartTime(menu: Menu, plugin: Plugin, settings: VideoTimestampsSettings, video: HTMLVideoElement) {
     menu.addItem(item =>
         item
             .setIcon('log-in')
             .setTitle('Set start time')
             .onClick(() => {
-                new TimestampInputModal(plugin.app, video, 'start').open(); // Pass app directly
+                new TimestampInputModal(plugin.app, video, 'start', settings).open();
             })
     );
 }
 
-export function addSetEndTime(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
+export function addSetEndTime(menu: Menu, plugin: Plugin, settings: VideoTimestampsSettings, video: HTMLVideoElement) {
     menu.addItem(item =>
         item
             .setIcon('log-out')
             .setTitle('Set end time')
             .onClick(() => {
-                new TimestampInputModal(plugin.app, video, 'end').open(); // Pass app directly
+                new TimestampInputModal(plugin.app, video, 'end', settings).open();
             })
     );
 }
@@ -31,11 +32,13 @@ class TimestampInputModal extends Modal {
     type: 'start' | 'end';
     textareaEl: HTMLTextAreaElement | null = null;
     originalFragment: TempFragment | null = null; // Store the original fragment
+    settings: VideoTimestampsSettings; // user’s chosen settings
 
-    constructor(app: App, video: HTMLVideoElement, type: 'start' | 'end') { // Accept app instance
-        super(app); // Pass app to super
+    constructor(app: App, video: HTMLVideoElement, type: 'start' | 'end', settings: VideoTimestampsSettings) {
+        super(app);
         this.video = video;
         this.type = type;
+        this.settings = settings;
 
         let initialStart: number = -1;
         let initialEnd: number = -1;
@@ -131,25 +134,25 @@ class TimestampInputModal extends Modal {
             if (this.originalFragment && this.originalFragment.startRaw) {
                 initialValue = this.originalFragment.startRaw;
             } else if (this.originalFragment && this.originalFragment.start >= 0) {
-                initialValue = formatTimestamp(this.originalFragment.start, this.originalFragment.startRaw);
+                initialValue = formatTimestamp(this.originalFragment.start, this.originalFragment.startRaw, this.settings);
             } else if (this.video.dataset.startTime) { // Fallback to dataset if needed
                 initialValue = this.video.dataset.startTime;
             } else {
-                initialValue = formatTimestamp(currentTimestamp);
+                initialValue = formatTimestamp(currentTimestamp, undefined, this.settings);
             }
         } else { // type === 'end'
             if (this.originalFragment && this.originalFragment.endRaw) {
                 initialValue = this.originalFragment.endRaw;
             } else if (this.originalFragment && this.originalFragment.end >= 0 && this.originalFragment.end !== Infinity) {
-                initialValue = formatTimestamp(this.originalFragment.end, this.originalFragment.endRaw);
+                initialValue = formatTimestamp(this.originalFragment.end, this.originalFragment.endRaw, this.settings);
             } else if (this.video.dataset.endTime) { // Fallback to dataset
                 initialValue = this.video.dataset.endTime;
             } else {
-                initialValue = formatTimestamp(currentTimestamp);
+                initialValue = formatTimestamp(currentTimestamp, undefined, this.settings);
             }
         }
 
-        const formattedCurrent = formatTimestamp(currentTimestamp, this.originalFragment?.startRaw); // Or a more relevant raw format
+        const formattedCurrent = formatTimestamp(currentTimestamp, this.originalFragment?.startRaw, this.settings);
 
         this.textareaEl = content.createEl('textarea', {
             cls: 'video-ts-textarea',
@@ -180,7 +183,7 @@ class TimestampInputModal extends Modal {
         useCurrentBtn.textContent = `Use Current Time (${formattedCurrent})`;
         useCurrentBtn.onclick = async () => {
             if (this.textareaEl) {
-                this.textareaEl.value = currentTimestamp.toString();
+                this.textareaEl.value = formatTimestamp(currentTimestamp, undefined, this.settings);
                 await this.submitTimestamp();
             }
         };
@@ -295,18 +298,14 @@ class TimestampInputModal extends Modal {
         const fragmentString = generateFragmentString(newFragment);
         const suffix = fragmentString ? `#${fragmentString}` : '';
         const newSrcForDom = `${baseSrc}${suffix}`;
-        const newSrcToStoreInEditor = (linkDetails.targetFile && !linkDetails.isExternalFileUrl)
-            ? `${this.app.vault.getResourcePath(linkDetails.targetFile).split('#')[0]}${suffix}`
-            : newSrcForDom;
 
         this.video.src = newSrcForDom;
 
         const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (mdView && mdView.editor && mdView.file) { // Ensure mdView.file exists
-            const editor = mdView.editor;
             const currentFile = mdView.file; // Use currentFile for clarity
             try {
-                await this.updateEditorLink(currentFile, editor, fragmentString, linkDetails, mdView.contentEl.querySelectorAll('video'));
+                await this.updateEditorLink(currentFile, fragmentString, mdView.contentEl.querySelectorAll('video'));
                 new Notice(`Video ${this.type} time set to ${rawInput}.`);
             } catch (e: any) {
                 if (process.env.NODE_ENV !== 'production') {
@@ -381,7 +380,7 @@ class TimestampInputModal extends Modal {
         const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (mdView && mdView.editor && mdView.file) {
             try {
-                await this.updateEditorLink(mdView.file, mdView.editor, fragmentString, linkDetails, mdView.contentEl.querySelectorAll('video'));
+                await this.updateEditorLink(mdView.file, fragmentString, mdView.contentEl.querySelectorAll('video'));
                 new Notice(`Video ${this.type} time cleared.`);
             } catch (e: any) {
                 new Notice('Error updating link in markdown after clearing: ' + e.message);
@@ -392,7 +391,7 @@ class TimestampInputModal extends Modal {
         this.close();
     }
 
-    async updateEditorLink(currentFile: any, editor: any, fragmentString: string, linkDetails: any, domVideoElements: NodeListOf<HTMLVideoElement>) {
+    async updateEditorLink(currentFile: any, fragmentString: string, domVideoElements: NodeListOf<HTMLVideoElement>) {
         const { extractVideosFromMarkdownView } = require('../../video');
         const allVideosInEditor: VideoWithTimestamp[] = extractVideosFromMarkdownView(this.app.workspace.getActiveViewOfType(MarkdownView)!);
         const currentVideoDomIndex = Array.from(domVideoElements).indexOf(this.video);

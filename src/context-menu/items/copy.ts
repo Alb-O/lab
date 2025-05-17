@@ -2,120 +2,124 @@ import { Menu, Notice, Plugin } from 'obsidian';
 import { formatTimestamp } from '../../timestamps/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
+import { VideoTimestampsSettings } from '../../settings';
 
-export function addCopyEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {  menu.addItem(item =>
-    item
-      .setIcon('copy')
-      .setTitle('Copy embed link')
-      .onClick(() => {
-        const linkDetails = getVideoLinkDetails(plugin.app, video);
-        if (!linkDetails) {
-          new Notice('Cannot copy link: View type not supported or active leaf not found.');
-          return;
-        }
-        
-        const {
-            targetFile,
-            sourcePathForLink,
-            originalVideoSrcForNotice,
-            isExternalFileUrl,
-            externalFileUrl,
-            attributesString
-        } = linkDetails;
+export function addCopyEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
+    menu.addItem(item =>
+        item
+            .setIcon('copy')
+            .setTitle('Copy embed link')
+            .onClick(() => {
+                const linkDetails = getVideoLinkDetails(plugin.app, video);
+                if (!linkDetails) {
+                    new Notice('Cannot copy link: View type not supported or active leaf not found.');
+                    return;
+                }
 
-        if (!targetFile && !isExternalFileUrl) {
-          new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
-          return;
-        }
-        
-        let linkText: string;
+                const {
+                    targetFile,
+                    sourcePathForLink,
+                    originalVideoSrcForNotice,
+                    isExternalFileUrl,
+                    externalFileUrl,
+                    attributesString
+                } = linkDetails;
 
-        if (isExternalFileUrl && externalFileUrl) {
-          const baseSrc = externalFileUrl.split('#')[0];
-          linkText = `<video src="${baseSrc}"${attributesString}></video>`;
-        } else if (targetFile) {
-            linkText = generateMarkdownLink({
-                app: plugin.app,
-                targetPathOrFile: targetFile,
-                sourcePathOrFile: sourcePathForLink,
-                isEmbed: true
-          });
-        } else {
-          new Notice('Could not determine link type.');
-          return;
-        }
-        
-        navigator.clipboard.writeText(linkText)
-          .then(() => {
-            new Notice('Copied embed link.');
-          })
-          .catch(err => {
-            if (process.env.NODE_ENV !== 'production') {
-              console.error('Failed to copy link: ', err);
-            }
-            new Notice('Failed to copy link to clipboard.');
-          });
-      })
-  );
+                if (!targetFile && !isExternalFileUrl) {
+                    new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
+                    return;
+                }
+
+                let linkText: string;
+
+                if (isExternalFileUrl && externalFileUrl) {
+                    const baseSrc = externalFileUrl.split('#')[0];
+                    linkText = `<video src="${baseSrc}"${attributesString}></video>`;
+                } else if (targetFile) {
+                    linkText = generateMarkdownLink({
+                        app: plugin.app,
+                        targetPathOrFile: targetFile,
+                        sourcePathOrFile: sourcePathForLink,
+                        isEmbed: true
+                    });
+                } else {
+                    new Notice('Could not determine link type.');
+                    return;
+                }
+
+                navigator.clipboard.writeText(linkText)
+                    .then(() => {
+                        new Notice('Copied embed link.');
+                    })
+                    .catch(err => {
+                        if (process.env.NODE_ENV !== 'production') {
+                            console.error('Failed to copy link: ', err);
+                        }
+                        new Notice('Failed to copy link to clipboard.');
+                    });
+            })
+    );
 }
 
-export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
-  menu.addItem(item =>
-    item      .setIcon('copy')
-      .setTitle('Copy embed at current time')
-      .onClick(() => {
-        const currentTime = getCurrentTimeRounded(video);
-        const formattedTime = formatTimestamp(currentTime);
-        const linkDetails = getVideoLinkDetails(plugin.app, video);
-        if (!linkDetails) {
-          new Notice('Cannot copy link: View type not supported or active leaf not found.');
-          return;
-        }
-        
-        const {
-            targetFile,
-            sourcePathForLink,
-            originalVideoSrcForNotice,
-            isExternalFileUrl,
-            externalFileUrl,
-            attributesString
-        } = linkDetails;
-
-        if (!targetFile && !isExternalFileUrl) {
-          new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
-          return;
-        }
-
-        let linkText: string;
-
-        if (isExternalFileUrl && externalFileUrl) {
-          const baseSrc = externalFileUrl.split('#')[0];
-          const newSrcWithTimestamp = `${baseSrc}#t=${currentTime}`;
-          linkText = `<video src="${newSrcWithTimestamp}"${attributesString}></video>`;
-        } else if (targetFile) {
-          const timestampParam = `#t=${currentTime}`;          linkText = generateMarkdownLink({
-            app: plugin.app,
-            targetPathOrFile: targetFile,
-            sourcePathOrFile: sourcePathForLink,
-            subpath: timestampParam,
-            alias: formattedTime,
-            isEmbed: true
-          });
-        } else {
-          new Notice('Could not determine link type.');
-          return;
-        }
-        
-        navigator.clipboard.writeText(linkText)
-          .then(() => {
-            new Notice(`Copied link with timestamp (${formattedTime}).`);
-          })
-          .catch(err => {
-            if (process.env.NODE_ENV !== 'production') {
-              console.error('Failed to copy link: ', err);
+export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, settings: VideoTimestampsSettings, video: HTMLVideoElement) {
+    menu.addItem(item => item
+        .setIcon('copy')
+        .setTitle('Copy embed at current time')
+        .onClick(() => {
+            const currentTime = getCurrentTimeRounded(video);
+            // Use user-defined settings for timestamp formatting;
+            const formattedTime = formatTimestamp(currentTime, undefined, settings );
+            const linkDetails = getVideoLinkDetails(plugin.app, video);
+            if (!linkDetails) {
+                new Notice('Cannot copy link: View type not supported or active leaf not found.');
+                return;
             }
-            new Notice('Failed to copy link to clipboard.');
-          });
-      })
-  );
+
+            const {
+                targetFile,
+                sourcePathForLink,
+                originalVideoSrcForNotice,
+                isExternalFileUrl,
+                externalFileUrl,
+                attributesString
+            } = linkDetails;
+
+            if (!targetFile && !isExternalFileUrl) {
+                new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
+                return;
+            }
+
+            let linkText: string;
+
+            if (isExternalFileUrl && externalFileUrl) {
+                const baseSrc = externalFileUrl.split('#')[0];
+                const newSrcWithTimestamp = `${baseSrc}#t=${formattedTime}`;
+                linkText = `<video src="${newSrcWithTimestamp}"${attributesString}></video>`;
+            } else if (targetFile) {
+                const timestampParam = `#t=${formattedTime}`;
+                linkText = generateMarkdownLink({
+                    app: plugin.app,
+                    targetPathOrFile: targetFile,
+                    sourcePathOrFile: sourcePathForLink,
+                    subpath: timestampParam,
+                    alias: formattedTime,
+                    isEmbed: true
+                });
+            } else {
+                new Notice('Could not determine link type.');
+                return;
+            }
+
+            navigator.clipboard.writeText(linkText)
+                .then(() => {
+                    new Notice(`Copied link with timestamp (${formattedTime}).`);
+                })
+                .catch(err => {
+                    if (process.env.NODE_ENV !== 'production') {
+                        console.error('Failed to copy link: ', err);
+                    }
+                    new Notice('Failed to copy link to clipboard.');
+                });
+        })
+    );
 }
