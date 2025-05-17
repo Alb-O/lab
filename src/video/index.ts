@@ -1,5 +1,5 @@
 import { MarkdownView, TFile } from "obsidian";
-import { splitSubpath } from "obsidian-dev-utils/obsidian/Link";
+import { splitSubpath, parseLink } from "obsidian-dev-utils/obsidian/Link";
 import { TempFragment, parseTempFrag } from "../timestamps/utils";
 
 // Export video-related utilities
@@ -10,9 +10,11 @@ export { setupVideoControls } from './controls';
  * Represents a video with timestamp information found in a markdown document
  */
 export interface VideoWithTimestamp {
+    type: 'wiki' | 'md' | 'html'; // Added
     file: TFile | null;
     path: string; // Resolved path to the TFile
     linktext: string; // Full original link text, e.g., ![[video.mp4#t=1]]
+    alias?: string; // Optional alias for the link
     timestamp: TempFragment | null;
     isEmbedded: boolean;
     position: {
@@ -52,7 +54,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
 
     // Regexes
     const wikiRegex = /(!)?\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g;
-    const mdRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const mdRegex = /!\[([^\]]*)\]\(([^)]+)\)|(?<!\!)\[([^\]]+)\]\(([^)]+)\)/g;
     const htmlVideoRegex = /<video[^>]*src\s*=\s*["\']([^"\'#]+)((?:#[^"\']*)?)["\'][^>]*>/gi;
 
     lines.forEach((lineContent, i) => {
@@ -103,23 +105,56 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             if (file && isVideoFile(file)) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + String(m[0]).length } };
                 const timestamp = parseTempFrag(parsedSubpath);
+                const parsedLink = parseLink(String(m[0])); // Parse the full link text for alias
                 videoEntry = {
-                    file, path: file.path, linktext: String(m[0]), timestamp, isEmbedded, position,
+                    type: 'wiki',
+                    file, path: file.path, linktext: String(m[0]), alias: parsedLink?.alias, timestamp, isEmbedded, position,
                     originalLinkPath: parsedLinkPath, originalSubpath: parsedSubpath || null
                 };
             }
         } else if (type === 'md') {
-            const linktext = String(m[0]);
-            const url = m[2]; 
-            const { linkPath: parsedLinkPath, subpath: parsedSubpath } = splitSubpath(url);
-            const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, activeFile.path) || null;
+            // Check if this is an embedded link (![...]) or a regular link ([...])
+            const isEmbedded = m[1] !== undefined; // true for ![alt](url) format, false for [text](url)
+            let linkPath = isEmbedded ? m[2] : m[4];
+    
+            // Split the path to extract any subpaths (fragments)
+            let parsedLinkPath = linkPath;
+            let parsedSubpath = null;
+            if (linkPath.includes('#')) {
+                const parts = linkPath.split('#');
+                parsedLinkPath = parts[0];
+                parsedSubpath = parts.length > 1 ? `#${parts.slice(1).join('#')}` : null;
+            }
+            
+            // Try to resolve the file (if it's a local path) using metadata cache
+            const sourcePath = activeFile.path;
+            const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, sourcePath);
 
             if (file && isVideoFile(file)) {
-                const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + linktext.length } };
-                const timestamp = parseTempFrag(parsedSubpath);
+                // Extract timestamp from subpath if it exists and matches format
+                let timestamp: TempFragment | null = null;
+                if (parsedSubpath && parsedSubpath.match(/^#t=\d+(?:,\d+)?$/)) {
+                    timestamp = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
+                }
+                
+                const position = {
+                    start: { line: i, col: m.index },
+                    end: { line: i, col: m.index + m[0].length }
+                };
+                
+                const parsedLink = parseLink(m[0]); // Parse the full link text for alias
+
                 videoEntry = {
-                    file, path: file.path, linktext, timestamp, isEmbedded: false, position,
-                    originalLinkPath: parsedLinkPath, originalSubpath: parsedSubpath || null
+                    type: 'md',
+                    file, 
+                    path: view.app.vault.getResourcePath(file), 
+                    linktext: m[0], 
+                    alias: parsedLink?.alias,
+                    timestamp, 
+                    isEmbedded, // ![...] format is embedded, [...] format is not
+                    position,
+                    originalLinkPath: parsedLinkPath, 
+                    originalSubpath: parsedSubpath || null
                 };
             }
         } else if (type === 'html') {
@@ -144,6 +179,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + fullHtmlTag.length } };
                 const timestamp = parseTempFrag(subpathFragment);
                 videoEntry = {
+                    type: 'html', // Added
                     file, path: videoPath, linktext: fullHtmlTag, timestamp, isEmbedded: true, position,
                     originalLinkPath: rawSrc, originalSubpath: subpathFragment || null
                 };

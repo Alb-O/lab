@@ -1,6 +1,8 @@
-import { Menu, Notice, App, Modal, TextComponent } from 'obsidian';
+import { Menu, Notice, App, Modal, MarkdownView } from 'obsidian';
 import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
-import { parseTimestampToSeconds } from '../../timestamps/utils'; // Assuming this will be created
+import { parseTimestampToSeconds } from '../../timestamps/utils';
+import { VideoWithTimestamp } from '../../video';
+import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 
 export function addSetStartTime(menu: Menu, app: App, video: HTMLVideoElement) {
   menu.addItem(item =>
@@ -122,7 +124,6 @@ class TimestampInputModal extends Modal {
     }
 
     const parsedSeconds = parseTimestampToSeconds(rawInput);
-
     if (parsedSeconds === null) {
       new Notice('Invalid timestamp format. Use seconds (e.g., 65.5) or mm:ss (e.g., 1:05.5).');
       return;
@@ -135,17 +136,27 @@ class TimestampInputModal extends Modal {
       return;
     }
 
-    const { targetFile, sourcePathForLink, isExternalFileUrl, externalFileUrl, attributesString } = linkDetails;
+    const { targetFile, isExternalFileUrl, externalFileUrl } = linkDetails;
     let baseSrc: string;
+    const currentSrc = this.video.currentSrc || this.video.src;
 
     if (isExternalFileUrl && externalFileUrl) {
       baseSrc = externalFileUrl.split('#')[0];
     } else if (targetFile) {
-      baseSrc = this.video.currentSrc.split('#')[0];
+      baseSrc = this.app.vault.getResourcePath(targetFile).split('#')[0];
+    } else if (currentSrc.startsWith('app://')) {
+      const appUrlMatch = currentSrc.match(/^app:\/\/[^\/]+\/(.*)/);
+      if (appUrlMatch && appUrlMatch[1]) {
+        baseSrc = `file:///${appUrlMatch[1]}`.split('#')[0];
+      } else {
+        new Notice('Error: Could not parse app:// URL to determine base source.');
+        this.close(); return;
+      }
+    } else if (currentSrc.startsWith('file:///')) {
+      baseSrc = currentSrc.split('#')[0];
     } else {
-      new Notice('Could not determine video source for timestamping.');
-      this.close();
-      return;
+      new Notice('Error: Could not determine video source for timestamping (unhandled URL scheme).');
+      this.close(); return;
     }
 
     let startTime: number | undefined = undefined;
@@ -158,74 +169,128 @@ class TimestampInputModal extends Modal {
     }
 
     let fragment = "";
-
     if (this.type === 'start') {
       if (typeof endTime === 'number' && !isNaN(endTime)) {
         if (parsedSeconds >= endTime) {
-          new Notice('Start time cannot be after or at the end time.');
-          return;
+          new Notice('Start time cannot be after or at the end time.'); return;
         }
-        this.video.dataset.startTime = parsedSeconds.toString();
-        this.video.dataset.endTime = endTime.toString();
         fragment = `t=${parsedSeconds},${endTime}`;
       } else {
-        this.video.dataset.startTime = parsedSeconds.toString();
-        delete this.video.dataset.endTime;
         fragment = `t=${parsedSeconds}`;
       }
-    } else {
+      this.video.dataset.startTime = parsedSeconds.toString();
+      if(typeof endTime === 'number' && !isNaN(endTime)) this.video.dataset.endTime = endTime.toString(); else delete this.video.dataset.endTime;
+    } else { // type === 'end'
       if (typeof startTime === 'number' && !isNaN(startTime)) {
         if (parsedSeconds <= startTime) {
-          new Notice('End time cannot be before or at the start time.');
-          return;
+          new Notice('End time cannot be before or at the start time.'); return;
         }
-        this.video.dataset.startTime = startTime.toString();
-        this.video.dataset.endTime = parsedSeconds.toString();
         fragment = `t=${startTime},${parsedSeconds}`;
       } else {
-        this.video.dataset.endTime = parsedSeconds.toString();
-        delete this.video.dataset.startTime;
         fragment = `t=0,${parsedSeconds}`;
       }
+      this.video.dataset.endTime = parsedSeconds.toString();
+      if(typeof startTime === 'number' && !isNaN(startTime)) this.video.dataset.startTime = startTime.toString(); else delete this.video.dataset.startTime;
     }
 
-    const newSrc = `${baseSrc}#${fragment}`;
-    this.video.src = newSrc;
+    const newSrcForDom = `${baseSrc}#${fragment}`;
+    const newSrcToStoreInEditor = (targetFile && !isExternalFileUrl) 
+        ? `${this.app.vault.getResourcePath(targetFile).split('#')[0]}#${fragment}` 
+        : newSrcForDom;
+    
+    this.video.src = newSrcForDom;
 
-    if (targetFile && sourcePathForLink) {
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (mdView && mdView.editor) {
+      const editor = mdView.editor;
       try {
-        const MarkdownView = (this.app as any).workspace.getLeavesOfType('markdown')[0]?.view;
-        if (MarkdownView && MarkdownView.file && (MarkdownView as any).editor) {
-          const editor = (MarkdownView as any).editor;
-          const { extractVideosFromMarkdownView } = require('../../video');
-          const videos = extractVideosFromMarkdownView(MarkdownView);
-          const match = videos.find((v: any) => v.file && v.file.path === targetFile.path);
-          if (match) {
-            const { position, linktext } = match;
-            const { start, end } = position;
-            const docText = editor.getValue();
-            const before = docText.split('\n').slice(0, start.line).join('\n') + (start.line > 0 ? '\n' : '');
-            const after = docText.split('\n').slice(end.line + 1).join('\n');
-            const line = docText.split('\n')[start.line];
-            const embedStart = start.col;
-            const embedEnd = end.col;
-            let newEmbed = linktext.replace(/#t=[^\]|]*/, '');
-            newEmbed = newEmbed.replace(']]', `#${fragment}]]`);
-            const newLine = line.slice(0, embedStart) + newEmbed + line.slice(embedEnd);
-            const newDoc = [
-              ...docText.split('\n').slice(0, start.line),
-              newLine,
-              ...docText.split('\n').slice(end.line + 1)
-            ].join('\n');
-            editor.setValue(newDoc);
-            new Notice(`Embed link updated with timestamp.`);
+        const { extractVideosFromMarkdownView } = require('../../video');
+        const allVideosInEditor: VideoWithTimestamp[] = extractVideosFromMarkdownView(mdView);
+        let updatedInMarkdown = false;
+
+        const domVideoElements = Array.from(mdView.contentEl.querySelectorAll('video'));
+        const currentVideoDomIndex = domVideoElements.indexOf(this.video);
+
+        if (currentVideoDomIndex !== -1 && currentVideoDomIndex < allVideosInEditor.length) {
+          const currentVideoInfo = allVideosInEditor[currentVideoDomIndex];
+          // Create a loggable version of currentVideoInfo to avoid circular JSON errors
+          const loggableVideoInfo = {
+            ...currentVideoInfo,
+            file: currentVideoInfo.file ? currentVideoInfo.file.path : null // Replace TFile with its path for logging
+          };
+          console.log("TimestampInputModal: Matched video by index:", JSON.parse(JSON.stringify(loggableVideoInfo)));
+
+          // Use currentVideoInfo.type to determine how to update
+          if ((currentVideoInfo.type === 'wiki' || currentVideoInfo.type === 'md') && currentVideoInfo.file) {
+            const { line: startLine, col: startCol } = currentVideoInfo.position.start;
+            const { line: endLine, col: endCol } = currentVideoInfo.position.end;
+            const editorPosStart = { line: startLine, ch: startCol };
+            const editorPosEnd = { line: endLine, ch: endCol };
+            
+            const newFullMdLink = generateMarkdownLink({
+              app: this.app,
+              targetPathOrFile: currentVideoInfo.file,
+              sourcePathOrFile: mdView.file ?? '', // The file containing the link; fallback to empty string if null
+              subpath: `#${fragment}`,
+              isEmbed: currentVideoInfo.isEmbedded, // Use the stored isEmbedded property
+              originalLink: currentVideoInfo.linktext, // originalLink helps preserve alias and link style
+              alias: currentVideoInfo.alias // Pass the stored alias
+            });
+            
+            editor.replaceRange(newFullMdLink, editorPosStart, editorPosEnd);
+            new Notice(`Markdown embed link updated with timestamp.`);
+            updatedInMarkdown = true;
+
+          } else if (currentVideoInfo.type === 'html') {
+            const { line: startLine, col: startCh } = currentVideoInfo.position.start; // ch for consistency with editor
+            const { line: endLine, col: endCh } = currentVideoInfo.position.end;   // ch for consistency with editor
+            const htmlLinkText = currentVideoInfo.linktext;
+
+            // The editor positions for the full block might span multiple lines
+            // htmlStart and htmlEnd from currentVideoInfo.position are character offsets within their respective lines.
+            const blockStartPos = { line: startLine, ch: 0 }; // Start of the line where HTML block begins
+            const blockEndPos = { line: endLine, ch: editor.getLine(endLine).length }; // End of the line where HTML block ends
+
+            if (/^\s*<video[\s>]/i.test(htmlLinkText)) { // Test against the reliable linktext
+              const currentBlockText = editor.getRange(blockStartPos, blockEndPos);
+              const blockLines = currentBlockText.split('\n');
+              let lineIdxInBlock = -1;
+
+              for (let i = 0; i < blockLines.length; i++) {
+                if (blockLines[i].trim().match(/<video\s[^>]*src=/i)) {
+                  lineIdxInBlock = i;
+                  break;
+                }
+              }
+
+              if (lineIdxInBlock !== -1) {
+                blockLines[lineIdxInBlock] = blockLines[lineIdxInBlock].replace(
+                  /src=("|')[^"'#]+(#[^"']*)?("|')/i,
+                  `src="${newSrcToStoreInEditor}"`
+                );
+                editor.replaceRange(blockLines.join('\n'), blockStartPos, blockEndPos);
+                new Notice('HTML video tag updated with timestamp.');
+                updatedInMarkdown = true;
+              } else {
+                console.warn("TimestampInputModal: Found HTML video block but couldn't find src attribute line.", currentVideoInfo, blockLines);
+              }
+            } else {
+              console.warn("TimestampInputModal: Indexed HTML video info's linktext does not appear to be a video tag.", currentVideoInfo);
+            }
           } else {
-            new Notice(`Timestamp set, but could not find embed in markdown to update.`);
+            console.warn("TimestampInputModal: Matched video by index has unknown or unsuitable type:", currentVideoInfo);
           }
+        } else {
+          console.warn("TimestampInputModal: Clicked video not found by DOM index or index out of bounds.", 
+            { domIndex: currentVideoDomIndex, extractedCount: allVideosInEditor.length });
         }
-      } catch (e) {
+
+        if (!updatedInMarkdown) {
+          new Notice(`Timestamp set, but could not find or update matching embed/HTML block in markdown.`);
+        }
+      } catch (e: any) {
         console.error('Failed to update embed link:', e);
-        new Notice('Error updating embed link in markdown.');
+        new Notice('Error updating embed link in markdown: ' + e.message);
       }
     }
 
