@@ -90,17 +90,17 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                         if (app.vault.adapter instanceof FileSystemAdapter) {
                             const vaultBasePath = normalizePath(app.vault.adapter.getBasePath());
                             let attemptedRelativePathForLog: string = "";
-                            
+
                             if (absPathFromUrl.toLowerCase().startsWith(vaultBasePath.toLowerCase())) {
                                 // Path is INSIDE the vault
                                 let relPath = absPathFromUrl.substring(vaultBasePath.length);
-                                
+
                                 if (relPath.startsWith('/') || relPath.startsWith('\\')) {
                                     relPath = relPath.substring(1);
                                 }
                                 attemptedRelativePathForLog = relPath;
                                 if (relPath === "") {
-                                    targetFile = null; 
+                                    targetFile = null;
                                 } else {
                                     const normalizedRelativePath = normalizePath(relPath);
                                     attemptedRelativePathForLog = normalizedRelativePath;
@@ -111,7 +111,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                     }
                                 }
                                 if (!targetFile) { // Log if still not found after attempting vault-relative resolution
-                                     console.warn(`VideoTimestamps: Could not find TFile for app:// URL (inside vault). Attempted relative path: '${attemptedRelativePathForLog}'. Original src: ${currentVideoSrc}`);
+                                    console.warn(`VideoTimestamps: Could not find TFile for app:// URL (inside vault). Attempted relative path: '${attemptedRelativePathForLog}'. Original src: ${currentVideoSrc}`);
                                 }
                             } else {
                                 // Path is OUTSIDE the vault, treat as external
@@ -121,9 +121,10 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                 if (!absPathFromUrl.startsWith('/')) {
                                     fileUrlPath = '/' + absPathFromUrl;
                                 }
-                                externalFileUrl = `file://${fileUrlPath}`; 
+                                externalFileUrl = `file://${fileUrlPath}`;
                                 targetFile = null;
-                            }                        } else {
+                            }
+                        } else {
                             if (process.env.NODE_ENV !== 'production') {
                                 console.warn(`VideoTimestamps: Vault adapter is not FileSystemAdapter, cannot resolve app:// URL. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
                             }
@@ -134,7 +135,8 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                             externalFileUrl = `file://${fileUrlPath}`;
                             isExternalFileUrl = true;
                             targetFile = null;
-                        }                    } catch (e) {
+                        }
+                    } catch (e) {
                         if (process.env.NODE_ENV !== 'production') {
                             console.error('VideoTimestamps: Error parsing app:// URL for video path:', currentVideoSrc, e);
                         }
@@ -145,7 +147,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                         } catch (urlError) {
                             externalFileUrl = null;
                         }
-                        isExternalFileUrl = true; 
+                        isExternalFileUrl = true;
                         targetFile = null;
                     }
                 } else { // Not app:// or file://, assume vault-relative or needs getFirstLinkpathDest
@@ -168,7 +170,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                 if (currentVideoSrc.startsWith('file:///')) {
                     isExternalFileUrl = true;
                     externalFileUrl = currentVideoSrc;
-                    targetFile = null; 
+                    targetFile = null;
                 } else if (currentVideoSrc.startsWith('app://')) {
                     // Apply the same app:// logic as in preview mode
                     try {
@@ -183,17 +185,17 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                         if (app.vault.adapter instanceof FileSystemAdapter) {
                             const vaultBasePath = normalizePath(app.vault.adapter.getBasePath());
                             let attemptedRelativePathForLog: string = "";
-                            
+
                             if (absPathFromUrl.toLowerCase().startsWith(vaultBasePath.toLowerCase())) {
                                 // Path is INSIDE the vault
                                 let relPath = absPathFromUrl.substring(vaultBasePath.length);
-                                
+
                                 if (relPath.startsWith('/') || relPath.startsWith('\\')) {
                                     relPath = relPath.substring(1);
                                 }
                                 attemptedRelativePathForLog = relPath;
                                 if (relPath === "") {
-                                    targetFile = null; 
+                                    targetFile = null;
                                 } else {
                                     const normalizedRelativePath = normalizePath(relPath);
                                     attemptedRelativePathForLog = normalizedRelativePath;
@@ -202,9 +204,9 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                     } else {
                                         targetFile = app.vault.getFileByPath(normalizedRelativePath);
                                     }
-                                }                                if (!targetFile) { 
+                                } if (!targetFile) {
                                     if (process.env.NODE_ENV !== 'production') {
-                                     console.warn(`VideoTimestamps: Could not find TFile for app:// URL (inside vault). Attempted relative path: '${attemptedRelativePathForLog}'. Original src: ${currentVideoSrc}`);
+                                        console.warn(`VideoTimestamps: Could not find TFile for app:// URL (inside vault). Attempted relative path: '${attemptedRelativePathForLog}'. Original src: ${currentVideoSrc}`);
                                     }
                                 }
                             } else {
@@ -217,8 +219,9 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                 if (!absPathFromUrl.startsWith('/')) {
                                     fileUrlPath = '/' + absPathFromUrl;
                                 }
-                                externalFileUrl = `file://${fileUrlPath}`; 
-                                targetFile = null;                            }
+                                externalFileUrl = `file://${fileUrlPath}`;
+                                targetFile = null;
+                            }
                         } else {
                             if (process.env.NODE_ENV !== 'production') {
                                 console.warn(`VideoTimestamps: Vault adapter is not FileSystemAdapter, cannot resolve app:// URL. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
@@ -230,14 +233,15 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                             externalFileUrl = `file://${fileUrlPath}`;
                             isExternalFileUrl = true;
                             targetFile = null;
-                        }                    } catch (e) {
+                        }
+                    } catch (e) {
                         if (process.env.NODE_ENV !== 'production') {
                             console.error('VideoTimestamps: Error parsing app:// URL for video path:', currentVideoSrc, e);
                         }
                         isExternalFileUrl = true;
                         try {
-                            new URL(currentVideoSrc); 
-                            externalFileUrl = currentVideoSrc; 
+                            new URL(currentVideoSrc);
+                            externalFileUrl = currentVideoSrc;
                         } catch (urlError) {
                             externalFileUrl = null;
                         }
@@ -245,37 +249,37 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                     }
                 } else {
                     // Not a file:/// or app:// src, proceed with Markdown metadata matching
-                    isExternalFileUrl = false; 
+                    isExternalFileUrl = false;
                     const videosMeta = extractVideosFromMarkdownView(mdView);
                     const els = mdView.contentEl.querySelectorAll('video');
                     const idx = Array.from(els).indexOf(videoEl);
                     if (idx >= 0 && idx < videosMeta.length) {
-                      const videoMetaPath = videosMeta[idx].path; 
-                      const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath);
-                      if (resolvedFile instanceof TFile) {
-                        targetFile = resolvedFile;
-                      }
+                        const videoMetaPath = videosMeta[idx].path;
+                        const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath);
+                        if (resolvedFile instanceof TFile) {
+                            targetFile = resolvedFile;
+                        }
                     }
                 }
             } else {
-                 // No currentVideoSrc in editor mode, try metadata matching as a fallback
+                // No currentVideoSrc in editor mode, try metadata matching as a fallback
                 isExternalFileUrl = false;
                 const videosMeta = extractVideosFromMarkdownView(mdView);
                 const els = mdView.contentEl.querySelectorAll('video');
                 const idx = Array.from(els).indexOf(videoEl);
                 if (idx >= 0 && idx < videosMeta.length) {
-                  const videoMetaPath = videosMeta[idx].path; 
-                  const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath);
-                  if (resolvedFile instanceof TFile) {
-                    targetFile = resolvedFile;
-                  }
+                    const videoMetaPath = videosMeta[idx].path;
+                    const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath);
+                    if (resolvedFile instanceof TFile) {
+                        targetFile = resolvedFile;
+                    }
                 }
             }
         }
     } else if (activeLeaf.view instanceof FileView && activeLeaf.view.getViewType() === 'video') {
         if (activeLeaf.view.file instanceof TFile) {
             targetFile = activeLeaf.view.file;
-            sourcePathForLink = ''; 
+            sourcePathForLink = '';
             isExternalFileUrl = false;
         }
     } else {

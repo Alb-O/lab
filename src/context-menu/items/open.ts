@@ -1,4 +1,4 @@
-import { Menu, Notice, App, Plugin } from 'obsidian';
+import { Menu, Notice, Plugin } from 'obsidian';
 import { getVideoLinkDetails } from '../utils';
 
 export function addOpenLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {  menu.addItem(item =>
@@ -92,7 +92,9 @@ export function addOpenInNewWindow(menu: Menu, plugin: Plugin, video: HTMLVideoE
         if (!targetFile && !isExternalFileUrl) {
           new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
           return;
-        }        if (isExternalFileUrl && externalFileUrl) {
+        }
+        
+        if (isExternalFileUrl && externalFileUrl) {
           window.open(externalFileUrl.split('#')[0]);
         } else if (targetFile) {
           plugin.app.workspace.openLinkText(targetFile.path, '', 'window');

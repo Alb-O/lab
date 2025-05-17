@@ -1,4 +1,4 @@
-import { Menu, Notice, MarkdownView, App, Plugin } from 'obsidian';
+import { Menu, Notice, MarkdownView, Plugin } from 'obsidian';
 import { extractVideosFromMarkdownView } from '../../video';
 
 export function addRemoveEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
@@ -11,17 +11,19 @@ export function addRemoveEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoE
         if (!view) {
           new Notice('Removing embed links only works from a Markdown note.');
           return;
-        }
-        if (view.getMode() === 'preview') {
+        } if (view.getMode() === 'preview') {
           new Notice('Cannot remove while in reading view.');
           return;
         }
+
         const videos = extractVideosFromMarkdownView(view);
         const els = view.contentEl.querySelectorAll('video');
         const idx = Array.from(els).indexOf(video);
+
         if (idx < 0 || idx >= videos.length) {
           return;
         }
+
         const target = videos[idx];
         const { start, end } = target.position;
         const editor = view.editor;
@@ -29,6 +31,7 @@ export function addRemoveEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoE
           { line: start.line, ch: start.col },
           { line: end.line, ch: end.col }
         );
+
         if (/^\s*<video[\s>]/i.test(embedText)) {
           // For HTML video tags, extractVideosFromMarkdownView currently sets start.line and end.line
           // to be the same line where the <video src=...> tag is found.
@@ -67,17 +70,19 @@ export function addRemoveTimestampFromEmbedLink(menu: Menu, plugin: Plugin, vide
         if (!view) {
           new Notice('Removing timestamps only works from a Markdown note.');
           return;
-        }
-        if (view.getMode() === 'preview') {
+        } if (view.getMode() === 'preview') {
           new Notice('Cannot remove timestamp while in reading view.');
           return;
         }
+
         const videos = extractVideosFromMarkdownView(view);
         const els = view.contentEl.querySelectorAll('video');
         const idx = Array.from(els).indexOf(video);
+
         if (idx < 0 || idx >= videos.length) {
           return;
         }
+
         const target = videos[idx];
         const { start, end } = target.position;
         const editor = view.editor;
@@ -85,6 +90,7 @@ export function addRemoveTimestampFromEmbedLink(menu: Menu, plugin: Plugin, vide
           { line: start.line, ch: start.col },
           { line: end.line, ch: end.col }
         );
+        
         const newEmbedText = embedText.replace(/([?&#]t=(\d+(?:\.\d+)?(,\d+(?:\.\d+)?)?|\d{1,2}:\d{2}(,\d{1,2}:\d{2})?))/, '');
         if (embedText !== newEmbedText) {
           editor.replaceRange(
@@ -92,9 +98,6 @@ export function addRemoveTimestampFromEmbedLink(menu: Menu, plugin: Plugin, vide
             { line: start.line, ch: start.col },
             { line: end.line, ch: end.col }
           );
-          new Notice('Timestamp removed from embed link.');
-        } else {
-          new Notice('No timestamp found in embed link.');
         }
       })
   );

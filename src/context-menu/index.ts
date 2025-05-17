@@ -15,7 +15,7 @@ const initializedElements = new WeakSet<HTMLVideoElement>();
 export function setupVideoContextMenu(plugin: any): () => void {
   // Clean up any previously initialized elements
   cleanupVideoContextMenu();
-    const initContext = (video: HTMLVideoElement) => {
+  const initContext = (video: HTMLVideoElement) => {
     // Skip if already initialized
     if (initializedElements.has(video)) return;
 
@@ -28,22 +28,32 @@ export function setupVideoContextMenu(plugin: any): () => void {
       addOpenLink(menu, plugin, video);
       addOpenInNewTab(menu, plugin, video);
       addOpenToRight(menu, plugin, video);
-      addOpenInNewWindow(menu, plugin, video);menu.addSeparator();      addCopyEmbedLink(menu, plugin, video);
+      addOpenInNewWindow(menu, plugin, video);
+
+      menu.addSeparator();
+
+      addCopyEmbedLink(menu, plugin, video);
       addCopyEmbedAtCurrentTime(menu, plugin, video);
 
-      menu.addSeparator();      addSetStartTime(menu, plugin, video);
-      addSetEndTime(menu, plugin, video);      menu.addSeparator();      addRemoveEmbedLink(menu, plugin, video);
+      menu.addSeparator();
+
+      addSetStartTime(menu, plugin, video);
+      addSetEndTime(menu, plugin, video);
+
+      menu.addSeparator();
+      
+      addRemoveEmbedLink(menu, plugin, video);
       addRemoveTimestampFromEmbedLink(menu, plugin, video);
 
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
     };
-    
+
     // Store the handler on the element for later cleanup
     (video as any)._videoContextMenuHandler = contextMenuHandler;
 
     // Add the event listener
     video.addEventListener('contextmenu', contextMenuHandler);
-    
+
     // Mark as initialized
     initializedElements.add(video);
     video.dataset.contextMenuInitialized = 'true';
