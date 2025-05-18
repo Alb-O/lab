@@ -27,7 +27,7 @@ export function isTimestamp(fragment: TempFragment): boolean {
  * Regular expressions for parsing different time formats
  */
 const timePatterns = {
-    main: /^([\w:%.]*)(,(?:[\w:%.]+|e(?:nd)?))?$/i, // Allow 'e' or 'end' for end
+    main: /^([\w:.]*)(,(?:[\w:.]+|e(?:nd)?))?$/i, // Allow 'e' or 'end' for end
     npt_sec: /^\d+(?:\.\d+)?$/,
     // More flexible mm:ss and hh:mm:ss, allowing optional leading zeros and decimals on seconds
     npt_mmss: /^(\d{1,2}):([0-5]?\d(?:\.\d+)?)$/,
@@ -120,7 +120,7 @@ export function formatTimestamp(
     // Always use raw seconds if requested
     if (settings?.useRawSeconds) {
         // Show decimals if present in the original seconds
-        return totalSeconds % 1 === 0 ? totalSeconds.toString() : totalSeconds.toFixed(3).replace(/\.0+$/, '').replace(/(\.[0-9]*[1-9])0+$/, '$1');
+        return totalSeconds % 1 === 0 ? totalSeconds.toString() : totalSeconds.toFixed(2).replace(/\.0+$/, '').replace(/(\.[0-9]*[1-9])0+$/, '$1');
     }
 
     const hours = Math.floor(totalSeconds / 3600);
@@ -132,8 +132,8 @@ export function formatTimestamp(
 
     let secStr: string;
     if (showDecimals) {
-        // Up to 3 decimals, but trim trailing zeros
-        secStr = seconds.toFixed(3)
+        // Up to 2 decimals, but trim trailing zeros
+        secStr = seconds.toFixed(2)
             .replace(/\.0+$/, '')
             .replace(/(\.[0-9]*[1-9])0+$/, '$1');
         // Pad single-digit integer part for decimals (1.x–9.x)

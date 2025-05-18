@@ -26,6 +26,13 @@ class FragmentInputModal extends Modal {
     private initialStartDisplayValue: string = "";
     private initialEndDisplayValue: string = "";
 
+    private currentTimeDisplayEl!: HTMLDivElement;
+    private currentTimeUpdateInterval: number | null = null;
+
+    private readonly videoPlayListener = () => this.startCurrentTimeUpdates();
+    private readonly videoPauseListener = () => this.stopCurrentTimeUpdates();
+    private readonly videoSeekingListener = () => this.updateCurrentTimeDisplay();
+
     constructor(app: App, video: HTMLVideoElement, settings: VideoTimestampsSettings) {
         super(app);
         this.video = video;
@@ -105,8 +112,9 @@ class FragmentInputModal extends Modal {
 
         const buttonContainer = contentEl.createDiv('modal-button-container');
         // Add current time display to the left
-        const currentTimeDisplay = buttonContainer.createDiv({ cls: 'video-ts-current-time-display' });
-        currentTimeDisplay.textContent = `Current time: ${formatTimestamp(getCurrentTimeRounded(this.video), undefined, this.settings)}`;
+        this.currentTimeDisplayEl = buttonContainer.createDiv({ cls: 'video-ts-current-time-display' });
+        this.updateCurrentTimeDisplay(); // Initial display
+
         // Add Clear Both button to the left of Save
         const clearBothBtn = buttonContainer.createEl('button', { cls: 'mod-warning', text: 'Clear both' });
         clearBothBtn.onclick = async () => {
@@ -117,6 +125,33 @@ class FragmentInputModal extends Modal {
         };
         const saveBtn = buttonContainer.createEl('button', { cls: 'mod-cta', text: 'Save' });
         saveBtn.onclick = async () => await this.handleSave();
+
+        // Start updates if video is already playing
+        if (!this.video.paused) {
+            this.startCurrentTimeUpdates();
+        }
+    }
+
+    private updateCurrentTimeDisplay() {
+        if (this.currentTimeDisplayEl) {
+            this.currentTimeDisplayEl.textContent = `Current time: ${formatTimestamp(getCurrentTimeRounded(this.video), undefined, this.settings)}`;
+        }
+    }
+
+    private startCurrentTimeUpdates() {
+        this.stopCurrentTimeUpdates(); // Clear existing interval if any
+        if (!this.video.paused) { // Only start if video is actually playing
+            this.currentTimeUpdateInterval = window.setInterval(() => {
+                this.updateCurrentTimeDisplay();
+            }, 100); // Update every 100ms
+        }
+    }
+
+    private stopCurrentTimeUpdates() {
+        if (this.currentTimeUpdateInterval !== null) {
+            window.clearInterval(this.currentTimeUpdateInterval);
+            this.currentTimeUpdateInterval = null;
+        }
     }
 
     private populateInputs(container?: HTMLElement) {
@@ -214,10 +249,23 @@ class FragmentInputModal extends Modal {
         
         // Populate start time
         if (fragment && fragment.startRaw && fragment.startRaw !== '0.001') {
-            this.initialStartDisplayValue = fragment.startRaw;
+            const raw = fragment.startRaw;
+            // Check if raw is a special format (contains '%', ':', or is 'start'/'end'/'e')
+            const isSpecialRawFormat = raw.includes('%') || raw.includes(':') || ['start', 'end', 'e'].includes(raw.toLowerCase());
+            if (isSpecialRawFormat) {
+                this.initialStartDisplayValue = raw;
+            } else if (typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001) {
+                // If raw is a plain number string, format the parsed numeric value for consistent precision
+                this.initialStartDisplayValue = formatTimestamp(fragment.start, undefined, this.settings);
+            } else {
+                // Fallback to raw if fragment.start is not a valid number (e.g. if raw was numeric but start became {percent} somehow, less likely)
+                this.initialStartDisplayValue = raw;
+            }
         } else if (fragment && typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001) {
-            this.initialStartDisplayValue = formatTimestamp(fragment.start, fragment.startRaw, this.settings);
+            // No raw, or raw was placeholder/invalid. Format numeric start.
+            this.initialStartDisplayValue = formatTimestamp(fragment.start, undefined, this.settings);
         } else if (fragment && this.isPercentObject(fragment.start)) {
+            // No raw, or raw was placeholder/invalid. Start is percent object.
             this.initialStartDisplayValue = `${fragment.start.percent}%`;
         } else {
             this.initialStartDisplayValue = "";
@@ -228,10 +276,22 @@ class FragmentInputModal extends Modal {
         if (fragment && (fragment.end === this.video.duration || (fragment.endRaw && fragment.endRaw.toLowerCase() === 'end'))) {
             this.initialEndDisplayValue = 'end';
         } else if (fragment && fragment.endRaw) {
-            this.initialEndDisplayValue = fragment.endRaw;
+            const raw = fragment.endRaw;
+            const isSpecialRawFormat = raw.includes('%') || raw.includes(':') || ['start', 'end', 'e'].includes(raw.toLowerCase());
+            if (isSpecialRawFormat) {
+                this.initialEndDisplayValue = raw;
+            } else if (typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity) {
+                // If raw is a plain number string, format the parsed numeric value for consistent precision
+                this.initialEndDisplayValue = formatTimestamp(fragment.end, undefined, this.settings);
+            } else {
+                // Fallback to raw
+                this.initialEndDisplayValue = raw;
+            }
         } else if (fragment && typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity) {
-            this.initialEndDisplayValue = formatTimestamp(fragment.end, fragment.endRaw, this.settings);
+            // No raw, or raw was placeholder/invalid. Format numeric end.
+            this.initialEndDisplayValue = formatTimestamp(fragment.end, undefined, this.settings);
         } else if (fragment && this.isPercentObject(fragment.end)) {
+            // No raw, or raw was placeholder/invalid. End is percent object.
             this.initialEndDisplayValue = `${fragment.end.percent}%`;
         } else {
             this.initialEndDisplayValue = "";
@@ -335,6 +395,13 @@ class FragmentInputModal extends Modal {
     }
 
     onClose() {
+        this.stopCurrentTimeUpdates();
+        // Remove video event listeners
+        this.video.removeEventListener('play', this.videoPlayListener);
+        this.video.removeEventListener('pause', this.videoPauseListener);
+        this.video.removeEventListener('seeking', this.videoSeekingListener);
+        this.video.removeEventListener('seeked', this.videoSeekingListener);
+
         this.contentEl.empty();
     }
 }
