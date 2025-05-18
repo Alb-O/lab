@@ -1,19 +1,19 @@
 import { MarkdownView } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithTimestamp } from './index';
+import { extractVideosFromMarkdownView, VideoWithFragment } from './index';
 
 /**
  * Class that handles detecting videos in Markdown views
  */
 export class VideoDetector {
     private lastProcessedView: MarkdownView | null = null;
-    private lastVideos: VideoWithTimestamp[] = [];
+    private lastVideos: VideoWithFragment[] = [];
     
     /**
      * Get videos from the currently active view
      * @param activeView The current markdown view
-     * @returns Array of detected videos with their timestamps
+     * @returns Array of detected videos with their fragments
      */
-    public getVideosFromActiveView(activeView: MarkdownView | null): VideoWithTimestamp[] {
+    public getVideosFromActiveView(activeView: MarkdownView | null): VideoWithFragment[] {
         if (!activeView || !activeView.file) {
             return [];
         }
@@ -44,7 +44,7 @@ export class VideoDetector {
      * Debug method to log detected videos
      * Only logs in development environment
      */
-    public debugVideos(videos: VideoWithTimestamp[]): void {
+    public debugVideos(videos: VideoWithFragment[]): void {
         if (process.env.NODE_ENV === 'production') {
             return; // Don't log anything in production
         }
@@ -59,26 +59,26 @@ export class VideoDetector {
             console.debug(`Video ${index + 1}:`);
             console.debug(`  Path: ${video.path}`);
             console.debug(`  Embedded: ${video.isEmbedded}`);
-            if (video.timestamp) {
+            if (video.fragment) {
                 let startStr = '';
                 let endStr = '';
-                if (typeof video.timestamp.start === 'number') {
-                    startStr = video.timestamp.start + 's';
-                } else if (video.timestamp.start && typeof video.timestamp.start === 'object' && 'percent' in video.timestamp.start) {
-                    startStr = video.timestamp.start.percent + '%';
+                if (typeof video.fragment.start === 'number') {
+                    startStr = video.fragment.start + 's';
+                } else if (video.fragment.start && typeof video.fragment.start === 'object' && 'percent' in video.fragment.start) {
+                    startStr = video.fragment.start.percent + '%';
                 } else {
                     startStr = 'N/A';
                 }
-                if (typeof video.timestamp.end === 'number') {
-                    endStr = video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's';
-                } else if (video.timestamp.end && typeof video.timestamp.end === 'object' && 'percent' in video.timestamp.end) {
-                    endStr = video.timestamp.end.percent + '%';
+                if (typeof video.fragment.end === 'number') {
+                    endStr = video.fragment.end === -1 ? 'N/A' : video.fragment.end + 's';
+                } else if (video.fragment.end && typeof video.fragment.end === 'object' && 'percent' in video.fragment.end) {
+                    endStr = video.fragment.end.percent + '%';
                 } else {
                     endStr = 'N/A';
                 }
-                console.debug(`  Timestamp: start=${startStr}, end=${endStr}`);
+                console.debug(`  Fragment: start=${startStr}, end=${endStr}`);
             } else {
-                console.debug('  No timestamp');
+                console.debug('  No fragment');
             }
             console.debug(`  Position: line ${video.position.start.line}`);
         });

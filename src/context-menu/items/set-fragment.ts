@@ -1,9 +1,9 @@
 import { Menu, Notice, App, Modal, Plugin, setIcon } from 'obsidian';
 import { getCurrentTimeRounded, setAndSaveVideoFragment } from '../utils';
-import { parseTimestampToSeconds, formatTimestamp, TempFragment, parseTempFrag } from '../../timestamps/utils';
-import { VideoTimestampsSettings } from '../../settings';
+import { parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag } from '../../fragments/utils';
+import { VideoFragmentsSettings } from '../../settings';
 
-export function addSetFragmentMenuItem(menu: Menu, plugin: Plugin, settings: VideoTimestampsSettings, video: HTMLVideoElement) {
+export function addSetFragmentMenuItem(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
     menu.addItem(item =>
         item
             .setIcon('clock')
@@ -16,7 +16,7 @@ export function addSetFragmentMenuItem(menu: Menu, plugin: Plugin, settings: Vid
 
 class FragmentInputModal extends Modal {
     video: HTMLVideoElement;
-    settings: VideoTimestampsSettings;
+    settings: VideoFragmentsSettings;
 
     private startTimeInputEl!: HTMLTextAreaElement;
     private endTimeInputEl!: HTMLTextAreaElement;
@@ -33,7 +33,7 @@ class FragmentInputModal extends Modal {
     private readonly videoPauseListener = () => this.stopCurrentTimeUpdates();
     private readonly videoSeekingListener = () => this.updateCurrentTimeDisplay();
 
-    constructor(app: App, video: HTMLVideoElement, settings: VideoTimestampsSettings) {
+    constructor(app: App, video: HTMLVideoElement, settings: VideoFragmentsSettings) {
         super(app);
         this.video = video;
         this.settings = settings;
@@ -47,23 +47,23 @@ class FragmentInputModal extends Modal {
 
         if (this.video.dataset.startTimeRaw) {
             initialStartRaw = this.video.dataset.startTimeRaw;
-            const parsedStart = parseTimestampToSeconds(initialStartRaw);
+            const parsedStart = parseFragmentToSeconds(initialStartRaw);
             if (parsedStart !== null && parsedStart !== 0.001) initialStart = parsedStart;
             else initialStartRaw = undefined;
         } else if (this.video.dataset.startTime) {
             initialStartRaw = this.video.dataset.startTime;
-            const parsedStart = parseTimestampToSeconds(initialStartRaw);
+            const parsedStart = parseFragmentToSeconds(initialStartRaw);
             if (parsedStart !== null && parsedStart !== 0.001) initialStart = parsedStart;
             else initialStartRaw = undefined;
         }
 
         if (this.video.dataset.endTimeRaw) {
             initialEndRaw = this.video.dataset.endTimeRaw;
-            const parsedEnd = parseTimestampToSeconds(initialEndRaw);
+            const parsedEnd = parseFragmentToSeconds(initialEndRaw);
             if (parsedEnd !== null) initialEnd = parsedEnd;
         } else if (this.video.dataset.endTime) {
             initialEndRaw = this.video.dataset.endTime;
-            const parsedEnd = parseTimestampToSeconds(initialEndRaw);
+            const parsedEnd = parseFragmentToSeconds(initialEndRaw);
             if (parsedEnd !== null) initialEnd = parsedEnd;
         }
 
@@ -82,7 +82,7 @@ class FragmentInputModal extends Modal {
                 }
             } catch (e) {
                 if (process.env.NODE_ENV !== 'production') {
-                    console.warn("TimestampInputModal: Could not parse video.currentSrc to get hash", e);
+                    console.warn("FragmentInputModal: Could not parse video.currentSrc to get hash", e);
                 }
             }
         }
@@ -134,7 +134,7 @@ class FragmentInputModal extends Modal {
 
     private updateCurrentTimeDisplay() {
         if (this.currentTimeDisplayEl) {
-            this.currentTimeDisplayEl.textContent = `Current time: ${formatTimestamp(getCurrentTimeRounded(this.video), undefined, this.settings)}`;
+            this.currentTimeDisplayEl.textContent = `Current time: ${formatFragment(getCurrentTimeRounded(this.video), undefined, this.settings)}`;
         }
     }
 
@@ -173,12 +173,12 @@ class FragmentInputModal extends Modal {
                 if (startRawValid) {
                     startPlaceholder = fragment!.startRaw!;
                 } else if (startNumValid) {
-                    startPlaceholder = formatTimestamp(fragment!.start as number, undefined, this.settings);
+                    startPlaceholder = formatFragment(fragment!.start as number, undefined, this.settings);
                 } else if (startPercentValid && this.isPercentObject(fragment!.start)) {
                     startPlaceholder = `${fragment!.start.percent}%`;
                 }
             } else {
-                startPlaceholder = formatTimestamp(currentVideoTime, undefined, this.settings);
+                startPlaceholder = formatFragment(currentVideoTime, undefined, this.settings);
             }
             this.startTimeInputEl = startRow.createEl('textarea', {
                 attr: { rows: 1, placeholder: startPlaceholder }
@@ -192,7 +192,7 @@ class FragmentInputModal extends Modal {
 
             this.useCurrentStartBtn = startRow.createEl('button', { text: `Set to current time`, cls: 'video-ts-use-current-btn' });
             this.useCurrentStartBtn.onclick = () => {
-                this.startTimeInputEl.value = formatTimestamp(getCurrentTimeRounded(this.video), undefined, this.settings);
+                this.startTimeInputEl.value = formatFragment(getCurrentTimeRounded(this.video), undefined, this.settings);
             };
 
             this.startTimeInputEl.addEventListener('keydown', async (event) => {
@@ -217,12 +217,12 @@ class FragmentInputModal extends Modal {
                 } else if (endRawValid) {
                     endPlaceholder = fragment!.endRaw!;
                 } else if (endNumValid) {
-                    endPlaceholder = formatTimestamp(fragment!.end as number, undefined, this.settings);
+                    endPlaceholder = formatFragment(fragment!.end as number, undefined, this.settings);
                 } else if (endPercentValid && this.isPercentObject(fragment!.end)) {
                     endPlaceholder = `${fragment!.end.percent}%`;
                 }
             } else {
-                endPlaceholder = formatTimestamp(currentVideoTime, undefined, this.settings);
+                endPlaceholder = formatFragment(currentVideoTime, undefined, this.settings);
             }
             this.endTimeInputEl = endRow.createEl('textarea', {
                 attr: { rows: 1, placeholder: endPlaceholder }
@@ -236,7 +236,7 @@ class FragmentInputModal extends Modal {
 
             this.useCurrentEndBtn = endRow.createEl('button', { text: `Set to current time`, cls: 'video-ts-use-current-btn' });
             this.useCurrentEndBtn.onclick = () => {
-                this.endTimeInputEl.value = formatTimestamp(getCurrentTimeRounded(this.video), undefined, this.settings);
+                this.endTimeInputEl.value = formatFragment(getCurrentTimeRounded(this.video), undefined, this.settings);
             };
             
             this.endTimeInputEl.addEventListener('keydown', async (event) => {
@@ -256,14 +256,14 @@ class FragmentInputModal extends Modal {
                 this.initialStartDisplayValue = raw;
             } else if (typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001) {
                 // If raw is a plain number string, format the parsed numeric value for consistent precision
-                this.initialStartDisplayValue = formatTimestamp(fragment.start, undefined, this.settings);
+                this.initialStartDisplayValue = formatFragment(fragment.start, undefined, this.settings);
             } else {
                 // Fallback to raw if fragment.start is not a valid number (e.g. if raw was numeric but start became {percent} somehow, less likely)
                 this.initialStartDisplayValue = raw;
             }
         } else if (fragment && typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001) {
             // No raw, or raw was placeholder/invalid. Format numeric start.
-            this.initialStartDisplayValue = formatTimestamp(fragment.start, undefined, this.settings);
+            this.initialStartDisplayValue = formatFragment(fragment.start, undefined, this.settings);
         } else if (fragment && this.isPercentObject(fragment.start)) {
             // No raw, or raw was placeholder/invalid. Start is percent object.
             this.initialStartDisplayValue = `${fragment.start.percent}%`;
@@ -282,14 +282,14 @@ class FragmentInputModal extends Modal {
                 this.initialEndDisplayValue = raw;
             } else if (typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity) {
                 // If raw is a plain number string, format the parsed numeric value for consistent precision
-                this.initialEndDisplayValue = formatTimestamp(fragment.end, undefined, this.settings);
+                this.initialEndDisplayValue = formatFragment(fragment.end, undefined, this.settings);
             } else {
                 // Fallback to raw
                 this.initialEndDisplayValue = raw;
             }
         } else if (fragment && typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity) {
             // No raw, or raw was placeholder/invalid. Format numeric end.
-            this.initialEndDisplayValue = formatTimestamp(fragment.end, undefined, this.settings);
+            this.initialEndDisplayValue = formatFragment(fragment.end, undefined, this.settings);
         } else if (fragment && this.isPercentObject(fragment.end)) {
             // No raw, or raw was placeholder/invalid. End is percent object.
             this.initialEndDisplayValue = `${fragment.end.percent}%`;
@@ -305,12 +305,12 @@ class FragmentInputModal extends Modal {
         const videoDuration = this.video.duration;
 
         // Parse both times first
-        const parsedStart = rawStartTime === "" ? null : parseTimestampToSeconds(rawStartTime);
+        const parsedStart = rawStartTime === "" ? null : parseFragmentToSeconds(rawStartTime);
         let parsedEnd: number | { percent: number } | null;
         if (rawEndTime.toLowerCase() === 'end') {
             parsedEnd = videoDuration;
         } else {
-            parsedEnd = rawEndTime === "" ? null : parseTimestampToSeconds(rawEndTime);
+            parsedEnd = rawEndTime === "" ? null : parseFragmentToSeconds(rawEndTime);
         }
 
         // Validation: check for invalid formats

@@ -38,7 +38,7 @@ export class PluginEventHandler {
 	public handleResize(targetDocuments: Document[]): void {
         for (const doc of targetDocuments) {
             doc.querySelectorAll('video').forEach((videoEl) => {
-                const state = videoEl._timestampState;
+                const state = videoEl._fragmentState;
                 // Helper for percent object
                 function isPercentObject(val: any): val is { percent: number } {
                     return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';

@@ -60,18 +60,18 @@ export function addRemoveEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoE
   );
 }
 
-export function addRemoveTimestampFromEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
+export function addRemoveFragmentFromEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
   menu.addItem(item =>
     item
       .setIcon('clock')
-      .setTitle('Remove timestamp from embed link')
+      .setTitle('Remove fragment from embed link')
       .onClick(async () => {
         const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view) {
-          new Notice('Removing timestamps only works from a Markdown note.');
+          new Notice('Removing fragments only works from a Markdown note.');
           return;
         } if (view.getMode() === 'preview') {
-          new Notice('Cannot remove timestamp while in reading view.');
+          new Notice('Cannot remove fragment while in reading view.');
           return;
         }
 

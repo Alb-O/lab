@@ -1,21 +1,21 @@
 import { MarkdownView, TFile } from "obsidian";
 import { splitSubpath, parseLink } from "obsidian-dev-utils/obsidian/Link";
-import { TempFragment, parseTempFrag } from "../timestamps/utils";
+import { TempFragment, parseTempFrag } from "../fragments/utils";
 
 // Export video-related utilities
 export { VideoDetector } from './detector';
 export { setupVideoControls } from './controls';
 
 /**
- * Represents a video with timestamp information found in a markdown document
+ * Represents a video with fragment information found in a markdown document
  */
-export interface VideoWithTimestamp {
+export interface VideoWithFragment {
     type: 'wiki' | 'md' | 'html'; // Added
     file: TFile | null;
     path: string; // Resolved path to the TFile
     linktext: string; // Full original link text, e.g., ![[video.mp4#t=1]]
     alias?: string; // Optional alias for the link
-    timestamp: TempFragment | null;
+    fragment: TempFragment | null;
     // Keep the raw format from the link so we can preserve it
     startRaw?: string;
     endRaw?: string;
@@ -44,8 +44,8 @@ interface RawVideoMatch {
 /**
  * Extract video links from the current markdown view
  */
-export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTimestamp[] {
-    const result: VideoWithTimestamp[] = [];
+export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFragment[] {
+    const result: VideoWithFragment[] = [];
     const activeFile = view.file;
     if (!view || !activeFile) return result;
 
@@ -97,7 +97,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
         // For this logic, direct use of matchData properties (matchData[0], matchData.index etc.) is fine.
         const m = matchData; // Use the plain object directly
 
-        let videoEntry: VideoWithTimestamp | null = null;
+        let videoEntry: VideoWithFragment | null = null;
 
         if (type === 'wiki') {
             const isEmbedded = !!m[1];
@@ -107,9 +107,9 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             
             if (file && isVideoFile(file)) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + String(m[0]).length } };
-                const timestamp = parsedSubpath && parsedSubpath.toLowerCase().startsWith('#t=') ? parseTempFrag(parsedSubpath.substring(1)) : null;
-                const startRaw = timestamp?.startRaw;
-                const endRaw = timestamp?.endRaw;
+                const fragment = parsedSubpath && parsedSubpath.toLowerCase().startsWith('#t=') ? parseTempFrag(parsedSubpath.substring(1)) : null;
+                const startRaw = fragment?.startRaw;
+                const endRaw = fragment?.endRaw;
                 const parsedLink = parseLink(String(m[0])); // Parse the full link text for alias
                 videoEntry = {
                     type: 'wiki',
@@ -117,7 +117,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
                     path: file.path,
                     linktext: String(m[0]),
                     alias: parsedLink?.alias,
-                    timestamp,
+                    fragment,
                     startRaw,
                     endRaw,
                     isEmbedded,
@@ -145,14 +145,14 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, sourcePath);
 
             if (file && isVideoFile(file)) {
-                // Extract timestamp from subpath if it exists and starts with #t=
-                let timestamp: TempFragment | null = null;
+                // Extract fragment from subpath if it exists and starts with #t=
+                let fragment: TempFragment | null = null;
                 if (parsedSubpath && parsedSubpath.toLowerCase().startsWith('#t=')) {
-                    timestamp = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
+                    fragment = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
                 }
                 
-                const startRaw = timestamp?.startRaw;
-                const endRaw = timestamp?.endRaw;
+                const startRaw = fragment?.startRaw;
+                const endRaw = fragment?.endRaw;
                 const position = {
                     start: { line: i, col: m.index },
                     end: { line: i, col: m.index + m[0].length }
@@ -166,7 +166,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
                     path: view.app.vault.getResourcePath(file), 
                     linktext: m[0], 
                     alias: parsedLink?.alias,
-                    timestamp, 
+                    fragment, 
                     startRaw,
                     endRaw,
                     isEmbedded, // ![...] format is embedded, [...] format is not
@@ -195,15 +195,15 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
 
             if (isLocalVideoFile || isExternalUrl) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + fullHtmlTag.length } };
-                const timestamp = subpathFragment ? parseTempFrag(subpathFragment.replace(/^#/, '')) : null;
-                const startRaw = timestamp?.startRaw;
-                const endRaw = timestamp?.endRaw;
+                const fragment = subpathFragment ? parseTempFrag(subpathFragment.replace(/^#/, '')) : null;
+                const startRaw = fragment?.startRaw;
+                const endRaw = fragment?.endRaw;
                 videoEntry = {
                     type: 'html', // Added
                     file, 
                     path: videoPath, 
                     linktext: fullHtmlTag, 
-                    timestamp, 
+                    fragment, 
                     startRaw,
                     endRaw,
                     isEmbedded: true, 

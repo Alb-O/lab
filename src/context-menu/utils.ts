@@ -1,8 +1,8 @@
 import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView, Notice } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithTimestamp } from '../video';
-import { generateFragmentString, TempFragment, parseTimestampToSeconds } from '../timestamps/utils';
+import { extractVideosFromMarkdownView, VideoWithFragment } from '../video';
+import { generateFragmentString, TempFragment, parseFragmentToSeconds } from '../fragments/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
-import { VideoTimestampsSettings } from '../settings';
+import { VideoFragmentsSettings } from '../settings';
 
 export interface VideoLinkDetails {
     targetFile: TFile | null;
@@ -24,13 +24,13 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
 
     let targetFile: TFile | null = null;
     let sourcePathForLink: string = '';
-    const originalVideoSrcForNotice: string | null = videoEl.dataset.timestampPath || videoEl.currentSrc || videoEl.src;
+    const originalVideoSrcForNotice: string | null = videoEl.dataset.fragmentPath || videoEl.currentSrc || videoEl.src;
     let isExternalFileUrl = false;
     let externalFileUrl: string | null = null;
     let attributesString: string = "";
 
     const excludedAttributes = [
-        'data-controls-initialized', 'data-timestamp-path', 'data-context-menu-initialized',
+        'data-controls-initialized', 'data-fragment-path', 'data-context-menu-initialized',
         'data-start-time', 'data-end-time', 'data-start-time-percent', 'data-end-time-percent',
         'data-reached-end', 'data-seeked-past-end', 'data-auto-resume', 'data-should-auto-play',
         'data-user-paused', 'data-is-seeking', 'src' // src will be handled separately
@@ -53,9 +53,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
         }
         if (attr.value === '') { // Boolean attribute
             attributesString += ` ${attr.name}`;
-        } else {
-            attributesString += ` ${attr.name}="${attr.value}"`;
-        }
+        } else attributesString += ` ${attr.name}="${attr.value}"`;
     }
     // If the original element had classes but not a class attribute (e.g. added via JS .classList.add)
     // and we haven't added a class attribute yet (e.g. because it wasn't in videoEl.attributes)
@@ -109,16 +107,9 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                     attemptedRelativePathForLog = normalizedRelativePath;
                                     if (normalizedRelativePath === '.') {
                                         targetFile = null;
-                                    } else {
-                                        targetFile = app.vault.getFileByPath(normalizedRelativePath);
-                                    }
-                                }
-                                if (!targetFile) { // Log if still not found after attempting vault-relative resolution
-                                    console.warn(`VideoTimestamps: Could not find TFile for app:// URL (inside vault). Attempted relative path: '${attemptedRelativePathForLog}'. Original src: ${currentVideoSrc}`);
+                                    } else targetFile = app.vault.getFileByPath(normalizedRelativePath);
                                 }
                             } else {
-                                // Path is OUTSIDE the vault, treat as external
-                                console.warn(`VideoTimestamps: app:// URL path '${absPathFromUrl}' is outside the vault base path '${vaultBasePath}'. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
                                 isExternalFileUrl = true;
                                 let fileUrlPath = absPathFromUrl;
                                 if (!absPathFromUrl.startsWith('/')) {
@@ -128,9 +119,6 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                 targetFile = null;
                             }
                         } else {
-                            if (process.env.NODE_ENV !== 'production') {
-                                console.warn(`VideoTimestamps: Vault adapter is not FileSystemAdapter, cannot resolve app:// URL. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
-                            }
                             let fileUrlPath = absPathFromUrl;// absPathFromUrl was derived from URL(currentVideoSrc).pathname
                             if (!absPathFromUrl.startsWith('/')) {
                                 fileUrlPath = '/' + absPathFromUrl;
@@ -140,9 +128,6 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                             targetFile = null;
                         }
                     } catch (e) {
-                        if (process.env.NODE_ENV !== 'production') {
-                            console.error('VideoTimestamps: Error parsing app:// URL for video path:', currentVideoSrc, e);
-                        }
                         // Fallback: try to use the original src if it looks like a URL, otherwise null
                         try {
                             new URL(currentVideoSrc); // check if it's a valid URL
@@ -207,16 +192,8 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                     } else {
                                         targetFile = app.vault.getFileByPath(normalizedRelativePath);
                                     }
-                                } if (!targetFile) {
-                                    if (process.env.NODE_ENV !== 'production') {
-                                        console.warn(`VideoTimestamps: Could not find TFile for app:// URL (inside vault). Attempted relative path: '${attemptedRelativePathForLog}'. Original src: ${currentVideoSrc}`);
-                                    }
                                 }
                             } else {
-                                // Path is OUTSIDE the vault, treat as external
-                                if (process.env.NODE_ENV !== 'production') {
-                                    console.warn(`VideoTimestamps: app:// URL path '${absPathFromUrl}' is outside the vault base path '${vaultBasePath}'. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
-                                }
                                 isExternalFileUrl = true;
                                 let fileUrlPath = absPathFromUrl;
                                 if (!absPathFromUrl.startsWith('/')) {
@@ -226,9 +203,6 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                                 targetFile = null;
                             }
                         } else {
-                            if (process.env.NODE_ENV !== 'production') {
-                                console.warn(`VideoTimestamps: Vault adapter is not FileSystemAdapter, cannot resolve app:// URL. Converting to file:/// protocol. Original src: ${currentVideoSrc}`);
-                            }
                             let fileUrlPath = absPathFromUrl;
                             if (!absPathFromUrl.startsWith('/')) {
                                 fileUrlPath = '/' + absPathFromUrl;
@@ -238,9 +212,6 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
                             targetFile = null;
                         }
                     } catch (e) {
-                        if (process.env.NODE_ENV !== 'production') {
-                            console.error('VideoTimestamps: Error parsing app:// URL for video path:', currentVideoSrc, e);
-                        }
                         isExternalFileUrl = true;
                         try {
                             new URL(currentVideoSrc);
@@ -285,9 +256,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
             sourcePathForLink = '';
             isExternalFileUrl = false;
         }
-    } else {
-        return null;
-    }
+    } else return null;
 
     return { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl, attributesString };
 }
@@ -304,7 +273,7 @@ export function applyFragmentToVideo(video: HTMLVideoElement, fragment: TempFrag
     const currentSrcUrl = new URL(video.currentSrc || video.src);
     const baseSrc = `${currentSrcUrl.protocol}//${currentSrcUrl.host}${currentSrcUrl.pathname}${currentSrcUrl.search}`;
 
-    // Clear existing timestamp datasets
+    // Clear existing fragment datasets
     delete video.dataset.startTimeRaw;
     delete video.dataset.startTime;
     delete video.dataset.endTimeRaw;
@@ -360,7 +329,7 @@ function compareFragmentTimes(
 export async function setAndSaveVideoFragment(
     app: App,
     video: HTMLVideoElement,
-    settings: VideoTimestampsSettings, // Kept for potential future settings-dependent logic
+    settings: VideoFragmentsSettings, // Kept for potential future settings-dependent logic
     newFragment: TempFragment | null
 ): Promise<boolean> {
     // 1. Apply to video element (dataset and src)
@@ -374,20 +343,13 @@ export async function setAndSaveVideoFragment(
             await updateEditorLinkInFile(app, video, mdView.file, newFragment, allVideoElementsInView);
             return true;
         } catch (e: any) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.error('VideoTimestamps: Failed to update embed link in setAndSaveVideoFragment:', e);
-            }
             new Notice(`Error updating editor link: ${e.message}`);
             return false;
         }
     } else if (mdView && mdView.editor && !mdView.file) {
-        new Notice('Timestamps applied to video. Save the file to update the link.');
+        new Notice('Fragment applied to video. Save the file to update the link.');
         return true; 
-    } else {
-        // Not in a markdown view with an editor, or no file (e.g., viewing a video file directly)
-        // Fragment is applied to the video, nothing else to do.
-        return true;
-    }
+    } else return true;
 }
 
 export async function updateEditorLinkInFile(
@@ -398,7 +360,7 @@ export async function updateEditorLinkInFile(
     allVideoElementsInView: NodeListOf<HTMLVideoElement> // All video elements in the current view, for indexing
 ): Promise<void> {
     const { extractVideosFromMarkdownView } = require('../video'); // Local require to avoid circular deps if any at top level
-    const allVideosInEditor: VideoWithTimestamp[] = extractVideosFromMarkdownView(app.workspace.getActiveViewOfType(MarkdownView)!);
+    const allVideosInEditor: VideoWithFragment[] = extractVideosFromMarkdownView(app.workspace.getActiveViewOfType(MarkdownView)!);
     const currentVideoDomIndex = Array.from(allVideoElementsInView).indexOf(videoEl);
     const fragmentString = newFragment ? generateFragmentString(newFragment) : '';
 
@@ -461,8 +423,8 @@ export async function updateEditorLinkInFile(
                         baseVideoSrc = srcMatch[2];
                     } else {
                         // If src is not found or not in expected format, we might have an issue.
-                        // For safety, try to get it from videoEl.dataset.timestampPath or a cleaned version of videoEl.src
-                        const currentSrcUrl = new URL(videoEl.dataset.timestampPath || videoEl.currentSrc || videoEl.src);
+                        // For safety, try to get it from videoEl.dataset.fragmentPath or a cleaned version of videoEl.src
+                        const currentSrcUrl = new URL(videoEl.dataset.fragmentPath || videoEl.currentSrc || videoEl.src);
                         baseVideoSrc = `${currentSrcUrl.protocol}//${currentSrcUrl.host}${currentSrcUrl.pathname}${currentSrcUrl.search}`;
                     }
 
@@ -475,38 +437,18 @@ export async function updateEditorLinkInFile(
                     // Update the specific line in the main lines array
                     lines[actualLineNumber] = modifiedLine;
                     await app.vault.modify(currentFile, lines.join('\n'));
-                } else {
-                    if (process.env.NODE_ENV !== 'production') {
-                        console.warn('VideoTimestamps: Could not find <video src="..."> line in HTML block to update.', currentVideoInfo);
-                    }
-                    throw new Error('Could not find <video src="..."> line in HTML block.');
-                }
-            } else {
-                 if (process.env.NODE_ENV !== 'production') {
-                    console.warn('VideoTimestamps: HTML block does not start with <video>. Cannot update automatically.', currentVideoInfo);
-                 }
-                 throw new Error('HTML block does not start with <video>.');
-            }
-        } else {
-            if (process.env.NODE_ENV !== 'production') {
-                console.warn('VideoTimestamps: Video type not recognized or file missing for editor link update.', currentVideoInfo);
-            }
-            throw new Error('Video type not recognized or file missing.');
-        }
-    } else {
-        if (process.env.NODE_ENV !== 'production') {
-            console.warn('VideoTimestamps: Video element not found in editor metadata. DOM index:', currentVideoDomIndex, 'Editor videos count:', allVideosInEditor.length);
-        }
-        throw new Error('Video element not found in editor metadata.');
-    }
+                } else new Notice('Error: Could not find <video src="..."> line in HTML block.');
+            } else new Notice('Error: HTML block does not start with <video>.');
+        } else new Notice('Error: Video type not recognized or file missing.');
+    } else new Notice('Error: Video element not found in editor metadata.');
 }
 
-export async function processTimestampAction(
+export async function processFragmentAction(
     app: App,
     video: HTMLVideoElement,
     action: 'set' | 'clear',
-    timestampType: 'start' | 'end',
-    settings: VideoTimestampsSettings,
+    fragmentType: 'start' | 'end',
+    settings: VideoFragmentsSettings,
     originalFragment: TempFragment | null,
     rawInputValue?: string // Only for 'set' action
 ): Promise<boolean> {
@@ -521,16 +463,16 @@ export async function processTimestampAction(
 
     if (action === 'set') {
         if (!rawInputValue) {
-            new Notice('Timestamp cannot be empty.');
+            new Notice('Fragment cannot be empty.');
             return false;
         }
-        const parsedSeconds = parseTimestampToSeconds(rawInputValue);
+        const parsedSeconds = parseFragmentToSeconds(rawInputValue);
         if (parsedSeconds === null) {
-            new Notice('Invalid timestamp format. Use seconds (e.g., 65.5), mm:ss (e.g., 1:05.5), or special values like start/end.');
+            new Notice('Invalid fragment format. Use seconds (e.g., 65.5), mm:ss (e.g., 1:05.5), percentage (e.g. 50%) or special phrases like start or end.');
             return false;
         }
 
-        if (timestampType === 'start') {
+        if (fragmentType === 'start') {
             const currentEndTime = originalFragment?.end;
             // Robust comparison for all types
             const cmp = compareFragmentTimes(parsedSeconds, currentEndTime, video);
@@ -567,10 +509,10 @@ export async function processTimestampAction(
                 endRaw: rawInputValue
             };
         }
-        noticeMessage = `Video ${timestampType} time set to ${rawInputValue}.`;
+        noticeMessage = `Video ${fragmentType} time set to ${rawInputValue}.`;
 
     } else { // action === 'clear'
-        if (timestampType === 'start') {
+        if (fragmentType === 'start') {
             if (originalFragment) {
                 newFragment = { ...originalFragment, start: -1, startRaw: undefined };
                 if (typeof newFragment.end === 'number' && newFragment.end < 0 && !newFragment.endRaw) newFragment = null;
@@ -597,7 +539,7 @@ export async function processTimestampAction(
         ) {
             newFragment = null;
         }
-        noticeMessage = `Video ${timestampType} time cleared.`;
+        noticeMessage = `Video ${fragmentType} time cleared.`;
     }
 
     applyFragmentToVideo(video, newFragment);
@@ -608,11 +550,8 @@ export async function processTimestampAction(
             await updateEditorLinkInFile(app, video, mdView.file, newFragment, mdView.contentEl.querySelectorAll('video'));
             new Notice(noticeMessage);
         } catch (e: any) {
-            if (process.env.NODE_ENV !== 'production') {
-                console.error('Failed to update embed link:', e);
-            }
             new Notice(`Error updating embed link: ${e.message}`);
-            // Even if link update fails, the video element itself was updated, so don't necessarily return false from processTimestampAction
+            // Even if link update fails, the video element itself was updated, so don't necessarily return false from processFragmentAction
             // The notice about the error should be sufficient.
         }
     } else if (mdView && mdView.editor && !mdView.file) {
@@ -620,5 +559,5 @@ export async function processTimestampAction(
     } else {
         new Notice(`${noticeMessage} Could not update markdown link (no active file/editor).`);
     }
-    return true; // Indicates the primary action (setting/clearing timestamp on video) was attempted/done.
+    return true; // Indicates the primary action (setting/clearing fragment on video) was attempted/done.
 }

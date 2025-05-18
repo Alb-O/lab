@@ -1,15 +1,15 @@
 import { MarkdownView, Plugin, WorkspaceLeaf } from 'obsidian';
-import { DEFAULT_SETTINGS, IVideoTimestampsPlugin, VideoTimestampsSettings, VideoTimestampsSettingTab } from './settings';
-import { VideoWithTimestamp, VideoDetector } from './video'; // Corrected import
+import { DEFAULT_SETTINGS, IVideoFragmentsPlugin, VideoFragmentsSettings, VideoFragmentsSettingTab } from './settings';
+import { VideoWithFragment, VideoDetector } from './video'; // Corrected import
 import { setupVideoControls } from './video/controls'; // Corrected import path
 import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
-import { TimestampManager } from './timestamps';
+import { FragmentManager } from './fragments';
 import { PluginEventHandler } from './plugin-event-handler';
 
-export default class VideoTimestamps extends Plugin implements IVideoTimestampsPlugin {
-	settings: VideoTimestampsSettings;
+export default class VideoFragments extends Plugin implements IVideoFragmentsPlugin {
+	settings: VideoFragmentsSettings;
 	videoDetector: VideoDetector;
-	timestampController: TimestampManager;
+	fragmentController: FragmentManager;
 	pluginEventHandler: PluginEventHandler;
 	private videoObservers: MutationObserver[] = [];
 	private contextMenuCleanup: (() => void) | null = null;
@@ -23,7 +23,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		// Initialize components
 		this.videoDetector = new VideoDetector();
 
-		this.timestampController = new TimestampManager(this.settings);
+		this.fragmentController = new FragmentManager(this.settings);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
 
 		// Setup video hover controls
@@ -60,7 +60,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		);
 
 		// Add a settings tab
-		this.addSettingTab(new VideoTimestampsSettingTab(this.app, this));
+		this.addSettingTab(new VideoFragmentsSettingTab(this.app, this));
 		// Add a window resize handler to update timeline styles
 		this.resizeHandler = () => {
             const allDocuments = this.getAllRelevantDocuments();
@@ -153,7 +153,7 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
         documentsToObserve.forEach(doc => {
             // Check if the document body exists before observing
             if (doc.body) {
-                const observer = this.timestampController.setupVideoObserver(doc, () => this.detectVideosInAllDocuments());
+                const observer = this.fragmentController.setupVideoObserver(doc, () => this.detectVideosInAllDocuments());
                 this.videoObservers.push(observer);
             }
         });
@@ -161,9 +161,9 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 
 	/**
 	 * Detect videos in all open markdown views across all documents
-	 * @returns Array of detected videos with timestamps across all views
+	 * @returns Array of detected videos with fragments across all views
 	 */
-	public detectVideosInAllDocuments(): VideoWithTimestamp[] {
+	public detectVideosInAllDocuments(): VideoWithFragment[] {
 		const markdownViews: MarkdownView[] = [];
         const allDocuments = this.getAllRelevantDocuments();
 
@@ -176,18 +176,18 @@ export default class VideoTimestamps extends Plugin implements IVideoTimestampsP
 		if (markdownViews.length === 0 && allDocuments.every(doc => doc.querySelectorAll('video').length === 0)) {
             // If no markdown views and no videos in any document, clear restrictions from all potential videos
             allDocuments.forEach(doc => {
-                doc.querySelectorAll('video').forEach(videoEl => this.timestampController.cleanupHandlers(videoEl));
+                doc.querySelectorAll('video').forEach(videoEl => this.fragmentController.cleanupHandlers(videoEl));
             });
 			return [];
 		}
 
-		const allVideos: VideoWithTimestamp[] = [];
+		const allVideos: VideoWithFragment[] = [];
 		for (const view of markdownViews) {
 			const videos = this.videoDetector.getVideosFromActiveView(view);
 			allVideos.push(...videos);
 		}
 
-		this.timestampController.applyTimestampRestrictions(allVideos, allDocuments);
+		this.fragmentController.applyFragmentRestrictions(allVideos, allDocuments);
 
 		// Only debug in non-production environment
 		if (allVideos.length > 0 && process.env.NODE_ENV !== 'production') {

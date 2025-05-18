@@ -1,15 +1,15 @@
-import { TimestampHandler, VideoState } from '../timestamps/types';
+import { FragmentHandler, VideoState } from '../fragments/types';
 import { updateTimelineStyles } from './styles';
-import { VideoTimestampsSettings } from '../settings';
+import { VideoFragmentsSettings } from '../settings';
 
 /**
- * Handles video events and enforces timestamp restrictions
+ * Handles video events and enforces fragment restrictions
  */
-export class VideoRestrictionHandler implements TimestampHandler {
+export class VideoRestrictionHandler implements FragmentHandler {
     /**
-     * Apply timestamp restrictions to a video element
+     * Apply fragment restrictions to a video element
      */
-    public apply(videoEl: HTMLVideoElement, startTime: number | { percent: number }, endTime: number | { percent: number }, path: string, settings: VideoTimestampsSettings, skipInitialSeek = false, startRaw?: string, endRaw?: string): void {
+    public apply(videoEl: HTMLVideoElement, startTime: number | { percent: number }, endTime: number | { percent: number }, path: string, settings: VideoFragmentsSettings, skipInitialSeek = false, startRaw?: string, endRaw?: string): void {
         this.cleanup(videoEl);
 
         // Helper for percent object
@@ -29,7 +29,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
         // Tolerance to avoid snapping when within threshold (to handle keyframe misalignment)
         const TOLERANCE = 0.005; // seconds
 
-        // Compute a virtual end if no max timestamp
+        // Compute a virtual end if no max fragment
         const getEffectiveEnd = () => {
             if (resolvedEnd === undefined) return undefined;
             if (resolvedEnd === Infinity && videoEl.duration > 0 && isFinite(videoEl.duration)) {
@@ -39,7 +39,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
         };
 
         // Determine if segment looping is enabled
-        const doSegmentLoop = settings.loopMaxTimestamp || videoEl.loop;
+        const doSegmentLoop = settings.loopMaxFragment || videoEl.loop;
 
         // If percent and duration is not yet known, defer restriction logic until loadedmetadata
         if ((isPercentObject(startTime) || isPercentObject(endTime)) && (!videoEl.duration || !isFinite(videoEl.duration))) {
@@ -60,7 +60,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
             };
             videoEl.addEventListener('loadedmetadata', onMeta);
             // Set state and dataset for now, but don't enforce restrictions yet
-            videoEl.dataset.timestampPath = path;
+            videoEl.dataset.fragmentPath = path;
             return;
         }
 
@@ -78,7 +78,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
             delete videoEl.dataset.endTimeRaw;
         }
         videoEl.dataset.endTime = (typeof resolvedEnd === 'number' ? (resolvedEnd === Infinity ? 'end' : resolvedEnd.toString()) : '');
-        videoEl.dataset.timestampPath = path;
+        videoEl.dataset.fragmentPath = path;
 
         // Create a state object for this video
         const state: VideoState = {
@@ -96,7 +96,7 @@ export class VideoRestrictionHandler implements TimestampHandler {
         };
 
         // Store the state object on the video element for persistence
-        (videoEl as any)._timestampState = state;
+        (videoEl as any)._fragmentState = state;
 
         // Apply timeline styling if video has loaded metadata
         if (videoEl.duration && isFinite(videoEl.duration)) {
@@ -127,17 +127,9 @@ export class VideoRestrictionHandler implements TimestampHandler {
             if (effEnd === undefined) return;
             if (metadata.mediaTime >= effEnd) {
                 if (doSegmentLoop) {
-                    const wasPaused = videoEl.paused;
                     videoEl.currentTime = safeNum(resolvedStart, 0);
                     state.reachedEnd = false;
                     videoEl.dataset.reachedEnd = 'false';
-                    if (wasPaused) {
-                        videoEl.play().catch(e => {
-                            if (process.env.NODE_ENV !== 'production') {
-                                console.warn("Loop play failed in clampFrameCallback:", e);
-                            }
-                        });
-                    }
                     if (!videoEl.paused) {
                         frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
                     }
@@ -177,17 +169,9 @@ export class VideoRestrictionHandler implements TimestampHandler {
                     }
                     if (effEnd !== undefined && videoEl.currentTime >= effEnd - TOLERANCE) {
                         if (doSegmentLoop) {
-                            const wasPausedAndAtEnd = videoEl.paused;
                             videoEl.currentTime = safeNum(resolvedStart, 0);
                             state.reachedEnd = false;
                             videoEl.dataset.reachedEnd = 'false';
-                            if (wasPausedAndAtEnd) {
-                                videoEl.play().catch(e => {
-                                    if (process.env.NODE_ENV !== 'production') {
-                                        console.warn("Loop play failed in timeupdate:", e);
-                                    }
-                                });
-                            }
                         } else if (!videoEl.paused) {
                             isProgrammaticPause = true;
                             if ((videoEl as any).requestVideoFrameCallback) {
@@ -381,11 +365,11 @@ export class VideoRestrictionHandler implements TimestampHandler {
         this.attachEventHandlers(videoEl, masterHandler);
 
         // Store the handler reference for cleanup
-        (videoEl as any)._timestampMasterHandler = masterHandler;
+        (videoEl as any)._fragmentMasterHandler = masterHandler;
     }
 
     /**
-     * Clean up all timestamp handlers from a video element
+     * Clean up all fragment handlers from a video element
      */
     public cleanup(videoEl: HTMLVideoElement): void {
         // Remove the loadedmetadata handler if it exists
@@ -394,14 +378,14 @@ export class VideoRestrictionHandler implements TimestampHandler {
             delete (videoEl as any)._metadataHandler;
         }
 
-        const masterHandler = (videoEl as any)._timestampMasterHandler;
+        const masterHandler = (videoEl as any)._fragmentMasterHandler;
         if (masterHandler) {
             this.detachEventHandlers(videoEl, masterHandler);
-            delete (videoEl as any)._timestampMasterHandler;
+            delete (videoEl as any)._fragmentMasterHandler;
         }
 
         // Clean up state and data attributes
-        delete (videoEl as any)._timestampState;
+        delete (videoEl as any)._fragmentState;
         delete (videoEl as any)._justResetFromEnd;
         delete (videoEl as any)._seekedToEnd;
         if ((videoEl as any)._seekedToEndTimeout) {
@@ -463,13 +447,13 @@ export class VideoRestrictionHandler implements TimestampHandler {
 }
 
 /**
- * Reapply timestamp restriction handlers without full plugin reload
+ * Reapply fragment restriction handlers without full plugin reload
  */
-export function reinitializeRestrictionHandlers(settings: VideoTimestampsSettings): void {
+export function reinitializeRestrictionHandlers(settings: VideoFragmentsSettings): void {
     const handler = new VideoRestrictionHandler();
     const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
     videos.forEach(videoEl => {
-        const state = (videoEl as any)._timestampState;
+        const state = (videoEl as any)._fragmentState;
         if (state) {
             handler.apply(videoEl, state.startTime, state.endTime, state.path, settings, true, state.startRaw, state.endRaw);
         }

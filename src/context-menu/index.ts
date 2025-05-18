@@ -1,9 +1,9 @@
 import { Menu, Plugin } from 'obsidian';
-import { VideoTimestampsSettings } from '../settings';
+import { VideoFragmentsSettings } from '../settings';
 import { observeVideos } from '../video';
 import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
 import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
-import { addRemoveEmbedLink, addRemoveTimestampFromEmbedLink } from './items/remove';
+import { addRemoveEmbedLink, addRemoveFragmentFromEmbedLink } from './items/remove';
 import { addSetFragmentMenuItem } from './items/set-fragment';
 
 // Track which elements already have context menus to prevent duplicates
@@ -11,9 +11,9 @@ const initializedElements = new WeakSet<HTMLVideoElement>();
 
 /**
  * Sets up an Obsidian-native context menu on video elements.
- * Enables copying video links with timestamps.
+ * Enables copying video links with fragments.
  */
-export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsSettings, getAllRelevantDocuments: () => Document[]): () => void {
+export function setupVideoContextMenu(plugin: Plugin, settings: VideoFragmentsSettings, getAllRelevantDocuments: () => Document[]): () => void {
   // Clean up any previously initialized elements
   // It's important to call this to ensure handlers are removed before re-adding
   cleanupVideoContextMenu(getAllRelevantDocuments());
@@ -49,7 +49,7 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsS
       menu.addSeparator();
 
       addRemoveEmbedLink(menu, plugin, video);
-      addRemoveTimestampFromEmbedLink(menu, plugin, video);
+      addRemoveFragmentFromEmbedLink(menu, plugin, video);
 
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
     };

@@ -1,14 +1,14 @@
-import { VideoState } from './timestamps/types';
+import { VideoState } from './fragments/types';
 
 declare global {
   interface HTMLVideoElement {
-    _timestampState?: VideoState;
+    _fragmentState?: VideoState;
   }
 }
 
 declare module 'obsidian' {
   interface WorkspaceLeaf {
-    _videoTsPatched?: boolean;
+    _videoFrPatched?: boolean;
     loadIfDeferred(): Promise<void>;
   }
 }

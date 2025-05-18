@@ -1,30 +1,29 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { reinitializeRestrictionHandlers } from './video/restriction-handler';
-import { VideoDetector, VideoWithTimestamp } from './video'; // Added imports
-import { TimestampManager } from './timestamps'; // Added import
-import { PluginEventHandler } from './plugin-event-handler'; // Added import
+import { VideoDetector, VideoWithFragment } from './video';
+import { FragmentManager } from './fragments';
+import { PluginEventHandler } from './plugin-event-handler';
 
-// Define an interface that represents the methods we need from the VideoTimestamps class
-export interface IVideoTimestampsPlugin extends Plugin {
-    settings: VideoTimestampsSettings;
+export interface IVideoFragmentsPlugin extends Plugin {
+    settings: VideoFragmentsSettings;
     videoDetector: VideoDetector;
-    timestampController: TimestampManager;
+    fragmentController: FragmentManager;
     pluginEventHandler: PluginEventHandler;
-    detectVideosInAllDocuments(): VideoWithTimestamp[]; // Changed from detectVideosInActiveView
+    detectVideosInAllDocuments(): VideoWithFragment[];
     saveSettings(): Promise<void>;
-    getAllRelevantDocuments(): Document[]; // Added this
+    getAllRelevantDocuments(): Document[];
 }
 
-export interface VideoTimestampsSettings {
-    loopMaxTimestamp: boolean;
+export interface VideoFragmentsSettings {
+    loopMaxFragment: boolean;
     trimZeroHours: boolean;
     trimZeroMinutes: boolean;
     trimLeadingZeros: boolean;
     useRawSeconds: boolean;
 }
 
-export const DEFAULT_SETTINGS: VideoTimestampsSettings = {
-    loopMaxTimestamp: false,
+export const DEFAULT_SETTINGS: VideoFragmentsSettings = {
+    loopMaxFragment: false,
     trimZeroHours: true,
     trimZeroMinutes: true,
     trimLeadingZeros: false,
@@ -32,12 +31,12 @@ export const DEFAULT_SETTINGS: VideoTimestampsSettings = {
 }
 
 /**
- * Settings tab for the Video Timestamps plugin
+ * Settings tab for the Video Fragments plugin
  */
-export class VideoTimestampsSettingTab extends PluginSettingTab {
-    plugin: IVideoTimestampsPlugin;
+export class VideoFragmentsSettingTab extends PluginSettingTab {
+    plugin: IVideoFragmentsPlugin;
     
-    constructor(app: App, plugin: IVideoTimestampsPlugin) {
+    constructor(app: App, plugin: IVideoFragmentsPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
@@ -47,21 +46,21 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
         containerEl.empty();
                 
         new Setting(containerEl)
-            .setName('Loop when reaching maximum timestamp')
-            .setDesc('The video will automatically loop when it reaches the maximum timestamp.')
+            .setName('Loop when reaching maximum fragment')
+            .setDesc('The video will automatically loop when it reaches the maximum fragment.')
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.loopMaxTimestamp)
+                .setValue(this.plugin.settings.loopMaxFragment)
                 .onChange(async (value) => {
-                    this.plugin.settings.loopMaxTimestamp = value;
+                    this.plugin.settings.loopMaxFragment = value;
                     await this.plugin.saveSettings();
                     reinitializeRestrictionHandlers(this.plugin.settings);
                 }));
 
-        new Setting(containerEl).setName("Timestamp format").setHeading();
+        new Setting(containerEl).setName("Fragment format").setHeading();
 
         new Setting(containerEl)
             .setName('Trim zero hours')
-            .setDesc('Remove "00:" or "0:" hours component when generating formatted timestamps.')
+            .setDesc('Remove "00:" or "0:" hours component when generating formatted fragments.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimZeroHours)
                 .onChange(async (value) => {
@@ -71,7 +70,7 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Trim zero minutes')
-            .setDesc('Remove "00:" or "0:" minutes component when generating formatted timestamps.')
+            .setDesc('Remove "00:" or "0:" minutes component when generating formatted fragments.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimZeroMinutes)
                 .onChange(async (value) => {
@@ -91,7 +90,7 @@ export class VideoTimestampsSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Use raw seconds')
-            .setDesc('Output pure seconds for timestamps, overriding any trimming or HH:mm:ss formatting.')
+            .setDesc('Output pure seconds for fragments, overriding any trimming or HH:mm:ss formatting.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.useRawSeconds)
                 .onChange(async (value) => {

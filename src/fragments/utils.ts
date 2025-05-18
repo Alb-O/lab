@@ -1,7 +1,7 @@
-import { VideoTimestampsSettings } from "src/settings";
+import { VideoFragmentsSettings } from "src/settings";
 
 /**
- * Interface representing a temporal fragment (timestamp) in a media file
+ * Interface representing a temporal fragment in a media file
  */
 export interface TempFragment {
     /** Start time in seconds (-1 if not specified) or { percent: number } for percent */
@@ -15,9 +15,9 @@ export interface TempFragment {
 }
 
 /**
- * Check if a fragment represents a single timestamp (not a range)
+ * Check if a fragment represents a single fragment (not a range)
  */
-export function isTimestamp(fragment: TempFragment): boolean {
+export function isFragment(fragment: TempFragment): boolean {
     const isStartNum = typeof fragment.start === 'number';
     const isEndNum = typeof fragment.end === 'number';
     return isStartNum && isEndNum && (fragment.start as number) >= 0 && (fragment.end as number) < 0;
@@ -64,7 +64,7 @@ function getTimeSpan(
         if (startRaw.toLowerCase() === 'start') {
             startTime = 0;
         } else {
-            startTime = parseTimestampToSeconds(startRaw);
+            startTime = parseFragmentToSeconds(startRaw);
             if (startTime === null) return null; // Invalid start time format
         }
     }
@@ -73,7 +73,7 @@ function getTimeSpan(
         if (endRaw.toLowerCase() === 'e' || endRaw.toLowerCase() === 'end') {
             endTime = Infinity;
         } else {
-            endTime = parseTimestampToSeconds(endRaw);
+            endTime = parseFragmentToSeconds(endRaw);
             if (endTime === null) return null; // Invalid end time format
         }
     }
@@ -82,7 +82,7 @@ function getTimeSpan(
     if (endRaw && !startRaw) {
         startTime = 0;
     }
-    // If only startRaw is provided, endTime remains -1 (single timestamp)
+    // If only startRaw is provided, endTime remains -1 (single fragment)
     // If neither, it's not a valid fragment for our purposes (or should have been caught earlier)
 
     if (startTime === -1 && endTime === -1) return null;
@@ -96,19 +96,19 @@ function getTimeSpan(
 }
 
 /**
- * Format seconds as a human-readable timestamp (mm:ss or hh:mm:ss)
+ * Format seconds as a human-readable fragment (mm:ss or hh:mm:ss)
  * Prioritizes raw format if available in TempFragment.
  * Always uses HH:mm:ss as the base format, trims zero components if enabled,
  * and outputs raw seconds if that setting is enabled.
  */
-export function formatTimestamp(
+export function formatFragment(
     totalSeconds: number,
     rawFormat?: string,
-    settings?: VideoTimestampsSettings
+    settings?: VideoFragmentsSettings
 ): string {
     if (rawFormat) {
-        // Basic validation for rawFormat to ensure it's a plausible timestamp
-        if (parseTimestampToSeconds(rawFormat) === totalSeconds) {
+        // Basic validation for rawFormat to ensure it's a plausible fragment
+        if (parseFragmentToSeconds(rawFormat) === totalSeconds) {
             return rawFormat;
         }
         // If rawFormat is provided but doesn't match totalSeconds,
@@ -166,13 +166,13 @@ export function formatTimestamp(
 }
 
 /**
- * Parse a timestamp string to seconds or percent.
+ * Parse a fragment string to seconds or percent.
  * Accepts 'start' as 0, 'end' as Infinity, numeric/colon formats, or percentage (e.g., '50%').
  * Returns number (seconds), Infinity, or { percent: number } for percentage.
  */
-export function parseTimestampToSeconds(timestamp: string): number | { percent: number } | null {
-    if (!timestamp || typeof timestamp !== 'string') return null;
-    const trimmed = timestamp.trim().toLowerCase();
+export function parseFragmentToSeconds(fragment: string): number | { percent: number } | null {
+    if (!fragment || typeof fragment !== 'string') return null;
+    const trimmed = fragment.trim().toLowerCase();
     if (trimmed === 'start') return 0;
     if (trimmed === 'end' || trimmed === 'e') return Infinity;
     // Percentage support
@@ -216,9 +216,9 @@ export function parseTimestampToSeconds(timestamp: string): number | { percent: 
 }
 
 /**
- * Resolves a timestamp value (seconds, Infinity, or { percent }) to seconds given a duration.
+ * Resolves a fragment value (seconds, Infinity, or { percent }) to seconds given a duration.
  */
-export function resolveTimestampPercent(value: number | { percent: number } | null, duration: number): number | null {
+export function resolveFragmentPercent(value: number | { percent: number } | null, duration: number): number | null {
     if (typeof value === 'number') return value;
     if (value && typeof value === 'object' && 'percent' in value) {
         return duration * (value.percent / 100);
@@ -243,7 +243,7 @@ export function generateFragmentString(fragment: TempFragment | null): string {
     } else if (start === 0) {
         T_START = 'start';
     } else if (typeof start === 'number' && start >= 0) {
-        T_START = formatTimestamp(start);
+        T_START = formatFragment(start);
     }
 
     let T_END = "";
@@ -254,7 +254,7 @@ export function generateFragmentString(fragment: TempFragment | null): string {
     } else if (end === Infinity) {
         T_END = "end";
     } else if (typeof end === 'number' && end >= 0) {
-        T_END = formatTimestamp(end);
+        T_END = formatFragment(end);
     }
 
     if (T_START && T_END) {

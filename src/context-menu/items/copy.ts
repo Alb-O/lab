@@ -1,8 +1,8 @@
 import { Menu, Notice, Plugin } from 'obsidian';
-import { formatTimestamp } from '../../timestamps/utils';
+import { formatFragment } from '../../fragments/utils';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 import { getVideoLinkDetails, getCurrentTimeRounded } from '../utils';
-import { VideoTimestampsSettings } from '../../settings';
+import { VideoFragmentsSettings } from '../../settings';
 
 export function addCopyEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
     menu.addItem(item =>
@@ -51,24 +51,21 @@ export function addCopyEmbedLink(menu: Menu, plugin: Plugin, video: HTMLVideoEle
                     .then(() => {
                         new Notice('Copied embed link.');
                     })
-                    .catch(err => {
-                        if (process.env.NODE_ENV !== 'production') {
-                            console.error('Failed to copy link: ', err);
-                        }
-                        new Notice('Failed to copy link to clipboard.');
+                    .catch((e) => {
+                        new Notice(`Failed to copy link to clipboard: ${e instanceof Error ? e.message : String(e)}`);
                     });
             })
     );
 }
 
-export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, settings: VideoTimestampsSettings, video: HTMLVideoElement) {
+export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
     menu.addItem(item => item
         .setIcon('copy')
         .setTitle('Copy embed at current time')
         .onClick(() => {
             const currentTime = getCurrentTimeRounded(video);
-            // Use user-defined settings for timestamp formatting;
-            const formattedTime = formatTimestamp(currentTime, undefined, settings );
+            // Use user-defined settings for fragment formatting;
+            const formattedFragment = formatFragment(currentTime, undefined, settings );
             const linkDetails = getVideoLinkDetails(plugin.app, video);
             if (!linkDetails) {
                 new Notice('Cannot copy link: View type not supported or active leaf not found.');
@@ -93,16 +90,16 @@ export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, settings: 
 
             if (isExternalFileUrl && externalFileUrl) {
                 const baseSrc = externalFileUrl.split('#')[0];
-                const newSrcWithTimestamp = `${baseSrc}#t=${formattedTime}`;
-                linkText = `<video src="${newSrcWithTimestamp}"${attributesString}></video>`;
+                const newSrcWithFragment = `${baseSrc}#t=${formattedFragment}`;
+                linkText = `<video src="${newSrcWithFragment}"${attributesString}></video>`;
             } else if (targetFile) {
-                const timestampParam = `#t=${formattedTime}`;
+                const fragmentParam = `#t=${formattedFragment}`;
                 linkText = generateMarkdownLink({
                     app: plugin.app,
                     targetPathOrFile: targetFile,
                     sourcePathOrFile: sourcePathForLink,
-                    subpath: timestampParam,
-                    alias: formattedTime,
+                    subpath: fragmentParam,
+                    alias: formattedFragment,
                     isEmbed: true
                 });
             } else {
@@ -112,13 +109,10 @@ export function addCopyEmbedAtCurrentTime(menu: Menu, plugin: Plugin, settings: 
 
             navigator.clipboard.writeText(linkText)
                 .then(() => {
-                    new Notice(`Copied link with timestamp (${formattedTime}).`);
+                    new Notice(`Copied link with fragment (${formattedFragment}).`);
                 })
-                .catch(err => {
-                    if (process.env.NODE_ENV !== 'production') {
-                        console.error('Failed to copy link: ', err);
-                    }
-                    new Notice('Failed to copy link to clipboard.');
+                .catch(e => {
+                    new Notice(`Failed to copy link to clipboard: ${e instanceof Error ? e.message : String(e)}`);
                 });
         })
     );

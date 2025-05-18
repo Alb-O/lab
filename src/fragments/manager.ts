@@ -1,25 +1,25 @@
-import { VideoWithTimestamp } from '../video';
-import { VideoTimestampsSettings } from '../settings';
-import { TimestampHandler } from './types';
+import { VideoWithFragment } from '../video';
+import { VideoFragmentsSettings } from '../settings';
+import { FragmentHandler } from './types';
 import { VideoRestrictionHandler } from '../video/restriction-handler';
-import { parseTimestampToSeconds } from '../timestamps/utils';
+import { parseFragmentToSeconds } from '../fragments/utils';
 
 /**
- * Manages timestamp restrictions for videos in Obsidian
+ * Manages fragment restrictions for videos in Obsidian
  */
-export class TimestampManager {
-    private settings: VideoTimestampsSettings;
-    private videoHandler: TimestampHandler;
+export class FragmentManager {
+    private settings: VideoFragmentsSettings;
+    private videoHandler: FragmentHandler;
     
-    constructor(settings: VideoTimestampsSettings) {
+    constructor(settings: VideoFragmentsSettings) {
         this.settings = settings;
         this.videoHandler = new VideoRestrictionHandler();
     }
     
     /**
-     * Apply timestamp restrictions to videos in the current view across specified documents
+     * Apply fragment restrictions to videos in the current view across specified documents
      */
-    public applyTimestampRestrictions(videosFromMarkdown: VideoWithTimestamp[], targetDocuments: Document[]): void {
+    public applyFragmentRestrictions(videosFromMarkdown: VideoWithFragment[], targetDocuments: Document[]): void {
         const processedDomVideoElements = new Set<HTMLVideoElement>();
 
         // 1. Cleanup handlers from all video elements in all target documents first
@@ -51,17 +51,17 @@ export class TimestampManager {
                 }
 
                 if (matchedVideoElement) {
-                    if (videoData.timestamp) {
+                    if (videoData.fragment) {
                         // Resolve percent-based start/end if needed
-                        let resolvedStart = videoData.timestamp.start;
-                        let resolvedEnd = videoData.timestamp.end;
+                        let resolvedStart = videoData.fragment.start;
+                        let resolvedEnd = videoData.fragment.end;
                         if (this.isPercentObject(resolvedStart)) {
                             resolvedStart = matchedVideoElement.duration * (resolvedStart.percent / 100);
                         }
                         if (this.isPercentObject(resolvedEnd)) {
                             resolvedEnd = matchedVideoElement.duration * (resolvedEnd.percent / 100);
                         }
-                        // Fix: always apply restrictions if timestamp is present, even if resolvedStart/resolvedEnd is 0 or percent
+                        // Fix: always apply restrictions if fragment is present, even if resolvedStart/resolvedEnd is 0 or percent
                         this.videoHandler.apply(
                             matchedVideoElement,
                             resolvedStart,
@@ -73,7 +73,7 @@ export class TimestampManager {
                             videoData.endRaw
                         );
                     }
-                    // If videoData.timestamp is null, no restrictions are applied (cleanup already handled it)
+                    // If videoData.fragment is null, no restrictions are applied (cleanup already handled it)
                     processedDomVideoElements.add(matchedVideoElement);
                 }
             }
@@ -82,7 +82,7 @@ export class TimestampManager {
             // These might be from other plugins or direct HTML, not linked via standard Markdown
             for (const videoEl of allVideoElementsInDom) {
                 if (!processedDomVideoElements.has(videoEl)) {
-                    const { startTime, endTime, path: domPath } = this.extractTimestampsFromDom(videoEl);
+                    const { startTime, endTime, path: domPath } = this.extractFragmentsFromDom(videoEl);
                     let resolvedStart = startTime;
                     let resolvedEnd = endTime;
                     if (this.isPercentObject(resolvedStart)) {
@@ -110,7 +110,7 @@ export class TimestampManager {
     }
     
     /**
-     * Clean up all timestamp handlers from a video element
+     * Clean up all fragment handlers from a video element
      */
     public cleanupHandlers(videoEl: HTMLVideoElement): void {
         this.videoHandler.cleanup(videoEl);
@@ -142,11 +142,11 @@ export class TimestampManager {
     }
     
     /**
-     * Extract timestamps from the DOM (primarily for unmanaged videos)
-     * Timestamps (start/end) are ONLY taken from video.src or source child src.
+     * Extract fragments from the DOM (primarily for unmanaged videos)
+     * Fragments (start/end) are ONLY taken from video.src or source child src.
      * Path can be inferred from parent if video.src is a blob.
      */
-    private extractTimestampsFromDom(videoEl: HTMLVideoElement): { 
+    private extractFragmentsFromDom(videoEl: HTMLVideoElement): { 
         startTime?: number | { percent: number }; 
         endTime?: number | { percent: number }; 
         path: string 
@@ -154,9 +154,9 @@ export class TimestampManager {
         let start: number | { percent: number } | undefined;
         let end: number | { percent: number } | undefined;
         let pathAttributeVal = ""; // Store the attribute value from which path is derived
-        let foundTimestampInVideoSrc = false;
+        let foundFragmentInVideoSrc = false;
 
-        // Priority 1: Timestamp from video.src or source tag src
+        // Priority 1: Fragment from video.src or source tag src
         const videoSources = [videoEl.src];
         const sourceTags = videoEl.querySelectorAll('source');
         sourceTags.forEach(source => {
@@ -170,42 +170,41 @@ export class TimestampManager {
             const srcTimeMatch = srcAttr.match(/#t=([^,]+)(?:,([^,]+))?/);
 
             if (srcTimeMatch && srcTimeMatch[1]) {
-                // Ensure we don't use the placeholder '0.001' from media-extended
+                // Ensure we don't use the placeholder '0.001'
                 if (srcTimeMatch[1] === '0.001' && (srcTimeMatch[2] === undefined || srcTimeMatch[2] === '0.001')) {
-                    // This is likely a placeholder, ignore it for timestamping purposes
                 } else {
-                    const parsedStart = parseTimestampToSeconds(srcTimeMatch[1]);
+                    const parsedStart = parseFragmentToSeconds(srcTimeMatch[1]);
                     if (parsedStart !== null) {
                         start = parsedStart;
-                        foundTimestampInVideoSrc = true; // Mark that timestamp came from video/source src
+                        foundFragmentInVideoSrc = true; // Mark that fragment came from video/source src
                     }
                     if (srcTimeMatch[2]) {
-                        const parsedEnd = parseTimestampToSeconds(srcTimeMatch[2]);
+                        const parsedEnd = parseFragmentToSeconds(srcTimeMatch[2]);
                         if (parsedEnd !== null) {
                             end = parsedEnd;
                         }
                     }
-                    // If we found a timestamp in video.src or source.src, this src is definitive for path
+                    // If we found a fragment in video.src or source.src, this src is definitive for path
                     pathAttributeVal = currentSrcPathPart;
-                    break; // Found timestamp from video/source, no need to check other source tags
+                    break; // Found fragment from video/source, no need to check other source tags
                 }
             }
             
             // If this is the first path we've identified from video/source, store it.
-            // This will be overwritten if a subsequent source tag contains a timestamp.
+            // This will be overwritten if a subsequent source tag contains a fragment.
             if (!pathAttributeVal) { 
                 pathAttributeVal = currentSrcPathPart;
             }
         }
         
         // Priority 2: Path from parent embed elements if not found or unclear from video/source src.
-        // This part should NOT extract timestamps, only path information.
+        // This part should NOT extract fragments, only path information.
         if (!pathAttributeVal || pathAttributeVal.startsWith('blob:') || pathAttributeVal.startsWith('data:')) {
             const parentEl = videoEl.closest('.internal-embed.media-embed');
             if (parentEl) {
                 const parentSrcAttr = (parentEl as HTMLElement).getAttribute('src');
                 if (parentSrcAttr) {
-                    // Only use parent's src for path, do not parse timestamp from it.
+                    // Only use parent's src for path, do not parse fragment from it.
                     pathAttributeVal = parentSrcAttr.split('#t=')[0]; 
                 }
             }
@@ -224,9 +223,9 @@ export class TimestampManager {
             // Not a valid URL, use pathAttributeVal as is (could be relative path)
         }
 
-        // If a timestamp was found, it must have come from video.src or source.src
+        // If a fragment was found, it must have come from video.src or source.src
         // Otherwise, start/end remain undefined.
-        return { startTime: foundTimestampInVideoSrc ? start : undefined, endTime: foundTimestampInVideoSrc ? end : undefined, path: finalPath || "" };
+        return { startTime: foundFragmentInVideoSrc ? start : undefined, endTime: foundFragmentInVideoSrc ? end : undefined, path: finalPath || "" };
     }
 
     // Helper type guard for percent object

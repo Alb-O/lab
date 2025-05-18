@@ -1,5 +1,5 @@
 {
-	"name": "video-timestamps",
+	"name": "video-fragments",
 	"version": "0.1.5",
 	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
 	"main": "main.js",

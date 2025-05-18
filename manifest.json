@@ -1,9 +1,9 @@
 {
-	"id": "video-timestamps",
-	"name": "Video Timestamps",
+	"id": "video-fragments",
+	"name": "Video Fragments",
 	"version": "0.1.5",
 	"minAppVersion": "1.8.10",
-	"description": "Add timestamp controls and navigation for video embeds in your notes.",
+	"description": "Add fragment controls and navigation for video embeds in your notes.",
 	"author": "Albert O'Shea",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",
