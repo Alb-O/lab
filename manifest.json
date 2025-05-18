@@ -3,10 +3,10 @@
 	"name": "Video Fragments",
 	"version": "0.1.7",
 	"minAppVersion": "1.8.10",
-	"description": "Add fragment controls and navigation for video embeds in your notes.",
+	"description": "Trim and timestamp videos non-destructively.",
 	"author": "Albert O'Shea",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"authorUrl": "https://github.com/AMC-Albert",
+	"fundingUrl": "https://github.com/sponsors/AMC-Albert",
 	"isDesktopOnly": false,
 	"css": "styles.css"
 }

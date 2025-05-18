@@ -47,7 +47,7 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
                 
         new Setting(containerEl)
             .setName('Loop when reaching maximum fragment')
-            .setDesc('The video will automatically loop when it reaches the maximum fragment.')
+            .setDesc('The video will automatically loop when it reaches the maximum time defined by the fragment.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.loopMaxFragment)
                 .onChange(async (value) => {
@@ -56,11 +56,11 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
                     reinitializeRestrictionHandlers(this.plugin.settings);
                 }));
 
-        new Setting(containerEl).setName("Fragment format").setHeading();
+        new Setting(containerEl).setName("Fragment time format").setHeading();
 
         new Setting(containerEl)
             .setName('Trim zero hours')
-            .setDesc('Remove "00:" or "0:" hours component when generating formatted fragments.')
+            .setDesc('Remove "00:" or "0:" hours component when generating formatted time fragments.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimZeroHours)
                 .onChange(async (value) => {
@@ -70,7 +70,7 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Trim zero minutes')
-            .setDesc('Remove "00:" or "0:" minutes component when generating formatted fragments.')
+            .setDesc('Remove "00:" or "0:" minutes component when generating formatted time fragments.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimZeroMinutes)
                 .onChange(async (value) => {
