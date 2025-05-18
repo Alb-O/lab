@@ -22,7 +22,7 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoFragmentsSe
     // If the element is in initializedElements but the handler is missing,
     // it means it was cleaned up but not removed from the WeakSet.
     // We should re-initialize in this case.
-    if (initializedElements.has(video) && (video as any)._videoContextMenuHandler) {
+    if (initializedElements.has(video) && video._videoContextMenuHandler) {
       return; // Already initialized and handler exists
     }
 
@@ -55,7 +55,7 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoFragmentsSe
     };
 
     // Store the handler on the element for later cleanup
-    (video as any)._videoContextMenuHandler = contextMenuHandler;
+    video._videoContextMenuHandler = contextMenuHandler;
 
     // Add the event listener
     video.addEventListener('contextmenu', contextMenuHandler);
@@ -76,9 +76,9 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoFragmentsSe
 export function cleanupVideoContextMenu(documents: Document[]): void {
   documents.forEach(doc => {
     doc.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
-      if ((video as any)._videoContextMenuHandler) {
-        video.removeEventListener('contextmenu', (video as any)._videoContextMenuHandler);
-        delete (video as any)._videoContextMenuHandler;
+      if (video._videoContextMenuHandler) {
+        video.removeEventListener('contextmenu', video._videoContextMenuHandler);
+        delete video._videoContextMenuHandler;
         video.dataset.contextMenuInitialized = 'false';
         // Don't remove from initializedElements as we can't modify a WeakSet
       }

@@ -96,7 +96,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
         };
 
         // Store the state object on the video element for persistence
-        (videoEl as any)._fragmentState = state;
+        videoEl._fragmentState = state;
 
         // Apply timeline styling if video has loaded metadata
         if (videoEl.duration && isFinite(videoEl.duration)) {
@@ -110,16 +110,16 @@ export class VideoRestrictionHandler implements FragmentHandler {
             }
         };
         videoEl.addEventListener('loadedmetadata', metadataHandler);
-        (videoEl as any)._metadataHandler = metadataHandler;
+        videoEl._metadataHandler = metadataHandler;
 
         // Flag to track programmatic pauses
         let isProgrammaticPause = false;
         // Prepare frame-based clamp callback if supported
         let frameRequestHandle: number;
         const clampFrameCallback = (_now: number, metadata: any) => {
-            if ((videoEl as any)._justResetFromEnd) {
+            if (videoEl._justResetFromEnd) {
                 if (!videoEl.paused) {
-                    frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
+                    frameRequestHandle = videoEl.requestVideoFrameCallback(clampFrameCallback);
                 }
                 return;
             }
@@ -131,7 +131,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
                     state.reachedEnd = false;
                     videoEl.dataset.reachedEnd = 'false';
                     if (!videoEl.paused) {
-                        frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
+                        frameRequestHandle = videoEl.requestVideoFrameCallback(clampFrameCallback);
                     }
                     return;
                 } else {
@@ -148,7 +148,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
                 }
             }
             if (!videoEl.paused) {
-                frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
+                frameRequestHandle = videoEl.requestVideoFrameCallback(clampFrameCallback);
             }
         };
 
@@ -163,7 +163,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
             const effEnd = getEffectiveEnd();
             switch (eventType) {
                 case 'timeupdate':
-                    if ((videoEl as any)._justResetFromEnd) break;
+                    if (videoEl._justResetFromEnd) break;
                     if (videoEl.currentTime < safeNum(resolvedStart, 0) - TOLERANCE) {
                         videoEl.currentTime = safeNum(resolvedStart, 0);
                     }
@@ -174,7 +174,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
                             videoEl.dataset.reachedEnd = 'false';
                         } else if (!videoEl.paused) {
                             isProgrammaticPause = true;
-                            if ((videoEl as any).requestVideoFrameCallback) {
+                            if (videoEl.requestVideoFrameCallback) {
                                 const clampFrame = (_now: number, metadata: any) => {
                                     if (effEnd !== undefined && metadata.mediaTime >= effEnd) {
                                         videoEl.pause();
@@ -183,10 +183,10 @@ export class VideoRestrictionHandler implements FragmentHandler {
                                         videoEl.dataset.shouldAutoPlay = 'true';
                                         setTimeout(() => { isProgrammaticPause = false; }, 20);
                                     } else {
-                                        (videoEl as any).requestVideoFrameCallback(clampFrame);
+                                        videoEl.requestVideoFrameCallback(clampFrame);
                                     }
                                 };
-                                (videoEl as any).requestVideoFrameCallback(clampFrame);
+                                videoEl.requestVideoFrameCallback(clampFrame);
                             } else {
                                 videoEl.pause();
                                 videoEl.currentTime = effEnd;
@@ -225,13 +225,13 @@ export class VideoRestrictionHandler implements FragmentHandler {
                         videoEl.dataset.seekedPastEnd = 'true';
                         isProgrammaticPause = true;
                         videoEl.pause();
-                        if ((videoEl as any)._seekedToEndTimeout) {
-                            clearTimeout((videoEl as any)._seekedToEndTimeout);
+                        if (videoEl._seekedToEndTimeout) {
+                            clearTimeout(videoEl._seekedToEndTimeout);
                         }
-                        (videoEl as any)._seekedToEnd = true;
-                        (videoEl as any)._seekedToEndTimeout = setTimeout(() => {
-                            delete (videoEl as any)._seekedToEnd;
-                            delete (videoEl as any)._seekedToEndTimeout;
+                        videoEl._seekedToEnd = true;
+                        videoEl._seekedToEndTimeout = setTimeout(() => {
+                            delete videoEl._seekedToEnd;
+                            delete videoEl._seekedToEndTimeout;
                         }, 500);
                         setTimeout(() => { isProgrammaticPause = false; }, 50);
                     }
@@ -282,18 +282,18 @@ export class VideoRestrictionHandler implements FragmentHandler {
                             }
                         }, 0);
                     }
-                    if (!videoEl.paused && (videoEl as any).requestVideoFrameCallback) {
-                        frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
+                    if (!videoEl.paused && videoEl.requestVideoFrameCallback) {
+                        frameRequestHandle = videoEl.requestVideoFrameCallback(clampFrameCallback);
                     }
                     break;
                 case 'play':
                     state.userPaused = false;
                     videoEl.dataset.userPaused = 'false';
-                    const isRecentSeek = (videoEl as any)._seekedToEndTimeout !== undefined;
+                    const isRecentSeek = videoEl._seekedToEndTimeout !== undefined;
                     const atEffectiveEnd = effEnd !== undefined && Math.abs(videoEl.currentTime - effEnd) < TOLERANCE;
                     if (atEffectiveEnd) {
-                        if (!(videoEl as any)._seekedToEnd || !isRecentSeek) {
-                            (videoEl as any)._justResetFromEnd = true;
+                        if (!videoEl._seekedToEnd || !isRecentSeek) {
+                            videoEl._justResetFromEnd = true;
                             if (resolvedEnd === Infinity && effEnd !== undefined) {
                                 videoEl.currentTime = effEnd;
                             } else {
@@ -304,24 +304,24 @@ export class VideoRestrictionHandler implements FragmentHandler {
                             state.seekedPastEnd = false;
                             videoEl.dataset.seekedPastEnd = 'false';
                             setTimeout(() => {
-                                delete (videoEl as any)._justResetFromEnd;
+                                delete videoEl._justResetFromEnd;
                             }, 100);
                         }
-                        if ((videoEl as any)._seekedToEndTimeout) {
-                            clearTimeout((videoEl as any)._seekedToEndTimeout);
-                            delete (videoEl as any)._seekedToEndTimeout;
+                        if (videoEl._seekedToEndTimeout) {
+                            clearTimeout(videoEl._seekedToEndTimeout);
+                            delete videoEl._seekedToEndTimeout;
                         }
-                        delete (videoEl as any)._seekedToEnd;
+                        delete videoEl._seekedToEnd;
                     } else {
-                        if ((videoEl as any)._seekedToEnd) {
-                            delete (videoEl as any)._seekedToEnd;
+                        if (videoEl._seekedToEnd) {
+                            delete videoEl._seekedToEnd;
                         }
-                        if ((videoEl as any)._seekedToEndTimeout) {
-                            clearTimeout((videoEl as any)._seekedToEndTimeout);
+                        if (videoEl._seekedToEndTimeout) {
+                            clearTimeout(videoEl._seekedToEndTimeout);
                         }
                     }
-                    if ((videoEl as any).requestVideoFrameCallback) {
-                        frameRequestHandle = (videoEl as any).requestVideoFrameCallback(clampFrameCallback);
+                    if (videoEl.requestVideoFrameCallback) {
+                        frameRequestHandle = videoEl.requestVideoFrameCallback(clampFrameCallback);
                     }
                     break;
                 case 'pause':
@@ -365,7 +365,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
         this.attachEventHandlers(videoEl, masterHandler);
 
         // Store the handler reference for cleanup
-        (videoEl as any)._fragmentMasterHandler = masterHandler;
+        videoEl._fragmentMasterHandler = masterHandler;
     }
 
     /**
@@ -373,24 +373,24 @@ export class VideoRestrictionHandler implements FragmentHandler {
      */
     public cleanup(videoEl: HTMLVideoElement): void {
         // Remove the loadedmetadata handler if it exists
-        if ((videoEl as any)._metadataHandler) {
-            videoEl.removeEventListener('loadedmetadata', (videoEl as any)._metadataHandler);
-            delete (videoEl as any)._metadataHandler;
+        if (videoEl._metadataHandler) {
+            videoEl.removeEventListener('loadedmetadata', videoEl._metadataHandler);
+            delete videoEl._metadataHandler;
         }
 
-        const masterHandler = (videoEl as any)._fragmentMasterHandler;
+        const masterHandler = videoEl._fragmentMasterHandler;
         if (masterHandler) {
             this.detachEventHandlers(videoEl, masterHandler);
-            delete (videoEl as any)._fragmentMasterHandler;
+            delete videoEl._fragmentMasterHandler;
         }
 
         // Clean up state and data attributes
-        delete (videoEl as any)._fragmentState;
-        delete (videoEl as any)._justResetFromEnd;
-        delete (videoEl as any)._seekedToEnd;
-        if ((videoEl as any)._seekedToEndTimeout) {
-            clearTimeout((videoEl as any)._seekedToEndTimeout);
-            delete (videoEl as any)._seekedToEndTimeout;
+        delete videoEl._fragmentState;
+        delete videoEl._justResetFromEnd;
+        delete videoEl._seekedToEnd;
+        if (videoEl._seekedToEndTimeout) {
+            clearTimeout(videoEl._seekedToEndTimeout);
+            delete videoEl._seekedToEndTimeout;
         }
         delete videoEl.dataset.reachedEnd;
         delete videoEl.dataset.seekedPastEnd;
@@ -453,7 +453,7 @@ export function reinitializeRestrictionHandlers(settings: VideoFragmentsSettings
     const handler = new VideoRestrictionHandler();
     const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
     videos.forEach(videoEl => {
-        const state = (videoEl as any)._fragmentState;
+        const state = videoEl._fragmentState;
         if (state) {
             handler.apply(videoEl, state.startTime, state.endTime, state.path, settings, true, state.startRaw, state.endRaw);
         }

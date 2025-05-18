@@ -3,6 +3,12 @@ import { VideoState } from './fragments/types';
 declare global {
   interface HTMLVideoElement {
     _fragmentState?: VideoState;
+    _videoContextMenuHandler?: (event: MouseEvent) => void;
+    _metadataHandler?: (event: Event) => void;
+    _fragmentMasterHandler?: (event: Event) => void;
+    _justResetFromEnd?: boolean;
+    _seekedToEnd?: boolean;
+    _seekedToEndTimeout?: ReturnType<typeof setTimeout>;
   }
   interface CustomVideoElement extends HTMLVideoElement {
     _shadowStyle?: HTMLStyleElement;
