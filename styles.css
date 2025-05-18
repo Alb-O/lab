@@ -16,6 +16,11 @@ body {
   --vfrag-timeline-bg: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
 }
 
+.vfrag-textarea {
+  field-sizing: content;
+  resize: none;
+}
+
 .vfrag-modal-row {
   display: grid;
   grid-template-columns: 64px 120px 32px auto;
@@ -41,7 +46,6 @@ body {
 
 .mod-vfrag-set-fragment button:not(.vfrag-use-current-btn):not(.vfrag-remove-btn) {
   min-width: 32px;
-  max-width: 100px;
   vertical-align: middle;
 }
 

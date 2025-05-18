@@ -10,23 +10,20 @@ export class VideoDetector {
     
     /**
      * Get videos from the currently active view
-     * @param activeView The current markdown view
-     * @returns Array of detected videos with their fragments
+     * Uses caching to avoid re-processing the same view multiple times
      */
     public getVideosFromActiveView(activeView: MarkdownView | null): VideoWithFragment[] {
-        if (!activeView || !activeView.file) {
+        if (!activeView?.file) {
             return [];
         }
         
-        // If we've already processed this view and it hasn't changed, return cached results
+        // Return cached results if view hasn't changed
         if (this.lastProcessedView === activeView) {
             return this.lastVideos;
         }
         
-        // Extract videos from the view
+        // Extract and cache results
         const videos = extractVideosFromMarkdownView(activeView);
-        
-        // Cache the results
         this.lastProcessedView = activeView;
         this.lastVideos = videos;
         
@@ -40,13 +37,14 @@ export class VideoDetector {
         this.lastProcessedView = null;
         this.lastVideos = [];
     }
-      /**
+    
+    /**
      * Debug method to log detected videos
      * Only logs in development environment
      */
     public debugVideos(videos: VideoWithFragment[]): void {
         if (process.env.NODE_ENV === 'production') {
-            return; // Don't log anything in production
+            return;
         }
         
         if (videos.length === 0) {
@@ -54,33 +52,42 @@ export class VideoDetector {
             return;
         }
         
-        console.debug('Detected videos:', videos.length);
+        console.debug(`Detected ${videos.length} videos:`);
+        
         videos.forEach((video, index) => {
             console.debug(`Video ${index + 1}:`);
             console.debug(`  Path: ${video.path}`);
             console.debug(`  Embedded: ${video.isEmbedded}`);
+            
             if (video.fragment) {
-                let startStr = '';
-                let endStr = '';
-                if (typeof video.fragment.start === 'number') {
-                    startStr = video.fragment.start + 's';
-                } else if (video.fragment.start && typeof video.fragment.start === 'object' && 'percent' in video.fragment.start) {
-                    startStr = video.fragment.start.percent + '%';
-                } else {
-                    startStr = 'N/A';
-                }
-                if (typeof video.fragment.end === 'number') {
-                    endStr = video.fragment.end === -1 ? 'N/A' : video.fragment.end + 's';
-                } else if (video.fragment.end && typeof video.fragment.end === 'object' && 'percent' in video.fragment.end) {
-                    endStr = video.fragment.end.percent + '%';
-                } else {
-                    endStr = 'N/A';
-                }
-                console.debug(`  Fragment: start=${startStr}, end=${endStr}`);
+                console.debug(`  Fragment: ${this.formatFragmentForDebug(video.fragment)}`);
             } else {
                 console.debug('  No fragment');
             }
+            
             console.debug(`  Position: line ${video.position.start.line}`);
         });
+    }
+    
+    /**
+     * Format fragment information for debug output
+     */
+    private formatFragmentForDebug(fragment: { start: any, end: any }): string {
+        let startStr = this.formatTimeValueForDebug(fragment.start);
+        let endStr = this.formatTimeValueForDebug(fragment.end);
+        
+        return `start=${startStr}, end=${endStr}`;
+    }
+    
+    /**
+     * Format a time value (number or percent object) for debug output
+     */
+    private formatTimeValueForDebug(value: any): string {
+        if (typeof value === 'number') {
+            return value === -1 ? 'N/A' : `${value}s`;
+        } else if (value && typeof value === 'object' && 'percent' in value) {
+            return `${value.percent}%`;
+        }
+        return 'N/A';
     }
 }

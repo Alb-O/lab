@@ -1,10 +1,10 @@
 import { Menu, Plugin } from 'obsidian';
 import { VideoFragmentsSettings } from '../settings';
 import { observeVideos } from '../video';
-import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
-import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
-import { addRemoveEmbedLink, addRemoveFragmentFromEmbedLink } from './items/remove';
-import { addSetFragmentMenuItem } from './items/set-fragment';
+import { addOpenCommands } from './items/open';
+import { addEmbedActionsCommands } from './items/embed-actions';
+import { addSetCommands } from './items/set';
+import { addSystemCommands } from './items/system';
 
 // Track which elements already have context menus to prevent duplicates
 const initializedElements = new WeakSet<HTMLVideoElement>();
@@ -29,27 +29,19 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoFragmentsSe
     // Create the handler function for the context menu
     const contextMenuHandler = (event: MouseEvent) => {
       event.preventDefault();
-
       const menu = new Menu();
 
-      addOpenLink(menu, plugin, video);
-      addOpenInNewTab(menu, plugin, video);
-      addOpenToRight(menu, plugin, video);
-      addOpenInNewWindow(menu, plugin, video);
+      // Open
+      addOpenCommands(menu, plugin, video);
 
-      menu.addSeparator();
+      // Copy
+      addEmbedActionsCommands(menu, plugin, settings, video);
 
-      addCopyEmbedLink(menu, plugin, video);
-      addCopyEmbedAtCurrentTime(menu, plugin, settings, video);
+      // Set
+      addSetCommands(menu, plugin, settings, video);
 
-      menu.addSeparator();
-
-      addSetFragmentMenuItem(menu, plugin, settings, video);
-
-      menu.addSeparator();
-
-      addRemoveEmbedLink(menu, plugin, video);
-      addRemoveFragmentFromEmbedLink(menu, plugin, video);
+      // System
+      addSystemCommands(menu, plugin, video);
 
       menu.showAtPosition({ x: event.clientX, y: event.clientY });
     };

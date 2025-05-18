@@ -3,14 +3,14 @@ import { getCurrentTimeRounded, setAndSaveVideoFragment } from '../utils';
 import { parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag } from '../../fragments/utils';
 import { VideoFragmentsSettings } from '../../settings';
 
-export function addSetFragmentMenuItem(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
-    menu.addItem(item =>
-        item
-            .setIcon('clock')
-            .setTitle('Set video fragment...')
-            .onClick(() => {
-                new FragmentInputModal(plugin.app, video, settings).open();
-            })
+export function addSetCommands(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
+    menu.addItem(item => item
+        .setIcon('clock')
+        .setTitle('Set video fragment...')
+        .setSection('vfrag-set')
+        .onClick(() => {
+            new FragmentInputModal(plugin.app, video, settings).open();
+        })
     );
 }
 
@@ -102,8 +102,8 @@ class FragmentInputModal extends Modal {
         const closeButton = contentEl.createDiv('modal-close-button');
         closeButton.onclick = () => this.close();
 
-        const header = contentEl.createDiv('modal-header');
-        header.createDiv('modal-title', el => {
+        const modalHeader = modalEl.querySelector('.modal-header');
+        modalHeader?.createDiv('modal-title', el => {
             el.textContent = 'Set video fragment';
         });
 
@@ -116,7 +116,7 @@ class FragmentInputModal extends Modal {
         this.updateCurrentTimeDisplay(); // Initial display
 
         // Add Clear Both button to the left of Save
-        const clearBothBtn = buttonContainer.createEl('button', { cls: 'mod-warning', text: 'Clear both' });
+        const clearBothBtn = buttonContainer.createEl('button', { cls: 'mod-warning', text: 'Remove fragment' });
         clearBothBtn.onclick = async () => {
             this.startTimeInputEl.value = "";
             this.endTimeInputEl.value = "";
@@ -212,9 +212,7 @@ class FragmentInputModal extends Modal {
             const endNumValid = fragment && typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity && fragment.end !== 0.001;
             const endPercentValid = fragment && this.isPercentObject(fragment.end);
             if (endRawValid || endNumValid || endPercentValid) {
-                if (fragment && (fragment.end === videoDuration || (fragment.endRaw && fragment.endRaw.toLowerCase() === 'end'))) {
-                    endPlaceholder = 'end';
-                } else if (endRawValid) {
+                if (endRawValid) {
                     endPlaceholder = fragment!.endRaw!;
                 } else if (endNumValid) {
                     endPlaceholder = formatFragment(fragment!.end as number, undefined, this.settings);
@@ -222,7 +220,7 @@ class FragmentInputModal extends Modal {
                     endPlaceholder = `${fragment!.end.percent}%`;
                 }
             } else {
-                endPlaceholder = formatFragment(currentVideoTime, undefined, this.settings);
+                endPlaceholder = 'end';
             }
             this.endTimeInputEl = endRow.createEl('textarea', {
                 attr: { rows: 1, placeholder: endPlaceholder }
@@ -274,7 +272,7 @@ class FragmentInputModal extends Modal {
 
         // Populate end time
         if (fragment && (fragment.end === this.video.duration || (fragment.endRaw && fragment.endRaw.toLowerCase() === 'end'))) {
-            this.initialEndDisplayValue = 'end';
+            this.initialEndDisplayValue = "";
         } else if (fragment && fragment.endRaw) {
             const raw = fragment.endRaw;
             const isSpecialRawFormat = raw.includes('%') || raw.includes(':') || ['start', 'end', 'e'].includes(raw.toLowerCase());

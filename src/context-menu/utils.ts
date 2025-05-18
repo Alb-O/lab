@@ -348,7 +348,7 @@ export async function setAndSaveVideoFragment(
         }
     } else if (mdView && mdView.editor && !mdView.file) {
         new Notice('Fragment applied to video. Save the file to update the link.');
-        return true; 
+        return true;
     } else return true;
 }
 
@@ -433,7 +433,7 @@ export async function updateEditorLinkInFile(
                         /src=("|')[^"'#]+(#[^"']*)?("|')/i,
                         newHtmlSrcAttr
                     );
-                    
+
                     // Update the specific line in the main lines array
                     lines[actualLineNumber] = modifiedLine;
                     await app.vault.modify(currentFile, lines.join('\n'));
@@ -560,4 +560,95 @@ export async function processFragmentAction(
         new Notice(`${noticeMessage} Could not update markdown link (no active file/editor).`);
     }
     return true; // Indicates the primary action (setting/clearing fragment on video) was attempted/done.
+}
+
+/**
+ * Helper to remove a video embed/link from the note by index.
+ * Removes the embed/link at the given index.
+ */
+export async function removeVideoEmbedByIndex(view: MarkdownView, idx: number): Promise<void> {
+    const videos = extractVideosFromMarkdownView(view);
+    const els = view.contentEl.querySelectorAll('video');
+    if (idx < 0 || idx >= videos.length) return;
+    const target = videos[idx];
+    const { start, end } = target.position;
+    const editor = view.editor;
+    const embedText = editor.getRange(
+        { line: start.line, ch: start.col },
+        { line: end.line, ch: end.col }
+    );
+    if (/^\s*<video[\s>]/i.test(embedText)) {
+        // HTML video tag: remove entire line
+        editor.replaceRange(
+            '',
+            { line: start.line, ch: 0 },
+            { line: end.line + 1, ch: 0 }
+        );
+    } else {
+        // Markdown/video embed
+        editor.replaceRange(
+            '',
+            { line: start.line, ch: start.col },
+            { line: end.line, ch: end.col }
+        );
+        if (editor.getLine(start.line).trim() === '') {
+            editor.replaceRange(
+                '',
+                { line: start.line, ch: 0 },
+                { line: start.line + 1, ch: 0 }
+            );
+        }
+    }
+}
+
+/**
+ * Generic helper to copy embed links with optional fragment
+ */
+export function copyEmbedLinkGeneric(
+    video: HTMLVideoElement,
+    successNotice: string,
+    fragment?: string,
+    alias?: string,
+    fragmentEnd?: string
+) {
+    const details = getVideoLinkDetails(this.plugin.app, video);
+    if (!details) {
+        new Notice('Cannot copy link: View type not supported or active leaf not found.');
+        return;
+    }
+    const { targetFile, sourcePathForLink, originalVideoSrcForNotice, isExternalFileUrl, externalFileUrl, attributesString } = details;
+    if (!targetFile && !isExternalFileUrl) {
+        new Notice(`Video file not found. Source: ${originalVideoSrcForNotice || 'unknown'}`);
+        return;
+    }
+    let linkText: string;
+    if (isExternalFileUrl && externalFileUrl) {
+        const baseSrc = externalFileUrl.split('#')[0];
+        let finalFragment = fragment;
+        if (fragmentEnd) {
+            finalFragment = `0,${fragmentEnd}`;
+        }
+        const srcWithFragment = finalFragment ? `${baseSrc}#t=${finalFragment}` : baseSrc;
+        linkText = `<video src="${srcWithFragment}"${attributesString}></video>`;
+    } else if (targetFile) {
+        let finalFragment = fragment;
+        if (fragmentEnd) {
+            finalFragment = `0,${fragmentEnd}`;
+        }
+        const subpath = finalFragment ? `#t=${finalFragment}` : undefined;
+        linkText = generateMarkdownLink({
+            app: this.plugin.app,
+            targetPathOrFile: targetFile,
+            sourcePathOrFile: sourcePathForLink,
+            subpath,
+            alias,
+            isEmbed: true
+        });
+    } else {
+        new Notice('Could not determine link type.');
+        return;
+    }
+    navigator.clipboard.writeText(linkText)
+        .then(() => { new Notice(successNotice); })
+        .catch(e => { new Notice(`Failed to copy link to clipboard: ${e instanceof Error ? e.message : String(e)}`); });
 }

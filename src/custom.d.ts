@@ -10,11 +10,13 @@ declare global {
     _seekedToEnd?: boolean;
     _seekedToEndTimeout?: ReturnType<typeof setTimeout>;
   }
+  
   interface CustomVideoElement extends HTMLVideoElement {
     _shadowStyle?: HTMLStyleElement;
     _debugOverlay?: HTMLElement;
     _fullscreenChangeHandler?: () => void;
   }
+  
   interface CustomDocument extends Document {
     webkitFullscreenElement?: Element;
   }
