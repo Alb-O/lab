@@ -33,8 +33,8 @@ class FragmentInputModal extends Modal {
     }
 
     private getFragmentFromVideo(): TempFragment | null {
-        let initialStart: number = -1;
-        let initialEnd: number = -1;
+        let initialStart: number | { percent: number } = -1;
+        let initialEnd: number | { percent: number } = -1;
         let initialStartRaw: string | undefined = undefined;
         let initialEndRaw: string | undefined = undefined;
 
@@ -82,6 +82,11 @@ class FragmentInputModal extends Modal {
         return null;
     }
 
+    // Helper for percent object
+    private isPercentObject(val: any): val is { percent: number } {
+        return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';
+    }
+
     onOpen() {
         const { contentEl, modalEl } = this;
         contentEl.empty();
@@ -127,9 +132,16 @@ class FragmentInputModal extends Modal {
             // Determine placeholder for start time
             let startPlaceholder = "";
             const startRawValid = fragment && fragment.startRaw && fragment.startRaw !== '0.001';
-            const startNumValid = fragment && fragment.start !== undefined && fragment.start >= 0 && fragment.start !== 0.001;
-            if (startRawValid || startNumValid) {
-                startPlaceholder = startRawValid ? fragment!.startRaw! : formatTimestamp(fragment!.start, undefined, this.settings);
+            const startNumValid = fragment && typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001;
+            const startPercentValid = fragment && this.isPercentObject(fragment.start);
+            if (startRawValid || startNumValid || startPercentValid) {
+                if (startRawValid) {
+                    startPlaceholder = fragment!.startRaw!;
+                } else if (startNumValid) {
+                    startPlaceholder = formatTimestamp(fragment!.start as number, undefined, this.settings);
+                } else if (startPercentValid && this.isPercentObject(fragment!.start)) {
+                    startPlaceholder = `${fragment!.start.percent}%`;
+                }
             } else {
                 startPlaceholder = formatTimestamp(currentVideoTime, undefined, this.settings);
             }
@@ -162,12 +174,17 @@ class FragmentInputModal extends Modal {
             // Determine placeholder for end time
             let endPlaceholder = "";
             const endRawValid = fragment && fragment.endRaw && fragment.endRaw !== '0.001';
-            const endNumValid = fragment && fragment.end !== undefined && fragment.end >= 0 && fragment.end !== Infinity && fragment.end !== 0.001;
-            if (endRawValid || endNumValid) {
+            const endNumValid = fragment && typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity && fragment.end !== 0.001;
+            const endPercentValid = fragment && this.isPercentObject(fragment.end);
+            if (endRawValid || endNumValid || endPercentValid) {
                 if (fragment && (fragment.end === videoDuration || (fragment.endRaw && fragment.endRaw.toLowerCase() === 'end'))) {
                     endPlaceholder = 'end';
-                } else {
-                    endPlaceholder = endRawValid ? fragment!.endRaw! : formatTimestamp(fragment!.end, undefined, this.settings);
+                } else if (endRawValid) {
+                    endPlaceholder = fragment!.endRaw!;
+                } else if (endNumValid) {
+                    endPlaceholder = formatTimestamp(fragment!.end as number, undefined, this.settings);
+                } else if (endPercentValid && this.isPercentObject(fragment!.end)) {
+                    endPlaceholder = `${fragment!.end.percent}%`;
                 }
             } else {
                 endPlaceholder = formatTimestamp(currentVideoTime, undefined, this.settings);
@@ -198,8 +215,10 @@ class FragmentInputModal extends Modal {
         // Populate start time
         if (fragment && fragment.startRaw && fragment.startRaw !== '0.001') {
             this.initialStartDisplayValue = fragment.startRaw;
-        } else if (fragment && fragment.start >= 0 && fragment.start !== 0.001) {
+        } else if (fragment && typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001) {
             this.initialStartDisplayValue = formatTimestamp(fragment.start, fragment.startRaw, this.settings);
+        } else if (fragment && this.isPercentObject(fragment.start)) {
+            this.initialStartDisplayValue = `${fragment.start.percent}%`;
         } else {
             this.initialStartDisplayValue = "";
         }
@@ -210,8 +229,10 @@ class FragmentInputModal extends Modal {
             this.initialEndDisplayValue = 'end';
         } else if (fragment && fragment.endRaw) {
             this.initialEndDisplayValue = fragment.endRaw;
-        } else if (fragment && fragment.end >= 0 && fragment.end !== Infinity) {
+        } else if (fragment && typeof fragment.end === 'number' && fragment.end >= 0 && fragment.end !== Infinity) {
             this.initialEndDisplayValue = formatTimestamp(fragment.end, fragment.endRaw, this.settings);
+        } else if (fragment && this.isPercentObject(fragment.end)) {
+            this.initialEndDisplayValue = `${fragment.end.percent}%`;
         } else {
             this.initialEndDisplayValue = "";
         }
@@ -225,7 +246,7 @@ class FragmentInputModal extends Modal {
 
         // Parse both times first
         const parsedStart = rawStartTime === "" ? null : parseTimestampToSeconds(rawStartTime);
-        let parsedEnd: number | null;
+        let parsedEnd: number | { percent: number } | null;
         if (rawEndTime.toLowerCase() === 'end') {
             parsedEnd = videoDuration;
         } else {
@@ -244,8 +265,14 @@ class FragmentInputModal extends Modal {
             return;
         }
 
-        // Validation: check for logical order (only if both are set)
-        if (parsedStart !== null && parsedEnd !== null && parsedStart >= parsedEnd) {
+        // Validation: check for logical order (only if both are set and both are numbers)
+        if (
+            parsedStart !== null &&
+            parsedEnd !== null &&
+            typeof parsedStart === 'number' &&
+            typeof parsedEnd === 'number' &&
+            parsedStart >= parsedEnd
+        ) {
             new Notice('Start time cannot be after or equal to the end time.');
             this.populateInputs();
             return;
@@ -262,7 +289,11 @@ class FragmentInputModal extends Modal {
             };
         }
         // If both are cleared
-        if (!newFragment || (newFragment.start === -1 && !newFragment.startRaw && newFragment.end === -1 && !newFragment.endRaw)) {
+        if (
+            !newFragment ||
+            ((typeof newFragment.start === 'number' && newFragment.start === -1) && !newFragment.startRaw &&
+            (typeof newFragment.end === 'number' && newFragment.end === -1) && !newFragment.endRaw)
+        ) {
             newFragment = null;
         }
 

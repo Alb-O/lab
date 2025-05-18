@@ -60,7 +60,23 @@ export class VideoDetector {
             console.debug(`  Path: ${video.path}`);
             console.debug(`  Embedded: ${video.isEmbedded}`);
             if (video.timestamp) {
-                console.debug(`  Timestamp: start=${video.timestamp.start}s, end=${video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's'}`);
+                let startStr = '';
+                let endStr = '';
+                if (typeof video.timestamp.start === 'number') {
+                    startStr = video.timestamp.start + 's';
+                } else if (video.timestamp.start && typeof video.timestamp.start === 'object' && 'percent' in video.timestamp.start) {
+                    startStr = video.timestamp.start.percent + '%';
+                } else {
+                    startStr = 'N/A';
+                }
+                if (typeof video.timestamp.end === 'number') {
+                    endStr = video.timestamp.end === -1 ? 'N/A' : video.timestamp.end + 's';
+                } else if (video.timestamp.end && typeof video.timestamp.end === 'object' && 'percent' in video.timestamp.end) {
+                    endStr = video.timestamp.end.percent + '%';
+                } else {
+                    endStr = 'N/A';
+                }
+                console.debug(`  Timestamp: start=${startStr}, end=${endStr}`);
             } else {
                 console.debug('  No timestamp');
             }

@@ -313,9 +313,9 @@ export function applyFragmentToVideo(video: HTMLVideoElement, fragment: TempFrag
     if (fragment) {
         if (fragment.startRaw) video.dataset.startTimeRaw = fragment.startRaw;
         // Only set startTime if it's >= 0 and not 0.001 (remove 0.001 as a placeholder)
-        if (fragment.start !== undefined && fragment.start >= 0 && fragment.start !== 0.001) video.dataset.startTime = fragment.start.toString();
+        if (fragment.start !== undefined && typeof fragment.start === 'number' && fragment.start >= 0 && fragment.start !== 0.001) video.dataset.startTime = fragment.start.toString();
         if (fragment.endRaw) video.dataset.endTimeRaw = fragment.endRaw;
-        if (fragment.end !== undefined && fragment.end >= 0) video.dataset.endTime = fragment.end.toString();
+        if (fragment.end !== undefined && typeof fragment.end === 'number' && fragment.end >= 0) video.dataset.endTime = fragment.end.toString();
     }
 
     // Update src with new fragment
@@ -323,7 +323,40 @@ export function applyFragmentToVideo(video: HTMLVideoElement, fragment: TempFrag
     video.src = `${baseSrc}${fragmentString ? `#${fragmentString}` : ''}`;
 }
 
-// New function to add
+// Helper for percent object
+function isPercentObject(val: any): val is { percent: number } {
+    return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';
+}
+
+// Helper to compare start and end, supporting percent and number
+function compareFragmentTimes(
+    start: number | { percent: number } | undefined,
+    end: number | { percent: number } | undefined,
+    video: HTMLVideoElement
+): number | null {
+    // Returns -1 if start < end, 0 if equal, 1 if start > end, null if cannot compare
+    if (start === undefined || end === undefined) return null;
+    if (typeof start === 'number' && typeof end === 'number') {
+        return start < end ? -1 : (start > end ? 1 : 0);
+    }
+    if (isPercentObject(start) && isPercentObject(end)) {
+        return start.percent < end.percent ? -1 : (start.percent > end.percent ? 1 : 0);
+    }
+    // Mixed: one is percent, one is number
+    const duration = video.duration;
+    if (typeof start === 'number' && isPercentObject(end)) {
+        if (!duration || !isFinite(duration)) return null;
+        const endSec = duration * (end.percent / 100);
+        return start < endSec ? -1 : (start > endSec ? 1 : 0);
+    }
+    if (isPercentObject(start) && typeof end === 'number') {
+        if (!duration || !isFinite(duration)) return null;
+        const startSec = duration * (start.percent / 100);
+        return startSec < end ? -1 : (startSec > end ? 1 : 0);
+    }
+    return null;
+}
+
 export async function setAndSaveVideoFragment(
     app: App,
     video: HTMLVideoElement,
@@ -499,24 +532,36 @@ export async function processTimestampAction(
 
         if (timestampType === 'start') {
             const currentEndTime = originalFragment?.end;
-            if (typeof currentEndTime === 'number' && currentEndTime >= 0 && parsedSeconds >= currentEndTime) {
+            // Robust comparison for all types
+            const cmp = compareFragmentTimes(parsedSeconds, currentEndTime, video);
+            if (
+                currentEndTime !== undefined &&
+                cmp !== null &&
+                cmp >= 0 // start >= end
+            ) {
                 new Notice('Start time cannot be after or equal to the end time.');
                 return false;
             }
             newFragment = {
                 start: parsedSeconds,
                 startRaw: rawInputValue,
-                end: currentEndTime !== undefined && currentEndTime >= 0 ? currentEndTime : -1,
+                end: currentEndTime !== undefined && ((typeof currentEndTime === 'number' && currentEndTime >= 0) || isPercentObject(currentEndTime)) ? currentEndTime : -1,
                 endRaw: originalFragment?.endRaw
             };
         } else { // type === 'end'
             const currentStartTime = originalFragment?.start;
-            if (typeof currentStartTime === 'number' && currentStartTime >= 0 && parsedSeconds <= currentStartTime) {
+            // Robust comparison for all types
+            const cmp = compareFragmentTimes(currentStartTime, parsedSeconds, video);
+            if (
+                currentStartTime !== undefined &&
+                cmp !== null &&
+                cmp >= 0 // end <= start
+            ) {
                 new Notice('End time cannot be before or equal to the start time.');
                 return false;
             }
             newFragment = {
-                start: currentStartTime !== undefined && currentStartTime >= 0 ? currentStartTime : -1,
+                start: currentStartTime !== undefined && ((typeof currentStartTime === 'number' && currentStartTime >= 0) || isPercentObject(currentStartTime)) ? currentStartTime : -1,
                 startRaw: originalFragment?.startRaw,
                 end: parsedSeconds,
                 endRaw: rawInputValue
@@ -528,20 +573,28 @@ export async function processTimestampAction(
         if (timestampType === 'start') {
             if (originalFragment) {
                 newFragment = { ...originalFragment, start: -1, startRaw: undefined };
-                if (newFragment.end < 0 && !newFragment.endRaw) newFragment = null;
+                if (typeof newFragment.end === 'number' && newFragment.end < 0 && !newFragment.endRaw) newFragment = null;
             }
         } else { // type === 'end'
             if (originalFragment) {
                 newFragment = { ...originalFragment, end: -1, endRaw: undefined };
-                if (newFragment.start < 0 && !newFragment.startRaw) newFragment = null;
-                else if (newFragment.start === 0 && !newFragment.startRaw && newFragment.end < 0) newFragment = null;
+                if (typeof newFragment.start === 'number' && newFragment.start < 0 && !newFragment.startRaw) newFragment = null;
+                else if (typeof newFragment.start === 'number' && newFragment.start === 0 && !newFragment.startRaw && typeof newFragment.end === 'number' && newFragment.end < 0) newFragment = null;
             }
         }
         // Clean up fragment if it becomes t=0 due to clearing
-        if (newFragment && newFragment.start === 0 && !newFragment.startRaw && newFragment.end < 0 && !newFragment.endRaw) {
+        if (
+            newFragment &&
+            typeof newFragment.start === 'number' && newFragment.start === 0 && !newFragment.startRaw &&
+            typeof newFragment.end === 'number' && newFragment.end < 0 && !newFragment.endRaw
+        ) {
             newFragment = null;
         }
-        if (newFragment && newFragment.end === 0 && !newFragment.endRaw && newFragment.start < 0 && !newFragment.startRaw) {
+        if (
+            newFragment &&
+            typeof newFragment.end === 'number' && newFragment.end === 0 && !newFragment.endRaw &&
+            typeof newFragment.start === 'number' && newFragment.start < 0 && !newFragment.startRaw
+        ) {
             newFragment = null;
         }
         noticeMessage = `Video ${timestampType} time cleared.`;

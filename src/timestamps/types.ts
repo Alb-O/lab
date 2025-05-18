@@ -4,8 +4,8 @@ import { VideoTimestampsSettings } from '../settings';
  * Represents the state of a video with timestamp restrictions
  */
 export interface VideoState {
-    startTime: number;
-    endTime: number;
+    startTime: number | { percent: number };
+    endTime: number | { percent: number };
     path: string;
     reachedEnd: boolean;
     seekedPastEnd: boolean;
@@ -24,8 +24,8 @@ export interface VideoState {
 export interface TimestampHandler {
     apply(
         videoEl: HTMLVideoElement,
-        startTime: number,
-        endTime: number,
+        startTime: number | { percent: number },
+        endTime: number | { percent: number },
         path: string,
         settings: VideoTimestampsSettings,
         skipInitialSeek?: boolean,

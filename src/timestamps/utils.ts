@@ -4,10 +4,10 @@ import { VideoTimestampsSettings } from "src/settings";
  * Interface representing a temporal fragment (timestamp) in a media file
  */
 export interface TempFragment {
-    /** Start time in seconds (-1 if not specified) */
-    start: number;
-    /** End time in seconds (-1 if not specified) */
-    end: number;
+    /** Start time in seconds (-1 if not specified) or { percent: number } for percent */
+    start: number | { percent: number };
+    /** End time in seconds (-1 if not specified) or { percent: number } for percent */
+    end: number | { percent: number };
     /** Raw string for start time, preserving original format */
     startRaw?: string;
     /** Raw string for end time, preserving original format */
@@ -18,14 +18,16 @@ export interface TempFragment {
  * Check if a fragment represents a single timestamp (not a range)
  */
 export function isTimestamp(fragment: TempFragment): boolean {
-    return fragment.start >= 0 && fragment.end < 0;
+    const isStartNum = typeof fragment.start === 'number';
+    const isEndNum = typeof fragment.end === 'number';
+    return isStartNum && isEndNum && (fragment.start as number) >= 0 && (fragment.end as number) < 0;
 }
 
 /**
  * Regular expressions for parsing different time formats
  */
 const timePatterns = {
-    main: /^([\w:.]*)(,(?:[\w:.]+|e(?:nd)?))?$/i, // Allow 'e' or 'end' for end
+    main: /^([\w:%.]*)(,(?:[\w:%.]+|e(?:nd)?))?$/i, // Allow 'e' or 'end' for end
     npt_sec: /^\d+(?:\.\d+)?$/,
     // More flexible mm:ss and hh:mm:ss, allowing optional leading zeros and decimals on seconds
     npt_mmss: /^(\d{1,2}):([0-5]?\d(?:\.\d+)?)$/,
@@ -55,8 +57,8 @@ function getTimeSpan(
     startRaw: string | undefined,
     endRaw: string | undefined
 ): TempFragment | null {
-    let startTime: number | null = -1;
-    let endTime: number | null = -1;
+    let startTime: number | { percent: number } | null = -1;
+    let endTime: number | { percent: number } | null = -1;
 
     if (startRaw) {
         if (startRaw.toLowerCase() === 'start') {
@@ -164,14 +166,23 @@ export function formatTimestamp(
 }
 
 /**
- * Parse a timestamp string to seconds.
- * Accepts 'start' as 0, 'end' as Infinity, or numeric/colon formats.
+ * Parse a timestamp string to seconds or percent.
+ * Accepts 'start' as 0, 'end' as Infinity, numeric/colon formats, or percentage (e.g., '50%').
+ * Returns number (seconds), Infinity, or { percent: number } for percentage.
  */
-export function parseTimestampToSeconds(timestamp: string): number | null {
+export function parseTimestampToSeconds(timestamp: string): number | { percent: number } | null {
     if (!timestamp || typeof timestamp !== 'string') return null;
     const trimmed = timestamp.trim().toLowerCase();
     if (trimmed === 'start') return 0;
     if (trimmed === 'end' || trimmed === 'e') return Infinity;
+    // Percentage support
+    if (trimmed.endsWith('%')) {
+        const percentVal = parseFloat(trimmed.slice(0, -1));
+        if (!isNaN(percentVal) && percentVal >= 0 && percentVal <= 100) {
+            return { percent: percentVal };
+        }
+        return null;
+    }
     // Fallback to numeric/colon parsing
     // Attempt to match hh:mm:ss format
     let match = trimmed.match(timePatterns.npt_hhmmss);
@@ -205,6 +216,17 @@ export function parseTimestampToSeconds(timestamp: string): number | null {
 }
 
 /**
+ * Resolves a timestamp value (seconds, Infinity, or { percent }) to seconds given a duration.
+ */
+export function resolveTimestampPercent(value: number | { percent: number } | null, duration: number): number | null {
+    if (typeof value === 'number') return value;
+    if (value && typeof value === 'object' && 'percent' in value) {
+        return duration * (value.percent / 100);
+    }
+    return null;
+}
+
+/**
  * Generates a media fragment string (e.g., "t=10,20" or "t=30.5")
  * from a TempFragment object, prioritizing raw values.
  */
@@ -216,19 +238,23 @@ export function generateFragmentString(fragment: TempFragment | null): string {
     let T_START = "";
     if (startRaw) {
         T_START = startRaw.toLowerCase() === 'start' ? 'start' : startRaw;
+    } else if (typeof start === 'object' && 'percent' in start) {
+        T_START = `${start.percent}%`;
     } else if (start === 0) {
         T_START = 'start';
-    } else if (start >= 0) {
-        T_START = formatTimestamp(start); // Fallback to formatting if raw isn't there
+    } else if (typeof start === 'number' && start >= 0) {
+        T_START = formatTimestamp(start);
     }
 
     let T_END = "";
     if (endRaw) {
         T_END = endRaw.toLowerCase() === 'e' ? 'end' : endRaw;
+    } else if (typeof end === 'object' && 'percent' in end) {
+        T_END = `${end.percent}%`;
     } else if (end === Infinity) {
         T_END = "end";
-    } else if (end >= 0) {
-        T_END = formatTimestamp(end); // Fallback to formatting
+    } else if (typeof end === 'number' && end >= 0) {
+        T_END = formatTimestamp(end);
     }
 
     if (T_START && T_END) {

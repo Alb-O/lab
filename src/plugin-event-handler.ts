@@ -37,13 +37,26 @@ export class PluginEventHandler {
 	 */
 	public handleResize(): void {
 		document.querySelectorAll('video').forEach((videoEl) => {
-			const state = videoEl._timestampState; // Removed 'as any'
-			if (typeof state?.startTime === 'number' && typeof state?.endTime === 'number') {
+			const state = videoEl._timestampState;
+            // Helper for percent object
+            function isPercentObject(val: any): val is { percent: number } {
+                return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';
+            }
+            let start = state?.startTime;
+            let end = state?.endTime;
+            const duration = (videoEl as HTMLVideoElement).duration;
+            if (isPercentObject(start)) {
+                start = duration ? duration * (start.percent / 100) : 0;
+            }
+            if (isPercentObject(end)) {
+                end = duration ? duration * (end.percent / 100) : Infinity;
+            }
+			if (typeof start === 'number' && typeof end === 'number') {
 				updateTimelineStyles(
 					videoEl as HTMLVideoElement,
-					state.startTime,
-					state.endTime,
-					(videoEl as HTMLVideoElement).duration
+					start,
+					end,
+					duration
 				);
 			}
 		});

@@ -51,11 +51,20 @@ export class TimestampManager {
 
             if (matchedVideoElement) {
                 if (videoData.timestamp) {
-                    // Apply timestamp from Markdown data
+                    // Resolve percent-based start/end if needed
+                    let resolvedStart = videoData.timestamp.start;
+                    let resolvedEnd = videoData.timestamp.end;
+                    if (this.isPercentObject(resolvedStart)) {
+                        resolvedStart = matchedVideoElement.duration * (resolvedStart.percent / 100);
+                    }
+                    if (this.isPercentObject(resolvedEnd)) {
+                        resolvedEnd = matchedVideoElement.duration * (resolvedEnd.percent / 100);
+                    }
+                    // Fix: always apply restrictions if timestamp is present, even if resolvedStart/resolvedEnd is 0 or percent
                     this.videoHandler.apply(
                         matchedVideoElement,
-                        videoData.timestamp.start,
-                        videoData.timestamp.end !== -1 ? videoData.timestamp.end : Infinity,
+                        resolvedStart,
+                        (resolvedEnd !== undefined && resolvedEnd !== -1) ? resolvedEnd : Infinity,
                         videoData.path,
                         this.settings,
                         false,
@@ -73,11 +82,19 @@ export class TimestampManager {
         for (const videoEl of allVideoElementsInDom) {
             if (!processedDomVideoElements.has(videoEl)) {
                 const { startTime, endTime, path: domPath } = this.extractTimestampsFromDom(videoEl);
-                if (startTime !== undefined) {
+                let resolvedStart = startTime;
+                let resolvedEnd = endTime;
+                if (this.isPercentObject(resolvedStart)) {
+                    resolvedStart = videoEl.duration * (resolvedStart.percent / 100);
+                }
+                if (this.isPercentObject(resolvedEnd)) {
+                    resolvedEnd = videoEl.duration * (resolvedEnd.percent / 100);
+                }
+                if (resolvedStart !== undefined) {
                     this.videoHandler.apply(
                         videoEl,
-                        startTime,
-                        endTime !== undefined && endTime >= 0 ? endTime : Infinity,
+                        resolvedStart,
+                        resolvedEnd !== undefined && resolvedEnd >= 0 ? resolvedEnd : Infinity,
                         domPath || "unmanaged DOM video",
                         this.settings,
                         false,
@@ -128,12 +145,12 @@ export class TimestampManager {
      * Path can be inferred from parent if video.src is a blob.
      */
     private extractTimestampsFromDom(videoEl: HTMLVideoElement): { 
-        startTime?: number; 
-        endTime?: number; 
+        startTime?: number | { percent: number }; 
+        endTime?: number | { percent: number }; 
         path: string 
     } {
-        let start: number | undefined;
-        let end: number | undefined;
+        let start: number | { percent: number } | undefined;
+        let end: number | { percent: number } | undefined;
         let pathAttributeVal = ""; // Store the attribute value from which path is derived
         let foundTimestampInVideoSrc = false;
 
@@ -208,5 +225,10 @@ export class TimestampManager {
         // If a timestamp was found, it must have come from video.src or source.src
         // Otherwise, start/end remain undefined.
         return { startTime: foundTimestampInVideoSrc ? start : undefined, endTime: foundTimestampInVideoSrc ? end : undefined, path: finalPath || "" };
+    }
+
+    // Helper type guard for percent object
+    private isPercentObject(val: any): val is { percent: number } {
+        return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';
     }
 }
