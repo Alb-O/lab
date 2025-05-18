@@ -15,3 +15,56 @@ body {
   --video-ts-timeline-playable-right: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
   --video-ts-timeline-bg: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
 }
+
+.video-ts-modal-row {
+  display: grid;
+  grid-template-columns: 64px 120px 32px auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.video-ts-modal-label {
+  min-width: 80px;
+  max-width: 120px;
+  text-align: left;
+}
+
+.mod-video-ts-set-fragment textarea {
+  resize: none;
+  width: 120px;
+  min-width: 80px;
+  max-width: 130px;
+  vertical-align: middle;
+}
+
+.mod-video-ts-set-fragment button:not(.video-ts-use-current-btn):not(.video-ts-remove-btn) {
+  min-width: 32px;
+  max-width: 100px;
+  vertical-align: middle;
+}
+
+.mod-video-ts-set-fragment button.video-ts-remove-btn {
+  width: 32px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.mod-video-ts-set-fragment button.video-ts-use-current-btn {
+  width: fit-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-button-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.video-ts-current-time-display {
+  flex: 1 1 auto;
+  text-align: left;
+}

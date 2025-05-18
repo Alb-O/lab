@@ -2,7 +2,7 @@ import { VideoWithTimestamp } from '../video';
 import { VideoTimestampsSettings } from '../settings';
 import { TimestampHandler } from './types';
 import { VideoRestrictionHandler } from '../video/restriction-handler';
-import { convertTime } from './utils'; 
+import { parseTimestampToSeconds } from '../timestamps/utils';
 
 /**
  * Manages timestamp restrictions for videos in Obsidian
@@ -155,13 +155,13 @@ export class TimestampManager {
                 if (srcTimeMatch[1] === '0.001' && (srcTimeMatch[2] === undefined || srcTimeMatch[2] === '0.001')) {
                     // This is likely a placeholder, ignore it for timestamping purposes
                 } else {
-                    const parsedStart = convertTime(srcTimeMatch[1]);
+                    const parsedStart = parseTimestampToSeconds(srcTimeMatch[1]);
                     if (parsedStart !== null) {
                         start = parsedStart;
                         foundTimestampInVideoSrc = true; // Mark that timestamp came from video/source src
                     }
                     if (srcTimeMatch[2]) {
-                        const parsedEnd = convertTime(srcTimeMatch[2]);
+                        const parsedEnd = parseTimestampToSeconds(srcTimeMatch[2]);
                         if (parsedEnd !== null) {
                             end = parsedEnd;
                         }

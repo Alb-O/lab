@@ -4,7 +4,7 @@ import { observeVideos } from '../video';
 import { addOpenLink, addOpenInNewTab, addOpenToRight, addOpenInNewWindow } from './items/open';
 import { addCopyEmbedLink, addCopyEmbedAtCurrentTime } from './items/copy';
 import { addRemoveEmbedLink, addRemoveTimestampFromEmbedLink } from './items/remove';
-import { addSetStartTime, addSetEndTime } from './items/set-timestamp';
+import { addSetFragmentMenuItem } from './items/set-fragment';
 
 // Track which elements already have context menus to prevent duplicates
 const initializedElements = new WeakSet<HTMLVideoElement>();
@@ -38,8 +38,7 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsS
 
       menu.addSeparator();
 
-      addSetStartTime(menu, plugin, settings, video);
-      addSetEndTime(menu, plugin, settings, video);
+      addSetFragmentMenuItem(menu, plugin, settings, video);
 
       menu.addSeparator();
 

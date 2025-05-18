@@ -25,7 +25,7 @@ export function isTimestamp(fragment: TempFragment): boolean {
  * Regular expressions for parsing different time formats
  */
 const timePatterns = {
-    main: /^([\w:.]*)(,(?:[\w:.]+|e))?$/, // Allow 'e' for end
+    main: /^([\w:.]*)(,(?:[\w:.]+|e(?:nd)?))?$/i, // Allow 'e' or 'end' for end
     npt_sec: /^\d+(?:\.\d+)?$/,
     // More flexible mm:ss and hh:mm:ss, allowing optional leading zeros and decimals on seconds
     npt_mmss: /^(\d{1,2}):([0-5]?\d(?:\.\d+)?)$/,
@@ -59,15 +59,19 @@ function getTimeSpan(
     let endTime: number | null = -1;
 
     if (startRaw) {
-        startTime = convertTime(startRaw);
-        if (startTime === null) return null; // Invalid start time format
+        if (startRaw.toLowerCase() === 'start') {
+            startTime = 0;
+        } else {
+            startTime = parseTimestampToSeconds(startRaw);
+            if (startTime === null) return null; // Invalid start time format
+        }
     }
 
     if (endRaw) {
-        if (endRaw.toLowerCase() === 'e') {
+        if (endRaw.toLowerCase() === 'e' || endRaw.toLowerCase() === 'end') {
             endTime = Infinity;
         } else {
-            endTime = convertTime(endRaw);
+            endTime = parseTimestampToSeconds(endRaw);
             if (endTime === null) return null; // Invalid end time format
         }
     }
@@ -90,50 +94,6 @@ function getTimeSpan(
 }
 
 /**
- * Convert a time string to seconds.
- * Supports: ss, ss.s, mm:ss, mm:ss.s, hh:mm:ss, hh:mm:ss.s
- * Allows optional leading zeros for mm and ss.
- */
-export function convertTime(time: string): number | null {
-    if (typeof time !== 'string' || !time.trim()) return null;
-    const trimmedTime = time.trim();
-
-    // Attempt to match hh:mm:ss format
-    let match = trimmedTime.match(timePatterns.npt_hhmmss);
-    if (match) {
-        const h = parseInt(match[1], 10);
-        const m = parseInt(match[2], 10);
-        const s = parseFloat(match[3]);
-        if (h < 0 || m < 0 || m >= 60 || s < 0 || s >= 60) return null;
-        return h * 3600 + m * 60 + s;
-    }
-
-    // Attempt to match mm:ss format
-    match = trimmedTime.match(timePatterns.npt_mmss);
-    if (match) {
-        const m = parseInt(match[1], 10);
-        const s = parseFloat(match[2]);
-        if (m < 0 || s < 0 || s >= 60) return null;
-        // Disallow mm:ss if it looks like hh:mm (e.g. 65:30)
-        if (m >= 60 && trimmedTime.includes(':') && !trimmedTime.match(/^\d+:\d+:\d+/)) {
-            // if it has a colon, and minutes is >=60, but it's not hh:mm:ss, it's invalid
-        } else if (m >= 60) { // if it's like 70:30 treat 70 as minutes
-            return m * 60 + s;
-        }
-        return m * 60 + s;
-    }
-
-    // Attempt to match raw seconds format
-    match = trimmedTime.match(timePatterns.npt_sec);
-    if (match) {
-        const s = parseFloat(trimmedTime);
-        return s >= 0 ? s : null;
-    }
-
-    return null; // No valid format matched
-}
-
-/**
  * Format seconds as a human-readable timestamp (mm:ss or hh:mm:ss)
  * Prioritizes raw format if available in TempFragment.
  * Always uses HH:mm:ss as the base format, trims zero components if enabled,
@@ -146,7 +106,7 @@ export function formatTimestamp(
 ): string {
     if (rawFormat) {
         // Basic validation for rawFormat to ensure it's a plausible timestamp
-        if (convertTime(rawFormat) === totalSeconds) {
+        if (parseTimestampToSeconds(rawFormat) === totalSeconds) {
             return rawFormat;
         }
         // If rawFormat is provided but doesn't match totalSeconds,
@@ -205,10 +165,43 @@ export function formatTimestamp(
 
 /**
  * Parse a timestamp string to seconds.
- * This function now primarily relies on convertTime.
+ * Accepts 'start' as 0, 'end' as Infinity, or numeric/colon formats.
  */
 export function parseTimestampToSeconds(timestamp: string): number | null {
-    return convertTime(timestamp);
+    if (!timestamp || typeof timestamp !== 'string') return null;
+    const trimmed = timestamp.trim().toLowerCase();
+    if (trimmed === 'start') return 0;
+    if (trimmed === 'end' || trimmed === 'e') return Infinity;
+    // Fallback to numeric/colon parsing
+    // Attempt to match hh:mm:ss format
+    let match = trimmed.match(timePatterns.npt_hhmmss);
+    if (match) {
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const s = parseFloat(match[3]);
+        if (h < 0 || m < 0 || m >= 60 || s < 0 || s >= 60) return null;
+        return h * 3600 + m * 60 + s;
+    }
+    // Attempt to match mm:ss format
+    match = trimmed.match(timePatterns.npt_mmss);
+    if (match) {
+        const m = parseInt(match[1], 10);
+        const s = parseFloat(match[2]);
+        if (m < 0 || s < 0 || s >= 60) return null;
+        if (m >= 60 && trimmed.includes(':') && !trimmed.match(/^\d+:\d+:\d+/)) {
+            // if it has a colon, and minutes is >=60, but it's not hh:mm:ss, it's invalid
+        } else if (m >= 60) {
+            return m * 60 + s;
+        }
+        return m * 60 + s;
+    }
+    // Attempt to match raw seconds format
+    match = trimmed.match(timePatterns.npt_sec);
+    if (match) {
+        const s = parseFloat(trimmed);
+        return s >= 0 ? s : null;
+    }
+    return null;
 }
 
 /**
@@ -222,28 +215,27 @@ export function generateFragmentString(fragment: TempFragment | null): string {
 
     let T_START = "";
     if (startRaw) {
-        T_START = startRaw;
+        T_START = startRaw.toLowerCase() === 'start' ? 'start' : startRaw;
+    } else if (start === 0) {
+        T_START = 'start';
     } else if (start >= 0) {
         T_START = formatTimestamp(start); // Fallback to formatting if raw isn't there
     }
 
     let T_END = "";
     if (endRaw) {
-        T_END = endRaw;
+        T_END = endRaw.toLowerCase() === 'e' ? 'end' : endRaw;
     } else if (end === Infinity) {
-        T_END = "e";
+        T_END = "end";
     } else if (end >= 0) {
         T_END = formatTimestamp(end); // Fallback to formatting
     }
 
     if (T_START && T_END) {
-        // If start is 0 and was not explicitly "0" in raw, and end exists,
-        // we might simplify t=0,X to t=X, but media fragments spec says t=0,X is fine.
-        // Let's be explicit for now.
         return `t=${T_START},${T_END}`;
     } else if (T_START) {
         return `t=${T_START}`;
-    } else if (T_END) { // Only end time implies start=0
+    } else if (T_END) {
         return `t=0,${T_END}`;
     }
     return "";

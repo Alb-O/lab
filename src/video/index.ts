@@ -147,7 +147,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
             if (file && isVideoFile(file)) {
                 // Extract timestamp from subpath if it exists and matches format
                 let timestamp: TempFragment | null = null;
-                if (parsedSubpath && parsedSubpath.match(/^#t=\d+(?:\.\d+)?(?:,\d+(?:\.\d+)?)?$/)) {
+                if (parsedSubpath && parsedSubpath.match(/^#t=([\d.]+|end)(,([\d.]+|end))?$/i)) {
                     timestamp = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
                 }
                 
@@ -195,7 +195,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithTime
 
             if (isLocalVideoFile || isExternalUrl) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + fullHtmlTag.length } };
-                const timestamp = parseTempFrag(subpathFragment);
+                const timestamp = subpathFragment ? parseTempFrag(subpathFragment.replace(/^#/, '')) : null;
                 const startRaw = timestamp?.startRaw;
                 const endRaw = timestamp?.endRaw;
                 videoEntry = {
