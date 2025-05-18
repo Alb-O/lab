@@ -1,25 +1,13 @@
-import { VideoFragmentsSettings } from '../settings';
-
 /**
  * Clears custom timeline styling for the allowed segment.
  * @param videoEl The video element.
  */
-interface CustomVideoElement extends HTMLVideoElement {
-  _shadowStyle?: HTMLStyleElement;
-  _debugOverlay?: HTMLElement;
-  _fullscreenChangeHandler?: () => void;
-}
-
-interface CustomDocument extends Document {
-  webkitFullscreenElement?: Element;
-}
-
 export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
   const customVideoEl = videoEl as CustomVideoElement;
   // Remove injected style element if it exists
   if (customVideoEl.parentNode) {
     const container = customVideoEl.parentNode as HTMLElement;
-    const styleEl = container.querySelector('.video-fragments-style');
+    const styleEl = container.querySelector('.vfrag-style');
     if (styleEl) {
       styleEl.remove();
     }
@@ -50,7 +38,7 @@ export function clearTimelineStyles(videoEl: HTMLVideoElement): void {
 
   // Remove any unique class we added
   Array.from(videoEl.classList).forEach(cls => {
-    if (cls.startsWith('video-fr-')) {
+    if (cls.startsWith('vfrag-')) {
       videoEl.classList.remove(cls);
     }
   });
@@ -84,7 +72,7 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
     videoEl.dataset.startTimePercent = startPercent.toFixed(2);
     videoEl.dataset.endTimePercent = endPercent.toFixed(2);
 
-    const videoId = `video-fr-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const videoId = `vfrag-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     videoEl.classList.add(videoId);
 
     // Remove any existing fullscreen listeners
@@ -140,8 +128,8 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
     const clampEnd = Math.max(epsilon, Math.min(100 - epsilon, fullEndPercent));
 
     // Use Obsidian CSS variables with fallbacks
-    const bgColor = getCssVar('--video-fr-timeline-bg') || getCssVar('--background-modifier-error') || 'rgba(240,50,50,0)';
-    const fgColor = getCssVar('--video-fr-timeline-playable') || getCssVar('--interactive-accent') || 'rgba(76,175,80,0.8)';
+    const bgColor = getCssVar('--vfrag-timeline-bg') || getCssVar('--background-modifier-error') || 'rgba(240,50,50,0)';
+    const fgColor = getCssVar('--vfrag-timeline-playable') || getCssVar('--interactive-accent') || 'rgba(76,175,80,0.8)';
     const cssContent = `
       /* Timeline styling for video with allowed range ${startPercent.toFixed(2)}%–${endPercent.toFixed(2)}% */
       .${videoId}::-webkit-media-controls-timeline {
@@ -159,7 +147,7 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
     `;
 
     const styleEl = document.createElement('style');
-    styleEl.className = 'video-fragments-style';
+    styleEl.className = 'vfrag-style';
     styleEl.textContent = cssContent;
     if (videoEl.parentNode) {
       videoEl.parentNode.insertBefore(styleEl, videoEl.nextSibling);
@@ -192,5 +180,5 @@ export function updateTimelineStyles(videoEl: HTMLVideoElement, startTime: numbe
 }
 
 function getCssVar(name: string): string {
-  return getComputedStyle(document.body).getPropertyValue(name).trim() ?? '';
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
 }

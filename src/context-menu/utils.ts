@@ -42,9 +42,9 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
             continue;
         }
         if (attrNameLower === 'class') {
-            // Filter out video-ts-* and paused from the original class list for the new attribute string
+            // Filter out vfrag-* and paused from the original class list for the new attribute string
             const filteredClasses = originalClassList.split(' ')
-                .filter(cls => !cls.startsWith('video-ts-') && cls !== 'paused' && cls !== '')
+                .filter(cls => !cls.startsWith('vfrag-') && cls !== 'paused' && cls !== '')
                 .join(' ');
             if (filteredClasses) {
                 attributesString += ` class="${filteredClasses}"`;
@@ -60,7 +60,7 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
     // we should construct it from originalClassList
     if (!videoEl.hasAttribute('class') && !attributesString.includes(' class=')) {
         const filteredClasses = originalClassList.split(' ')
-            .filter(cls => !cls.startsWith('video-ts-') && cls !== 'paused' && cls !== '')
+            .filter(cls => !cls.startsWith('vfrag-') && cls !== 'paused' && cls !== '')
             .join(' ');
         if (filteredClasses) {
             attributesString += ` class="${filteredClasses}"`;

@@ -97,7 +97,7 @@ class FragmentInputModal extends Modal {
     onOpen() {
         const { contentEl, modalEl } = this;
         contentEl.empty();
-        modalEl.addClass('mod-video-ts-set-fragment');
+        modalEl.addClass('mod-vfrag-set-fragment');
 
         const closeButton = contentEl.createDiv('modal-close-button');
         closeButton.onclick = () => this.close();
@@ -112,7 +112,7 @@ class FragmentInputModal extends Modal {
 
         const buttonContainer = contentEl.createDiv('modal-button-container');
         // Add current time display to the left
-        this.currentTimeDisplayEl = buttonContainer.createDiv({ cls: 'video-ts-current-time-display' });
+        this.currentTimeDisplayEl = buttonContainer.createDiv({ cls: 'vfrag-current-time-display' });
         this.updateCurrentTimeDisplay(); // Initial display
 
         // Add Clear Both button to the left of Save
@@ -161,9 +161,9 @@ class FragmentInputModal extends Modal {
 
         if (container) { // Only create elements on first call
             // Start Time Row
-            const startRow = container.createDiv({ cls: 'video-ts-modal-row' });
+            const startRow = container.createDiv({ cls: 'vfrag-modal-row' });
             
-            startRow.createEl('label', { text: 'Start:', cls: 'video-ts-modal-label' });
+            startRow.createEl('label', { text: 'Start:', cls: 'vfrag-modal-label' });
             // Determine placeholder for start time
             let startPlaceholder = "";
             const startRawValid = fragment && fragment.startRaw && fragment.startRaw !== '0.001';
@@ -184,13 +184,13 @@ class FragmentInputModal extends Modal {
                 attr: { rows: 1, placeholder: startPlaceholder }
             });
 
-            const clearStartBtn = startRow.createEl('button', { cls: 'video-ts-remove-btn' });
+            const clearStartBtn = startRow.createEl('button', { cls: 'vfrag-remove-btn' });
             setIcon(clearStartBtn, 'trash');
             clearStartBtn.onclick = () => {
                 this.startTimeInputEl.value = "";
             };
 
-            this.useCurrentStartBtn = startRow.createEl('button', { text: `Set to current time`, cls: 'video-ts-use-current-btn' });
+            this.useCurrentStartBtn = startRow.createEl('button', { text: `Set to current time`, cls: 'vfrag-use-current-btn' });
             this.useCurrentStartBtn.onclick = () => {
                 this.startTimeInputEl.value = formatFragment(getCurrentTimeRounded(this.video), undefined, this.settings);
             };
@@ -203,9 +203,9 @@ class FragmentInputModal extends Modal {
             });
 
             // End Time Row
-            const endRow = container.createDiv({ cls: 'video-ts-modal-row' });
+            const endRow = container.createDiv({ cls: 'vfrag-modal-row' });
             
-            endRow.createEl('label', { text: 'End:', cls: 'video-ts-modal-label' });
+            endRow.createEl('label', { text: 'End:', cls: 'vfrag-modal-label' });
             // Determine placeholder for end time
             let endPlaceholder = "";
             const endRawValid = fragment && fragment.endRaw && fragment.endRaw !== '0.001';
@@ -228,13 +228,13 @@ class FragmentInputModal extends Modal {
                 attr: { rows: 1, placeholder: endPlaceholder }
             });
 
-            const clearEndBtn = endRow.createEl('button', { cls: 'video-ts-remove-btn' });
+            const clearEndBtn = endRow.createEl('button', { cls: 'vfrag-remove-btn' });
             setIcon(clearEndBtn, 'trash');
             clearEndBtn.onclick = () => {
                 this.endTimeInputEl.value = "";
             };
 
-            this.useCurrentEndBtn = endRow.createEl('button', { text: `Set to current time`, cls: 'video-ts-use-current-btn' });
+            this.useCurrentEndBtn = endRow.createEl('button', { text: `Set to current time`, cls: 'vfrag-use-current-btn' });
             this.useCurrentEndBtn.onclick = () => {
                 this.endTimeInputEl.value = formatFragment(getCurrentTimeRounded(this.video), undefined, this.settings);
             };
