@@ -1,7 +1,7 @@
 {
 	"id": "video-fragments",
 	"name": "Video Fragments",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"minAppVersion": "1.8.10",
 	"description": "Add fragment controls and navigation for video embeds in your notes.",
 	"author": "Albert O'Shea",
