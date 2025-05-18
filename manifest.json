@@ -1,7 +1,7 @@
 {
 	"id": "video-timestamps",
 	"name": "Video Timestamps",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"minAppVersion": "1.8.10",
 	"description": "Add timestamp controls and navigation for video embeds in your notes.",
 	"author": "Albert O'Shea",
