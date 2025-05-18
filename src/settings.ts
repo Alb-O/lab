@@ -1,11 +1,18 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { reinitializeRestrictionHandlers } from './video/restriction-handler';
+import { VideoDetector, VideoWithTimestamp } from './video'; // Added imports
+import { TimestampManager } from './timestamps'; // Added import
+import { PluginEventHandler } from './plugin-event-handler'; // Added import
 
 // Define an interface that represents the methods we need from the VideoTimestamps class
 export interface IVideoTimestampsPlugin extends Plugin {
     settings: VideoTimestampsSettings;
+    videoDetector: VideoDetector;
+    timestampController: TimestampManager;
+    pluginEventHandler: PluginEventHandler;
+    detectVideosInAllDocuments(): VideoWithTimestamp[]; // Changed from detectVideosInActiveView
     saveSettings(): Promise<void>;
-    detectVideosInActiveView(): any[];
+    getAllRelevantDocuments(): Document[]; // Added this
 }
 
 export interface VideoTimestampsSettings {

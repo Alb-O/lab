@@ -28,38 +28,40 @@ export class PluginEventHandler {
         if (activeView?.file?.path === file.path) {
             // Clear the cache and reprocess when file content changes
             this.plugin.videoDetector?.clearCache();
-            this.plugin.detectVideosInActiveView();
+            this.plugin.detectVideosInAllDocuments();
         }
     }
 
 	/**
-	 * Handle window or workspace resize: update timeline styles for all videos.
+	 * Handle window or workspace resize: update timeline styles for all videos in specified documents.
 	 */
-	public handleResize(): void {
-		document.querySelectorAll('video').forEach((videoEl) => {
-			const state = videoEl._timestampState;
-            // Helper for percent object
-            function isPercentObject(val: any): val is { percent: number } {
-                return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';
-            }
-            let start = state?.startTime;
-            let end = state?.endTime;
-            const duration = (videoEl as HTMLVideoElement).duration;
-            if (isPercentObject(start)) {
-                start = duration ? duration * (start.percent / 100) : 0;
-            }
-            if (isPercentObject(end)) {
-                end = duration ? duration * (end.percent / 100) : Infinity;
-            }
-			if (typeof start === 'number' && typeof end === 'number') {
-				updateTimelineStyles(
-					videoEl as HTMLVideoElement,
-					start,
-					end,
-					duration
-				);
-			}
-		});
+	public handleResize(targetDocuments: Document[]): void {
+        for (const doc of targetDocuments) {
+            doc.querySelectorAll('video').forEach((videoEl) => {
+                const state = videoEl._timestampState;
+                // Helper for percent object
+                function isPercentObject(val: any): val is { percent: number } {
+                    return val && typeof val === 'object' && 'percent' in val && typeof val.percent === 'number';
+                }
+                let start = state?.startTime;
+                let end = state?.endTime;
+                const duration = (videoEl as HTMLVideoElement).duration;
+                if (isPercentObject(start)) {
+                    start = duration ? duration * (start.percent / 100) : 0;
+                }
+                if (isPercentObject(end)) {
+                    end = duration ? duration * (end.percent / 100) : Infinity;
+                }
+                if (typeof start === 'number' && typeof end === 'number') {
+                    updateTimelineStyles(
+                        videoEl as HTMLVideoElement,
+                        start,
+                        end,
+                        duration
+                    );
+                }
+            });
+        }
 	}
 
 	/**
@@ -78,7 +80,7 @@ export class PluginEventHandler {
 			const orig = proto.onResize;
 			proto.onResize = function (...args: any[]) {
 				const result = orig.apply(this, args);
-				self.handleResize();
+				self.handleResize([document]);
 				return result;
 			};
 			proto._videoTsPatched = true; // Access _videoTsPatched directly

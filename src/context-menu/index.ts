@@ -13,12 +13,18 @@ const initializedElements = new WeakSet<HTMLVideoElement>();
  * Sets up an Obsidian-native context menu on video elements.
  * Enables copying video links with timestamps.
  */
-export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsSettings): () => void {
+export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsSettings, getAllRelevantDocuments: () => Document[]): () => void {
   // Clean up any previously initialized elements
-  cleanupVideoContextMenu();
+  // It's important to call this to ensure handlers are removed before re-adding
+  cleanupVideoContextMenu(getAllRelevantDocuments());
+
   const initContext = (video: HTMLVideoElement) => {
-    // Skip if already initialized
-    if (initializedElements.has(video)) return;
+    // If the element is in initializedElements but the handler is missing,
+    // it means it was cleaned up but not removed from the WeakSet.
+    // We should re-initialize in this case.
+    if (initializedElements.has(video) && (video as any)._videoContextMenuHandler) {
+      return; // Already initialized and handler exists
+    }
 
     // Create the handler function for the context menu
     const contextMenuHandler = (event: MouseEvent) => {
@@ -60,20 +66,22 @@ export function setupVideoContextMenu(plugin: Plugin, settings: VideoTimestampsS
   };
 
   // Observe all videos and initialize context menu once per element
-  const cleanup = observeVideos(initContext);
+  const cleanup = observeVideos(initContext, getAllRelevantDocuments);
   return cleanup;
 }
 
 /**
  * Clean up context menu handlers from all videos
  */
-export function cleanupVideoContextMenu(): void {
-  document.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
-    if ((video as any)._videoContextMenuHandler) {
-      video.removeEventListener('contextmenu', (video as any)._videoContextMenuHandler);
-      delete (video as any)._videoContextMenuHandler;
-      video.dataset.contextMenuInitialized = 'false';
-      // Don't remove from initializedElements as we can't modify a WeakSet
-    }
+export function cleanupVideoContextMenu(documents: Document[]): void {
+  documents.forEach(doc => {
+    doc.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
+      if ((video as any)._videoContextMenuHandler) {
+        video.removeEventListener('contextmenu', (video as any)._videoContextMenuHandler);
+        delete (video as any)._videoContextMenuHandler;
+        video.dataset.contextMenuInitialized = 'false';
+        // Don't remove from initializedElements as we can't modify a WeakSet
+      }
+    });
   });
 }

@@ -1,8 +1,15 @@
 /**
  * Sets up hover behavior and play/pause state classes for video elements
  */
-export function setupVideoControls(): void {
-  // Observe for video elements being added to the DOM
+export function setupVideoControls(getAllRelevantDocuments: () => Document[]): void {
+  const setupAllVideoControlsForDocuments = () => {
+    const docs = getAllRelevantDocuments();
+    docs.forEach(doc => {
+      doc.querySelectorAll('video').forEach(setupSingleVideoControls);
+    });
+  };
+
+  // Observe for video elements being added to the DOM in all relevant documents
   const observer = new MutationObserver((mutations) => {
     let videoAdded = false;
     for (const mutation of mutations) {
@@ -15,23 +22,28 @@ export function setupVideoControls(): void {
         }
       }
       if (videoAdded) {
-        setupAllVideoControls();
+        setupAllVideoControlsForDocuments();
         break;
       }
     }
   });
-  
-  observer.observe(document.body, { childList: true, subtree: true });
-  
+
+  const docs = getAllRelevantDocuments();
+  docs.forEach(doc => {
+    if (doc.body) { // Ensure body exists before observing
+      observer.observe(doc.body, { childList: true, subtree: true });
+    }
+  });
+
   // Initial setup for existing videos
-  setupAllVideoControls();
+  setupAllVideoControlsForDocuments();
 }
 
 /**
- * Attach event handlers to all video elements in the document
+ * Attach event handlers to all video elements in a specific document
  */
-function setupAllVideoControls(): void {
-  document.querySelectorAll('video').forEach(setupSingleVideoControls);
+function setupAllVideoControlsInDoc(doc: Document): void {
+  doc.querySelectorAll('video').forEach(setupSingleVideoControls);
 }
 
 /**

@@ -17,92 +17,94 @@ export class TimestampManager {
     }
     
     /**
-     * Apply timestamp restrictions to videos in the current view
+     * Apply timestamp restrictions to videos in the current view across specified documents
      */
-    public applyTimestampRestrictions(videosFromMarkdown: VideoWithTimestamp[]): void {
-        const allVideoElementsInDom = Array.from(document.querySelectorAll('video'));
+    public applyTimestampRestrictions(videosFromMarkdown: VideoWithTimestamp[], targetDocuments: Document[]): void {
         const processedDomVideoElements = new Set<HTMLVideoElement>();
 
-        // 1. Cleanup handlers from all video elements first
-        allVideoElementsInDom.forEach(videoEl => this.videoHandler.cleanup(videoEl));
+        // 1. Cleanup handlers from all video elements in all target documents first
+        for (const doc of targetDocuments) {
+            const allVideoElementsInDom = Array.from(doc.querySelectorAll('video'));
+            allVideoElementsInDom.forEach(videoEl => this.videoHandler.cleanup(videoEl));
 
-        // 2. Process videos defined in Markdown
-        for (const videoData of videosFromMarkdown) {
-            // Construct the expected 'src' attribute value of the parent .internal-embed div
-            const expectedEmbedParentSrc = videoData.originalSubpath
-                ? `${videoData.originalLinkPath}${videoData.originalSubpath}`
-                : videoData.originalLinkPath;
+            // 2. Process videos defined in Markdown
+            for (const videoData of videosFromMarkdown) {
+                // Construct the expected 'src' attribute value of the parent .internal-embed div
+                const expectedEmbedParentSrc = videoData.originalSubpath
+                    ? `${videoData.originalLinkPath}${videoData.originalSubpath}`
+                    : videoData.originalLinkPath;
 
-            let matchedVideoElement: HTMLVideoElement | null = null;
+                let matchedVideoElement: HTMLVideoElement | null = null;
 
-            for (const videoEl of allVideoElementsInDom) {
-                if (processedDomVideoElements.has(videoEl)) continue;
+                for (const videoEl of allVideoElementsInDom) {
+                    if (processedDomVideoElements.has(videoEl)) continue;
 
-                const parentEmbedDiv = videoEl.closest('.internal-embed[src]');
-                if (parentEmbedDiv) {
-                    const actualEmbedParentSrc = (parentEmbedDiv as HTMLElement).getAttribute('src');
-                    // TODO: Enhance robustness of this comparison if Obsidian URI encodes or fully resolves paths in 'src'
-                    if (actualEmbedParentSrc === expectedEmbedParentSrc) {
-                        matchedVideoElement = videoEl;
-                        break;
+                    const parentEmbedDiv = videoEl.closest('.internal-embed[src]');
+                    if (parentEmbedDiv) {
+                        const actualEmbedParentSrc = (parentEmbedDiv as HTMLElement).getAttribute('src');
+                        // TODO: Enhance robustness of this comparison if Obsidian URI encodes or fully resolves paths in 'src'
+                        if (actualEmbedParentSrc === expectedEmbedParentSrc) {
+                            matchedVideoElement = videoEl;
+                            break;
+                        }
                     }
+                }
+
+                if (matchedVideoElement) {
+                    if (videoData.timestamp) {
+                        // Resolve percent-based start/end if needed
+                        let resolvedStart = videoData.timestamp.start;
+                        let resolvedEnd = videoData.timestamp.end;
+                        if (this.isPercentObject(resolvedStart)) {
+                            resolvedStart = matchedVideoElement.duration * (resolvedStart.percent / 100);
+                        }
+                        if (this.isPercentObject(resolvedEnd)) {
+                            resolvedEnd = matchedVideoElement.duration * (resolvedEnd.percent / 100);
+                        }
+                        // Fix: always apply restrictions if timestamp is present, even if resolvedStart/resolvedEnd is 0 or percent
+                        this.videoHandler.apply(
+                            matchedVideoElement,
+                            resolvedStart,
+                            (resolvedEnd !== undefined && resolvedEnd !== -1) ? resolvedEnd : Infinity,
+                            videoData.path,
+                            this.settings,
+                            false,
+                            videoData.startRaw,
+                            videoData.endRaw
+                        );
+                    }
+                    // If videoData.timestamp is null, no restrictions are applied (cleanup already handled it)
+                    processedDomVideoElements.add(matchedVideoElement);
                 }
             }
 
-            if (matchedVideoElement) {
-                if (videoData.timestamp) {
-                    // Resolve percent-based start/end if needed
-                    let resolvedStart = videoData.timestamp.start;
-                    let resolvedEnd = videoData.timestamp.end;
+            // 3. Process any remaining (unmanaged) video elements in the DOM
+            // These might be from other plugins or direct HTML, not linked via standard Markdown
+            for (const videoEl of allVideoElementsInDom) {
+                if (!processedDomVideoElements.has(videoEl)) {
+                    const { startTime, endTime, path: domPath } = this.extractTimestampsFromDom(videoEl);
+                    let resolvedStart = startTime;
+                    let resolvedEnd = endTime;
                     if (this.isPercentObject(resolvedStart)) {
-                        resolvedStart = matchedVideoElement.duration * (resolvedStart.percent / 100);
+                        resolvedStart = videoEl.duration * (resolvedStart.percent / 100);
                     }
                     if (this.isPercentObject(resolvedEnd)) {
-                        resolvedEnd = matchedVideoElement.duration * (resolvedEnd.percent / 100);
+                        resolvedEnd = videoEl.duration * (resolvedEnd.percent / 100);
                     }
-                    // Fix: always apply restrictions if timestamp is present, even if resolvedStart/resolvedEnd is 0 or percent
-                    this.videoHandler.apply(
-                        matchedVideoElement,
-                        resolvedStart,
-                        (resolvedEnd !== undefined && resolvedEnd !== -1) ? resolvedEnd : Infinity,
-                        videoData.path,
-                        this.settings,
-                        false,
-                        videoData.startRaw,
-                        videoData.endRaw
-                    );
+                    if (resolvedStart !== undefined) {
+                        this.videoHandler.apply(
+                            videoEl,
+                            resolvedStart,
+                            resolvedEnd !== undefined && resolvedEnd >= 0 ? resolvedEnd : Infinity,
+                            domPath || "unmanaged DOM video",
+                            this.settings,
+                            false,
+                            undefined,
+                            undefined
+                        );
+                    }
+                    // No need to add to processedDomVideoElements here as this is the final loop for them
                 }
-                // If videoData.timestamp is null, no restrictions are applied (cleanup already handled it)
-                processedDomVideoElements.add(matchedVideoElement);
-            }
-        }
-
-        // 3. Process any remaining (unmanaged) video elements in the DOM
-        // These might be from other plugins or direct HTML, not linked via standard Markdown
-        for (const videoEl of allVideoElementsInDom) {
-            if (!processedDomVideoElements.has(videoEl)) {
-                const { startTime, endTime, path: domPath } = this.extractTimestampsFromDom(videoEl);
-                let resolvedStart = startTime;
-                let resolvedEnd = endTime;
-                if (this.isPercentObject(resolvedStart)) {
-                    resolvedStart = videoEl.duration * (resolvedStart.percent / 100);
-                }
-                if (this.isPercentObject(resolvedEnd)) {
-                    resolvedEnd = videoEl.duration * (resolvedEnd.percent / 100);
-                }
-                if (resolvedStart !== undefined) {
-                    this.videoHandler.apply(
-                        videoEl,
-                        resolvedStart,
-                        resolvedEnd !== undefined && resolvedEnd >= 0 ? resolvedEnd : Infinity,
-                        domPath || "unmanaged DOM video",
-                        this.settings,
-                        false,
-                        undefined,
-                        undefined
-                    );
-                }
-                // No need to add to processedDomVideoElements here as this is the final loop for them
             }
         }
     }
@@ -115,9 +117,9 @@ export class TimestampManager {
     }
     
     /**
-     * Set up an observer for detecting new videos
+     * Set up an observer for detecting new videos in a specific document
      */
-    public setupVideoObserver(detectVideosCallback: () => void): MutationObserver {
+    public setupVideoObserver(doc: Document, detectVideosCallback: () => void): MutationObserver {
         const observer = new MutationObserver((mutations) => {
             let videoAdded = false;
             for (const mutation of mutations) {
@@ -135,7 +137,7 @@ export class TimestampManager {
                 setTimeout(() => detectVideosCallback(), 100); // Reduced delay for faster response
             }
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(doc.body, { childList: true, subtree: true });
         return observer;
     }
     

@@ -234,35 +234,47 @@ export function isVideoFile(file: TFile): boolean {
  * and invoke a callback for each one exactly once.
  * Returns a cleanup function to disconnect the observer.
  */
-export function observeVideos(onVideo: (video: HTMLVideoElement) => void): () => void {
-    // Initialize existing videos
-    document.querySelectorAll('video').forEach(video => {
-        const videoSrc = video.currentSrc || video.src;
-        video.dataset.timestampPath = videoSrc;
-        onVideo(video);
-    });
+export function observeVideos(onVideo: (video: HTMLVideoElement) => void, getAllRelevantDocuments: () => Document[]): () => void {
+    const observers: MutationObserver[] = [];
 
-    // Observe for new video elements
-    const observer = new MutationObserver(mutations => {
-        for (const mutation of mutations) {
-            if (mutation.type === 'childList') {
-                for (const node of Array.from(mutation.addedNodes)) {
-                    if (node instanceof HTMLVideoElement) {
-                        const videoSrc = node.currentSrc || node.src;
-                        node.dataset.timestampPath = videoSrc;
-                        onVideo(node);
-                    } else if (node instanceof Element) {
-                        node.querySelectorAll('video').forEach(video => {
-                            const videoSrc = video.currentSrc || video.src;
-                            video.dataset.timestampPath = videoSrc;
-                            onVideo(video);
-                        });
+    const setupObserverForDocument = (doc: Document) => {
+        // Initialize existing videos in the document
+        doc.querySelectorAll('video').forEach(video => {
+            const videoSrc = video.currentSrc || video.src;
+            video.dataset.timestampPath = videoSrc;
+            onVideo(video);
+        });
+
+        // Observe for new video elements in the document
+        const observer = new MutationObserver(mutations => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    for (const node of Array.from(mutation.addedNodes)) {
+                        if (node instanceof HTMLVideoElement) {
+                            const videoSrc = node.currentSrc || node.src;
+                            node.dataset.timestampPath = videoSrc;
+                            onVideo(node);
+                        } else if (node instanceof Element) {
+                            node.querySelectorAll('video').forEach(video => {
+                                const videoSrc = video.currentSrc || video.src;
+                                video.dataset.timestampPath = videoSrc;
+                                onVideo(video);
+                            });
+                        }
                     }
                 }
             }
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+        });
+        observer.observe(doc.body, { childList: true, subtree: true });
+        observers.push(observer);
+    };
 
-    return () => observer.disconnect();
+    getAllRelevantDocuments().forEach(doc => {
+        setupObserverForDocument(doc);
+    });
+
+    // Return a cleanup function to disconnect all observers
+    return () => {
+        observers.forEach(observer => observer.disconnect());
+    };
 }
