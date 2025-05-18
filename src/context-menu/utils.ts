@@ -604,7 +604,7 @@ export async function removeVideoEmbedByIndex(view: MarkdownView, idx: number): 
 /**
  * Generic helper to copy embed links with optional fragment
  */
-export function copyEmbedLinkGeneric(
+export function copyGeneric(
     video: HTMLVideoElement,
     successNotice: string,
     fragment?: string,
