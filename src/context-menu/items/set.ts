@@ -372,13 +372,20 @@ class FragmentInputModal extends Modal {
 
         // Compose notice
         let noticeMessages: string[] = [];
+        // If displaying only seconds, add 's' to the end
+        function displayTimeWithS(val: string) {
+            if (val && !val.includes('%') && !val.includes(':') && !val.includes('s')) {
+                return val + 's';
+            }
+            return val;
+        }
         if (rawStartTime !== this.initialStartDisplayValue) {
             if (rawStartTime === "") noticeMessages.push('Start time cleared.');
-            else noticeMessages.push(`Start time set to ${rawStartTime}.`);
+            else noticeMessages.push(`Start time set to ${displayTimeWithS(rawStartTime)}.`);
         }
         if (rawEndTime !== this.initialEndDisplayValue) {
             if (rawEndTime === "") noticeMessages.push('End time cleared.');
-            else noticeMessages.push(`End time set to ${rawEndTime}.`);
+            else noticeMessages.push(`End time set to ${displayTimeWithS(rawEndTime)}.`);
         }
 
         const success = await setAndSaveVideoFragment(this.app, this.video, this.settings, newFragment);
