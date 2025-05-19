@@ -32,12 +32,12 @@ interface RawVideoMatch {
     type: 'wiki' | 'md' | 'html';
     // Store a simplified version of RegExpExecArray, ensuring essential properties are present.
     // The `groups` property is explicitly marked as optional to match RegExpExecArray.
-    matchData: { 
+    matchData: {
         [key: string]: any; // Allows for array-like access m[0], m[1] etc.
-        index: number; 
-        input: string; 
-        groups?: { [key: string]: string }; 
-    }; 
+        index: number;
+        input: string;
+        groups?: { [key: string]: string };
+    };
     lineIndex: number;
 }
 
@@ -62,14 +62,14 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
 
     lines.forEach((lineContent, i) => {
         let m: RegExpExecArray | null;
-        
+
         wikiRegex.lastIndex = 0;
         while ((m = wikiRegex.exec(lineContent))) {
             // Create a plain object copy of the match for stable storage
-            const matchDataCopy = { ...m, groups: m.groups }; 
+            const matchDataCopy = { ...m, groups: m.groups };
             allRawMatches.push({ type: 'wiki', matchData: matchDataCopy, lineIndex: i });
         }
-        
+
         mdRegex.lastIndex = 0;
         while ((m = mdRegex.exec(lineContent))) {
             const matchDataCopy = { ...m, groups: m.groups };
@@ -101,10 +101,10 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
 
         if (type === 'wiki') {
             const isEmbedded = !!m[1];
-            const rawLinkContent = m[2]; 
+            const rawLinkContent = m[2];
             const { linkPath: parsedLinkPath, subpath: parsedSubpath } = splitSubpath(rawLinkContent);
             const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, activeFile.path) || null;
-            
+
             if (file && isVideoFile(file)) {
                 const position = { start: { line: i, col: m.index }, end: { line: i, col: m.index + String(m[0]).length } };
                 const fragment = parsedSubpath && parsedSubpath.toLowerCase().startsWith('#t=') ? parseTempFrag(parsedSubpath.substring(1)) : null;
@@ -130,7 +130,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
             // Check if this is an embedded link (![...]) or a regular link ([...])
             const isEmbedded = m[1] !== undefined; // true for ![alt](url) format, false for [text](url)
             let linkPath = isEmbedded ? m[2] : m[4];
-    
+
             // Split the path to extract any subpaths (fragments)
             let parsedLinkPath = linkPath;
             let parsedSubpath = null;
@@ -139,7 +139,7 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
                 parsedLinkPath = parts[0];
                 parsedSubpath = parts.length > 1 ? `#${parts.slice(1).join('#')}` : null;
             }
-            
+
             // Try to resolve the file (if it's a local path) using metadata cache
             const sourcePath = activeFile.path;
             const file = view.app.metadataCache.getFirstLinkpathDest(parsedLinkPath, sourcePath);
@@ -150,36 +150,36 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
                 if (parsedSubpath && parsedSubpath.toLowerCase().startsWith('#t=')) {
                     fragment = parseTempFrag(parsedSubpath.substring(1)); // Remove the leading #
                 }
-                
+
                 const startRaw = fragment?.startRaw;
                 const endRaw = fragment?.endRaw;
                 const position = {
                     start: { line: i, col: m.index },
                     end: { line: i, col: m.index + m[0].length }
                 };
-                
+
                 const parsedLink = parseLink(m[0]); // Parse the full link text for alias
 
                 videoEntry = {
                     type: 'md',
-                    file, 
-                    path: view.app.vault.getResourcePath(file), 
-                    linktext: m[0], 
+                    file,
+                    path: view.app.vault.getResourcePath(file),
+                    linktext: m[0],
                     alias: parsedLink?.alias,
-                    fragment, 
+                    fragment,
                     startRaw,
                     endRaw,
                     isEmbedded, // ![...] format is embedded, [...] format is not
                     position,
-                    originalLinkPath: parsedLinkPath, 
+                    originalLinkPath: parsedLinkPath,
                     originalSubpath: parsedSubpath || null
                 };
             }
         } else if (type === 'html') {
             const fullHtmlTag = String(m[0]);
-            const rawSrc = m[1]; 
-            const subpathFragment = m[2] || undefined; 
-            
+            const rawSrc = m[1];
+            const subpathFragment = m[2] || undefined;
+
             let file: TFile | null = null;
             let videoPath: string = rawSrc;
             let isLocalVideoFile = false;
@@ -200,15 +200,15 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
                 const endRaw = fragment?.endRaw;
                 videoEntry = {
                     type: 'html', // Added
-                    file, 
-                    path: videoPath, 
-                    linktext: fullHtmlTag, 
-                    fragment, 
+                    file,
+                    path: videoPath,
+                    linktext: fullHtmlTag,
+                    fragment,
                     startRaw,
                     endRaw,
-                    isEmbedded: true, 
+                    isEmbedded: true,
                     position,
-                    originalLinkPath: rawSrc, 
+                    originalLinkPath: rawSrc,
                     originalSubpath: subpathFragment || null
                 };
             }
@@ -225,7 +225,8 @@ export function extractVideosFromMarkdownView(view: MarkdownView): VideoWithFrag
  * Check if a file is a video file based on its extension
  */
 export function isVideoFile(file: TFile): boolean {
-    const videoExtensions = ['mp4', 'webm', 'ogv', 'mov', 'mkv', 'm4v'];
+    // Video formats supported by Obsidian: https://help.obsidian.md/file-formats
+    const videoExtensions = ["mkv", 'mov', 'mp4', 'ogv', 'webm'];
     return videoExtensions.includes(file.extension.toLowerCase());
 }
 
@@ -234,46 +235,39 @@ export function isVideoFile(file: TFile): boolean {
  * and invoke a callback for each one exactly once.
  * Returns a cleanup function to disconnect the observer.
  */
-export function observeVideos(onVideo: (video: HTMLVideoElement) => void, getAllRelevantDocuments: () => Document[]): () => void {
+export function observeVideos(
+    onVideo: (video: HTMLVideoElement) => void,
+    getAllRelevantDocuments: () => Document[]
+): () => void {
     const observers: MutationObserver[] = [];
+    const seen = new Set<HTMLVideoElement>();
 
-    const setupObserverForDocument = (doc: Document) => {
-        // Initialize existing videos in the document
-        doc.querySelectorAll('video').forEach(video => {
-            const videoSrc = video.currentSrc || video.src;
-            video.dataset.timestampPath = videoSrc;
+    const handleVideo = (video: HTMLVideoElement) => {
+        if (!seen.has(video)) {
+            seen.add(video);
             onVideo(video);
-        });
-
-        // Observe for new video elements in the document
-        const observer = new MutationObserver(mutations => {
-            for (const mutation of mutations) {
-                if (mutation.type === 'childList') {
-                    for (const node of Array.from(mutation.addedNodes)) {
-                        if (node instanceof HTMLVideoElement) {
-                            const videoSrc = node.currentSrc || node.src;
-                            node.dataset.timestampPath = videoSrc;
-                            onVideo(node);
-                        } else if (node instanceof Element) {
-                            node.querySelectorAll('video').forEach(video => {
-                                const videoSrc = video.currentSrc || video.src;
-                                video.dataset.timestampPath = videoSrc;
-                                onVideo(video);
-                            });
-                        }
-                    }
-                }
-            }
-        });
-        observer.observe(doc.body, { childList: true, subtree: true });
-        observers.push(observer);
+        }
     };
 
     getAllRelevantDocuments().forEach(doc => {
-        setupObserverForDocument(doc);
+        doc.querySelectorAll('video').forEach(handleVideo);
+        const observer = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach(node => {
+                        if (node instanceof HTMLVideoElement) {
+                            handleVideo(node);
+                        } else if (node instanceof Element) {
+                            node.querySelectorAll('video').forEach(handleVideo);
+                        }
+                    });
+                }
+            });
+        });
+        observer.observe(doc.body, { childList: true, subtree: true });
+        observers.push(observer);
     });
 
-    // Return a cleanup function to disconnect all observers
     return () => {
         observers.forEach(observer => observer.disconnect());
     };

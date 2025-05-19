@@ -1,5 +1,5 @@
 import { MarkdownView, WorkspaceLeaf, TFile, App } from 'obsidian';
-import VideoTimestamps from './main';
+import VideoFragments from './main';
 import { updateTimelineStyles } from './video/styles';
 // Import the custom declarations to make TypeScript aware of the augmented types
 import './custom.d';
@@ -8,10 +8,10 @@ import './custom.d';
  * Handles plugin events for VideoFragments plugin
  */
 export class PluginEventHandler {
-    private plugin: VideoTimestamps;
+    private plugin: VideoFragments;
     private app: App;
 
-    constructor(plugin: VideoTimestamps, app: App) {
+    constructor(plugin: VideoFragments, app: App) {
         this.plugin = plugin;
         this.app = app;
     }

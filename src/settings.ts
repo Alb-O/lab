@@ -87,8 +87,8 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Use raw seconds')
-            .setDesc('Always generate pure seconds for fragments. Overrides all formatting options above.')
+            .setName('Use seconds only')
+            .setDesc('Purely generate seconds for fragments, no minutes or hours. Overrides all formatting options above.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.useRawSeconds)
                 .onChange(async (value) => {

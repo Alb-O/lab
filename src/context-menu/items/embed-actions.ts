@@ -39,7 +39,7 @@ export function addEmbedActionsCommands(menu: Menu, plugin: Plugin, settings: Vi
         .onClick(() => {
             const formattedTime = formatFragment(getCurrentTimeRounded(video), undefined, settings);
             const alias = `0,${formattedTime}`;
-            copyGeneric(video, plugin.app, `Copied link with end fragment (${alias}).`, undefined, alias, formattedTime);
+            copyGeneric(video, plugin.app, `Copied link with end fragment (${formattedTime}).`, alias, formattedTime);
         })
     );
     menu.addItem(item => item
