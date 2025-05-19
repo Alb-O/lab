@@ -123,12 +123,17 @@ export class FragmentManager {
         for (const videoEl of videoElements) {
             if (processedElements.has(videoEl)) continue;
             
-            const parentEmbedDiv = videoEl.closest('.internal-embed[src]');
-            if (parentEmbedDiv) {
-                const actualEmbedParentSrc = (parentEmbedDiv as HTMLElement).getAttribute('src');
-                if (actualEmbedParentSrc === expectedSrc) {
-                    return videoEl;
+            // Search ancestors for the embed container with a src attribute (covers div in edit mode and span in reading mode)
+            let container: HTMLElement | null = videoEl.parentElement;
+            while (container) {
+                if (container.hasAttribute('src')) {
+                    const actualSrc = container.getAttribute('src');
+                    if (actualSrc === expectedSrc) {
+                        return videoEl;
+                    }
+                    break; // found a src attribute but no match, stop traversing
                 }
+                container = container.parentElement;
             }
         }
         return null;
@@ -199,6 +204,27 @@ export class FragmentManager {
         endTime?: number | { percent: number }; 
         path: string 
     } {
+        // First, check for fragments in parent embed container (reading mode preview)
+        const parentEmbed = videoEl.closest('.internal-embed[src]');
+        if (parentEmbed) {
+            const parentSrcAttr = (parentEmbed as HTMLElement).getAttribute('src');
+            if (parentSrcAttr) {
+                const currentSrcPathPart = parentSrcAttr.split('#t=')[0];
+                const srcTimeMatch = parentSrcAttr.match(/#t=([^,]+)(?:,([^,]+))?/);
+                if (srcTimeMatch && srcTimeMatch[1] && srcTimeMatch[1] !== '0.001') {
+                    // Parse start time
+                    const parsedStart = parseFragmentToSeconds(srcTimeMatch[1]);
+                    const start = parsedStart !== null ? parsedStart : undefined;
+                    // Parse end time if present
+                    let end: number | { percent: number } | undefined;
+                    if (srcTimeMatch[2] && srcTimeMatch[2] !== '0.001') {
+                        const parsedEnd = parseFragmentToSeconds(srcTimeMatch[2]);
+                        if (parsedEnd !== null) end = parsedEnd;
+                    }
+                    return { startTime: start, endTime: end, path: currentSrcPathPart };
+                }
+            }
+        }
         let start: number | { percent: number } | undefined;
         let end: number | { percent: number } | undefined;
         let pathAttributeVal = "";
