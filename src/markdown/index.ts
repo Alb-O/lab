@@ -1,2 +1,2 @@
 // Barrel file for markdown
-export * from './linkExtractor';
+export * from './MediaHandler';

@@ -1,5 +1,5 @@
 import { MarkdownView } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithFragment } from '@markdown';
+import { markdownExtractor, VideoWithFragment } from '@markdown';
 
 /**
  * Class that handles detecting videos in Markdown views
@@ -22,8 +22,8 @@ export class VideoDetector {
             return this.lastVideos;
         }
         
-        // Extract and cache results
-        const videos = extractVideosFromMarkdownView(activeView);
+        // Extract and cache results via shared markdownExtractor
+        const videos = markdownExtractor.extract(activeView);
         this.lastProcessedView = activeView;
         this.lastVideos = videos;
         

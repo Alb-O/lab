@@ -1,5 +1,5 @@
 import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView, Notice } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithFragment } from '@markdown';
+import { markdownExtractor, VideoWithFragment } from '@markdown';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 import { generateFragmentString, TempFragment, parseFragmentToSeconds } from '@utils';
 import { VideoFragmentsSettings } from '@settings';
@@ -11,6 +11,54 @@ export interface VideoLinkDetails {
     isExternalFileUrl: boolean;
     externalFileUrl: string | null; // Full src attribute for external file URLs
     attributesString: string; // String of filtered HTML attributes
+}
+
+// Helper type for unified source resolution
+interface SourceResolution {
+    targetFile: TFile | null;
+    isExternalFileUrl: boolean;
+    externalFileUrl: string | null;
+}
+
+/**
+ * Resolve a video source URL to either a vault file or external URL.
+ */
+function resolveVideoSource(
+    src: string,
+    app: App,
+    sourcePathForLink: string
+): SourceResolution {
+    // File URL
+    if (src.startsWith('file:///')) {
+        return { targetFile: null, isExternalFileUrl: true, externalFileUrl: src };
+    }
+    // App URL (vault-relative)
+    if (src.startsWith('app://')) {
+        try {
+            const url = new URL(src);
+            let path = decodeURIComponent(url.pathname.replace(/^\//, ''));
+            const normalized = normalizePath(path);
+            const file = app.vault.getFileByPath(normalized);
+            return file instanceof TFile
+                ? { targetFile: file, isExternalFileUrl: false, externalFileUrl: null }
+                : { targetFile: null, isExternalFileUrl: true, externalFileUrl: `file://${normalized}` };
+        } catch {
+            return { targetFile: null, isExternalFileUrl: true, externalFileUrl: src };
+        }
+    }
+    // Markdown-relative link
+    const pathPart = src.split('#')[0];
+    const mdFile = app.metadataCache.getFirstLinkpathDest(pathPart, sourcePathForLink);
+    if (mdFile instanceof TFile) {
+        return { targetFile: mdFile, isExternalFileUrl: false, externalFileUrl: null };
+    }
+    // Fallback: treat as external URL if valid
+    try {
+        new URL(src);
+        return { targetFile: null, isExternalFileUrl: true, externalFileUrl: src };
+    } catch {
+        return { targetFile: null, isExternalFileUrl: false, externalFileUrl: null };
+    }
 }
 
 export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoLinkDetails | null {
@@ -71,183 +119,23 @@ export function getVideoLinkDetails(app: App, videoEl: HTMLVideoElement): VideoL
         const mdView = activeLeaf.view;
         sourcePathForLink = mdView.file?.path || '';
 
-        if (mdView.getMode() === 'preview') {
+        if (mdView.getMode() === 'preview' || mdView.getMode() === 'source') {
             const currentVideoSrc = videoEl.currentSrc || videoEl.src; // Prefer live currentSrc for HTML blocks
             if (currentVideoSrc) {
-                if (currentVideoSrc.startsWith('file:///')) {
-                    isExternalFileUrl = true;
-                    externalFileUrl = currentVideoSrc;
-                    targetFile = null; // No TFile for external URLs
-                } else if (currentVideoSrc.startsWith('app://')) {
-                    try {
-                        const url = new URL(currentVideoSrc);
-                        let absPathFromUrl = decodeURIComponent(url.pathname);
-
-                        if (absPathFromUrl.startsWith('/') && absPathFromUrl.length > 1 && absPathFromUrl[1] !== ':') {
-                            absPathFromUrl = absPathFromUrl.substring(1);
-                        }
-                        absPathFromUrl = normalizePath(absPathFromUrl);
-
-                        if (app.vault.adapter instanceof FileSystemAdapter) {
-                            const vaultBasePath = normalizePath(app.vault.adapter.getBasePath());
-                            let attemptedRelativePathForLog: string = "";
-
-                            if (absPathFromUrl.toLowerCase().startsWith(vaultBasePath.toLowerCase())) {
-                                // Path is INSIDE the vault
-                                let relPath = absPathFromUrl.substring(vaultBasePath.length);
-
-                                if (relPath.startsWith('/') || relPath.startsWith('\\')) {
-                                    relPath = relPath.substring(1);
-                                }
-                                attemptedRelativePathForLog = relPath;
-                                if (relPath === "") {
-                                    targetFile = null;
-                                } else {
-                                    const normalizedRelativePath = normalizePath(relPath);
-                                    attemptedRelativePathForLog = normalizedRelativePath;
-                                    if (normalizedRelativePath === '.') {
-                                        targetFile = null;
-                                    } else targetFile = app.vault.getFileByPath(normalizedRelativePath);
-                                }
-                            } else {
-                                isExternalFileUrl = true;
-                                let fileUrlPath = absPathFromUrl;
-                                if (!absPathFromUrl.startsWith('/')) {
-                                    fileUrlPath = '/' + absPathFromUrl;
-                                }
-                                externalFileUrl = `file://${fileUrlPath}`;
-                                targetFile = null;
-                            }
-                        } else {
-                            let fileUrlPath = absPathFromUrl;// absPathFromUrl was derived from URL(currentVideoSrc).pathname
-                            if (!absPathFromUrl.startsWith('/')) {
-                                fileUrlPath = '/' + absPathFromUrl;
-                            }
-                            externalFileUrl = `file://${fileUrlPath}`;
-                            isExternalFileUrl = true;
-                            targetFile = null;
-                        }
-                    } catch (e) {
-                        // Fallback: try to use the original src if it looks like a URL, otherwise null
-                        try {
-                            new URL(currentVideoSrc); // check if it's a valid URL
-                            externalFileUrl = currentVideoSrc; // Keep original if it's a valid URL but failed parsing
-                        } catch (urlError) {
-                            externalFileUrl = null;
-                        }
-                        isExternalFileUrl = true;
-                        targetFile = null;
-                    }
-                } else { // Not app:// or file://, assume vault-relative or needs getFirstLinkpathDest
-                    const pathFromSrc = currentVideoSrc.split('#')[0];
-                    const resolvedFile = app.metadataCache.getFirstLinkpathDest(pathFromSrc, sourcePathForLink);
-                    if (resolvedFile instanceof TFile) {
-                        targetFile = resolvedFile;
-                    } else {
-                        const normalizedDirectPath = normalizePath(pathFromSrc);
-                        const foundFile = app.vault.getFileByPath(normalizedDirectPath);
-                        if (foundFile instanceof TFile) {
-                            targetFile = foundFile;
-                        }
-                    }
-                }
+                // Unified resolution for both preview and editor modes
+                const resolvedSource = resolveVideoSource(currentVideoSrc, app, sourcePathForLink);
+                targetFile = resolvedSource.targetFile;
+                isExternalFileUrl = resolvedSource.isExternalFileUrl;
+                externalFileUrl = resolvedSource.externalFileUrl;
             }
-        } else { // Source or Live Preview mode
+        } else { // Live Preview mode
             const currentVideoSrc = videoEl.currentSrc || videoEl.src; // Check src directly for HTML blocks in editor
             if (currentVideoSrc) {
-                if (currentVideoSrc.startsWith('file:///')) {
-                    isExternalFileUrl = true;
-                    externalFileUrl = currentVideoSrc;
-                    targetFile = null;
-                } else if (currentVideoSrc.startsWith('app://')) {
-                    // Apply the same app:// logic as in preview mode
-                    try {
-                        const url = new URL(currentVideoSrc);
-                        let absPathFromUrl = decodeURIComponent(url.pathname);
-
-                        if (absPathFromUrl.startsWith('/') && absPathFromUrl.length > 1 && absPathFromUrl[1] !== ':') {
-                            absPathFromUrl = absPathFromUrl.substring(1);
-                        }
-                        absPathFromUrl = normalizePath(absPathFromUrl);
-
-                        if (app.vault.adapter instanceof FileSystemAdapter) {
-                            const vaultBasePath = normalizePath(app.vault.adapter.getBasePath());
-                            let attemptedRelativePathForLog: string = "";
-
-                            if (absPathFromUrl.toLowerCase().startsWith(vaultBasePath.toLowerCase())) {
-                                // Path is INSIDE the vault
-                                let relPath = absPathFromUrl.substring(vaultBasePath.length);
-
-                                if (relPath.startsWith('/') || relPath.startsWith('\\')) {
-                                    relPath = relPath.substring(1);
-                                }
-                                attemptedRelativePathForLog = relPath;
-                                if (relPath === "") {
-                                    targetFile = null;
-                                } else {
-                                    const normalizedRelativePath = normalizePath(relPath);
-                                    attemptedRelativePathForLog = normalizedRelativePath;
-                                    if (normalizedRelativePath === '.') {
-                                        targetFile = null;
-                                    } else {
-                                        targetFile = app.vault.getFileByPath(normalizedRelativePath);
-                                    }
-                                }
-                            } else {
-                                isExternalFileUrl = true;
-                                let fileUrlPath = absPathFromUrl;
-                                if (!absPathFromUrl.startsWith('/')) {
-                                    fileUrlPath = '/' + absPathFromUrl;
-                                }
-                                externalFileUrl = `file://${fileUrlPath}`;
-                                targetFile = null;
-                            }
-                        } else {
-                            let fileUrlPath = absPathFromUrl;
-                            if (!absPathFromUrl.startsWith('/')) {
-                                fileUrlPath = '/' + absPathFromUrl;
-                            }
-                            externalFileUrl = `file://${fileUrlPath}`;
-                            isExternalFileUrl = true;
-                            targetFile = null;
-                        }
-                    } catch (e) {
-                        isExternalFileUrl = true;
-                        try {
-                            new URL(currentVideoSrc);
-                            externalFileUrl = currentVideoSrc;
-                        } catch (urlError) {
-                            externalFileUrl = null;
-                        }
-                        targetFile = null;
-                    }
-                } else {
-                    // Not a file:/// or app:// src, proceed with Markdown metadata matching
-                    isExternalFileUrl = false;
-                    const videosMeta = extractVideosFromMarkdownView(mdView);
-                    const els = mdView.contentEl.querySelectorAll('video');
-                    const idx = Array.from(els).indexOf(videoEl);
-                    if (idx >= 0 && idx < videosMeta.length) {
-                        const videoMetaPath = videosMeta[idx].path;
-                        const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath);
-                        if (resolvedFile instanceof TFile) {
-                            targetFile = resolvedFile;
-                        }
-                    }
-                }
-            } else {
-                // No currentVideoSrc in editor mode, try metadata matching as a fallback
-                isExternalFileUrl = false;
-                const videosMeta = extractVideosFromMarkdownView(mdView);
-                const els = mdView.contentEl.querySelectorAll('video');
-                const idx = Array.from(els).indexOf(videoEl);
-                if (idx >= 0 && idx < videosMeta.length) {
-                    const videoMetaPath = videosMeta[idx].path;
-                    const resolvedFile = app.vault.getAbstractFileByPath(videoMetaPath);
-                    if (resolvedFile instanceof TFile) {
-                        targetFile = resolvedFile;
-                    }
-                }
+                // Unified resolution for both preview and editor modes
+                const resolvedSource = resolveVideoSource(currentVideoSrc, app, sourcePathForLink);
+                targetFile = resolvedSource.targetFile;
+                isExternalFileUrl = resolvedSource.isExternalFileUrl;
+                externalFileUrl = resolvedSource.externalFileUrl;
             }
         }
     } else if (activeLeaf.view instanceof FileView && activeLeaf.view.getViewType() === 'video') {
@@ -359,209 +247,92 @@ export async function setAndSaveVideoFragment(
     } else return true;
 }
 
-export async function updateEditorLinkInFile(
+// Helper: update markdown-style video link in the file
+async function updateMarkdownLink(
     app: App,
-    videoEl: HTMLVideoElement, // The specific video element being modified
-    currentFile: TFile, // The file containing the link
-    newFragment: TempFragment | null, // The new fragment to apply
-    allVideoElementsInView: NodeListOf<HTMLVideoElement> // All video elements in the current view, for indexing
-): Promise<void> {
-    const { extractVideosFromMarkdownView } = require('../video'); // Local require to avoid circular deps if any at top level
-    const allVideosInEditor: VideoWithFragment[] = extractVideosFromMarkdownView(app.workspace.getActiveViewOfType(MarkdownView)!);
-    const currentVideoDomIndex = Array.from(allVideoElementsInView).indexOf(videoEl);
-    const fragmentString = newFragment ? generateFragmentString(newFragment) : '';
-
-    if (currentVideoDomIndex !== -1 && currentVideoDomIndex < allVideosInEditor.length) {
-        const currentVideoInfo = allVideosInEditor[currentVideoDomIndex];
-        const subpath = fragmentString ? `#${fragmentString}` : '';
-
-        if ((currentVideoInfo.type === 'wiki' || currentVideoInfo.type === 'md') && currentVideoInfo.file) {
-            const { line: startLine, col: startCol } = currentVideoInfo.position.start;
-            const { line: endLine, col: endCol } = currentVideoInfo.position.end;
-
-            const newFullMdLink = generateMarkdownLink({
-                app: app,
-                targetPathOrFile: currentVideoInfo.file,
-                sourcePathOrFile: currentFile,
-                subpath: subpath,
-                isEmbed: currentVideoInfo.isEmbedded,
-                originalLink: currentVideoInfo.linktext,
-                alias: currentVideoInfo.alias
-            });
-
-            const fileContent = await app.vault.read(currentFile);
-            const lines = fileContent.split('\n');
-            if (startLine === endLine) {
-                lines[startLine] = lines[startLine].substring(0, startCol) + newFullMdLink + lines[startLine].substring(endCol);
-            } else {
-                const prefix = lines[startLine].substring(0, startCol);
-                const suffix = lines[endLine].substring(endCol);
-                const combinedLine = prefix + newFullMdLink + suffix;
-                lines.splice(startLine, endLine - startLine + 1, combinedLine);
-            }
-            await app.vault.modify(currentFile, lines.join('\n'));
-        } else if (currentVideoInfo.type === 'html') {
-            const { line: startLineHtml, col: startChHtml } = currentVideoInfo.position.start;
-            const { line: endLineHtml, col: endChHtml } = currentVideoInfo.position.end;
-            const htmlLinkText = currentVideoInfo.linktext; // This is the full HTML block
-            const blockStartPosLine = startLineHtml;
-            const blockEndPosLine = endLineHtml;
-
-            if (/^\s*<video[\s>]/i.test(htmlLinkText)) {
-                const fileContent = await app.vault.read(currentFile);
-                const lines = fileContent.split('\n');
-                const originalBlockLines = lines.slice(blockStartPosLine, blockEndPosLine + 1);
-                let lineIdxInBlock = -1; // Index within the originalBlockLines
-                let actualLineNumber = -1; // Actual line number in the file
-
-                // Find the line with the src attribute within the sliced block
-                for (let i = 0; i < originalBlockLines.length; i++) {
-                    if (originalBlockLines[i].trim().match(/<video\s[^>]*src=/i)) {
-                        lineIdxInBlock = i;
-                        actualLineNumber = blockStartPosLine + i;
-                        break;
-                    }
-                }
-
-                if (lineIdxInBlock !== -1 && actualLineNumber !== -1) {
-                    let baseVideoSrc = "";
-                    const srcMatch = originalBlockLines[lineIdxInBlock].match(/src=("|')([^"'#]+)/i);
-                    if (srcMatch && srcMatch[2]) {
-                        baseVideoSrc = srcMatch[2];
-                    } else {
-                        // If src is not found or not in expected format, we might have an issue.
-                        // For safety, try to get it from videoEl.dataset.fragmentPath or a cleaned version of videoEl.src
-                        const currentSrcUrl = new URL(videoEl.dataset.fragmentPath || videoEl.currentSrc || videoEl.src);
-                        baseVideoSrc = `${currentSrcUrl.protocol}//${currentSrcUrl.host}${currentSrcUrl.pathname}${currentSrcUrl.search}`;
-                    }
-
-                    const newHtmlSrcAttr = `src="${baseVideoSrc}${subpath}"`;
-                    const modifiedLine = originalBlockLines[lineIdxInBlock].replace(
-                        /src=("|')[^"'#]+(#[^"']*)?("|')/i,
-                        newHtmlSrcAttr
-                    );
-
-                    // Update the specific line in the main lines array
-                    lines[actualLineNumber] = modifiedLine;
-                    await app.vault.modify(currentFile, lines.join('\n'));
-                } else new Notice('Error: Could not find <video src="..."> line in HTML block.');
-            } else new Notice('Error: HTML block does not start with <video>.');
-        } else new Notice('Error: Video type not recognized or file missing.');
-    } else new Notice('Error: Video element not found in editor metadata.');
+    currentFile: TFile,
+    videoInfo: VideoWithFragment,
+    subpath: string
+) {
+    const { line: startLine, col: startCol } = videoInfo.position.start;
+    const { line: endLine, col: endCol } = videoInfo.position.end;
+    const newLink = generateMarkdownLink({
+        app,
+        targetPathOrFile: videoInfo.file!,
+        sourcePathOrFile: currentFile,
+        subpath,
+        isEmbed: videoInfo.isEmbedded,
+        originalLink: videoInfo.linktext,
+        alias: videoInfo.alias
+    });
+    const content = await app.vault.read(currentFile);
+    const lines = content.split('\n');
+    if (startLine === endLine) {
+        lines[startLine] = lines[startLine].slice(0, startCol) + newLink + lines[startLine].slice(endCol);
+    } else {
+        const prefix = lines[startLine].slice(0, startCol);
+        const suffix = lines[endLine].slice(endCol);
+        lines.splice(startLine, endLine - startLine + 1, prefix + newLink + suffix);
+    }
+    await app.vault.modify(currentFile, lines.join('\n'));
 }
 
-export async function processFragmentAction(
+// Helper: update HTML-style <video> block in the file
+async function updateHtmlLink(
     app: App,
-    video: HTMLVideoElement,
-    action: 'set' | 'clear',
-    fragmentType: 'start' | 'end',
-    settings: VideoFragmentsSettings,
-    originalFragment: TempFragment | null,
-    rawInputValue?: string // Only for 'set' action
-): Promise<boolean> {
-    const linkDetails = getVideoLinkDetails(app, video);
-    if (!linkDetails) {
-        new Notice('Error: Could not retrieve video details to update the source.');
-        return false;
+    videoEl: HTMLVideoElement,
+    currentFile: TFile,
+    videoInfo: VideoWithFragment,
+    subpath: string
+) {
+    const { line: startLine, col: _sc } = videoInfo.position.start;
+    const { line: endLine, col: _ec } = videoInfo.position.end;
+    const fileContent = await app.vault.read(currentFile);
+    const lines = fileContent.split('\n');
+    const block = lines.slice(startLine, endLine + 1);
+    // locate src line in the block
+    let idxInBlock = block.findIndex(l => /<video\s[^>]*src=/i.test(l.trim()));
+    if (idxInBlock < 0) throw new Notice('Error: Could not find <video src="..."> in HTML block.');
+    const actualLine = startLine + idxInBlock;
+    const srcMatch = block[idxInBlock].match(/src=("|')([^"'#]+)/i);
+    let base = srcMatch?.[2] ?? (() => {
+        const url = new URL(videoEl.dataset.fragmentPath || videoEl.currentSrc || videoEl.src);
+        return `${url.protocol}//${url.host}${url.pathname}${url.search}`;
+    })();
+    const newAttr = `src="${base}${subpath}"`;
+    lines[actualLine] = lines[actualLine].replace(/src=("|')[^"'#]+(#[^"']*)?("|')/i, newAttr);
+    await app.vault.modify(currentFile, lines.join('\n'));
+}
+
+export async function updateEditorLinkInFile(
+    app: App,
+    videoEl: HTMLVideoElement,
+    currentFile: TFile,
+    newFragment: TempFragment | null,
+    allVideoElementsInView: NodeListOf<HTMLVideoElement>
+): Promise<void> {
+    const mdView = app.workspace.getActiveViewOfType(MarkdownView)!;
+    const allVideosInEditor = markdownExtractor.extract(mdView);
+    const idx = Array.from(allVideoElementsInView).indexOf(videoEl);
+    const fragmentString = newFragment ? generateFragmentString(newFragment) : '';
+
+    if (idx < 0 || idx >= allVideosInEditor.length) {
+        new Notice('Error: Video element not found in editor metadata.');
+        return;
     }
-
-    let newFragment: TempFragment | null = null;
-    let noticeMessage = ''; if (action === 'set') {
-        if (!rawInputValue) {
-            new Notice('Fragment cannot be empty.');
-            return false;
+    const info = allVideosInEditor[idx];
+    const subpath = fragmentString ? `#${fragmentString}` : '';
+    try {
+        if ((info.type === 'wiki' || info.type === 'md') && info.file) {
+            await updateMarkdownLink(app, currentFile, info, subpath);
+        } else if (info.type === 'html') {
+            await updateHtmlLink(app, videoEl, currentFile, info, subpath);
+        } else {
+            new Notice('Error: Video type not recognized or file missing.');
         }
-        console.log(`Processing fragment action: ${action} ${fragmentType} with value "${rawInputValue}"`);
-        const parsedSeconds = parseFragmentToSeconds(rawInputValue); console.log(`Parsed value: ${JSON.stringify(parsedSeconds)}`);
-        if (parsedSeconds === null) {
-            new Notice('Unable to parse time. Try a different format like seconds, HH:MM:SS, percentage, or a duration expression like "10 minutes".');
-            return false;
-        } if (fragmentType === 'start') {
-            const currentEndTime = originalFragment?.end;
-            // Robust comparison for all types
-            if (currentEndTime !== undefined && typeof currentEndTime !== 'undefined') {
-                const cmp = compareFragmentTimes(parsedSeconds, currentEndTime, video);
-                console.log(`Comparing start=${JSON.stringify(parsedSeconds)} with end=${JSON.stringify(currentEndTime)}, result=${cmp}`);
-                if (cmp !== null && cmp >= 0) { // start >= end
-                    new Notice('Start time cannot be after or equal to the end time.');
-                    return false;
-                }
-            }
-            newFragment = {
-                start: parsedSeconds,
-                startRaw: rawInputValue,
-                end: currentEndTime !== undefined && ((typeof currentEndTime === 'number' && currentEndTime >= 0) || isPercentObject(currentEndTime)) ? currentEndTime : -1,
-                endRaw: originalFragment?.endRaw
-            };
-        } else { // type === 'end'
-            const currentStartTime = originalFragment?.start;
-            // Robust comparison for all types
-            if (currentStartTime !== undefined && typeof currentStartTime !== 'undefined') {
-                const cmp = compareFragmentTimes(currentStartTime, parsedSeconds, video);
-                console.log(`Comparing start=${JSON.stringify(currentStartTime)} with end=${JSON.stringify(parsedSeconds)}, result=${cmp}`);
-                if (cmp !== null && cmp >= 0) { // end <= start
-                    new Notice('End time cannot be before or equal to the start time.');
-                    return false;
-                }
-            }
-            newFragment = {
-                start: currentStartTime !== undefined && ((typeof currentStartTime === 'number' && currentStartTime >= 0) || isPercentObject(currentStartTime)) ? currentStartTime : -1,
-                startRaw: originalFragment?.startRaw,
-                end: parsedSeconds,
-                endRaw: rawInputValue
-            };
-        }
-        noticeMessage = `Video ${fragmentType} time set to ${rawInputValue}.`;
-
-    } else { // action === 'clear'
-        if (fragmentType === 'start') {
-            if (originalFragment) {
-                newFragment = { ...originalFragment, start: -1, startRaw: undefined };
-                if (typeof newFragment.end === 'number' && newFragment.end < 0 && !newFragment.endRaw) newFragment = null;
-            }
-        } else { // type === 'end'
-            if (originalFragment) {
-                newFragment = { ...originalFragment, end: -1, endRaw: undefined };
-                if (typeof newFragment.start === 'number' && newFragment.start < 0 && !newFragment.startRaw) newFragment = null;
-                else if (typeof newFragment.start === 'number' && newFragment.start === 0 && !newFragment.startRaw && typeof newFragment.end === 'number' && newFragment.end < 0) newFragment = null;
-            }
-        }
-        // Clean up fragment if it becomes t=0 due to clearing
-        if (
-            newFragment &&
-            typeof newFragment.start === 'number' && newFragment.start === 0 && !newFragment.startRaw &&
-            typeof newFragment.end === 'number' && newFragment.end < 0 && !newFragment.endRaw
-        ) {
-            newFragment = null;
-        }
-        if (
-            newFragment &&
-            typeof newFragment.end === 'number' && newFragment.end === 0 && !newFragment.endRaw &&
-            typeof newFragment.start === 'number' && newFragment.start < 0 && !newFragment.startRaw
-        ) {
-            newFragment = null;
-        }
-        noticeMessage = `Video ${fragmentType} time cleared.`;
+    } catch (e: any) {
+        new Notice(`Error updating link: ${e.message}`);
     }
-
-    applyFragmentToVideo(video, newFragment);
-
-    const mdView = app.workspace.getActiveViewOfType(MarkdownView);
-    if (mdView && mdView.editor && mdView.file) {
-        try {
-            await updateEditorLinkInFile(app, video, mdView.file, newFragment, mdView.contentEl.querySelectorAll('video'));
-            new Notice(noticeMessage);
-        } catch (e: any) {
-            new Notice(`Error updating embed link: ${e.message}`);
-            // Even if link update fails, the video element itself was updated, so don't necessarily return false from processFragmentAction
-            // The notice about the error should be sufficient.
-        }
-    } else if (mdView && mdView.editor && !mdView.file) {
-        new Notice(`${noticeMessage} Cannot update link: current file is not saved.`);
-    } else {
-        new Notice(`${noticeMessage} Could not update markdown link (no active file/editor).`);
-    }
-    return true; // Indicates the primary action (setting/clearing fragment on video) was attempted/done.
 }
 
 /**
@@ -569,7 +340,7 @@ export async function processFragmentAction(
  * Removes the embed/link at the given index.
  */
 export async function removeVideoEmbedByIndex(view: MarkdownView, idx: number): Promise<void> {
-    const videos = extractVideosFromMarkdownView(view);
+    const videos = markdownExtractor.extract(view);
     const els = view.contentEl.querySelectorAll('video');
     if (idx < 0 || idx >= videos.length) return;
     const target = videos[idx];

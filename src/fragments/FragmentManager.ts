@@ -1,4 +1,4 @@
-import { VideoWithFragment } from '../video';
+import { VideoWithFragment } from '@markdown';
 import { VideoFragmentsSettings } from '@settings';
 import { FragmentHandler } from '../types/types';
 import { parseFragmentToSeconds } from '@utils';
