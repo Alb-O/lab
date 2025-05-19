@@ -606,12 +606,13 @@ export async function removeVideoEmbedByIndex(view: MarkdownView, idx: number): 
  */
 export function copyGeneric(
     video: HTMLVideoElement,
+    app: App,
     successNotice: string,
     fragment?: string,
     alias?: string,
     fragmentEnd?: string
 ) {
-    const details = getVideoLinkDetails(this.plugin.app, video);
+    const details = getVideoLinkDetails(app, video);
     if (!details) {
         new Notice('Cannot copy link: View type not supported or active leaf not found.');
         return;
@@ -637,7 +638,7 @@ export function copyGeneric(
         }
         const subpath = finalFragment ? `#t=${finalFragment}` : undefined;
         linkText = generateMarkdownLink({
-            app: this.plugin.app,
+            app: app,
             targetPathOrFile: targetFile,
             sourcePathOrFile: sourcePathForLink,
             subpath,
