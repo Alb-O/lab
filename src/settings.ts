@@ -56,11 +56,11 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
                     reinitializeRestrictionHandlers(this.plugin.settings);
                 }));
 
-        new Setting(containerEl).setName("Fragment time format").setHeading();
+        new Setting(containerEl).setName("Fragment time formatting").setHeading();
 
         new Setting(containerEl)
             .setName('Trim zero hours')
-            .setDesc('Remove "00:" or "0:" hours component when generating formatted time fragments.')
+            .setDesc('Remove zero hours from the formatted time, e.g. 00:15:00 becomes 15:00.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimZeroHours)
                 .onChange(async (value) => {
@@ -70,17 +70,15 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Trim zero minutes')
-            .setDesc('Remove "00:" or "0:" minutes component when generating formatted time fragments.')
+            .setDesc('Remove zero minutes from the formatted time, e.g. 00:15 becomes 15.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimZeroMinutes)
                 .onChange(async (value) => {
                     this.plugin.settings.trimZeroMinutes = value;
                     await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
+                }));        new Setting(containerEl)
             .setName('Trim leading zeros')
-            .setDesc('Prefer single-digit time components where possible, removing leading zeros from all components.')
+            .setDesc('Remove leading zeros from the first (largest) time component, e.g. 01:05 becomes 1:05.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.trimLeadingZeros)
                 .onChange(async (value) => {
@@ -90,7 +88,7 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Use raw seconds')
-            .setDesc('Output pure seconds for fragments, overriding any trimming or HH:mm:ss formatting.')
+            .setDesc('Always generate pure seconds for fragments. Overrides all formatting options above.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.useRawSeconds)
                 .onChange(async (value) => {

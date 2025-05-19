@@ -295,45 +295,68 @@ class FragmentInputModal extends Modal {
             this.initialEndDisplayValue = "";
         }
         this.endTimeInputEl.value = this.initialEndDisplayValue;
-    }
-
-    private async handleSave() {
+    }    private async handleSave() {
         const rawStartTime = this.startTimeInputEl.value.trim();
         const rawEndTime = this.endTimeInputEl.value.trim();
         const videoDuration = this.video.duration;
-
-        // Parse both times first
+        
+        // Add debug logging to help track the issue with chrono parsing
+        console.log(`Modal attempting to save with start="${rawStartTime}", end="${rawEndTime}"`);
+        
+        // Parse both times first - parseFragmentToSeconds now handles all time formats including chrono parsing
         const parsedStart = rawStartTime === "" ? null : parseFragmentToSeconds(rawStartTime);
+        console.log(`Parsed start time: ${JSON.stringify(parsedStart)}`);
+        
         let parsedEnd: number | { percent: number } | null;
-        if (rawEndTime.toLowerCase() === 'end') {
+        if (rawEndTime.toLowerCase() === 'end' || rawEndTime.toLowerCase() === 'e') {
             parsedEnd = videoDuration;
+            console.log(`End time set to video duration: ${videoDuration}`);
         } else {
             parsedEnd = rawEndTime === "" ? null : parseFragmentToSeconds(rawEndTime);
-        }
-
-        // Validation: check for invalid formats
+            console.log(`Parsed end time: ${JSON.stringify(parsedEnd)}`);
+        }        // Validation: check for invalid formats - rely on parseFragmentToSeconds to interpret time formats
         if (rawStartTime !== "" && parsedStart === null) {
-            new Notice('Invalid start time format.');
+            console.log(`Validation failed: Start time could not be parsed: "${rawStartTime}"`);
+            new Notice('Unable to parse start time. Try a different format like seconds, HH:MM:SS, percentage, or a duration expression like "10 minutes".');
             this.populateInputs();
             return;
         }
         if (rawEndTime !== "" && parsedEnd === null) {
-            new Notice('Invalid end time format.');
+            console.log(`Validation failed: End time could not be parsed: "${rawEndTime}"`);
+            new Notice('Unable to parse end time. Try a different format like seconds, HH:MM:SS, percentage, or a duration expression like "10 minutes".');
             this.populateInputs();
             return;
         }
 
-        // Validation: check for logical order (only if both are set and both are numbers)
-        if (
-            parsedStart !== null &&
-            parsedEnd !== null &&
-            typeof parsedStart === 'number' &&
-            typeof parsedEnd === 'number' &&
-            parsedStart >= parsedEnd
-        ) {
-            new Notice('Start time cannot be after or equal to the end time.');
-            this.populateInputs();
-            return;
+        // Validation: check for logical order - now handles both number and percent objects
+        if (parsedStart !== null && parsedEnd !== null) {
+            // Convert both to numeric seconds for comparison
+            let startSecs: number;
+            let endSecs: number;
+            
+            if (typeof parsedStart === 'number') {
+                startSecs = parsedStart;
+            } else if ('percent' in parsedStart) {
+                startSecs = videoDuration * (parsedStart.percent / 100);
+            } else {
+                startSecs = 0; // Fallback
+            }
+            
+            if (typeof parsedEnd === 'number') {
+                endSecs = parsedEnd;
+            } else if ('percent' in parsedEnd) {
+                endSecs = videoDuration * (parsedEnd.percent / 100);
+            } else {
+                endSecs = Infinity; // Fallback
+            }
+            
+            // Now compare the numeric values
+            if (startSecs >= endSecs) {
+                console.log(`Validation failed: Start time ${startSecs}s is after or equal to end time ${endSecs}s`);
+                new Notice('Start time cannot be after or equal to the end time.');
+                this.populateInputs();
+                return;
+            }
         }
 
         // Build the new fragment
@@ -372,20 +395,13 @@ class FragmentInputModal extends Modal {
 
         // Compose notice
         let noticeMessages: string[] = [];
-        // If displaying only seconds, add 's' to the end
-        function displayTimeWithS(val: string) {
-            if (val && !val.includes('%') && !val.includes(':') && !val.includes('s')) {
-                return val + 's';
-            }
-            return val;
-        }
         if (rawStartTime !== this.initialStartDisplayValue) {
             if (rawStartTime === "") noticeMessages.push('Start time cleared.');
-            else noticeMessages.push(`Start time set to ${displayTimeWithS(rawStartTime)}.`);
+            else noticeMessages.push(`Start time set to ${rawStartTime}.`);
         }
         if (rawEndTime !== this.initialEndDisplayValue) {
             if (rawEndTime === "") noticeMessages.push('End time cleared.');
-            else noticeMessages.push(`End time set to ${displayTimeWithS(rawEndTime)}.`);
+            else noticeMessages.push(`End time set to ${rawEndTime}.`);
         }
 
         const success = await setAndSaveVideoFragment(this.app, this.video, this.settings, newFragment);

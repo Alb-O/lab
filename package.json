@@ -22,6 +22,7 @@
 		"typescript": "^5.8.3"
 	},
 	"dependencies": {
-		"obsidian-dev-utils": "^26.27.3"
+		"obsidian-dev-utils": "^26.27.3",
+		"parse-duration": "^2.1.4"
 	}
 }

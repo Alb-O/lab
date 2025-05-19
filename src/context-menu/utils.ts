@@ -304,7 +304,14 @@ function compareFragmentTimes(
     video: HTMLVideoElement
 ): number | null {
     // Returns -1 if start < end, 0 if equal, 1 if start > end, null if cannot compare
+    console.log(`compareFragmentTimes called with start=${JSON.stringify(start)}, end=${JSON.stringify(end)}`);
+
     if (start === undefined || end === undefined) return null;
+
+    // Handle infinity specially
+    if (typeof end === 'number' && end === Infinity) return -1; // start is always less than infinity
+    if (typeof start === 'number' && start === Infinity) return 1; // start infinity is greater than any end
+
     if (typeof start === 'number' && typeof end === 'number') {
         return start < end ? -1 : (start > end ? 1 : 0);
     }
@@ -459,30 +466,26 @@ export async function processFragmentAction(
     }
 
     let newFragment: TempFragment | null = null;
-    let noticeMessage = '';
-
-    if (action === 'set') {
+    let noticeMessage = ''; if (action === 'set') {
         if (!rawInputValue) {
             new Notice('Fragment cannot be empty.');
             return false;
         }
-        const parsedSeconds = parseFragmentToSeconds(rawInputValue);
+        console.log(`Processing fragment action: ${action} ${fragmentType} with value "${rawInputValue}"`);
+        const parsedSeconds = parseFragmentToSeconds(rawInputValue); console.log(`Parsed value: ${JSON.stringify(parsedSeconds)}`);
         if (parsedSeconds === null) {
-            new Notice('Invalid fragment format. Use seconds (e.g., 65.5), mm:ss (e.g., 1:05.5), percentage (e.g. 50%) or special phrases like start or end.');
+            new Notice('Unable to parse time. Try a different format like seconds, HH:MM:SS, percentage, or a duration expression like "10 minutes".');
             return false;
-        }
-
-        if (fragmentType === 'start') {
+        } if (fragmentType === 'start') {
             const currentEndTime = originalFragment?.end;
             // Robust comparison for all types
-            const cmp = compareFragmentTimes(parsedSeconds, currentEndTime, video);
-            if (
-                currentEndTime !== undefined &&
-                cmp !== null &&
-                cmp >= 0 // start >= end
-            ) {
-                new Notice('Start time cannot be after or equal to the end time.');
-                return false;
+            if (currentEndTime !== undefined && typeof currentEndTime !== 'undefined') {
+                const cmp = compareFragmentTimes(parsedSeconds, currentEndTime, video);
+                console.log(`Comparing start=${JSON.stringify(parsedSeconds)} with end=${JSON.stringify(currentEndTime)}, result=${cmp}`);
+                if (cmp !== null && cmp >= 0) { // start >= end
+                    new Notice('Start time cannot be after or equal to the end time.');
+                    return false;
+                }
             }
             newFragment = {
                 start: parsedSeconds,
@@ -493,14 +496,13 @@ export async function processFragmentAction(
         } else { // type === 'end'
             const currentStartTime = originalFragment?.start;
             // Robust comparison for all types
-            const cmp = compareFragmentTimes(currentStartTime, parsedSeconds, video);
-            if (
-                currentStartTime !== undefined &&
-                cmp !== null &&
-                cmp >= 0 // end <= start
-            ) {
-                new Notice('End time cannot be before or equal to the start time.');
-                return false;
+            if (currentStartTime !== undefined && typeof currentStartTime !== 'undefined') {
+                const cmp = compareFragmentTimes(currentStartTime, parsedSeconds, video);
+                console.log(`Comparing start=${JSON.stringify(currentStartTime)} with end=${JSON.stringify(parsedSeconds)}, result=${cmp}`);
+                if (cmp !== null && cmp >= 0) { // end <= start
+                    new Notice('End time cannot be before or equal to the start time.');
+                    return false;
+                }
             }
             newFragment = {
                 start: currentStartTime !== undefined && ((typeof currentStartTime === 'number' && currentStartTime >= 0) || isPercentObject(currentStartTime)) ? currentStartTime : -1,
