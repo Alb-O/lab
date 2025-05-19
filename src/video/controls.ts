@@ -40,13 +40,6 @@ export function setupVideoControls(getAllRelevantDocuments: () => Document[]): v
 }
 
 /**
- * Attach event handlers to all video elements in a specific document
- */
-function setupAllVideoControlsInDoc(doc: Document): void {
-  doc.querySelectorAll('video').forEach(setupSingleVideoControls);
-}
-
-/**
  * Attach event handlers to a single video element
  */
 function setupSingleVideoControls(videoEl: HTMLVideoElement): void {

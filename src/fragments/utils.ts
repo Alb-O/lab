@@ -27,7 +27,7 @@ export function isFragment(fragment: TempFragment): boolean {
  * Regular expressions for parsing different time formats
  */
 const timePatterns = {
-    main: /^([\w:.]*)(,(?:[\w:.]+|e(?:nd)?))?$/i, // Allow 'e' or 'end' for end
+    main: /^([\w:%.]*)(,(?:[\w:%.]+|e(?:nd)?))?$/i, // Allow '%' in start and end
     npt_sec: /^\d+(?:\.\d+)?$/,
     // More flexible mm:ss and hh:mm:ss, allowing optional leading zeros and decimals on seconds
     npt_mmss: /^(\d{1,2}):([0-5]?\d(?:\.\d+)?)$/,
