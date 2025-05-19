@@ -1,4 +1,4 @@
-import { VideoState } from './fragments/types';
+import { VideoState } from '@types';
 
 declare global {
   interface HTMLVideoElement {

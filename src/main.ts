@@ -1,20 +1,20 @@
-import { MarkdownView, Plugin, WorkspaceLeaf } from 'obsidian';
-import { DEFAULT_SETTINGS, IVideoFragmentsPlugin, VideoFragmentsSettings, VideoFragmentsSettingTab } from './settings';
-import { VideoWithFragment, VideoDetector } from './video';
-import { setupVideoControls } from './video/controls';
-import { setupVideoContextMenu, cleanupVideoContextMenu } from './context-menu';
-import { FragmentManager } from './fragments';
+import { MarkdownView, Plugin } from 'obsidian';
+import { DEFAULT_SETTINGS, IVideoFragmentsPlugin, VideoFragmentsSettings, VideoFragmentsSettingTab } from '@settings';
+import { VideoDetector, setupVideoControls } from '@observer';
+import { VideoContextMenu } from '@context-menu';
+import { FragmentManager } from '@fragments';
 import { PluginEventHandler } from './plugin-event-handler';
 import { initPluginContext } from 'obsidian-dev-utils/obsidian/Plugin/PluginContext';
+import type { VideoWithFragment } from '@markdown';
 
 export default class VideoFragments extends Plugin implements IVideoFragmentsPlugin {
 	settings: VideoFragmentsSettings;
 	videoDetector: VideoDetector;
 	fragmentController: FragmentManager;
 	pluginEventHandler: PluginEventHandler;
-	
+
 	private videoObservers: MutationObserver[] = [];
-	private contextMenuCleanup: (() => void) | null = null;
+	private contextMenu: VideoContextMenu | null = null;
 	private resizeHandler: (() => void) | null = null;
 	private origLeafOnResize: ((...args: any[]) => any) | null = null;
 
@@ -78,24 +78,17 @@ export default class VideoFragments extends Plugin implements IVideoFragmentsPlu
 		// Setup video hover controls
 		setupVideoControls(this.getAllRelevantDocuments.bind(this)); 
 
-		// Clean up any existing context menu handlers first (in case of reload)
-		cleanupVideoContextMenu(this.getAllRelevantDocuments()); 
-		
-		// Setup Obsidian-native context menu for videos
-		this.contextMenuCleanup = setupVideoContextMenu(
-			this, 
-			this.settings, 
-			this.getAllRelevantDocuments.bind(this)
-		); 
+		// Setup context menu class
+		if (this.contextMenu) this.contextMenu.cleanup();
+		this.contextMenu = new VideoContextMenu(this, this.settings, this.getAllRelevantDocuments.bind(this));
+		this.contextMenu.setup();
 
 		// Register for plugin cleanup on unload
 		this.register(() => {
-			if (this.contextMenuCleanup) {
-				this.contextMenuCleanup();
-				this.contextMenuCleanup = null;
+			if (this.contextMenu) {
+				this.contextMenu.cleanup();
+				this.contextMenu = null;
 			}
-			// Also directly clean up any remaining context menu handlers
-			cleanupVideoContextMenu(this.getAllRelevantDocuments());
 		});
 	}
 	
@@ -123,17 +116,18 @@ export default class VideoFragments extends Plugin implements IVideoFragmentsPlu
 	
 	private handleLayoutChange() {
 		// Clean up existing context menu handlers
-		if (this.contextMenuCleanup) {
-			this.contextMenuCleanup();
-			this.contextMenuCleanup = null;
+		if (this.contextMenu) {
+			this.contextMenu.cleanup();
+			this.contextMenu = null;
 		}
 		
 		// Re-setup context menu for all documents
-		this.contextMenuCleanup = setupVideoContextMenu(
+		this.contextMenu = new VideoContextMenu(
 			this, 
 			this.settings, 
 			this.getAllRelevantDocuments.bind(this)
 		); 
+		this.contextMenu.setup();
 
 		// Re-setup observers and detect videos
 		this.setupObserversForAllDocuments();
@@ -143,11 +137,10 @@ export default class VideoFragments extends Plugin implements IVideoFragmentsPlu
 
 	public onunload() {
 		// Clean up context menu handlers
-		if (this.contextMenuCleanup) {
-			this.contextMenuCleanup();
-			this.contextMenuCleanup = null;
+		if (this.contextMenu) {
+			this.contextMenu.cleanup();
+			this.contextMenu = null;
 		}
-		cleanupVideoContextMenu(this.getAllRelevantDocuments());
 
 		// Clean up resize handler
 		if (this.resizeHandler) {

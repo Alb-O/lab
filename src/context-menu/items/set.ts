@@ -1,7 +1,6 @@
 import { Menu, Notice, App, Modal, Plugin, setIcon } from 'obsidian';
-import { getCurrentTimeRounded, setAndSaveVideoFragment } from '../utils';
-import { parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag } from '../../fragments/utils';
-import { VideoFragmentsSettings } from '../../settings';
+import { getCurrentTimeRounded, setAndSaveVideoFragment, parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag } from '@utils';
+import { VideoFragmentsSettings } from '@settings';
 
 export function addSetCommands(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
     menu.addItem(item => item
@@ -162,7 +161,7 @@ class FragmentInputModal extends Modal {
         if (container) { // Only create elements on first call
             // Start Time Row
             const startRow = container.createDiv({ cls: 'vfrag-modal-row' });
-            
+
             startRow.createEl('label', { text: 'Start:', cls: 'vfrag-modal-label' });
             // Determine placeholder for start time
             let startPlaceholder = "";
@@ -204,7 +203,7 @@ class FragmentInputModal extends Modal {
 
             // End Time Row
             const endRow = container.createDiv({ cls: 'vfrag-modal-row' });
-            
+
             endRow.createEl('label', { text: 'End:', cls: 'vfrag-modal-label' });
             // Determine placeholder for end time
             let endPlaceholder = "";
@@ -236,7 +235,7 @@ class FragmentInputModal extends Modal {
             this.useCurrentEndBtn.onclick = () => {
                 this.endTimeInputEl.value = formatFragment(getCurrentTimeRounded(this.video), undefined, this.settings);
             };
-            
+
             this.endTimeInputEl.addEventListener('keydown', async (event) => {
                 if (event.key === 'Enter') {
                     event.preventDefault();
@@ -244,7 +243,7 @@ class FragmentInputModal extends Modal {
                 }
             });
         }
-        
+
         // Populate start time
         if (fragment && fragment.startRaw && fragment.startRaw !== '0.001') {
             const raw = fragment.startRaw;
@@ -295,18 +294,18 @@ class FragmentInputModal extends Modal {
             this.initialEndDisplayValue = "";
         }
         this.endTimeInputEl.value = this.initialEndDisplayValue;
-    }    private async handleSave() {
+    } private async handleSave() {
         const rawStartTime = this.startTimeInputEl.value.trim();
         const rawEndTime = this.endTimeInputEl.value.trim();
         const videoDuration = this.video.duration;
-        
+
         // Add debug logging to help track the issue with chrono parsing
         console.log(`Modal attempting to save with start="${rawStartTime}", end="${rawEndTime}"`);
-        
+
         // Parse both times first - parseFragmentToSeconds now handles all time formats including chrono parsing
         const parsedStart = rawStartTime === "" ? null : parseFragmentToSeconds(rawStartTime);
         console.log(`Parsed start time: ${JSON.stringify(parsedStart)}`);
-        
+
         let parsedEnd: number | { percent: number } | null;
         if (rawEndTime.toLowerCase() === 'end' || rawEndTime.toLowerCase() === 'e') {
             parsedEnd = videoDuration;
@@ -333,7 +332,7 @@ class FragmentInputModal extends Modal {
             // Convert both to numeric seconds for comparison
             let startSecs: number;
             let endSecs: number;
-            
+
             if (typeof parsedStart === 'number') {
                 startSecs = parsedStart;
             } else if ('percent' in parsedStart) {
@@ -341,7 +340,7 @@ class FragmentInputModal extends Modal {
             } else {
                 startSecs = 0; // Fallback
             }
-            
+
             if (typeof parsedEnd === 'number') {
                 endSecs = parsedEnd;
             } else if ('percent' in parsedEnd) {
@@ -349,7 +348,7 @@ class FragmentInputModal extends Modal {
             } else {
                 endSecs = Infinity; // Fallback
             }
-            
+
             // Now compare the numeric values
             if (startSecs >= endSecs) {
                 console.log(`Validation failed: Start time ${startSecs}s is after or equal to end time ${endSecs}s`);
@@ -373,7 +372,7 @@ class FragmentInputModal extends Modal {
         if (
             !newFragment ||
             ((typeof newFragment.start === 'number' && newFragment.start === -1) && !newFragment.startRaw &&
-            (typeof newFragment.end === 'number' && newFragment.end === -1) && !newFragment.endRaw)
+                (typeof newFragment.end === 'number' && newFragment.end === -1) && !newFragment.endRaw)
         ) {
             newFragment = null;
         }

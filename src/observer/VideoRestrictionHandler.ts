@@ -1,6 +1,6 @@
-import { FragmentHandler, VideoState } from '../fragments/types';
-import { updateTimelineStyles } from './styles';
-import { VideoFragmentsSettings } from '../settings';
+import { FragmentHandler, VideoState } from '../types/types';
+import { updateTimelineStyles } from '@observer';
+import { VideoFragmentsSettings } from '@settings';
 
 /**
  * Handles video events and enforces fragment restrictions

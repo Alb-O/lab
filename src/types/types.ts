@@ -1,4 +1,4 @@
-import { VideoFragmentsSettings } from '../settings';
+import { VideoFragmentsSettings } from '@settings';
 
 /**
  * Represents the state of a video with fragment restrictions

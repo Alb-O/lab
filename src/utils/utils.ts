@@ -1,4 +1,4 @@
-import { VideoFragmentsSettings } from "src/settings";
+import { VideoFragmentsSettings } from "@settings";
 import parse from 'parse-duration';
 
 /**

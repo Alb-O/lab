@@ -1,5 +1,5 @@
 import { MarkdownView } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithFragment } from './index';
+import { extractVideosFromMarkdownView, VideoWithFragment } from '@markdown';
 
 /**
  * Class that handles detecting videos in Markdown views

@@ -1,8 +1,8 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { reinitializeRestrictionHandlers } from './video/restriction-handler';
-import { VideoDetector, VideoWithFragment } from './video';
-import { FragmentManager } from './fragments';
+import { VideoDetector } from '@observer';
+import { FragmentManager } from '@fragments';
 import { PluginEventHandler } from './plugin-event-handler';
+import type { VideoWithFragment } from '@markdown';
 
 export interface IVideoFragmentsPlugin extends Plugin {
     settings: VideoFragmentsSettings;
@@ -53,7 +53,6 @@ export class VideoFragmentsSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.loopMaxFragment = value;
                     await this.plugin.saveSettings();
-                    reinitializeRestrictionHandlers(this.plugin.settings);
                 }));
 
         new Setting(containerEl).setName("Fragment time formatting").setHeading();

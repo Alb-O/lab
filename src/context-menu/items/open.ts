@@ -1,5 +1,5 @@
 import { Menu, Notice, Plugin } from 'obsidian';
-import { getVideoLinkDetails } from '../utils';
+import { getVideoLinkDetails } from '@utils';
 
 export function addOpenCommands(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
     menu.addItem(item => item

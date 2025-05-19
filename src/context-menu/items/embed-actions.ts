@@ -1,7 +1,6 @@
 import { Menu, Notice, Plugin, MarkdownView } from 'obsidian';
-import { formatFragment } from '../../fragments/utils';
-import { getCurrentTimeRounded, removeVideoEmbedByIndex, copyGeneric } from '../utils';
-import { VideoFragmentsSettings } from '../../settings';
+import { formatFragment, getCurrentTimeRounded, removeVideoEmbedByIndex, copyGeneric } from '@utils';
+import { VideoFragmentsSettings } from '@settings';
 
 export function addEmbedActionsCommands(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
     menu.addItem(item => item

@@ -1,42 +1,10 @@
+import { observeElements } from './dom-observer';
+
 /**
  * Sets up hover behavior and play/pause state classes for video elements
  */
 export function setupVideoControls(getAllRelevantDocuments: () => Document[]): void {
-  const setupAllVideoControlsForDocuments = () => {
-    const docs = getAllRelevantDocuments();
-    docs.forEach(doc => {
-      doc.querySelectorAll('video').forEach(setupSingleVideoControls);
-    });
-  };
-
-  // Observe for video elements being added to the DOM in all relevant documents
-  const observer = new MutationObserver((mutations) => {
-    let videoAdded = false;
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
-        for (const node of Array.from(mutation.addedNodes)) {
-          if (node instanceof HTMLVideoElement || (node instanceof Element && node.querySelector('video'))) {
-            videoAdded = true;
-            break;
-          }
-        }
-      }
-      if (videoAdded) {
-        setupAllVideoControlsForDocuments();
-        break;
-      }
-    }
-  });
-
-  const docs = getAllRelevantDocuments();
-  docs.forEach(doc => {
-    if (doc.body) { // Ensure body exists before observing
-      observer.observe(doc.body, { childList: true, subtree: true });
-    }
-  });
-
-  // Initial setup for existing videos
-  setupAllVideoControlsForDocuments();
+  observeElements(getAllRelevantDocuments, 'video', setupSingleVideoControls);
 }
 
 /**

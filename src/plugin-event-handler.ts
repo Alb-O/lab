@@ -1,8 +1,6 @@
 import { MarkdownView, WorkspaceLeaf, TFile, App } from 'obsidian';
 import VideoFragments from './main';
-import { updateTimelineStyles } from './video/styles';
-// Import the custom declarations to make TypeScript aware of the augmented types
-import './custom.d';
+import { updateTimelineStyles } from '@observer';
 
 /**
  * Handles plugin events for VideoFragments plugin

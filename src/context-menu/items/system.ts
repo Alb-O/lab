@@ -1,6 +1,5 @@
 import { Menu, Plugin, Notice, TAbstractFile, Modal, App, MarkdownView } from 'obsidian';
-import { getVideoLinkDetails } from "../utils";
-import { removeVideoEmbedByIndex } from '../../context-menu/utils';
+import { removeVideoEmbedByIndex, getVideoLinkDetails } from '@utils';
 
 export function addSystemCommands(menu: Menu, plugin: Plugin, video: HTMLVideoElement) {
     menu.addItem(item => item

@@ -1,8 +1,8 @@
 import { VideoWithFragment } from '../video';
 import { VideoFragmentsSettings } from '@settings';
 import { FragmentHandler } from '../types/types';
-import { parseFragmentToSeconds } from '@utils';
 import { VideoRestrictionHandler } from '@observer';
+import { parseFragmentToSeconds } from '@utils';
 
 /**
  * Manages fragment restrictions for videos in Obsidian

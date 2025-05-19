@@ -1,8 +1,8 @@
 import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView, Notice } from 'obsidian';
-import { extractVideosFromMarkdownView, VideoWithFragment } from '../video';
-import { generateFragmentString, TempFragment, parseFragmentToSeconds } from '../fragments/utils';
+import { extractVideosFromMarkdownView, VideoWithFragment } from '@markdown';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
-import { VideoFragmentsSettings } from '../settings';
+import { generateFragmentString, TempFragment, parseFragmentToSeconds } from '@utils';
+import { VideoFragmentsSettings } from '@settings';
 
 export interface VideoLinkDetails {
     targetFile: TFile | null;
