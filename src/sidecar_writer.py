@@ -58,11 +58,20 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
     user_content_lines = []
     content_start_idx = frontmatter_end_line_idx + 1 if frontmatter_end_line_idx != -1 else 0
     old_data_block_found = False
+    # Determine which data block header to use, defaulting to the standard one
+    blend_vault_data_header_to_use = "> [!example] Blend Vault Data"
 
     for i in range(content_start_idx, len(original_lines)):
-        # Check if the current line is the start of the old data block
-        if original_lines[i].strip().startswith("> [!example] Blend Vault Data"):
+        current_line_stripped = original_lines[i].strip()
+        # Check if the current line is the start of the old data block (standard or hyphenated)
+        is_standard_header = current_line_stripped.startswith("> [!example] Blend Vault Data")
+        is_hyphenated_header = current_line_stripped.startswith("> [!example]- Blend Vault Data")
+
+        if is_standard_header or is_hyphenated_header:
             old_data_block_found = True
+            # If the hyphenated version is found, store it to be used when rewriting
+            if is_hyphenated_header:
+                blend_vault_data_header_to_use = "> [!example]- Blend Vault Data"
             # Stop collecting user content here; the rest of the old block will be discarded
             break 
         user_content_lines.append(original_lines[i])
@@ -136,7 +145,7 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
 
     # Prepare Blend Vault Data block
     blend_vault_data_lines = []
-    blend_vault_data_lines.append("> [!example] Blend Vault Data")
+    blend_vault_data_lines.append(blend_vault_data_header_to_use) # Use the determined header
     blend_vault_data_lines.append("| Type | Path | UUID4 Hash (links to sidecar) |")
     blend_vault_data_lines.append("| --- | --- | --- |")
 
