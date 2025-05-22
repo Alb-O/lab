@@ -1,6 +1,6 @@
 import bpy # type: ignore
 import os
-from ..utils.config import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_INFO, LOG_ERROR, LOG_SUCCESS, LOG_WARN, LOG_RESET
+from utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS
 from .core import relink_library_info
 
 # Store last modification times for sidecar files
@@ -27,10 +27,10 @@ def sidecar_poll_timer():
             elif sidecar_mtime > last_known_sidecar_mtime:
                 # Sidecar file changed: update timestamp and trigger full relink logic
                 t_last_sidecar_mtimes[md_path] = sidecar_mtime
-                print(f"{LOG_SUCCESS}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relink_library_info().{LOG_RESET}")
+                print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relink_library_info().{LOG_COLORS['RESET']}")
                 relink_library_info()
     except Exception as e:
-        print(f"{LOG_ERROR}[Blend Vault][sidecar_poll_timer] Error checking sidecar file '{md_path}': {e}{LOG_RESET}")
+        print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking sidecar file '{md_path}': {e}{LOG_COLORS['RESET']}")
 
     # --- Part 2: Check individual library files for modifications ---
     for lib in bpy.data.libraries:
@@ -51,14 +51,14 @@ def sidecar_poll_timer():
                 t_last_library_mtimes[lib_abs_path] = current_lib_mtime
             elif current_lib_mtime > last_known_lib_mtime:
                 t_last_library_mtimes[lib_abs_path] = current_lib_mtime
-                print(f"{LOG_WARN}[Blend Vault] Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering reload.{LOG_RESET}")
+                print(f"{LOG_COLORS['WARN']}[Blend Vault] Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering reload.{LOG_COLORS['RESET']}")
                 try:
                     lib.reload()
-                    print(f"{LOG_SUCCESS}[Blend Vault] Successfully reloaded library '{lib.name}'.{LOG_RESET}")
+                    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Successfully reloaded library '{lib.name}'.{LOG_COLORS['RESET']}")
                 except Exception as reload_e:
-                    print(f"{LOG_ERROR}[Blend Vault][sidecar_poll_timer] Error reloading library '{lib.name}': {reload_e}{LOG_RESET}")
+                    print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error reloading library '{lib.name}': {reload_e}{LOG_COLORS['RESET']}")
         except Exception as e:
-            print(f"{LOG_ERROR}[Blend Vault][sidecar_poll_timer] Error checking library '{lib.name}' ('{lib.filepath}'): {e}{LOG_RESET}")
+            print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking library '{lib.name}' ('{lib.filepath}'): {e}{LOG_COLORS['RESET']}")
 
     return POLL_INTERVAL
 
@@ -68,25 +68,24 @@ def start_sidecar_poll_timer(*args, **kwargs):
     is_registered = False
     if bpy.app.timers.is_registered(sidecar_poll_timer):
         is_registered = True
-        print(f"{LOG_INFO}[Blend Vault] Sidecar polling timer already registered.{LOG_RESET}")
+        print(f"{LOG_COLORS['INFO']}[Blend Vault] Sidecar polling timer already registered.{LOG_COLORS['RESET']}")
 
     if not is_registered:
         try:
             bpy.app.timers.register(sidecar_poll_timer, first_interval=POLL_INTERVAL)
-            print(f"{LOG_SUCCESS}[Blend Vault] Sidecar polling timer registered (interval: {POLL_INTERVAL}s).{LOG_RESET}")
+            print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar polling timer registered (interval: {POLL_INTERVAL}s).{LOG_COLORS['RESET']}")
         except Exception as e: 
-            print(f"{LOG_ERROR}[Blend Vault][Error] Failed to register sidecar polling timer: {e}{LOG_RESET}")
-
+            print(f"{LOG_COLORS['ERROR']}[Blend Vault][Error] Failed to register sidecar polling timer: {e}{LOG_COLORS['RESET']}")
 
 def register():
     bpy.app.handlers.load_post.append(start_sidecar_poll_timer)
-    print(f"{LOG_SUCCESS}[Blend Vault] Polling module registered.{LOG_RESET}")
+    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Polling module registered.{LOG_COLORS['RESET']}")
 
 def unregister():
     if start_sidecar_poll_timer in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(start_sidecar_poll_timer)
     if bpy.app.timers.is_registered(sidecar_poll_timer):
         bpy.app.timers.unregister(sidecar_poll_timer)
-        print(f"{LOG_WARN}[Blend Vault] Sidecar polling timer unregistered.{LOG_RESET}")
-    print(f"{LOG_WARN}[Blend Vault] Polling module unregistered.{LOG_RESET}")
+        print(f"{LOG_COLORS['WARN']}[Blend Vault] Sidecar polling timer unregistered.{LOG_COLORS['RESET']}")
+    print(f"{LOG_COLORS['WARN']}[Blend Vault] Polling module unregistered.{LOG_COLORS['RESET']}")
 

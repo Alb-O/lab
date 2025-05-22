@@ -1,4 +1,3 @@
-\
 from typing import List, Set, Tuple
 
 def parse_existing_frontmatter(original_lines: List[str]) -> Tuple[Set[str], int, List[str]]:
@@ -122,4 +121,4 @@ def generate_frontmatter_string(
         return "", fm_end_line_idx # Return original fm_end_line_idx for content splitting
 
     final_fm_lines = ["---"] + new_fm_internal_lines + ["---"]
-    return "\\n".join(final_fm_lines) + "\\n", fm_end_line_idx
+    return "\n".join(final_fm_lines) + "\n", fm_end_line_idx
