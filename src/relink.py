@@ -110,6 +110,14 @@ def relink_library_info(*args, **kwargs):  # Decorated as persistent handler
                         print(f"[Blend Vault][LibraryRelink] Sidecar path not found: {candidate_path}")
     if not found_links:
         print(f"[Blend Vault][LibraryRelink] No valid links found in sidecar file: {md_path}")
+    
+    # Make all paths relative after relinking attempts
+    try:
+        bpy.ops.file.make_paths_relative()
+        print(f"{BLUE}[Blend Vault][LibraryRelink] Made all external file paths relative.{RESET}")
+    except Exception as e:
+        print(f"[Blend Vault][LibraryRelink] Error making paths relative: {e}")
+
     print("[Blend Vault][LibraryRelink] Finished relink attempt.")
 
 relink_library_info.persistent = True
