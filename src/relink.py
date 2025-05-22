@@ -96,12 +96,13 @@ def relink_library_info(*args, **kwargs):
                                     if actual_lib_identifier and actual_lib_identifier == stored_blendfile_hash:
                                         found_matching_lib = True
                                         print(f"[Blend Vault][LibraryRelink] Found library '{lib.name}' with matching Blend Vault ID: {actual_lib_identifier}")
-                                        lib_path_norm = lib.filepath.replace('\\\\\\\\', '/').lstrip('//')
+                                        lib_path_norm = lib.filepath.replace('\\\\', '/').lstrip('//') # Corrected slash replacement
                                         if lib_path_norm != target_rel_path:
                                             print(f"{BLUE}[Blend Vault] Relinking '{lib.name}' from '{lib.filepath}' -> '{rel_path}'{RESET}")
                                             lib.filepath = rel_path
                                             try:
-                                                lib.reload()
+                                                lib.reload() # Reverted to lib.reload()
+                                                print(f"{BLUE}[Blend Vault][LibraryRelink] Successfully reloaded library '{lib.name}'.{RESET}")
                                             except Exception as e:
                                                 print(f"{RED}[Blend Vault][LibraryRelink] Failed to reload '{lib.name}' after path update: {e}{RESET}")
                                         else:
@@ -110,7 +111,7 @@ def relink_library_info(*args, **kwargs):
                                 
                                 if not found_matching_lib:
                                     print(f"[Blend Vault][LibraryRelink] Library with Blend Vault ID {stored_blendfile_hash} not found. Attempting to relink existing library by filename.")
-                                    # Try to find an existing loaded library whose filename matches the Markdown link name
+                                    # Try to find an existing loaded library whose filwename matches the Markdown link name
                                     md_basename = os.path.basename(active_md_link_path or stored_path_from_json)
                                     relinked_by_name = False
                                     for lib_match in bpy.data.libraries:
@@ -118,7 +119,8 @@ def relink_library_info(*args, **kwargs):
                                             print(f"{BLUE}[Blend Vault][LibraryRelink] Found existing library entry '{lib_match.name}' matching filename '{md_basename}'. Relinking to '{rel_path}'{RESET}")
                                             lib_match.filepath = rel_path
                                             try:
-                                                lib_match.reload()
+                                                lib_match.reload() # Reverted to lib_match.reload()
+                                                print(f"{BLUE}[Blend Vault][LibraryRelink] Successfully reloaded library '{lib_match.name}' (name match).{RESET}")
                                                 relinked_by_name = True
                                                 found_any_link_to_process = True
                                             except Exception as e:
@@ -154,7 +156,7 @@ def relink_library_info(*args, **kwargs):
                                                 print(f"{BLUE}[Blend Vault][LibraryRelink] Found a missing library entry '{lib_to_fix.name}' (matching MD link name '{current_link_name_for_processing}'). Updating its path from '{lib_to_fix.filepath}' to '{rel_path}'.{RESET}")
                                                 lib_to_fix.filepath = rel_path 
                                                 try:
-                                                    lib_to_fix.reload()
+                                                    lib_to_fix.reload() # Reverted to lib_to_fix.reload()
                                                     print(f"{BLUE}[Blend Vault][LibraryRelink] Successfully reloaded library '{lib_to_fix.name}' at new path: {rel_path}{RESET}")
                                                     relinked_or_loaded_by_path = True
                                                 except Exception as e:
@@ -179,7 +181,7 @@ def relink_library_info(*args, **kwargs):
                                             print(f"{BLUE}[Blend Vault][LibraryRelink] No specific missing library matched by name. Attempting to use first available missing library entry '{first_broken_lib_candidate.name}' for path '{rel_path}'.{RESET}")
                                             first_broken_lib_candidate.filepath = rel_path
                                             try:
-                                                first_broken_lib_candidate.reload()
+                                                first_broken_lib_candidate.reload() # Reverted to first_broken_lib_candidate.reload()
                                                 print(f"{BLUE}[Blend Vault][LibraryRelink] Successfully reloaded library '{first_broken_lib_candidate.name}' at new path: {rel_path}{RESET}")
                                                 relinked_or_loaded_by_path = True
                                             except Exception as e:
@@ -279,26 +281,69 @@ relink_library_info.persistent = True
 
 # Store last modification times for sidecar files
 t_last_sidecar_mtimes = {}
+# Store last modification times for library files themselves
+t_last_library_mtimes = {}
 
 def sidecar_poll_timer():
-    """Timer callback to poll sidecar file changes and trigger relink if modified."""
+    """Timer callback to poll sidecar file changes and trigger relink if modified,
+    and also polls library files for modifications."""
     blend_path = bpy.data.filepath
-    if blend_path:
-        md_path = blend_path + SIDECAR_EXTENSION
+    if not blend_path: # Current .blend file is not saved or no file is open
+        return POLL_INTERVAL
+
+    # --- Part 1: Check sidecar file for modifications (triggers full relink if changed) ---
+    md_path = blend_path + SIDECAR_EXTENSION
+    try:
+        if os.path.exists(md_path):
+            sidecar_mtime = os.path.getmtime(md_path)
+            last_known_sidecar_mtime = t_last_sidecar_mtimes.get(md_path)
+            if last_known_sidecar_mtime is None:
+                # Initialize
+                t_last_sidecar_mtimes[md_path] = sidecar_mtime
+            elif sidecar_mtime > last_known_sidecar_mtime:
+                # Sidecar file changed: update timestamp and trigger full relink logic
+                t_last_sidecar_mtimes[md_path] = sidecar_mtime
+                print(f"{GREEN}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relink_library_info().{RESET}")
+                relink_library_info()
+    except Exception as e:
+        print(f"{RED}[Blend Vault][sidecar_poll_timer] Error checking sidecar file '{md_path}': {e}{RESET}")
+
+    # --- Part 2: Check individual library files for modifications ---
+    for lib in bpy.data.libraries:
+        if not lib.filepath or lib.filepath.startswith("<builtin>"):
+            continue # Skip libraries with no path or built-in ones
+
         try:
-            if os.path.exists(md_path):
-                mtime = os.path.getmtime(md_path)
-                last = t_last_sidecar_mtimes.get(md_path)
-                if last is None:
-                    # initialize
-                    t_last_sidecar_mtimes[md_path] = mtime
-                elif mtime > last:
-                    # file changed: update timestamp and relink
-                    t_last_sidecar_mtimes[md_path] = mtime
-                    print(f"{GREEN}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relink.{RESET}")
-                    relink_library_info()
+            lib_abs_path = bpy.path.abspath(lib.filepath)
+            if not os.path.exists(lib_abs_path):
+                # If library file doesn't exist, relink_library_info (if triggered by sidecar)
+                # would handle it. If it was tracked and now gone, remove from mtime tracking.
+                if lib_abs_path in t_last_library_mtimes:
+                    del t_last_library_mtimes[lib_abs_path]
+                    # print(f"{YELLOW}[Blend Vault] Library file '{lib_abs_path}' for '{lib.name}' no longer exists. Removed from mtime tracking.{RESET}")
+                continue
+
+            current_lib_mtime = os.path.getmtime(lib_abs_path)
+            last_known_lib_mtime = t_last_library_mtimes.get(lib_abs_path)
+
+            if last_known_lib_mtime is None:
+                # Initialize mtime for this library file
+                t_last_library_mtimes[lib_abs_path] = current_lib_mtime
+                # print(f"[Blend Vault] Initialized mtime for library '{lib.name}' at '{lib_abs_path}'.")
+            elif current_lib_mtime > last_known_lib_mtime:
+                # Library file has been modified since last check
+                t_last_library_mtimes[lib_abs_path] = current_lib_mtime
+                print(f"{GREEN}[Blend Vault] Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering reload.{RESET}")
+                try:
+                    lib.reload()
+                    print(f"{BLUE}[Blend Vault] Successfully reloaded library '{lib.name}'.{RESET}")
+                except Exception as reload_e:
+                    print(f"{RED}[Blend Vault][sidecar_poll_timer] Error reloading library '{lib.name}': {reload_e}{RESET}")
         except Exception as e:
-            print(f"{RED}[Blend Vault][sidecar_poll_timer] Error checking sidecar file '{md_path}': {e}{RESET}")
+            # Catch errors related to processing a specific library (e.g., path resolution, os.stat)
+            print(f"{RED}[Blend Vault][sidecar_poll_timer] Error checking library '{lib.name}' ('{lib.filepath}'): {e}{RESET}")
+            # Ensure the timer loop continues for other libraries.
+
     return POLL_INTERVAL
 
 @bpy.app.handlers.persistent

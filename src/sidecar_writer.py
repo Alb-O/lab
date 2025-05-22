@@ -195,7 +195,10 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
             raw_library_identity_str = library_uuid
             
             # Add the markdown link for the library
-            blend_vault_data_lines.append(f"[{os.path.basename(processed_lib_path)}](<{processed_lib_path}>)")
+            # Ensure forward slashes for markdown link path
+            markdown_link_path = os.path.basename(processed_lib_path).replace('\\', '/') if os.path.basename(processed_lib_path) else processed_lib_path.replace('\\', '/')
+            markdown_link_target = processed_lib_path.replace('\\', '/')
+            blend_vault_data_lines.append(f"[{markdown_link_path}](<{markdown_link_target}>)")
             
             # Prepare JSON data for the library
             parsed_library_identity = None
