@@ -27,7 +27,7 @@ FRONTMATTER_TAGS = {"sidecar", "blendvault"}
 POLL_INTERVAL = 5.0
 
 # --- Blend Vault UUID/Hash Key Constants ---
-BLEND_VAULT_HASH_PROP = "blend_vault_hash"
+BLEND_VAULT_HASH_PROP = "blend_vault_data"
 BLEND_VAULT_FILE_UUID_KEY = "blendfile_uuid"
 BLEND_VAULT_UUID_KEY = "uuid"
 
