@@ -64,7 +64,7 @@ def relink_library_info(*args, **kwargs):
                         try:
                             data = json.loads(json_str)
                             stored_path_from_json = data.get("path")
-                            stored_blendfile_hash = data.get(BLEND_VAULT_HASH_PROP)
+                            stored_blendfile_hash = data.get(BLEND_VAULT_UUID_KEY)
                             
                             if stored_path_from_json and stored_blendfile_hash and stored_blendfile_hash != "MISSING_HASH":
                                 print(f"{LOG_COLORS['INFO']}[Blend Vault][LibraryRelink] Processing entry: Path='{stored_path_from_json}', Blendfile Hash='{stored_blendfile_hash}' (from MD link '{current_link_name_for_processing}'){LOG_COLORS['RESET']}")
@@ -221,7 +221,9 @@ def relink_library_info(*args, **kwargs):
                     parsing_json_block = True
                     json_accumulator = []
             
-            elif line_stripped.startswith("###") or line_stripped.startswith("## "): 
+            # Correctly identify section breaks to avoid premature termination for '####' prefixed links.
+            # A new section is ## followed by non-#, or ### followed by non-#.
+            elif re.match(r"^(##[^#]|###[^#])", line_stripped):
                 if parsing_json_block:
                     print(f"{LOG_COLORS['WARN']}[Blend Vault][LibraryRelink] Warning: Encountered new header while still parsing JSON for '{active_md_link_name_for_log}'. Discarding partial JSON.{LOG_COLORS['RESET']}")
                     parsing_json_block = False
@@ -231,7 +233,8 @@ def relink_library_info(*args, **kwargs):
 
             else: 
                 # Match new format using MD_LINK_FORMATS
-                md_link_match = re.match(MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['regex'], line_stripped)
+                # Use re.search to find link pattern anywhere in the line, accommodating prefixes like '####'
+                md_link_match = re.search(MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['regex'], line_stripped)
                 if md_link_match:
                     if active_md_link_name_for_log and not parsing_json_block: 
                         print(f"{LOG_COLORS['WARN']}[Blend Vault][LibraryRelink] Warning: MD link for '{active_md_link_name_for_log}' wasn't followed by JSON before new link for '{md_link_match.group(1)}'.{LOG_COLORS['RESET']}")
