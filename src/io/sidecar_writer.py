@@ -1,17 +1,17 @@
 import bpy  # type: ignore
 import os
-from datetime import datetime, timezone  # Added datetime and timezone
-from .hashing import ensure_blendfile_hash, ensure_library_hash  # Added ensure_library_hash
-from .config import GREEN, RESET, SIDECAR_EXTENSION, FRONTMATTER_TAGS  # Added FRONTMATTER_TAGS
-import json  # Added for JSON handling
-import re  # For parsing library sidecar JSON
+from ..utils.hashing import ensure_blendfile_hash, ensure_library_hash
+from ..utils.config import LOG_INFO, LOG_ERROR, LOG_SUCCESS, LOG_WARN, LOG_RESET, SIDECAR_EXTENSION, FRONTMATTER_TAGS
+from .frontmatter import parse_existing_frontmatter, reconstruct_frontmatter_internal_lines, generate_frontmatter_string
+import json
+import re
 
 @bpy.app.handlers.persistent
 def write_library_info(*args, **kwargs):  # Decorated as persistent handler
-    print(f"{GREEN}[Blend Vault] Preparing to write sidecar for: {bpy.data.filepath}{RESET}")
+    print(f"{LOG_INFO}[Blend Vault] Preparing to write sidecar for: {bpy.data.filepath}{LOG_RESET}")
     blend_path = bpy.data.filepath
     if not blend_path:
-        print("[Blend Vault][LibraryInfo] No blend file path found, skipping write.")
+        print(f"{LOG_WARN}[Blend Vault][LibraryInfo] No blend file path found, skipping write.{LOG_RESET}")
         return
 
     md_path = blend_path + SIDECAR_EXTENSION
@@ -23,126 +23,13 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
         with open(md_path, 'r', encoding='utf-8') as f_read:
             original_lines = f_read.readlines()
 
-    existing_tags = set()
-    frontmatter_end_line_idx = -1
-    if original_lines and original_lines[0].strip() == "---":
-        try:
-            # Try to find the closing '---' for frontmatter
-            for i in range(1, len(original_lines)):
-                if original_lines[i].strip() == "---":
-                    frontmatter_end_line_idx = i
-                    break
-            
-            if frontmatter_end_line_idx != -1:
-                is_tags_section = False
-                for i in range(1, frontmatter_end_line_idx):
-                    line_content = original_lines[i].strip()
-                    if line_content.startswith("tags:"):
-                        is_tags_section = True
-                        # Handle tags on the same line as "tags:" (e.g., tags: tagA, tagB)
-                        tag_value_str = line_content.split("tags:", 1)[1].strip()
-                        if tag_value_str:
-                            if tag_value_str.startswith('[') and tag_value_str.endswith(']'): # Handle JSON-like array
-                                tag_value_str = tag_value_str[1:-1]
-                            for t in tag_value_str.split(','):
-                                cleaned_tag = t.strip()
-                                if cleaned_tag:
-                                    existing_tags.add(cleaned_tag)
-                    elif is_tags_section and line_content.startswith("- "):
-                        existing_tags.add(line_content[2:].strip())
-                    elif is_tags_section and not (line_content.startswith("  ") or line_content.startswith("- ")):
-                        is_tags_section = False # End of current tags section
-        except IndexError: # Should not happen with valid line list
-            pass
-        except ValueError: # No closing ---, so no valid frontmatter or malformed
-            frontmatter_end_line_idx = -1 # Reset if parsing failed
-
-    user_content_lines = []
-    content_start_idx = frontmatter_end_line_idx + 1 if frontmatter_end_line_idx != -1 else 0
-    old_data_block_found = False # Flag to indicate if any version of the BV data block was found in the original file
-
-    # This loop identifies user content by stopping when it finds the start of any known Blend Vault data block.
-    for i in range(content_start_idx, len(original_lines)):
-        current_line_raw = original_lines[i] # Preserve original line including newline characters
-        current_line_stripped = current_line_raw.strip()
-
-        # Check for the new primary header format
-        is_new_format_header = current_line_stripped.startswith("## %% Blend Vault Data")
-        
-        # Check for old callout-style headers for backward compatibility
-        is_old_callout_header_standard = current_line_stripped.startswith("> [!example] Blend Vault Data")
-        is_old_callout_header_hyphenated = current_line_stripped.startswith("> [!example]- Blend Vault Data")
-
-        if is_new_format_header or is_old_callout_header_standard or is_old_callout_header_hyphenated:
-            old_data_block_found = True # Mark that we found a data block to replace
-            # Stop collecting user content; the lines from this point in the original file will be replaced.
-            break 
-        
-        user_content_lines.append(current_line_raw) # Add to user content if not a data block header
-
-    # Prepare new frontmatter
+    # Use functions from frontmatter.py
+    existing_frontmatter, user_content_lines = parse_existing_frontmatter(original_lines)
     new_defined_tags = FRONTMATTER_TAGS  # Use from config
-    final_tags = sorted(list(existing_tags.union(new_defined_tags)))
-    
-    current_time_utc = datetime.now(timezone.utc)  # Added for timestamp
-    formatted_time = current_time_utc.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'  # Added for timestamp
+    final_tags = sorted(list(existing_frontmatter.get("tags", set()).union(new_defined_tags)))
 
-    reconstructed_fm_content_lines = []
-    if frontmatter_end_line_idx != -1: # If valid frontmatter was found
-        # Process lines between "---" fences
-        fm_lines_to_process = original_lines[1:frontmatter_end_line_idx]
-        i = 0
-        tags_block_written_for_new_fm = False # Flag to ensure tags are written only once
-
-        while i < len(fm_lines_to_process):
-            line_raw = fm_lines_to_process[i]
-            line_stripped = line_raw.strip()
-
-            if line_stripped.startswith("tags:") and not tags_block_written_for_new_fm:
-                # Encountered the original 'tags:' key. Write our new/updated tags block.
-                if final_tags:
-                    reconstructed_fm_content_lines.append("tags:")
-                    for tag in final_tags:
-                        reconstructed_fm_content_lines.append(f"  - {tag}")
-                tags_block_written_for_new_fm = True
-                
-                # Advance 'i' past the old "tags:" line itself
-                i += 1 
-                # Skip subsequent lines if they are part of the old tags list's values
-                while i < len(fm_lines_to_process):
-                    current_line_in_old_tags_raw = fm_lines_to_process[i]
-                    # A line is an old tag item if it's a YAML list item,
-                    # typically starting with "- " (possibly indented)
-                    if current_line_in_old_tags_raw.lstrip().startswith("- "):
-                        i += 1 # Skip this old tag item line
-                    else:
-                        # This line is not an old tag item, so the old tags block (values) has ended.
-                        break 
-                continue # Continue the outer while loop; 'i' is already at the next line to process or end
-            else:
-                # This line is not "tags:" (or "tags:" has already been processed and replaced).
-                # So, preserve this line.
-                reconstructed_fm_content_lines.append(line_raw.rstrip('\r\n'))
-                i += 1
-        
-        # If the original frontmatter didn't have a "tags:" key, but we have tags to write,
-        # add them at the end of the collected frontmatter content.
-        if not tags_block_written_for_new_fm and final_tags:
-            reconstructed_fm_content_lines.append("tags:")
-            for tag in final_tags:
-                reconstructed_fm_content_lines.append(f"  - {tag}")
-        
-        new_frontmatter_lines = ["---"] + reconstructed_fm_content_lines + ["---"]
-    else: # No existing frontmatter, or it was malformed. Create from scratch.
-        new_frontmatter_lines = ["---"]
-        # existing_tags would be empty, so final_tags are just new_defined_tags from config
-        if final_tags: 
-            new_frontmatter_lines.append("tags:")
-            for tag in final_tags:
-                new_frontmatter_lines.append(f"  - {tag}")
-        new_frontmatter_lines.append("---")
-
-    new_frontmatter_string = "\n".join(new_frontmatter_lines) + "\n"
+    reconstructed_fm_content_lines = reconstruct_frontmatter_internal_lines(existing_frontmatter, final_tags)
+    new_frontmatter_string = generate_frontmatter_string(reconstructed_fm_content_lines)
 
     # Prepare user content string (stripped, with appropriate newlines)
     processed_user_content = "".join(user_content_lines).strip()
@@ -207,7 +94,7 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
                 try:
                     parsed_library_identity = json.loads(raw_library_identity_str)
                 except json.JSONDecodeError:
-                    print(f"[Blend Vault][Info] 'blend_vault_hash' for library {lib.filepath} is not valid JSON. Assuming it's a direct UUID or marker. Content: '{raw_library_identity_str}'")
+                    print(f"{LOG_INFO}[Blend Vault][Info] 'blend_vault_hash' for library {lib.filepath} is not valid JSON. Assuming it's a direct UUID or marker. Content: '{raw_library_identity_str}'{LOG_RESET}")
                     # parsed_library_identity remains None
 
             # Determine the library's own blendfile_uuid to store
@@ -286,7 +173,7 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
     if processed_user_content:
         final_content_parts.append(processed_user_content)
         final_content_parts.append("\n\n") # Ensure separation after user content
-    elif len(new_frontmatter_lines) > 2: # Frontmatter exists (more than just '---' boundaries)
+    elif len(reconstructed_fm_content_lines) > 0: # Frontmatter exists
         final_content_parts.append("\n") # Add a newline to separate frontmatter from data block
 
     blend_vault_data_block_string = "\n".join(blend_vault_data_lines) + "\n"
@@ -297,9 +184,9 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
     try:
         with open(md_path, 'w', encoding='utf-8') as f_write:
             f_write.write(output_content)
-        print(f"{GREEN}[Blend Vault] Sidecar file written to: {md_path}{RESET}")
+        print(f"{LOG_SUCCESS}[Blend Vault] Sidecar file written to: {md_path}{LOG_RESET}")
     except Exception as e:
-        print(f"[Blend Vault][Error] Failed to write sidecar file {md_path}: {e}")
+        print(f"{LOG_ERROR}[Blend Vault][Error] Failed to write sidecar file {md_path}: {e}{LOG_RESET}")
 
 # Ensure the handler remains persistent
 write_library_info.persistent = True
