@@ -2,6 +2,7 @@ import bpy # type: ignore
 import os
 from utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS
 from .core import relink_library_info
+from .asset_relinker import relink_renamed_assets
 
 # Store last modification times for sidecar files
 t_last_sidecar_mtimes = {}
@@ -21,14 +22,26 @@ def sidecar_poll_timer():
         if os.path.exists(md_path):
             sidecar_mtime = os.path.getmtime(md_path)
             last_known_sidecar_mtime = t_last_sidecar_mtimes.get(md_path)
-            if last_known_sidecar_mtime is None:
-                # Initialize
+            if last_known_sidecar_mtime is None:                # Initialize
                 t_last_sidecar_mtimes[md_path] = sidecar_mtime
             elif sidecar_mtime > last_known_sidecar_mtime:
                 # Sidecar file changed: update timestamp and trigger full relink logic
                 t_last_sidecar_mtimes[md_path] = sidecar_mtime
-                print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relink_library_info().{LOG_COLORS['RESET']}")
+                print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relinking sequence.{LOG_COLORS['RESET']}")
+                # Run asset relinking BEFORE library relinking to avoid session invalidation
+                print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running asset datablock relinking first (before library reloads).{LOG_COLORS['RESET']}")
+                relink_renamed_assets()
+                print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running library path relinking second.{LOG_COLORS['RESET']}")
                 relink_library_info()
+                # Sync library file mtimes to prevent polling-triggered reload wiping out relink
+                try:
+                    for lib in bpy.data.libraries:
+                        if lib.filepath and not lib.filepath.startswith('<builtin>'):
+                            lib_abs_path = bpy.path.abspath(lib.filepath)
+                            if os.path.exists(lib_abs_path):
+                                t_last_library_mtimes[lib_abs_path] = os.path.getmtime(lib_abs_path)
+                except Exception:
+                    pass
     except Exception as e:
         print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking sidecar file '{md_path}': {e}{LOG_COLORS['RESET']}")
 
@@ -79,11 +92,19 @@ def start_sidecar_poll_timer(*args, **kwargs):
 
 def register():
     bpy.app.handlers.load_post.append(start_sidecar_poll_timer)
+    # Also run library and asset relinkers on file load
+    bpy.app.handlers.load_post.append(relink_library_info)
+    bpy.app.handlers.load_post.append(relink_renamed_assets)
     print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Polling module registered.{LOG_COLORS['RESET']}")
 
 def unregister():
     if start_sidecar_poll_timer in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(start_sidecar_poll_timer)
+    # Remove library and asset relinker handlers
+    if relink_library_info in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(relink_library_info)
+    if relink_renamed_assets in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(relink_renamed_assets)
     if bpy.app.timers.is_registered(sidecar_poll_timer):
         bpy.app.timers.unregister(sidecar_poll_timer)
         print(f"{LOG_COLORS['WARN']}[Blend Vault] Sidecar polling timer unregistered.{LOG_COLORS['RESET']}")

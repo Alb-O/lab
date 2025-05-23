@@ -25,6 +25,7 @@ LOG_COLORS = {
     'SUCCESS': '\033[92m', # Green: Success/confirmation
     'WARN': '\033[93m',    # Yellow: Warnings
     'ERROR': '\033[91m',   # Red: Errors
+    'DEBUG': '\033[95m',   # Magenta: Debug messages (added)
     'RESET': '\033[0m',    # Reset to default
 }
 
