@@ -400,16 +400,12 @@ def relink_renamed_assets(*args, **kwargs):
                     # For absolute paths, still normalize to resolve any ".." components
                     abs_libblend_path = os.path.normpath(lib_fp)
                     print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   Path resolution: '{lib_fp}' -> normpath -> '{abs_libblend_path}'{LOG_COLORS['RESET']}")
-                asset_type = op_data['target_asset_type']    # Asset type (e.g., "Collection")
-                new_asset_name = op_data['target_asset_name']  # New name of the asset in the library                # Construct parameters for bpy.ops.wm.id_linked_relocate
-                # Based on working example:
-                # filepath="//..\\..\\folder2\\Untitled\\asset cube2.blend\\Collection\\RENAMED"
-                # directory="C:\\Users\\Albert\\_\\obsidian vaults\\blend-vault\\tests\\folder2\\Untitled\\asset cube2.blend\\Collection\\"
-                # filename="RENAMED"
-                # relative_path=True
+                asset_type = op_data['target_asset_type']  # Asset type (e.g., "Collection")
+                new_asset_name = op_data['target_asset_name']  # New name of the asset in the library
                 
+                # Construct parameters for bpy.ops.wm.id_linked_relocate
                 filename_arg = new_asset_name
-                op_relative_path_bool = lib_fp.startswith("//")                # filepath_arg: Relative path to .blend file + internal datablock path
+                op_relative_path_bool = lib_fp.startswith("//") # filepath_arg: Relative path to .blend file + internal datablock path
                 if op_relative_path_bool:
                     # Use the original relative path with backslashes, append internal path
                     filepath_arg = f"{lib_fp}\\{asset_type}\\{new_asset_name}"
@@ -421,23 +417,15 @@ def relink_renamed_assets(*args, **kwargs):
                 # Must always be absolute, even when relative_path=True
                 directory_arg = f"{abs_libblend_path}\\{asset_type}\\"
                 
-                # Debug output to verify parameter construction
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   DEBUG: lib_fp: '{lib_fp}'{LOG_COLORS['RESET']}")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   DEBUG: abs_libblend_path: '{abs_libblend_path}'{LOG_COLORS['RESET']}")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   DEBUG: asset_type: '{asset_type}'{LOG_COLORS['RESET']}")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   DEBUG: new_asset_name: '{new_asset_name}'{LOG_COLORS['RESET']}")
+                # Store the current name before relinking to verify the operation later
+                original_session_uid = op_data['session_uid']
                 
-                # Logging before call
-                print(f"{LOG_COLORS['INFO']}[Blend Vault][AssetRelink] Attempting to relocate ID with session_uid: {op_data['session_uid']}{LOG_COLORS['RESET']}")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   Old name: '{op_data['old_name_for_log']}', UUID: {op_data['uuid_for_log']}{LOG_COLORS['RESET']}")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   Parameters for id_linked_relocate:")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]     filepath:      '{filepath_arg}'")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]     directory:     '{directory_arg}'")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]     filename:      '{filename_arg}'")
-                print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]     relative_path: {op_relative_path_bool}{LOG_COLORS['RESET']}")
+                # Also get a backup reference using the UUID instead of session_uid
+                backup_uuid = getattr(session_item, BLEND_VAULT_HASH_PROP, None)
                 
                 try:
                     result = bpy.ops.wm.id_linked_relocate(
+                        # id_session_uid is the correct parameter name, not session_uid
                         id_session_uid=op_data['session_uid'],
                         filepath=filepath_arg,
                         directory=directory_arg,
@@ -447,18 +435,39 @@ def relink_renamed_assets(*args, **kwargs):
                     print(f"{LOG_COLORS['SUCCESS']}[Blend Vault][AssetRelink] bpy.ops.wm.id_linked_relocate for '{op_data['old_name_for_log']}' returned: {result}{LOG_COLORS['RESET']}")
                     
                     # Re-fetch the session item as it might have been replaced or invalidated by the relink operation
-                    # collection_map should still be valid as it's derived from bpy.data
+                    # Try multiple strategies to find the renamed item
                     bpy_collection_after_relink = collection_map.get(op_data['target_asset_type'])
                     refetched_session_item = None
+                    
                     if bpy_collection_after_relink:
-                        refetched_session_item = next((item for item in bpy_collection_after_relink if getattr(item, 'session_uid', None) == op_data['session_uid']), None)
+                        # Strategy 1: Try to find by original session_uid
+                        refetched_session_item = next((item for item in bpy_collection_after_relink if getattr(item, 'session_uid', None) == original_session_uid), None)
+                        
+                        if not refetched_session_item and backup_uuid:
+                            # Strategy 2: Try to find by UUID if session_uid lookup failed
+                            print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink] Session UID lookup failed, trying UUID backup lookup for {backup_uuid}{LOG_COLORS['RESET']}")
+                            refetched_session_item = next((item for item in bpy_collection_after_relink if getattr(item, BLEND_VAULT_HASH_PROP, None) == backup_uuid), None)
+                        
+                        if not refetched_session_item:
+                            # Strategy 3: Try to find by new name in same library
+                            print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink] UUID lookup also failed, trying name-based lookup for '{new_asset_name}'{LOG_COLORS['RESET']}")
+                            for item in bpy_collection_after_relink:
+                                item_lib_path = None
+                                if getattr(item, 'library', None) and item.library.filepath:
+                                    item_lib_path = bpy.path.abspath(item.library.filepath)
+                                if item_lib_path and os.path.normpath(item_lib_path) == abs_libblend_path and item.name == new_asset_name:
+                                    refetched_session_item = item
+                                    print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink] Found renamed item by name and library match: '{item.name}'{LOG_COLORS['RESET']}")
+                                    break
                     
                     if refetched_session_item:
-                        refetched_session_item.name = filename_arg
-                        print(f"{LOG_COLORS['SUCCESS']}[Blend Vault][AssetRelink] Renamed session item to '{filename_arg}'.{LOG_COLORS['RESET']}")
+                        print(f"{LOG_COLORS['SUCCESS']}[Blend Vault][AssetRelink] Successfully refetched session item '{refetched_session_item.name}' after relink.{LOG_COLORS['RESET']}")
+                        # The item should already have the new name after relinking, but ensure consistency
+                        if refetched_session_item.name != new_asset_name:
+                            print(f"{LOG_COLORS['WARN']}[Blend Vault][AssetRelink] Item name '{refetched_session_item.name}' doesn't match expected '{new_asset_name}', updating...{LOG_COLORS['RESET']}")
+                            refetched_session_item.name = new_asset_name
                     else:
-                        print(f"{LOG_COLORS['WARN']}[Blend Vault][AssetRelink] Could not re-find session item with UID {op_data['session_uid']} after relink to rename it.{LOG_COLORS['RESET']}")
-
+                        print(f"{LOG_COLORS['WARN']}[Blend Vault][AssetRelink] Could not re-find session item after relink. Original session_uid: {original_session_uid}, UUID: {backup_uuid}{LOG_COLORS['RESET']}")
                 except RuntimeError as e:
                     print(f"{LOG_COLORS['ERROR']}[Blend Vault][AssetRelink] RuntimeError during bpy.ops.wm.id_linked_relocate: {e}{LOG_COLORS['RESET']}")
                 except Exception as e:

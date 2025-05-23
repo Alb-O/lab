@@ -64,12 +64,16 @@ def sidecar_poll_timer():
                 t_last_library_mtimes[lib_abs_path] = current_lib_mtime
             elif current_lib_mtime > last_known_lib_mtime:
                 t_last_library_mtimes[lib_abs_path] = current_lib_mtime
-                print(f"{LOG_COLORS['WARN']}[Blend Vault] Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering reload.{LOG_COLORS['RESET']}")
+                print(f"{LOG_COLORS['WARN']}[Blend Vault] Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering coordinated relinking sequence.{LOG_COLORS['RESET']}")
                 try:
+                    # Run coordinated sequence: asset relinking first, then library relinking
+                    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running asset datablock relinking first (before library reload).{LOG_COLORS['RESET']}")
+                    relink_renamed_assets()
+                    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running library reload second.{LOG_COLORS['RESET']}")
                     lib.reload()
-                    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Successfully reloaded library '{lib.name}'.{LOG_COLORS['RESET']}")
+                    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Successfully completed coordinated relinking for library '{lib.name}'.{LOG_COLORS['RESET']}")
                 except Exception as reload_e:
-                    print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error reloading library '{lib.name}': {reload_e}{LOG_COLORS['RESET']}")
+                    print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error during coordinated relinking for library '{lib.name}': {reload_e}{LOG_COLORS['RESET']}")
         except Exception as e:
             print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking library '{lib.name}' ('{lib.filepath}'): {e}{LOG_COLORS['RESET']}")
 
@@ -109,4 +113,3 @@ def unregister():
         bpy.app.timers.unregister(sidecar_poll_timer)
         print(f"{LOG_COLORS['WARN']}[Blend Vault] Sidecar polling timer unregistered.{LOG_COLORS['RESET']}")
     print(f"{LOG_COLORS['WARN']}[Blend Vault] Polling module unregistered.{LOG_COLORS['RESET']}")
-
