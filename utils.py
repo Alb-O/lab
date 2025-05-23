@@ -1,4 +1,23 @@
+import bpy  # type: ignore
 import uuid
+import hashlib
+
+def get_asset_sources_map():
+    """
+    Initializes and returns the ASSET_SOURCES_MAP dictionary.
+    This version does not cache the instance, ensuring fresh bpy.data references on each call.
+    """
+    # Always create and return a new dictionary with current bpy.data references
+    return {
+        "Collection": bpy.data.collections,
+        "Object": bpy.data.objects,
+        "World": bpy.data.worlds,
+        "Material": bpy.data.materials,
+        "Brush": bpy.data.brushes,
+        "Action": bpy.data.actions,
+        "NodeTree": bpy.data.node_groups,
+        "Scene": bpy.data.scenes,
+    }
 
 # Log color codes (ANSI escape sequences)
 LOG_COLORS = {
@@ -46,8 +65,6 @@ def ensure_library_hash(lib):
         return new_hash
     # If lib is a string (e.g., file path), return a deterministic hash or UUID
     if isinstance(lib, str):
-        # Optionally, use a deterministic hash for file paths
-        import hashlib
         hash_str = hashlib.sha256(lib.encode('utf-8')).hexdigest()
         return hash_str
     # Fallback: just return a new UUID
