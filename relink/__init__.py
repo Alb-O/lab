@@ -1,4 +1,4 @@
-from . import core
+from . import library_relinker
 from . import polling
 from . import asset_relinker
 import sys
@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import utils
 
 def register():
-    core.register()
+    library_relinker.register()
     polling.register()
     asset_relinker.register()
     
@@ -24,5 +24,5 @@ def unregister():
     
     asset_relinker.unregister()
     polling.unregister()
-    core.unregister()
+    library_relinker.unregister()
     print(f"{utils.LOG_COLORS['WARN']}[Blend Vault] Relink module unregistered.{utils.LOG_COLORS['RESET']}")

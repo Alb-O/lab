@@ -1,7 +1,7 @@
 import bpy # type: ignore
 import os
 from utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS
-from .core import relink_library_info
+from .library_relinker import relink_library_info
 from .asset_relinker import relink_renamed_assets
 
 # Store last modification times for sidecar files
