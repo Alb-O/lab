@@ -13,6 +13,12 @@ _relocation_dialog_shown = False
 # Track files where user chose to ignore relocation for this session
 _ignored_relocations = set()
 
+# Track pending relocations that user can click on
+_pending_relocations = {}
+
+# Timer for showing status messages
+_status_timer = None
+
 _current_blend_file_for_cleanup = None
 
 print("[Blend Vault][Redirect] redirect_handler.py module loaded.")
@@ -99,12 +105,11 @@ def check_file_relocation():
 		linked_path = link_match.group(2)
 
 		current_filename = os.path.basename(blend_path)
-
 		# If path is still relative (./ prefix), file hasn't been moved
 		if linked_path.startswith(f'./{current_filename}'):
+			# Clear any pending relocations for this file
+			_pending_relocations.pop(blend_path, None)
 			return
-
-		# File has been moved - extract new path
 		if linked_path.startswith('../') or linked_path.startswith('./'):
 			# Calculate the new absolute path based on the relative path
 			# Use the directory where the redirect file is located as the base
@@ -113,15 +118,46 @@ def check_file_relocation():
 		else:
 			# Absolute path or other format
 			new_path = linked_path
+		
 		# Check if the new path exists
 		if os.path.exists(new_path):
-			# Prompt user for action
-			_prompt_file_relocation(blend_path, new_path)
+			# Only proceed if this is a new relocation (not already pending)
+			if blend_path not in _pending_relocations:
+				# Store pending relocation for status clicking
+				_pending_relocations[blend_path] = new_path
+				# Don't clean up redirect file yet - keep it for potential future moves
+				# Refresh UI to show updated panel
+				for area in bpy.context.screen.areas:
+					if area.type == 'VIEW_3D':
+						area.tag_redraw()
+				# Show status message
+				_show_relocation_status_message(blend_path, new_path)
+				# Show modal dialog only if not already shown
+				if not _relocation_dialog_shown:
+					_prompt_file_relocation(blend_path, new_path)
+			else:
+				# Update the path if it's different (file moved again)
+				if _pending_relocations[blend_path] != new_path:
+					_pending_relocations[blend_path] = new_path
+					# Refresh UI to show updated path
+					for area in bpy.context.screen.areas:
+						if area.type == 'VIEW_3D':
+							area.tag_redraw()
+					print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] Updated relocation path: {os.path.basename(blend_path)} -> {os.path.basename(new_path)}{LOG_COLORS['RESET']}")
+					# Show new modal dialog for the different location
+					if not _relocation_dialog_shown:
+						_prompt_file_relocation(blend_path, new_path)
 
 	except Exception as e:
 		print(
-			f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error checking redirect file {redirect_path}: {e}{LOG_COLORS['RESET']}"
-		)
+			f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error checking redirect file {redirect_path}: {e}{LOG_COLORS['RESET']}"		)
+
+
+def _show_relocation_status_message(current_path: str, new_path: str):
+	"""Shows a status message for file relocation."""
+	filename = os.path.basename(current_path)
+	new_filename = os.path.basename(new_path)
+	print(f"{LOG_COLORS['WARN']}[Blend Vault][Redirect] File relocation detected: {filename} -> {new_filename}. Check N-panel 'Blend Vault' tab to handle.{LOG_COLORS['RESET']}")
 
 
 def _prompt_file_relocation(current_path: str, new_path: str):
@@ -189,6 +225,123 @@ def cleanup_redirect_on_load_pre(*args, **kwargs):
 		cleanup_redirect_file(current_blend_path)
 
 
+class BV_PT_FileRelocationPanel(bpy.types.Panel):
+	"""Panel in N-panel to show file relocation status"""
+	bl_label = "File Relocation"
+	bl_idname = "BV_PT_file_relocation"
+	bl_space_type = 'VIEW_3D'
+	bl_region_type = 'UI'
+	bl_category = "Blend Vault"
+
+	@classmethod
+	def poll(cls, context):
+		# Always show panel for debugging - change back to only show when pending relocations exist
+		return True
+		# return bool(_pending_relocations)
+	def draw(self, context):
+		layout = self.layout
+		
+		current_blend = bpy.data.filepath
+		if current_blend in _pending_relocations:
+			# Always read the current path from the redirect file instead of memory
+			redirect_path = current_blend + REDIRECT_EXTENSION
+			new_path = None
+			
+			if os.path.exists(redirect_path):
+				try:
+					with open(redirect_path, 'r', encoding='utf-8') as f:
+						content = f.read()
+					
+					# Extract the markdown link path
+					link_match = re.search(r'\[([^\]]+)\]\(<([^>]+)>\)', content)
+					if link_match:
+						linked_path = link_match.group(2)
+						current_filename = os.path.basename(current_blend)
+						
+						# Check if file has been moved
+						if not linked_path.startswith(f'./{current_filename}'):
+							# Calculate the new absolute path
+							if linked_path.startswith('../') or linked_path.startswith('./'):
+								redirect_dir = os.path.dirname(redirect_path)
+								new_path = os.path.normpath(os.path.join(redirect_dir, linked_path))
+							else:
+								new_path = linked_path
+				except Exception as e:
+					print(f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error reading redirect file in panel: {e}{LOG_COLORS['RESET']}")
+			
+			if new_path and os.path.exists(new_path):
+				# Get common base directory to show relative paths like markdown
+				current_dir = os.path.dirname(current_blend)
+				current_filename = os.path.basename(current_blend)
+				new_rel_path = os.path.relpath(new_path, current_dir)
+
+				# Convert backslashes to forward slashes for consistent markdown-style paths
+				new_rel_path = new_rel_path.replace('\\', '/')
+
+				# Add ./ prefix if the path doesn't start with ../ (same level or subdirectory)
+				if not new_rel_path.startswith('../') and not os.path.isabs(new_rel_path):
+					new_rel_path = './' + new_rel_path
+
+				# Warning icon and title
+				row = layout.row()
+				row.alert = True
+				row.label(text="File Moved Detected!", icon='ERROR')
+				
+				layout.separator()
+				
+				# Current and new location info
+				box = layout.box()
+				box.label(text=f"Current: ./{current_filename}")
+				box.label(text=f"New: {new_rel_path}")
+				
+				layout.separator()
+				
+				# Action buttons
+				col = layout.column(align=True)
+				col.scale_y = 1.2
+				
+				# Save to new location button
+				op = col.operator("blend_vault.confirm_file_relocation", text="Save to New Location", icon='FILE_TICK')
+				op.current_path = current_blend
+				op.new_path = new_path
+				
+				# Ignore button
+				col.operator("blend_vault.ignore_relocation", text="Ignore This Session", icon='CANCEL')
+			else:
+				# No valid relocation found, remove from pending
+				_pending_relocations.pop(current_blend, None)
+				layout.label(text="No pending relocations", icon='CHECKMARK')
+		else:
+			layout.label(text="No pending relocations", icon='CHECKMARK')
+
+
+class BV_OT_IgnoreRelocation(bpy.types.Operator):
+	"""Operator to ignore relocation for this session"""
+	bl_idname = "blend_vault.ignore_relocation"
+	bl_label = "Ignore Relocation"
+	bl_options = {'REGISTER', 'INTERNAL'}
+
+	def execute(self, context):
+		current_blend = bpy.data.filepath
+		if current_blend in _pending_relocations:
+			# Add to ignored relocations
+			_ignored_relocations.add(current_blend)
+			# Clean up redirect file
+			cleanup_redirect_file(current_blend)
+			# Remove from pending
+			_pending_relocations.pop(current_blend, None)
+			
+			# Refresh UI to hide the panel
+			for area in bpy.context.screen.areas:
+				if area.type == 'VIEW_3D':
+					area.tag_redraw()
+			
+			self.report({'INFO'}, "File relocation ignored for this session")
+			print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] File relocation ignored for this session{LOG_COLORS['RESET']}")
+		
+		return {'FINISHED'}
+
+
 class BV_OT_ConfirmFileRelocation(bpy.types.Operator):
 	"""Operator to confirm and handle file relocation"""
 	bl_idname = "blend_vault.confirm_file_relocation"
@@ -204,22 +357,27 @@ class BV_OT_ConfirmFileRelocation(bpy.types.Operator):
 		try:
 			# Save to new location
 			bpy.ops.wm.save_as_mainfile(filepath=self.new_path)
-			# Cleanup redirect file
+			# Cleanup redirect file and remove from pending
 			cleanup_redirect_file(self.current_path)
+			_pending_relocations.pop(self.current_path, None)
+			
+			# Refresh UI to update panel
+			for area in bpy.context.screen.areas:
+				if area.type == 'VIEW_3D':
+					area.tag_redraw()
+			
+			print(f"{LOG_COLORS['SUCCESS']}[Blend Vault][Redirect] File relocated to {self.new_path}{LOG_COLORS['RESET']}")
 		except Exception as e:
 			print(
 				f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error during relocation: {e}{LOG_COLORS['RESET']}"
 			)
 		return {'FINISHED'}
-
 	def cancel(self, context):
 		global _relocation_dialog_shown
 		_relocation_dialog_shown = False
-		# Add current file to ignored relocations for this session
-		_ignored_relocations.add(self.current_path)
-		# Clean up the redirect file since user chose to ignore
-		cleanup_redirect_file(self.current_path)
-		return {'CANCELLED'}
+		# Don't clean up redirect file or remove from pending relocations on cancel
+		# Keep the relocation pending so user can handle it through the N-panel
+		print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] File relocation dialog dismissed. Use N-panel to handle.{LOG_COLORS['RESET']}")
 	
 	def invoke(self, context, event):
 		return context.window_manager.invoke_props_dialog(self, width=450)
@@ -249,6 +407,10 @@ def register():
 	atexit.register(cleanup_on_blender_quit)
 
 	bpy.utils.register_class(BV_OT_ConfirmFileRelocation)
+	bpy.utils.register_class(BV_PT_FileRelocationPanel)
+	bpy.utils.register_class(BV_OT_IgnoreRelocation)
+
+	print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] Panel registered with category 'Blend Vault'{LOG_COLORS['RESET']}")
 
 	# Register handlers
 	bpy.app.handlers.save_post.append(create_redirect_on_save)
@@ -276,6 +438,8 @@ def unregister():
 		bpy.app.handlers.load_pre.remove(cleanup_redirect_on_load_pre)
 
 	bpy.utils.unregister_class(BV_OT_ConfirmFileRelocation)
+	bpy.utils.unregister_class(BV_PT_FileRelocationPanel)
+	bpy.utils.unregister_class(BV_OT_IgnoreRelocation)
 
 	print(
 		f"{LOG_COLORS['WARN']}[Blend Vault] Redirect handler module unregistered.{LOG_COLORS['RESET']}"

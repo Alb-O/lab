@@ -46,8 +46,8 @@ REDIRECT_EXTENSION = ".redirect.md"
 # Default frontmatter tags
 FRONTMATTER_TAGS = {"sidecar", "blendvault"}
 
-# Default poll interval (seconds) for checking sidecar file changes
-POLL_INTERVAL = 5.0
+# Default poll interval (seconds) for checking for file changes
+POLL_INTERVAL = 1.0
 
 # --- Blend Vault UUID/Hash Key Constants ---
 BV_UUID_PROP = "BV_UUID"
