@@ -443,9 +443,14 @@ def write_library_info(*args, **kwargs):
         
         # Push generated UUIDs to linked library sidecars
         for lib_sidecar_path, (file_uuid, asset_updates) in library_uuid_pushes.items():
-            if asset_updates or file_uuid != "MISSING_HASH":
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Pushing generated UUIDs to linked library: {lib_sidecar_path}{LOG_COLORS['RESET']}")
-                _push_uuid_to_sidecar(lib_sidecar_path, file_uuid, asset_updates)
+            # Validate that the linked blend file exists before pushing a sidecar
+            linked_blend_path = lib_sidecar_path[:-len(SIDECAR_EXTENSION)] if lib_sidecar_path.endswith(SIDECAR_EXTENSION) else None
+            if linked_blend_path and os.path.exists(linked_blend_path):
+                if asset_updates or file_uuid != "MISSING_HASH":
+                    print(f"{LOG_COLORS['INFO']}[Blend Vault] Pushing generated UUIDs to linked library: {lib_sidecar_path}{LOG_COLORS['RESET']}")
+                    _push_uuid_to_sidecar(lib_sidecar_path, file_uuid, asset_updates)
+            else:
+                print(f"{LOG_COLORS['WARN']}[Blend Vault] Skipping push to {lib_sidecar_path} because linked blend file does not exist.{LOG_COLORS['RESET']}")
         
     except Exception as e:
         print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to write sidecar file {md_path}: {e}{LOG_COLORS['RESET']}")
