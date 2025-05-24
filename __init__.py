@@ -27,17 +27,19 @@ HANDLERS = {
 	'save_post': [
 		('sidecar_io.writer', 'write_library_info'),
 	],
-	'load_post': [
-		('relink.library_relinker', 'relink_library_info'),
-		('relink.polling', 'start_sidecar_poll_timer'),
-		('relink.asset_relinker', 'relink_renamed_assets'),
-	],
+	# load_post handlers are now managed by the polling module to avoid conflicts
 }
+
+# List of modules that need their register/unregister functions called
+MODULES_TO_REGISTER = [
+	'relink.polling',  # Register polling module (includes redirect handler)
+]
 
 def register():
 	# Reload submodules first (important for dependencies)
 	submodules_to_reload = [
 		'sidecar_io.frontmatter',  # Reload frontmatter before writer
+		'relink',  # Import relink package first
 	]
 	
 	for module_path in submodules_to_reload:
@@ -45,6 +47,15 @@ def register():
 			importlib.reload(importlib.import_module(module_path))
 		except ImportError:
 			pass  # Module might not be imported yet
+	
+	# Register modules that have their own register/unregister functions
+	for module_path in MODULES_TO_REGISTER:
+		try:
+			module = importlib.reload(importlib.import_module(module_path))
+			if hasattr(module, 'register'):
+				module.register()
+		except Exception as e:
+			print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to register module {module_path}: {e}{LOG_COLORS['RESET']}")
 	
 	# Reload and register handlers from HANDLERS registry
 	for event, entries in HANDLERS.items():
@@ -59,6 +70,15 @@ def register():
 	print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Main addon functionalities registered.{LOG_COLORS['RESET']}")
 
 def unregister():
+	# Unregister modules that have their own register/unregister functions
+	for module_path in MODULES_TO_REGISTER:
+		try:
+			module = importlib.import_module(module_path)
+			if hasattr(module, 'unregister'):
+				module.unregister()
+		except Exception as e:
+			print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to unregister module {module_path}: {e}{LOG_COLORS['RESET']}")
+	
 	# Unregister handlers based on HANDLERS registry
 	for event, entries in HANDLERS.items():
 		handler_list = getattr(bpy.app.handlers, event)

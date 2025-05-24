@@ -3,6 +3,7 @@ import os
 from utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS
 from .library_relinker import relink_library_info
 from . import asset_relinker
+from . import redirect_handler
 
 # Store last modification times for sidecar files
 t_last_sidecar_mtimes = {}
@@ -44,7 +45,6 @@ def sidecar_poll_timer():
 					pass
 	except Exception as e:
 		print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking sidecar file '{md_path}': {e}{LOG_COLORS['RESET']}")
-
 	# --- Part 2: Check individual library files for modifications ---
 	for lib in bpy.data.libraries:
 		if not lib.filepath or lib.filepath.startswith("<builtin>"):
@@ -77,28 +77,42 @@ def sidecar_poll_timer():
 		except Exception as e:
 			print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking library '{lib.name}' ('{lib.filepath}'): {e}{LOG_COLORS['RESET']}")
 
+	# --- Part 3: Check for file relocation via redirect files ---
+	try:
+		redirect_handler.check_file_relocation()
+	except Exception as e:
+		print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error checking file relocation: {e}{LOG_COLORS['RESET']}")
+
 	return POLL_INTERVAL
 
 @bpy.app.handlers.persistent
 def start_sidecar_poll_timer(*args, **kwargs):
 	"""Handler to register polling timer after file load, ensuring persistence across blend reloads."""
-	is_registered = False
 	if bpy.app.timers.is_registered(sidecar_poll_timer):
-		is_registered = True
 		print(f"{LOG_COLORS['INFO']}[Blend Vault] Sidecar polling timer already registered.{LOG_COLORS['RESET']}")
+		return
 
-	if not is_registered:
-		try:
-			bpy.app.timers.register(sidecar_poll_timer, first_interval=POLL_INTERVAL)
-			print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar polling timer registered (interval: {POLL_INTERVAL}s).{LOG_COLORS['RESET']}")
-		except Exception as e: 
-			print(f"{LOG_COLORS['ERROR']}[Blend Vault][Error] Failed to register sidecar polling timer: {e}{LOG_COLORS['RESET']}")
+	try:
+		bpy.app.timers.register(sidecar_poll_timer, first_interval=POLL_INTERVAL)
+		print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar polling timer registered (interval: {POLL_INTERVAL}s).{LOG_COLORS['RESET']}")
+	except Exception as e: 
+		print(f"{LOG_COLORS['ERROR']}[Blend Vault][Error] Failed to register sidecar polling timer: {e}{LOG_COLORS['RESET']}")
 
 def register():
 	bpy.app.handlers.load_post.append(start_sidecar_poll_timer)
 	# Also run library and asset relinkers on file load
 	bpy.app.handlers.load_post.append(relink_library_info)
 	bpy.app.handlers.load_post.append(asset_relinker.relink_renamed_assets)
+	# Reload and register redirect handler to ensure we get the latest version
+	import importlib
+	importlib.reload(redirect_handler)
+	redirect_handler.register()
+	
+	# Always try to start the polling timer during registration
+	# The timer function itself will handle cases where no file is open
+	print(f"{LOG_COLORS['INFO']}[Blend Vault] Starting polling timer during registration.{LOG_COLORS['RESET']}")
+	start_sidecar_poll_timer()
+	
 	print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Polling module registered.{LOG_COLORS['RESET']}")
 
 def unregister():
@@ -109,6 +123,8 @@ def unregister():
 		bpy.app.handlers.load_post.remove(relink_library_info)
 	if asset_relinker.relink_renamed_assets in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(asset_relinker.relink_renamed_assets)
+	# Unregister redirect handler
+	redirect_handler.unregister()
 	if bpy.app.timers.is_registered(sidecar_poll_timer):
 		bpy.app.timers.unregister(sidecar_poll_timer)
 		print(f"{LOG_COLORS['WARN']}[Blend Vault] Sidecar polling timer unregistered.{LOG_COLORS['RESET']}")

@@ -40,6 +40,9 @@ MD_LINK_FORMATS = {
 # Sidecar file extension
 SIDECAR_EXTENSION = ".side.md"
 
+# Redirect file extension
+REDIRECT_EXTENSION = ".redirect.md"
+
 # Default frontmatter tags
 FRONTMATTER_TAGS = {"sidecar", "blendvault"}
 
