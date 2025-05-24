@@ -3,7 +3,15 @@ import os
 import json
 import re
 import traceback
-from utils import SIDECAR_EXTENSION, LOG_COLORS, get_asset_sources_map, BV_UUID_PROP, BV_FILE_UUID_KEY, BV_UUID_KEY, MD_LINK_FORMATS, ensure_library_hash
+from utils import (
+	get_asset_sources_map,
+	SIDECAR_EXTENSION,
+	LOG_COLORS,
+	BV_UUID_PROP,
+	BV_FILE_UUID_KEY,
+	BV_UUID_KEY,
+	MD_PRIMARY_FORMAT
+)
 
 # Helper function to parse a library's own sidecar for its "Current File" assets
 def _get_current_file_assets_from_sidecar(sidecar_file_path: str):
@@ -163,7 +171,7 @@ def _parse_main_sidecar_linked_libraries_section(main_sidecar_lines: list[str], 
 				else: current_line_idx = temp_skip_idx -1 # Reached EOF while skipping
 		
 		else: # Look for library markdown links
-			link_regex_details = MD_LINK_FORMATS.get('MD_ANGLE_BRACKETS', {})
+			link_regex_details = MD_PRIMARY_FORMAT
 			link_regex = link_regex_details.get('regex')
 			if not link_regex: link_regex = r"#### \\[(.+?)\\]\\(<(.+?)>\\)" # Default/fallback
 			
@@ -173,14 +181,12 @@ def _parse_main_sidecar_linked_libraries_section(main_sidecar_lines: list[str], 
 					print(f"{LOG_COLORS['WARN']}[Blend Vault][AssetRelinkHelper] New library link '{md_link_match.group(1)}' found before previous JSON block for '{active_library_relative_path}' closed. Discarding previous.{LOG_COLORS['RESET']}")
 					parsing_json_block = False
 					json_accumulator = []
-				
-				# Group 2 is usually the name, group 3 (if angle brackets) or 2 (if not) is the path
-				path_group_index = 3 if link_regex_details.get('format', '').count('%s') == 2 and '<' in link_regex_details.get('format', '') else 2
+				# Group 1 is the name, group 2 is the path (for the angle brackets format)
 				try:
-					active_library_relative_path = md_link_match.group(path_group_index)
+					active_library_relative_path = md_link_match.group(2)
 					print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelinkHelper]   Found library link in main sidecar: {md_link_match.group(1)} -> {active_library_relative_path}{LOG_COLORS['RESET']}")
 				except IndexError:
-					print(f"{LOG_COLORS['ERROR']}[Blend Vault][AssetRelinkHelper]   Error parsing library link, regex group {path_group_index} not found in '{line_stripped}' with regex '{link_regex}'. Match groups: {md_link_match.groups()}{LOG_COLORS['RESET']}")
+					print(f"{LOG_COLORS['ERROR']}[Blend Vault][AssetRelinkHelper]   Error parsing library link, regex group 2 not found in '{line_stripped}' with regex '{link_regex}'. Match groups: {md_link_match.groups()}{LOG_COLORS['RESET']}")
 					active_library_relative_path = None
 
 

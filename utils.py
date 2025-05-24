@@ -32,9 +32,17 @@ LOG_COLORS = {
 # Markdown link formats and regex patterns
 MD_LINK_FORMATS = {
 	'MD_ANGLE_BRACKETS': {
-		'format': '#### [{name}](<{path}>)',
-		'regex': r'^#### \[([^\]]+)\]\(<([^>]+)>\)$'
+		'format': '[{name}](<{path}>)',
+		'regex': r'\[([^\]]+)\]\(<([^>]+)>\)'
 	}
+}
+
+MD_PRIMARY_FORMAT = MD_LINK_FORMATS['MD_ANGLE_BRACKETS']
+
+# Obsidian-style embed wikilink format: ![[path|alias]] or ![[name]]
+MD_EMBED_WIKILINK = {
+	'format': '![[{name}]]',
+	'regex': r'!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]'
 }
 
 # Sidecar file extension

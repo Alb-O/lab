@@ -4,8 +4,12 @@ import json
 import re
 import traceback
 from utils import (
-	SIDECAR_EXTENSION, LOG_COLORS, MD_LINK_FORMATS, BV_UUID_PROP, 
-	BV_FILE_UUID_KEY, BV_UUID_KEY
+	SIDECAR_EXTENSION,
+	LOG_COLORS,
+	BV_UUID_PROP,
+	BV_FILE_UUID_KEY,
+	BV_UUID_KEY,
+	MD_PRIMARY_FORMAT
 )
 
 @bpy.app.handlers.persistent
@@ -235,9 +239,11 @@ def relink_library_info(*args, **kwargs):
 				break 
 
 			else: 
-				# Match new format using MD_LINK_FORMATS
+				# Match new format using MD_PRIMARY_FORMAT
 				# Use re.search to find link pattern anywhere in the line, accommodating prefixes like '####'
-				md_link_match = re.search(MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['regex'], line_stripped)
+				# Remove heading if present before matching
+				line_no_heading = line_stripped.lstrip('#').strip() if line_stripped.startswith('#') else line_stripped
+				md_link_match = re.search(MD_PRIMARY_FORMAT['regex'], line_no_heading)
 				if md_link_match:
 					if active_md_link_name_for_log and not parsing_json_block: 
 						print(f"{LOG_COLORS['WARN']}[Blend Vault][LibraryRelink] Warning: MD link for '{active_md_link_name_for_log}' wasn't followed by JSON before new link for '{md_link_match.group(1)}'.{LOG_COLORS['RESET']}")

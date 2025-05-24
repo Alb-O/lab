@@ -2,7 +2,7 @@ import bpy  # type: ignore
 import os
 import atexit
 import re  # For check_file_relocation
-from utils import LOG_COLORS, REDIRECT_EXTENSION
+from utils import LOG_COLORS, REDIRECT_EXTENSION, MD_PRIMARY_FORMAT, MD_EMBED_WIKILINK
 
 # Store last known working directory per .blend file
 t_last_working_dirs = {}
@@ -15,9 +15,6 @@ _ignored_relocations = set()
 
 # Track pending relocations that user can click on
 _pending_relocations = {}
-
-# Timer for showing status messages
-_status_timer = None
 
 _current_blend_file_for_cleanup = None
 
@@ -32,8 +29,8 @@ def create_redirect_file(blend_path: str):
 	filename = os.path.basename(blend_path)
 	redirect_path = blend_path + REDIRECT_EXTENSION
 
-	redirect_content = f"""![[BV_MSG_REDIR]]
-[{filename}](<./{filename}>)
+	redirect_content = f"""{MD_EMBED_WIKILINK['format'].format(name='BV_MSG_REDIR')}
+{MD_PRIMARY_FORMAT['format'].format(name=filename, path=f'./{filename}')}
 """
 
 	try:

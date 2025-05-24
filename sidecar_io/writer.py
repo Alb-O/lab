@@ -4,9 +4,15 @@ import json
 import re
 from typing import Dict, List, Tuple, Optional
 from utils import (
-	ensure_library_hash, get_asset_sources_map, LOG_COLORS, SIDECAR_EXTENSION, 
-	FRONTMATTER_TAGS, MD_LINK_FORMATS, BV_UUID_PROP, 
-	BV_UUID_KEY, BV_FILE_UUID_KEY
+	ensure_library_hash,
+	get_asset_sources_map,
+	LOG_COLORS,
+	SIDECAR_EXTENSION,
+	FRONTMATTER_TAGS,
+	BV_UUID_PROP,
+	BV_UUID_KEY,
+	BV_FILE_UUID_KEY,
+	MD_PRIMARY_FORMAT
 )
 from .frontmatter import generate_frontmatter_string
 
@@ -144,7 +150,7 @@ def _build_sidecar_content(blend_path: str, local_assets: Dict, linked_assets_by
 			
 			# Add to sidecar content
 			sections.extend([
-				MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['format'].format(
+				'#### ' + MD_PRIMARY_FORMAT['format'].format(
 					name=os.path.basename(lib_path), 
 					path=lib_path
 				),
