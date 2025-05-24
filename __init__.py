@@ -28,7 +28,7 @@ HANDLERS = {
         ('sidecar_io.writer', 'write_library_info'),
     ],
     'load_post': [
-        ('relink.core', 'relink_library_info'),
+        ('relink.library_relinker', 'relink_library_info'),
         ('relink.polling', 'start_sidecar_poll_timer'),
         ('relink.asset_relinker', 'relink_renamed_assets'),
     ],
