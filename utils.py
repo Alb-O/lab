@@ -47,21 +47,22 @@ FRONTMATTER_TAGS = {"sidecar", "blendvault"}
 POLL_INTERVAL = 5.0
 
 # --- Blend Vault UUID/Hash Key Constants ---
-BLEND_VAULT_HASH_PROP = "blend_vault_data"
-BLEND_VAULT_FILE_UUID_KEY = "blendfile_uuid"
-BLEND_VAULT_UUID_KEY = "uuid"
+BV_UUID_PROP = "BV_UUID"
+BV_SIDECAR_BACKUP_PREFIX = "BV_BACKUP_"
+BV_FILE_UUID_KEY = "blendfile_uuid"
+BV_UUID_KEY = "uuid"
 
 def ensure_library_hash(lib):
     """Ensure a unique hash is stored in the datablock's custom properties, or generate a hash for a string path."""
     # If lib is a Blender datablock with id_properties_ensure
     if hasattr(lib, 'id_properties_ensure'):
         props = lib.id_properties_ensure()
-        if BLEND_VAULT_HASH_PROP in props:
-            print(f"[Blend Vault][LibraryHash] Existing hash for '{getattr(lib, 'name', repr(lib))}': {props[BLEND_VAULT_HASH_PROP]}")
-            return props[BLEND_VAULT_HASH_PROP]
+        if BV_UUID_PROP in props:
+            print(f"[Blend Vault][LibraryHash] Existing hash for '{getattr(lib, 'name', repr(lib))}': {props[BV_UUID_PROP]}")
+            return props[BV_UUID_PROP]
         # Generate a new UUID4 string
         new_hash = str(uuid.uuid4())
-        props[BLEND_VAULT_HASH_PROP] = new_hash
+        props[BV_UUID_PROP] = new_hash
         print(f"[Blend Vault][LibraryHash] Generated new hash for '{getattr(lib, 'name', repr(lib))}': {new_hash}")
         return new_hash
     # If lib is a string (e.g., file path), return a deterministic hash or UUID

@@ -1,53 +1,191 @@
 import bpy  # type: ignore
 import os
-from utils import ensure_library_hash, get_asset_sources_map, LOG_COLORS, SIDECAR_EXTENSION, FRONTMATTER_TAGS, MD_LINK_FORMATS, BLEND_VAULT_HASH_PROP, BLEND_VAULT_FILE_UUID_KEY, BLEND_VAULT_UUID_KEY
-from .frontmatter import generate_frontmatter_string
 import json
 import re
+from utils import (
+    ensure_library_hash, get_asset_sources_map, LOG_COLORS, SIDECAR_EXTENSION, 
+    FRONTMATTER_TAGS, MD_LINK_FORMATS, BV_UUID_PROP, 
+    BV_SIDECAR_BACKUP_PREFIX, BV_UUID_KEY, BV_FILE_UUID_KEY
+)
+from .frontmatter import generate_frontmatter_string
 
-def _ensure_all_asset_uuids_are_set(log_colors_ref, blend_vault_hash_prop_ref, utils_ensure_library_hash_ref, utils_get_asset_sources_map_ref):
+def _ensure_all_asset_uuids_are_set():
     """
     Iterates through all relevant local and linked assets to ensure they have
     the BLEND_VAULT_HASH_PROP custom property set.
     """
-    print(f"{log_colors_ref['INFO']}[Blend Vault] Ensuring all asset UUIDs are set on datablocks...{log_colors_ref['RESET']}")
-    ASSET_SOURCES_MAP = utils_get_asset_sources_map_ref()
+    print(f"{LOG_COLORS['INFO']}[Blend Vault] Ensuring all asset UUIDs are set on datablocks...{LOG_COLORS['RESET']}")
+    ASSET_SOURCES_MAP = get_asset_sources_map()
 
-    # 1. Process local assets
+    # Process local assets only (preserve original UUIDs on linked assets)
     for asset_type_name, datablock_collection in ASSET_SOURCES_MAP.items():
         if datablock_collection is None:
             continue
+        
         try:
             items_list = list(datablock_collection)
         except Exception as e_list:
-            print(f"{log_colors_ref['ERROR']}[Blend Vault][EnsureUUIDs] Failed to list local items for '{asset_type_name}': {e_list}{log_colors_ref['RESET']}")
+            print(f"{LOG_COLORS['ERROR']}[Blend Vault][EnsureUUIDs] Failed to list local items for '{asset_type_name}': {e_list}{LOG_COLORS['RESET']}")
             continue
             
         for item in items_list:
             if not item:
                 continue
             
-            item_library = getattr(item, 'library', None) # Check if it's None for local
+            item_library = getattr(item, 'library', None)
             is_scene = asset_type_name == "Scene"
             item_asset_data = getattr(item, 'asset_data', None)
             is_asset = item_asset_data is not None
 
+            # Only process local assets (library is None)
             if item_library is None and (is_scene or is_asset):
-                utils_ensure_library_hash_ref(item) # This sets the prop if missing
+                ensure_library_hash(item)
 
-    # 2. Process linked assets (skip setting UUIDs on linked items to preserve original UUIDs)
-    # Skipping linked assets to preserve their original UUIDs set by the library sidecar
-    print(f"{log_colors_ref['INFO']}[Blend Vault] Finished ensuring all asset UUIDs.{log_colors_ref['RESET']}")
+    print(f"{LOG_COLORS['INFO']}[Blend Vault] Finished ensuring all asset UUIDs.{LOG_COLORS['RESET']}")
+
+
+def _collect_assets_by_type():
+    """
+    Collect all local and linked assets by type.
+    Returns tuple of (local_assets_dict, linked_assets_by_library_dict)
+    """
+    local_assets = {}
+    linked_assets_by_library = {}
+    
+    ASSET_SOURCES_MAP = get_asset_sources_map()
+    
+    for asset_type_name, datablock_collection in ASSET_SOURCES_MAP.items():
+        if datablock_collection is None:
+            continue
+            
+        try:
+            items_list = list(datablock_collection)
+        except Exception as e_list:
+            print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to list items for '{asset_type_name}': {e_list}{LOG_COLORS['RESET']}")
+            continue
+            
+        for item_idx, item in enumerate(items_list):
+            if not item:
+                continue
+                
+            try:
+                item_name = getattr(item, 'name', f'Unnamed{asset_type_name}')
+                item_library = getattr(item, 'library', None)
+                is_scene = asset_type_name == "Scene"
+                item_asset_data = getattr(item, 'asset_data', None)
+                is_asset = item_asset_data is not None
+                
+                if is_scene or is_asset:
+                    item_uuid = ensure_library_hash(item)
+                    asset_info = {
+                        "name": item_name,
+                        "type": asset_type_name,
+                        "uuid": item_uuid
+                    }
+                    
+                    if item_library is None:
+                        # Local asset
+                        local_assets[item_uuid] = asset_info
+                    else:
+                        # Linked asset
+                        if item_library not in linked_assets_by_library:
+                            linked_assets_by_library[item_library] = []
+                        linked_assets_by_library[item_library].append(asset_info)
+                        
+            except Exception as e_item:
+                print(f"{LOG_COLORS['ERROR']}[Blend Vault] Error processing item {item_idx} in {asset_type_name}: {e_item}{LOG_COLORS['RESET']}")
+                continue
+                
+    return local_assets, linked_assets_by_library
+
+
+def _create_backup_text_block(sidecar_content, blend_file_basename):
+    """
+    Creates or updates a backup text block with the contents of the sidecar file.
+    This serves as a backup in case the sidecar file gets corrupted.
+    Deletes any stale backup text blocks.
+    The content of this block is a direct copy of the sidecar file.
+    """
+    try:
+        current_backup_block_name = f"{BV_SIDECAR_BACKUP_PREFIX}{blend_file_basename}{SIDECAR_EXTENSION}"
+        
+        # Remove stale backup blocks
+        active_text_blocks = list(bpy.data.texts) # Create a copy for safe iteration
+        for tb in active_text_blocks:
+            if tb.name.startswith(BV_SIDECAR_BACKUP_PREFIX) and tb.name != current_backup_block_name:
+                bpy.data.texts.remove(tb)
+                print(f"{LOG_COLORS['INFO']}[Blend Vault] Removed stale backup text block: {tb.name}{LOG_COLORS['RESET']}")
+
+        txt_block = bpy.data.texts.get(current_backup_block_name)
+        if not txt_block:
+            txt_block = bpy.data.texts.new(current_backup_block_name)
+        
+        txt_block.clear()
+        comment_header = f"""# Blend Vault Backup - Copy of sidecar file contents
+# Source: {blend_file_basename}{SIDECAR_EXTENSION}
+# This is auto-generated backup data. Do not edit manually.
+# To restore, copy the content below into the corresponding sidecar file.
+"""
+        txt_block.write(comment_header + "\n" + sidecar_content) # Add newline after header
+        
+        print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Backup text block '{current_backup_block_name}' updated.{LOG_COLORS['RESET']}")
+    except Exception as e:
+        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to create/update backup text block: {e}{LOG_COLORS['RESET']}")
+
+
+def _get_or_create_blendfile_uuid(blend_path):
+    """
+    Gets existing blendfile UUID from its own sidecar file or creates a new one if not found.
+    The sidecar file is the source of truth for the blendfile's UUID.
+    Returns the UUID string.
+    """
+    md_path = blend_path + SIDECAR_EXTENSION
+    
+    if os.path.exists(md_path):
+        try:
+            with open(md_path, 'r', encoding='utf-8') as f_sidecar:
+                content = f_sidecar.read()
+            
+            # Try to find BV_FILE_UUID_KEY first
+            uuid_match = re.search(rf'"{BV_FILE_UUID_KEY}"\s*:\s*"([^"]+)"', content)
+            if uuid_match:
+                existing_uuid = uuid_match.group(1)
+                print(f"{LOG_COLORS['INFO']}[Blend Vault] Using existing blendfile UUID from sidecar '{md_path}': {existing_uuid}{LOG_COLORS['RESET']}")
+                return existing_uuid
+            
+            # Fallback to BV_UUID_KEY for older sidecars or different structures
+            uuid_match_generic = re.search(rf'"{BV_UUID_KEY}"\s*:\s*"([^"]+)"', content)
+            if uuid_match_generic:
+                # This assumes that if BV_UUID_KEY is present at the top level of a blend file's sidecar,
+                # it refers to the blend file's UUID.
+                existing_uuid = uuid_match_generic.group(1)
+                print(f"{LOG_COLORS['INFO']}[Blend Vault] Using existing generic UUID (as blendfile UUID) from sidecar '{md_path}': {existing_uuid}{LOG_COLORS['RESET']}")
+                return existing_uuid
+            
+            print(f"{LOG_COLORS['WARN']}[Blend Vault] UUID key not found in existing sidecar '{md_path}'. A new UUID will be generated.{LOG_COLORS['RESET']}")
+
+        except Exception as e:
+            print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not read UUID from sidecar '{md_path}': {e}. A new UUID will be generated.{LOG_COLORS['RESET']}")
+    else:
+        print(f"{LOG_COLORS['INFO']}[Blend Vault] Sidecar file '{md_path}' not found. A new UUID will be generated for the blendfile.{LOG_COLORS['RESET']}")
+    
+    # If UUID not found in sidecar or sidecar doesn't exist, generate a new one
+    new_uuid = ensure_library_hash(blend_path) # Use blend_path for hashing, as bpy.data.filepath is the same
+    print(f"{LOG_COLORS['INFO']}[Blend Vault] Generated new blendfile UUID: {new_uuid}{LOG_COLORS['RESET']}")
+    return new_uuid
 
 
 @bpy.app.handlers.persistent
-def write_library_info(*args, **kwargs):  # Decorated as persistent handler
+def write_library_info(*args, **kwargs):
+    """Main handler to write sidecar file and backup text block."""
     print(f"{LOG_COLORS['INFO']}[Blend Vault] Preparing to write sidecar for: {bpy.data.filepath}{LOG_COLORS['RESET']}")
+    
     blend_path = bpy.data.filepath
     if not blend_path:
-        print(f"{LOG_COLORS['WARN']}[Blend Vault][LibraryInfo] No blend file path found, skipping write.{LOG_COLORS['RESET']}")
+        print(f"{LOG_COLORS['WARN']}[Blend Vault] No blend file path found, skipping write.{LOG_COLORS['RESET']}")
         return
 
+    blend_file_basename = os.path.basename(blend_path)
     md_path = blend_path + SIDECAR_EXTENSION
 
     original_lines = []
@@ -55,33 +193,16 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
         with open(md_path, 'r', encoding='utf-8') as f_read:
             original_lines = f_read.readlines()
 
-    # Use generate_frontmatter_string from frontmatter.py to handle parsing, tag merging, and reconstruction
     new_frontmatter_string, original_fm_end_idx = generate_frontmatter_string(original_lines, FRONTMATTER_TAGS)
 
-    # Determine user_content_lines based on the end index of the original frontmatter
-    # If original_fm_end_idx is -1 (no frontmatter found), user_content_lines will be all original_lines.
-    # Otherwise, it's the lines after the frontmatter.
     user_content_lines = original_lines[original_fm_end_idx + 1:] if original_fm_end_idx != -1 else original_lines
-
-    # Prepare user content string (stripped, with appropriate newlines)
     processed_user_content = "".join(user_content_lines).strip()
 
-    # Prepare Blend Vault Data block, formatted as JSON for current file assets
-    blend_vault_data_lines = []
-    blend_vault_data_lines.append("## %% Blend Vault Data")
-    blend_vault_data_lines.append(
-        "This section is auto-generated by the Blend Vault plugin and will be overwritten on save. User content can be written above this heading."
-    )
-
-    # --- Ensure all asset UUIDs are set on datablocks first ---
     try:
-        # Pass direct references to avoid issues with module reloading if utils/writer are reloaded.
-        _ensure_all_asset_uuids_are_set(LOG_COLORS, BLEND_VAULT_HASH_PROP, ensure_library_hash, get_asset_sources_map)
+        _ensure_all_asset_uuids_are_set()
     except Exception as e_ensure_uuids:
         print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to ensure all asset UUIDs: {e_ensure_uuids}{LOG_COLORS['RESET']}")
-        # Depending on severity, might want to return or skip relinking. For now, it will continue.
 
-    # --- Attempt asset relink BEFORE writing sidecar ---
     try:
         from relink.asset_relinker import relink_renamed_assets
         print(f"{LOG_COLORS['INFO']}[Blend Vault] Attempting asset datablock relink before writing sidecar...{LOG_COLORS['RESET']}")
@@ -89,289 +210,126 @@ def write_library_info(*args, **kwargs):  # Decorated as persistent handler
     except Exception as e:
         print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to run asset datablock relink before writing sidecar: {e}{LOG_COLORS['RESET']}")
 
-    # --- Write current assets to blend_vault_hash text block ---
+    local_assets, linked_assets_by_library = _collect_assets_by_type()
     
-    # 1. Read existing data (blendfile UUID and assets) from the text block first
-    existing_blendfile_uuid = None
-    try:
-        txt_block_for_read = bpy.data.texts.get(BLEND_VAULT_HASH_PROP)
-        if txt_block_for_read:
-            content_to_parse = txt_block_for_read.as_string()
-            # Skip the comment line if present (it starts with #)
-            if content_to_parse.startswith("#"):
-                content_to_parse = "\n".join(content_to_parse.splitlines()[1:])
-
-            if content_to_parse.strip(): # Ensure there's content to parse
-                data = json.loads(content_to_parse)
-                # Get existing blendfile UUID (prefer new key, fallback to old)
-                existing_blendfile_uuid = data.get(BLEND_VAULT_UUID_KEY) or data.get(BLEND_VAULT_FILE_UUID_KEY)
-            else:
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Text block '{BLEND_VAULT_HASH_PROP}' is empty (after skipping comment). Will generate fresh data.{LOG_COLORS['RESET']}")
-        else:
-            print(f"{LOG_COLORS['INFO']}[Blend Vault] Text block '{BLEND_VAULT_HASH_PROP}' not found. Will generate fresh data.{LOG_COLORS['RESET']}")
-
-    except json.JSONDecodeError:
-        print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not parse existing JSON from text block '{BLEND_VAULT_HASH_PROP}'. Will generate fresh data.{LOG_COLORS['RESET']}")
-    except Exception as e_read_existing:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Error reading existing data from text block: {e_read_existing}{LOG_COLORS['RESET']}")
-
-    live_collected_assets_by_uuid = {}
-    ASSET_SOURCES_MAP = get_asset_sources_map() # Get the map via the new getter
-    # Collect asset info here for the current file
-    try:
-        for asset_type_name, datablock_collection in ASSET_SOURCES_MAP.items():
-            print(f"{LOG_COLORS['INFO']}[Blend Vault] Preparing to process asset type: {asset_type_name}{LOG_COLORS['RESET']}")
-            if datablock_collection is None:
-                print(f"{LOG_COLORS['WARN']}[Blend Vault] Collection for {asset_type_name} is None, skipping.{LOG_COLORS['RESET']}")
-                continue
-            
-            current_collection_as_list = []
-            try:
-                # Attempt to convert the collection to a list
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Attempting to list items from: {asset_type_name}{LOG_COLORS['RESET']}")
-                current_collection_as_list = list(datablock_collection) 
-                print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Successfully listed {len(current_collection_as_list)} items from {asset_type_name}. Iterating...{LOG_COLORS['RESET']}")
-            except Exception as e_list_conversion:
-                print(f"{LOG_COLORS['ERROR']}[Blend Vault] CRITICAL: Failed to convert {asset_type_name} to list: {e_list_conversion}{LOG_COLORS['RESET']}")
-                # If list conversion fails, we cannot proceed with this collection
-                continue
-
-            for item_idx, item in enumerate(current_collection_as_list):
-                try:
-                    # Basic validity check for the item itself
-                    if not item:
-                        print(f"{LOG_COLORS['WARN']}[Blend Vault] Encountered an invalid (None) item in {asset_type_name} at index {item_idx}, skipping.{LOG_COLORS['RESET']}")
-                        continue
-                    
-                    # Safely get item name for logging, even if other attributes fail
-                    item_name_for_logging = "UnknownItem"
-                    try:
-                        item_name_for_logging = getattr(item, 'name', 'UnnamedItem')
-                    except Exception as e_name:
-                        print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not get name for item in {asset_type_name} at index {item_idx}: {e_name}{LOG_COLORS['RESET']}")
-
-                    is_scene = asset_type_name == "Scene"
-                    item_asset_data = getattr(item, 'asset_data', None)
-                    is_asset = item_asset_data is not None
-                    item_library = getattr(item, 'library', 'ERROR_NO_LIBRARY_ATTR')
-
-                    if item_library is None and (is_scene or is_asset):
-                        item_uuid = ensure_library_hash(item)
-                        live_collected_assets_by_uuid[item_uuid] = {
-                            "name": item_name_for_logging, # Use safely acquired name
-                            "type": asset_type_name,
-                            "uuid": item_uuid
-                        }
-                except Exception as e_item_processing:
-                    # This will catch errors during attribute access or ensure_library_hash
-                    print(f"{LOG_COLORS['ERROR']}[Blend Vault] Error processing item '{item_name_for_logging}' (index {item_idx}) in {asset_type_name}: {e_item_processing}{LOG_COLORS['RESET']}")
-                    # Decide if you want to continue to the next item or stop
-            print(f"{LOG_COLORS['INFO']}[Blend Vault] Finished iterating {asset_type_name}{LOG_COLORS['RESET']}")
-
-    except Exception as e_outer:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault][Asset Collection] Outer loop error while collecting current file assets: {e_outer}{LOG_COLORS['RESET']}")
-        # Do not clear live_collected_assets_by_uuid here, merge what we have
-
-    # 3. Use only live assets for the current file
-    collected_current_file_assets = list(live_collected_assets_by_uuid.values())
-
-    # Determine blendfile_uuid for the current file
-    # Prioritize existing UUID if read successfully, otherwise generate a new one.
-    current_blendfile_uuid = existing_blendfile_uuid
-    if not current_blendfile_uuid:
-        print(f"{LOG_COLORS['INFO']}[Blend Vault] No existing blendfile UUID found or read. Generating new one.{LOG_COLORS['RESET']}")
-        current_blendfile_uuid = ensure_library_hash(blend_path) # ensure_library_hash for path returns SHA256
-    else:
-        print(f"{LOG_COLORS['INFO']}[Blend Vault] Using existing blendfile UUID: {current_blendfile_uuid}{LOG_COLORS['RESET']}")
-
-    current_file_path = os.path.basename(blend_path)
-
-    # Definitive JSON data for the current file
-    definitive_current_file_json_data = {
-        "path": current_file_path,
-        BLEND_VAULT_UUID_KEY: current_blendfile_uuid,
-        "assets": collected_current_file_assets # Use only the freshly collected assets
-    }
-    definitive_current_file_json_string = json.dumps(definitive_current_file_json_data, indent=2, ensure_ascii=False)
-
-    # Write the definitive JSON to the blend_vault_hash text block
-    txt_block = bpy.data.texts.get(BLEND_VAULT_HASH_PROP)
-    if not txt_block:
-        txt_block = bpy.data.texts.new(BLEND_VAULT_HASH_PROP)
-    txt_block.clear()
-    # Add a comment at the top of the text block for user clarity
-    comment_line = "# This file is auto-generated by the Blend Vault plugin and will be overwritten on save.\n"
-    txt_block.write(comment_line + definitive_current_file_json_string)
-    # --- End write to blend_vault_hash text block ---
-
-    # --- Prepare "### Current File" section for sidecar ---
-    # This section now uses the definitive_current_file_json_string directly
+    # Get or create blendfile UUID from its own sidecar or generate new
+    blendfile_uuid = _get_or_create_blendfile_uuid(blend_path)
+    
+    blend_vault_data_lines = []
+    blend_vault_data_lines.append("## %% Blend Vault Data")
+    blend_vault_data_lines.append(
+        "This section is auto-generated by the Blend Vault plugin and will be overwritten on save. "
+        "User content can be written above this heading."
+    )
+    
     blend_vault_data_lines.append("### Current File")
+    current_file_data = {
+        "path": os.path.basename(blend_path),
+        BV_FILE_UUID_KEY: blendfile_uuid,
+        "assets": list(local_assets.values())
+    }
+    
     blend_vault_data_lines.append("```json")
-    for line in definitive_current_file_json_string.splitlines():
+    for line in json.dumps(current_file_data, indent=2, ensure_ascii=False).splitlines():
         blend_vault_data_lines.append(line)
     blend_vault_data_lines.append("```")
-    # Linked Libraries section remains below
+    
     blend_vault_data_lines.append("### Linked Libraries")
     libraries = list(bpy.data.libraries)
+    
     if libraries:
         for lib in libraries:
-            # Determine relative path for the library in the sidecar
             processed_lib_path = lib.filepath
             if processed_lib_path.startswith('//'):
                 processed_lib_path = processed_lib_path[2:]
-            processed_lib_path = processed_lib_path.replace('\\\\', '/')
-            # Try to read the library file's own sidecar to get its UUID
-            lib_sidecar_path = os.path.normpath(os.path.join(os.path.dirname(bpy.data.filepath), processed_lib_path)) + SIDECAR_EXTENSION
+            processed_lib_path = processed_lib_path.replace('\\', '/')
+            
+            lib_sidecar_path = os.path.normpath(
+                os.path.join(os.path.dirname(blend_path), processed_lib_path)
+            ) + SIDECAR_EXTENSION
+            
+            library_uuid = "MISSING_HASH"
             if os.path.exists(lib_sidecar_path):
-                with open(lib_sidecar_path, 'r', encoding='utf-8') as f_lib_sc:
-                    sc_content = f_lib_sc.read()
-                m_uuid = re.search(rf'"{BLEND_VAULT_FILE_UUID_KEY}"\s*:\s*"([^\"]+)"', sc_content)
-                if m_uuid:
-                    library_uuid = m_uuid.group(1)
-                else:
-                    library_uuid = ensure_library_hash(lib)
-            else:
-                # No sidecar for the library file: generate or reuse a hash
-                library_uuid = ensure_library_hash(lib)
-            # Store this UUID on the library datablock for relinking matches
-            lib.id_properties_ensure()[BLEND_VAULT_HASH_PROP] = library_uuid
-            raw_library_identity_str = library_uuid
-            
-            # Add the markdown link for the library
-            # Ensure forward slashes for markdown link path
-            markdown_link_path = os.path.basename(processed_lib_path).replace('\\', '/') if os.path.basename(processed_lib_path) else processed_lib_path.replace('\\', '/')
-            markdown_link_target = processed_lib_path.replace('\\', '/')
-            blend_vault_data_lines.append(MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['format'].format(name=markdown_link_path, path=markdown_link_target))
-            
-            # Prepare JSON data for the library
-            parsed_library_identity = None
-
-            if raw_library_identity_str != 'MISSING_HASH':
                 try:
-                    parsed_library_identity = json.loads(raw_library_identity_str)
-                except json.JSONDecodeError:
-                    print(f"{LOG_COLORS['INFO']}[Blend Vault][Info] 'blend_vault_hash' for library {lib.filepath} is not valid JSON. Assuming it's a direct UUID or marker. Content: '{raw_library_identity_str}'{LOG_COLORS['RESET']}")
-                    # parsed_library_identity remains None
-
-            # Determine the library's own blendfile_uuid to store
-            library_blendfile_uuid_to_store = "UNKNOWN_LIBRARY_UUID" # Default
-            if raw_library_identity_str == 'MISSING_HASH':
-                library_blendfile_uuid_to_store = 'MISSING_HASH'
-            elif isinstance(parsed_library_identity, dict) and BLEND_VAULT_FILE_UUID_KEY in parsed_library_identity:
-                library_blendfile_uuid_to_store = parsed_library_identity[BLEND_VAULT_FILE_UUID_KEY]
-            elif isinstance(parsed_library_identity, str): # Parsed JSON was just a string e.g. "uuid-value"
-                library_blendfile_uuid_to_store = parsed_library_identity
-            elif parsed_library_identity is None and raw_library_identity_str != 'MISSING_HASH':
-                 # Failed to parse as JSON, but wasn't MISSING_HASH. Use the raw string.
-                library_blendfile_uuid_to_store = raw_library_identity_str
-            # If parsed_library_identity was some other JSON type (e.g. list, number) and not a dict with blendfile_uuid,
-            # it might fall through to UNKNOWN_LIBRARY_UUID unless raw_library_identity_str was used.
-
-            # Collect assets linked from this specific library, using their live names and stored UUIDs
-            live_linked_assets = []
-            ASSET_SOURCES_MAP_FOR_LIBS = get_asset_sources_map() # Get a fresh map for safety
-
-            for asset_type_name, datablock_collection in ASSET_SOURCES_MAP_FOR_LIBS.items():
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Preparing to process library assets: {asset_type_name} for lib {lib.filepath}{LOG_COLORS['RESET']}")
-                if datablock_collection is None: 
-                    print(f"{LOG_COLORS['WARN']}[Blend Vault] Library collection for {asset_type_name} is None, skipping.{LOG_COLORS['RESET']}")
-                    continue
-                
-                current_lib_collection_as_list = []
-                try:
-                    print(f"{LOG_COLORS['INFO']}[Blend Vault] Attempting to list library items from: {asset_type_name}{LOG_COLORS['RESET']}")
-                    current_lib_collection_as_list = list(datablock_collection)
-                    print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Successfully listed {len(current_lib_collection_as_list)} library items from {asset_type_name}. Iterating...{LOG_COLORS['RESET']}")
-                except Exception as e_lib_list_conversion:
-                    print(f"{LOG_COLORS['ERROR']}[Blend Vault] CRITICAL: Failed to convert library collection {asset_type_name} to list: {e_lib_list_conversion}{LOG_COLORS['RESET']}")
-                    continue
-
-                for item_idx, item in enumerate(current_lib_collection_as_list):
-                    try:
-                        if not item:
-                            print(f"{LOG_COLORS['WARN']}[Blend Vault] Encountered an invalid (None) library item in {asset_type_name} at index {item_idx}, skipping.{LOG_COLORS['RESET']}")
-                            continue
-
-                        item_name_for_logging = "UnknownLibItem"
-                        try:
-                            item_name_for_logging = getattr(item, 'name', 'UnnamedLibItem')
-                        except Exception as e_name:
-                            print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not get name for library item in {asset_type_name} at index {item_idx}: {e_name}{LOG_COLORS['RESET']}")
-                        
-                        # Check if the item belongs to the current library being processed
-                        item_library = getattr(item, 'library', None)
-                        if item_library == lib:
-                            is_scene = asset_type_name == "Scene"
-                            item_asset_data = getattr(item, 'asset_data', None)
-                            is_asset = item_asset_data is not None
-                            if is_scene or is_asset:
-                                item_uuid = item.get(BLEND_VAULT_HASH_PROP) or ensure_library_hash(item)
-                                live_linked_assets.append({
-                                    "name": item_name_for_logging,
-                                    "type": asset_type_name,
-                                    "uuid": item_uuid
-                                })
-                    except Exception as e_lib_item_processing:
-                        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Error processing library item '{item_name_for_logging}' (index {item_idx}) in {asset_type_name} for lib {lib.filepath}: {e_lib_item_processing}{LOG_COLORS['RESET']}")
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Finished iterating library assets {asset_type_name} for lib {lib.filepath}{LOG_COLORS['RESET']}")
+                    with open(lib_sidecar_path, 'r', encoding='utf-8') as f_lib_sc:
+                        sc_content = f_lib_sc.read()
+                    uuid_match = re.search(rf'"{BV_FILE_UUID_KEY}"\s*:\s*"([^"]+)"', sc_content)
+                    if uuid_match:
+                        library_uuid = uuid_match.group(1)
+                    else:
+                        uuid_match_generic = re.search(rf'"{BV_UUID_KEY}"\s*:\s*"([^"]+)"', sc_content)
+                        if uuid_match_generic:
+                            library_uuid = uuid_match_generic.group(1)
+                            print(f"{LOG_COLORS['WARN']}[Blend Vault] Found generic UUID for library {lib_sidecar_path}, using it. Consider re-saving library to update to {BV_FILE_UUID_KEY}.{LOG_COLORS['RESET']}")
+                except Exception as e:
+                    print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not read library sidecar {lib_sidecar_path}: {e}{LOG_COLORS['RESET']}")
             
-            # Construct the data to be stored for this library in the JSON
-            library_data_for_json = {
+            if library_uuid == "MISSING_HASH":
+                library_uuid = ensure_library_hash(lib.filepath)
+            
+            lib.id_properties_ensure()[BV_UUID_PROP] = library_uuid
+            
+            markdown_link_path = os.path.basename(processed_lib_path)
+            markdown_link_target = processed_lib_path
+            blend_vault_data_lines.append(
+                MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['format'].format(
+                    name=markdown_link_path, 
+                    path=markdown_link_target
+                )
+            )
+            
+            linked_assets = linked_assets_by_library.get(lib, [])
+            
+            library_data = {
                 "path": processed_lib_path,
-                "uuid": library_blendfile_uuid_to_store,
-                "assets": live_linked_assets
+                "uuid": library_uuid,
+                "assets": linked_assets
             }
             
-            # Add JSON block
             blend_vault_data_lines.append("```json")
-            for line in json.dumps(library_data_for_json, indent=2, ensure_ascii=False).splitlines():
+            for line in json.dumps(library_data, indent=2, ensure_ascii=False).splitlines():
                 blend_vault_data_lines.append(line)
             blend_vault_data_lines.append("```")
-            blend_vault_data_lines.append("") # Add a blank line for separation
+            blend_vault_data_lines.append("")
     else:
         blend_vault_data_lines.append("- None")
 
     blend_vault_data_block_string = "\n".join(blend_vault_data_lines) + "\n"
 
-    # Assemble final content for writing
     final_content_parts = [new_frontmatter_string]
     if processed_user_content:
         final_content_parts.append(processed_user_content)
-        final_content_parts.append("\n\n") # Ensure separation after user content
-    elif new_frontmatter_string: # Frontmatter exists but no user content
-        final_content_parts.append("\n") # Add a newline to separate frontmatter from data block
+        final_content_parts.append("\n\n")
+    elif new_frontmatter_string:
+        final_content_parts.append("\n")
 
-    # If '## %% Blend Vault Data' exists, replace its content; otherwise, append as usual
     blend_vault_heading = '## %% Blend Vault Data'
-    output_content = None
     if original_lines:
-        # Find the line index where the heading appears
         heading_idx = -1
         for idx, line in enumerate(original_lines):
             if line.strip() == blend_vault_heading:
                 heading_idx = idx
                 break
+        
         if heading_idx != -1:
-            # Keep everything above the heading, then add the new data block
             preserved_content = ''.join(original_lines[:heading_idx])
-            # Ensure preserved_content ends with a newline
             if not preserved_content.endswith('\n'):
                 preserved_content += '\n'
             output_content = preserved_content + blend_vault_data_block_string
         else:
-            # Heading not found, append as usual
             output_content = ''.join(final_content_parts) + blend_vault_data_block_string
     else:
-        # No original lines, just write as usual
         output_content = ''.join(final_content_parts) + blend_vault_data_block_string
 
     try:
         with open(md_path, 'w', encoding='utf-8') as f_write:
             f_write.write(output_content)
         print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file written to: {md_path}{LOG_COLORS['RESET']}")
+        
+        _create_backup_text_block(output_content, blend_file_basename)
+        
     except Exception as e:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault][Error] Failed to write sidecar file {md_path}: {e}{LOG_COLORS['RESET']}")
+        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to write sidecar file {md_path}: {e}{LOG_COLORS['RESET']}")
 
-# Ensure the handler remains persistent
+
 write_library_info.persistent = True

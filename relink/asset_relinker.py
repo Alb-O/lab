@@ -3,7 +3,7 @@ import os
 import json
 import re
 import traceback
-from utils import SIDECAR_EXTENSION, LOG_COLORS, get_asset_sources_map, BLEND_VAULT_HASH_PROP, BLEND_VAULT_FILE_UUID_KEY, BLEND_VAULT_UUID_KEY, MD_LINK_FORMATS, ensure_library_hash
+from utils import SIDECAR_EXTENSION, LOG_COLORS, get_asset_sources_map, BV_UUID_PROP, BV_FILE_UUID_KEY, BV_UUID_KEY, MD_LINK_FORMATS, ensure_library_hash
 
 # Helper function to parse a library's own sidecar for its "Current File" assets
 def _get_current_file_assets_from_sidecar(sidecar_file_path: str):
@@ -55,7 +55,7 @@ def _get_current_file_assets_from_sidecar(sidecar_file_path: str):
                     if json_str.strip():
                         try:
                             data = json.loads(json_str)
-                            library_blend_uuid_from_sidecar = data.get(BLEND_VAULT_UUID_KEY) or data.get(BLEND_VAULT_FILE_UUID_KEY)
+                            library_blend_uuid_from_sidecar = data.get(BV_UUID_KEY) or data.get(BV_FILE_UUID_KEY)
                             
                             current_file_assets = data.get("assets", [])
                             for asset_info in current_file_assets:
@@ -337,7 +337,7 @@ def relink_renamed_assets(*args, **kwargs):
                         if libpath and os.path.normpath(libpath) == expected_abs_lib_path_normalized:
                             # Assign the sidecar's UUID to the session item
                             try:
-                                item.id_properties_ensure()[BLEND_VAULT_HASH_PROP] = asset_uuid
+                                item.id_properties_ensure()[BV_UUID_PROP] = asset_uuid
                                 print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink]   Assigned correct UUID '{asset_uuid}' to session item '{item.name}'.{LOG_COLORS['RESET']}")
                             except Exception:
                                 pass
@@ -421,7 +421,7 @@ def relink_renamed_assets(*args, **kwargs):
                 original_session_uid = op_data['session_uid']
                 
                 # Also get a backup reference using the UUID instead of session_uid
-                backup_uuid = getattr(session_item, BLEND_VAULT_HASH_PROP, None)
+                backup_uuid = getattr(session_item, BV_UUID_PROP, None)
                 
                 try:
                     result = bpy.ops.wm.id_linked_relocate(
@@ -446,7 +446,7 @@ def relink_renamed_assets(*args, **kwargs):
                         if not refetched_session_item and backup_uuid:
                             # Strategy 2: Try to find by UUID if session_uid lookup failed
                             print(f"{LOG_COLORS['DEBUG']}[Blend Vault][AssetRelink] Session UID lookup failed, trying UUID backup lookup for {backup_uuid}{LOG_COLORS['RESET']}")
-                            refetched_session_item = next((item for item in bpy_collection_after_relink if getattr(item, BLEND_VAULT_HASH_PROP, None) == backup_uuid), None)
+                            refetched_session_item = next((item for item in bpy_collection_after_relink if getattr(item, BV_UUID_PROP, None) == backup_uuid), None)
                         
                         if not refetched_session_item:
                             # Strategy 3: Try to find by new name in same library

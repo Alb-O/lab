@@ -1,9 +1,12 @@
-import bpy # type: ignore
+import bpy  # type: ignore
 import os
 import json
 import re
 import traceback
-from utils import SIDECAR_EXTENSION, LOG_COLORS, MD_LINK_FORMATS, BLEND_VAULT_HASH_PROP, BLEND_VAULT_FILE_UUID_KEY, BLEND_VAULT_UUID_KEY
+from utils import (
+    SIDECAR_EXTENSION, LOG_COLORS, MD_LINK_FORMATS, BV_UUID_PROP, 
+    BV_FILE_UUID_KEY, BV_UUID_KEY
+)
 
 @bpy.app.handlers.persistent
 def relink_library_info(*args, **kwargs):
@@ -64,7 +67,7 @@ def relink_library_info(*args, **kwargs):
                         try:
                             data = json.loads(json_str)
                             stored_path_from_json = data.get("path")
-                            stored_blendfile_hash = data.get(BLEND_VAULT_UUID_KEY)
+                            stored_blendfile_hash = data.get(BV_UUID_KEY)
                             
                             if stored_path_from_json and stored_blendfile_hash and stored_blendfile_hash != "MISSING_HASH":
                                 print(f"{LOG_COLORS['INFO']}[Blend Vault][LibraryRelink] Processing entry: Path='{stored_path_from_json}', Blendfile Hash='{stored_blendfile_hash}' (from MD link '{current_link_name_for_processing}'){LOG_COLORS['RESET']}")
@@ -75,13 +78,13 @@ def relink_library_info(*args, **kwargs):
 
                                 found_matching_lib = False
                                 for lib in bpy.data.libraries:
-                                    lib_prop_val = lib.get(BLEND_VAULT_HASH_PROP)
+                                    lib_prop_val = lib.get(BV_UUID_PROP)
                                     actual_lib_identifier = None
                                     if lib_prop_val:
                                         try:
                                             parsed_lib_prop = json.loads(lib_prop_val)
                                             if isinstance(parsed_lib_prop, dict):
-                                                actual_lib_identifier = parsed_lib_prop.get(BLEND_VAULT_FILE_UUID_KEY)
+                                                actual_lib_identifier = parsed_lib_prop.get(BV_FILE_UUID_KEY)
                                             elif isinstance(parsed_lib_prop, str): 
                                                 actual_lib_identifier = parsed_lib_prop
                                         except json.JSONDecodeError:
