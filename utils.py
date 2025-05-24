@@ -48,7 +48,6 @@ POLL_INTERVAL = 5.0
 
 # --- Blend Vault UUID/Hash Key Constants ---
 BV_UUID_PROP = "BV_UUID"
-BV_SIDECAR_BACKUP_PREFIX = "BV_BACKUP_"
 BV_FILE_UUID_KEY = "blendfile_uuid"
 BV_UUID_KEY = "uuid"
 

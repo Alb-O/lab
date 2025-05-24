@@ -5,7 +5,7 @@ import re
 from utils import (
     ensure_library_hash, get_asset_sources_map, LOG_COLORS, SIDECAR_EXTENSION, 
     FRONTMATTER_TAGS, MD_LINK_FORMATS, BV_UUID_PROP, 
-    BV_SIDECAR_BACKUP_PREFIX, BV_UUID_KEY, BV_FILE_UUID_KEY
+    BV_UUID_KEY, BV_FILE_UUID_KEY
 )
 from .frontmatter import generate_frontmatter_string
 
@@ -99,40 +99,6 @@ def _collect_assets_by_type():
     return local_assets, linked_assets_by_library
 
 
-def _create_backup_text_block(sidecar_content, blend_file_basename):
-    """
-    Creates or updates a backup text block with the contents of the sidecar file.
-    This serves as a backup in case the sidecar file gets corrupted.
-    Deletes any stale backup text blocks.
-    The content of this block is a direct copy of the sidecar file.
-    """
-    try:
-        current_backup_block_name = f"{BV_SIDECAR_BACKUP_PREFIX}{blend_file_basename}{SIDECAR_EXTENSION}"
-        
-        # Remove stale backup blocks
-        active_text_blocks = list(bpy.data.texts) # Create a copy for safe iteration
-        for tb in active_text_blocks:
-            if tb.name.startswith(BV_SIDECAR_BACKUP_PREFIX) and tb.name != current_backup_block_name:
-                bpy.data.texts.remove(tb)
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Removed stale backup text block: {tb.name}{LOG_COLORS['RESET']}")
-
-        txt_block = bpy.data.texts.get(current_backup_block_name)
-        if not txt_block:
-            txt_block = bpy.data.texts.new(current_backup_block_name)
-        
-        txt_block.clear()
-        comment_header = f"""# Blend Vault Backup - Copy of sidecar file contents
-# Source: {blend_file_basename}{SIDECAR_EXTENSION}
-# This is auto-generated backup data. Do not edit manually.
-# To restore, copy the content below into the corresponding sidecar file.
-"""
-        txt_block.write(comment_header + "\n" + sidecar_content) # Add newline after header
-        
-        print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Backup text block '{current_backup_block_name}' updated.{LOG_COLORS['RESET']}")
-    except Exception as e:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to create/update backup text block: {e}{LOG_COLORS['RESET']}")
-
-
 def _get_or_create_blendfile_uuid(blend_path):
     """
     Gets existing blendfile UUID from its own sidecar file or creates a new one if not found.
@@ -177,7 +143,7 @@ def _get_or_create_blendfile_uuid(blend_path):
 
 @bpy.app.handlers.persistent
 def write_library_info(*args, **kwargs):
-    """Main handler to write sidecar file and backup text block."""
+    """Main handler to write sidecar file."""
     print(f"{LOG_COLORS['INFO']}[Blend Vault] Preparing to write sidecar for: {bpy.data.filepath}{LOG_COLORS['RESET']}")
     
     blend_path = bpy.data.filepath
@@ -325,8 +291,6 @@ def write_library_info(*args, **kwargs):
         with open(md_path, 'w', encoding='utf-8') as f_write:
             f_write.write(output_content)
         print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file written to: {md_path}{LOG_COLORS['RESET']}")
-        
-        _create_backup_text_block(output_content, blend_file_basename)
         
     except Exception as e:
         print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to write sidecar file {md_path}: {e}{LOG_COLORS['RESET']}")
