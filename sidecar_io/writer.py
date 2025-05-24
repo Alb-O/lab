@@ -2,6 +2,7 @@ import bpy  # type: ignore
 import os
 import json
 import re
+from typing import Dict, List, Tuple, Optional
 from utils import (
     ensure_library_hash, get_asset_sources_map, LOG_COLORS, SIDECAR_EXTENSION, 
     FRONTMATTER_TAGS, MD_LINK_FORMATS, BV_UUID_PROP, 
@@ -9,451 +10,288 @@ from utils import (
 )
 from .frontmatter import generate_frontmatter_string
 
-def _ensure_all_asset_uuids_are_set():
-    """
-    Iterates through all relevant local and linked assets to ensure they have
-    the BLEND_VAULT_HASH_PROP custom property set.
-    """
-    print(f"{LOG_COLORS['INFO']}[Blend Vault] Ensuring all asset UUIDs are set on datablocks...{LOG_COLORS['RESET']}")
-    ASSET_SOURCES_MAP = get_asset_sources_map()
 
-    # Process local assets only (preserve original UUIDs on linked assets)
-    for asset_type_name, datablock_collection in ASSET_SOURCES_MAP.items():
-        if datablock_collection is None:
-            continue
-        
-        try:
-            items_list = list(datablock_collection)
-        except Exception as e_list:
-            print(f"{LOG_COLORS['ERROR']}[Blend Vault][EnsureUUIDs] Failed to list local items for '{asset_type_name}': {e_list}{LOG_COLORS['RESET']}")
-            continue
-            
-        for item in items_list:
-            if not item:
-                continue
-            
-            item_library = getattr(item, 'library', None)
-            is_scene = asset_type_name == "Scene"
-            item_asset_data = getattr(item, 'asset_data', None)
-            is_asset = item_asset_data is not None
-
-            # Only process local assets (library is None)
-            if item_library is None and (is_scene or is_asset):
-                ensure_library_hash(item)
-
-    print(f"{LOG_COLORS['INFO']}[Blend Vault] Finished ensuring all asset UUIDs.{LOG_COLORS['RESET']}")
+def _log(level: str, message: str) -> None:
+    """Simplified logging function"""
+    print(f"{LOG_COLORS.get(level, '')}{message}{LOG_COLORS['RESET']}")
 
 
-def _collect_assets_by_type():
-    """
-    Collect all local and linked assets by type.
-    Returns tuple of (local_assets_dict, linked_assets_by_library_dict)
-    """
+def _extract_uuid_from_content(content: str) -> Optional[str]:
+    """Extract UUID from sidecar content, trying both key formats"""
+    for key in [BV_FILE_UUID_KEY, BV_UUID_KEY]:
+        match = re.search(rf'"{key}"\s*:\s*"([^"]+)"', content)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _read_sidecar_uuid(sidecar_path: str) -> Optional[str]:
+    """Read UUID from sidecar file"""
+    if not os.path.exists(sidecar_path):
+        return None
+    
+    try:
+        with open(sidecar_path, 'r', encoding='utf-8') as f:
+            return _extract_uuid_from_content(f.read())
+    except Exception:
+        return None
+
+
+def _collect_assets() -> Tuple[Dict[str, dict], Dict[object, List[dict]]]:
+    """Simplified asset collection with reduced error handling"""
     local_assets = {}
     linked_assets_by_library = {}
     
-    ASSET_SOURCES_MAP = get_asset_sources_map()
-    
-    for asset_type_name, datablock_collection in ASSET_SOURCES_MAP.items():
-        if datablock_collection is None:
+    for asset_type, collection in get_asset_sources_map().items():
+        if not collection:
             continue
             
-        try:
-            items_list = list(datablock_collection)
-        except Exception as e_list:
-            print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to list items for '{asset_type_name}': {e_list}{LOG_COLORS['RESET']}")
-            continue
-            
-        for item_idx, item in enumerate(items_list):
+        for item in collection:
             if not item:
                 continue
                 
-            try:
-                item_name = getattr(item, 'name', f'Unnamed{asset_type_name}')
-                item_library = getattr(item, 'library', None)
-                is_scene = asset_type_name == "Scene"
-                item_asset_data = getattr(item, 'asset_data', None)
-                is_asset = item_asset_data is not None
-                
-                if is_scene or is_asset:
-                    item_uuid = ensure_library_hash(item)
-                    asset_info = {
-                        "name": item_name,
-                        "type": asset_type_name,
-                        "uuid": item_uuid
-                    }
-                    
-                    if item_library is None:
-                        # Local asset
-                        local_assets[item_uuid] = asset_info
-                    else:
-                        # Linked asset
-                        if item_library not in linked_assets_by_library:
-                            linked_assets_by_library[item_library] = []
-                        linked_assets_by_library[item_library].append(asset_info)
-                        
-            except Exception as e_item:
-                print(f"{LOG_COLORS['ERROR']}[Blend Vault] Error processing item {item_idx} in {asset_type_name}: {e_item}{LOG_COLORS['RESET']}")
+            # Check if item is an asset or scene
+            is_asset = asset_type == "Scene" or getattr(item, 'asset_data', None) is not None
+            if not is_asset:
                 continue
                 
+            library = getattr(item, 'library', None)
+            
+            # Only generate UUIDs for local assets
+            if library is None:
+                ensure_library_hash(item)
+            
+            # Collect asset info
+            asset_info = {
+                "name": getattr(item, 'name', f'Unnamed{asset_type}'),
+                "type": asset_type,
+                "uuid": ensure_library_hash(item)
+            }
+            
+            if library is None:
+                local_assets[asset_info["uuid"]] = asset_info
+            else:
+                linked_assets_by_library.setdefault(library, []).append(asset_info)
+    
     return local_assets, linked_assets_by_library
 
 
-def _push_uuid_to_sidecar(sidecar_path, file_uuid, asset_updates=None):
-    """
-    Push a file UUID and optionally asset UUIDs to a sidecar file.
-    This ensures that generated UUIDs for linked content are written to the source file's sidecar.
+def _build_sidecar_content(blend_path: str, local_assets: Dict, linked_assets_by_library: Dict) -> Tuple[str, Dict]:
+    """Build sidecar content and track UUID pushes"""
+    file_uuid = _read_sidecar_uuid(blend_path + SIDECAR_EXTENSION) or ensure_library_hash(blend_path)
     
-    Args:
-        sidecar_path: Path to the sidecar file to update
-        file_uuid: UUID for the blend file itself
-        asset_updates: Dict of {asset_uuid: asset_info} to update in the sidecar
-    """
+    # Build content sections
+    sections = [
+        "## %% Blend Vault Data",
+        "This section is auto-generated by the Blend Vault plugin and will be overwritten on save.",
+        "",
+        "### Current File",
+        "```json",
+        json.dumps({
+            "path": os.path.basename(blend_path),
+            BV_FILE_UUID_KEY: file_uuid,
+            "assets": list(local_assets.values())
+        }, indent=2, ensure_ascii=False),
+        "```",
+        "",
+        "### Linked Libraries"
+    ]
+    
+    uuid_pushes = {}
+    libraries = list(bpy.data.libraries)
+    
+    if not libraries:
+        sections.append("- None")
+    else:
+        for lib in libraries:
+            # Process library path
+            lib_path = lib.filepath.lstrip('//').replace('\\', '/')
+            lib_sidecar_path = os.path.normpath(
+                os.path.join(os.path.dirname(blend_path), lib_path)
+            ) + SIDECAR_EXTENSION
+            
+            # Get or generate library UUID
+            lib_uuid = _read_sidecar_uuid(lib_sidecar_path)
+            uuid_was_generated = False
+            
+            if not lib_uuid:
+                lib_uuid = ensure_library_hash(lib.filepath)
+                uuid_was_generated = True
+            
+            # Store UUID on library datablock
+            lib.id_properties_ensure()[BV_UUID_PROP] = lib_uuid
+            
+            # Check for newly generated asset UUIDs
+            linked_assets = linked_assets_by_library.get(lib, [])
+            new_assets = {}
+            
+            if os.path.exists(lib_sidecar_path):
+                try:
+                    with open(lib_sidecar_path, 'r', encoding='utf-8') as f:
+                        sidecar_content = f.read()
+                    new_assets = {
+                        asset["uuid"]: asset for asset in linked_assets 
+                        if asset["uuid"] not in sidecar_content
+                    }
+                except Exception:
+                    new_assets = {asset["uuid"]: asset for asset in linked_assets}
+            else:
+                new_assets = {asset["uuid"]: asset for asset in linked_assets}
+            
+            # Schedule UUID push if needed
+            if uuid_was_generated or new_assets:
+                uuid_pushes[lib_sidecar_path] = (lib_uuid, new_assets)
+            
+            # Add to sidecar content
+            sections.extend([
+                MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['format'].format(
+                    name=os.path.basename(lib_path), 
+                    path=lib_path
+                ),
+                "```json",
+                json.dumps({
+                    "path": lib_path,
+                    "uuid": lib_uuid,
+                    "assets": linked_assets
+                }, indent=2, ensure_ascii=False),
+                "```",
+                ""
+            ])
+    
+    return "\n".join(sections) + "\n", uuid_pushes
+
+
+def _write_sidecar_with_content_preservation(md_path: str, new_data_content: str) -> None:
+    """Write sidecar while preserving user content"""
+    original_lines = []
+    if os.path.exists(md_path):
+        with open(md_path, 'r', encoding='utf-8') as f:
+            original_lines = f.readlines()
+    
+    # Generate frontmatter and extract user content
+    frontmatter, fm_end_idx = generate_frontmatter_string(original_lines, FRONTMATTER_TAGS)
+    user_content = ""
+    
+    if original_lines:
+        user_lines = original_lines[fm_end_idx + 1:] if fm_end_idx != -1 else original_lines
+        
+        # Find and remove existing Blend Vault Data section
+        blend_vault_heading = '## %% Blend Vault Data'
+        for i, line in enumerate(user_lines):
+            if line.strip() == blend_vault_heading:
+                user_lines = user_lines[:i]
+                break
+        
+        user_content = "".join(user_lines).strip()
+    
+    # Assemble final content
+    content_parts = [frontmatter]
+    if user_content:
+        content_parts.extend([user_content, "\n\n"])
+    elif frontmatter:
+        content_parts.append("\n")
+    
+    content_parts.append(new_data_content)
+    
+    with open(md_path, 'w', encoding='utf-8') as f:
+        f.write("".join(content_parts))
+
+
+def _push_uuid_to_sidecar(sidecar_path: str, file_uuid: str, asset_updates: Dict) -> None:
+    """Simplified UUID pushing to sidecar"""
     try:
-        # Read existing sidecar content if it exists
+        # Read existing content
         original_lines = []
         if os.path.exists(sidecar_path):
             with open(sidecar_path, 'r', encoding='utf-8') as f:
                 original_lines = f.readlines()
         
-        # Generate frontmatter
-        new_frontmatter_string, original_fm_end_idx = generate_frontmatter_string(original_lines, FRONTMATTER_TAGS)
-        
-        # Extract user content (everything after frontmatter, before Blend Vault Data section)
-        user_content_lines = original_lines[original_fm_end_idx + 1:] if original_fm_end_idx != -1 else original_lines
-        processed_user_content = "".join(user_content_lines).strip()
-        
-        # Find existing Blend Vault Data section
+        # Extract existing assets
+        existing_assets = []
         blend_vault_heading = '## %% Blend Vault Data'
-        heading_idx = -1
-        for idx, line in enumerate(original_lines):
+        
+        for i, line in enumerate(original_lines):
             if line.strip() == blend_vault_heading:
-                heading_idx = idx
+                content_after = ''.join(original_lines[i:])
+                json_match = re.search(r'### Current File\s*\n```json\s*\n(.*?)\n```', content_after, re.DOTALL)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group(1))
+                        existing_assets = data.get('assets', [])
+                    except json.JSONDecodeError:
+                        pass
                 break
         
-        # Extract existing asset data if available
-        existing_assets = []
-        if heading_idx != -1:
-            # Look for Current File JSON block
-            try:
-                content_after_heading = ''.join(original_lines[heading_idx:])
-                # Find the JSON block for Current File
-                json_match = re.search(r'### Current File\s*\n```json\s*\n(.*?)\n```', content_after_heading, re.DOTALL)
-                if json_match:
-                    json_content = json_match.group(1)
-                    current_file_data = json.loads(json_content)
-                    existing_assets = current_file_data.get('assets', [])
-            except Exception as e:
-                print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not parse existing assets from {sidecar_path}: {e}{LOG_COLORS['RESET']}")
-        
-        # Merge existing assets with updates
+        # Merge assets
         if asset_updates:
-            # Create a dict of existing assets by UUID for easy lookup
-            existing_by_uuid = {asset.get('uuid'): asset for asset in existing_assets if asset.get('uuid')}
-            
-            # Update or add new assets
-            for uuid, asset_info in asset_updates.items():
-                existing_by_uuid[uuid] = asset_info
-            
-            # Convert back to list
-            existing_assets = list(existing_by_uuid.values())
+            asset_dict = {asset.get('uuid'): asset for asset in existing_assets if asset.get('uuid')}
+            asset_dict.update(asset_updates)
+            existing_assets = list(asset_dict.values())
         
-        # Build new Blend Vault Data section
-        blend_vault_data_lines = []
-        blend_vault_data_lines.append("## %% Blend Vault Data")
-        blend_vault_data_lines.append(
-            "This section is auto-generated by the Blend Vault plugin and will be overwritten on save. "
-            "User content can be written above this heading."
-        )
+        # Build new content
+        new_content = "\n".join([
+            "## %% Blend Vault Data",
+            "This section is auto-generated by the Blend Vault plugin and will be overwritten on save.",
+            "",
+            "### Current File",
+            "```json",
+            json.dumps({
+                "path": os.path.basename(sidecar_path.replace(SIDECAR_EXTENSION, '')),
+                BV_FILE_UUID_KEY: file_uuid,
+                "assets": existing_assets
+            }, indent=2, ensure_ascii=False),
+            "```",
+            "",
+            "### Linked Libraries",
+            "- None",
+            ""
+        ])
         
-        blend_vault_data_lines.append("### Current File")
-        current_file_data = {
-            "path": os.path.basename(sidecar_path.replace(SIDECAR_EXTENSION, '')),
-            BV_FILE_UUID_KEY: file_uuid,
-            "assets": existing_assets
-        }
-        
-        blend_vault_data_lines.append("```json")
-        for line in json.dumps(current_file_data, indent=2, ensure_ascii=False).splitlines():
-            blend_vault_data_lines.append(line)
-        blend_vault_data_lines.append("```")
-        
-        # For now, we don't handle linked libraries in pushed sidecars
-        # This function is primarily for pushing UUIDs to source files
-        blend_vault_data_lines.append("### Linked Libraries")
-        blend_vault_data_lines.append("- None")
-        
-        blend_vault_data_block_string = "\n".join(blend_vault_data_lines) + "\n"
-        
-        # Assemble final content
-        final_content_parts = [new_frontmatter_string]
-        if processed_user_content:
-            final_content_parts.append(processed_user_content)
-            final_content_parts.append("\n\n")
-        elif new_frontmatter_string:
-            final_content_parts.append("\n")
-        
-        if heading_idx != -1:
-            # Replace existing Blend Vault Data section
-            preserved_content = ''.join(original_lines[:heading_idx])
-            if not preserved_content.endswith('\n'):
-                preserved_content += '\n'
-            output_content = preserved_content + blend_vault_data_block_string
-        else:
-            # Append new Blend Vault Data section
-            output_content = ''.join(final_content_parts) + blend_vault_data_block_string
-        
-        # Write updated sidecar
-        with open(sidecar_path, 'w', encoding='utf-8') as f:
-            f.write(output_content)
-        
-        print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Pushed UUIDs to sidecar: {sidecar_path}{LOG_COLORS['RESET']}")
+        _write_sidecar_with_content_preservation(sidecar_path, new_content)
+        _log('SUCCESS', f"[Blend Vault] Pushed UUIDs to sidecar: {sidecar_path}")
         
     except Exception as e:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to push UUIDs to sidecar {sidecar_path}: {e}{LOG_COLORS['RESET']}")
-
-
-def _get_or_create_blendfile_uuid(blend_path):
-    """
-    Gets existing blendfile UUID from its own sidecar file or creates a new one if not found.
-    The sidecar file is the source of truth for the blendfile's UUID.
-    Returns the UUID string.
-    """
-    md_path = blend_path + SIDECAR_EXTENSION
-    
-    if os.path.exists(md_path):
-        try:
-            with open(md_path, 'r', encoding='utf-8') as f_sidecar:
-                content = f_sidecar.read()
-            
-            # Try to find BV_FILE_UUID_KEY first
-            uuid_match = re.search(rf'"{BV_FILE_UUID_KEY}"\s*:\s*"([^"]+)"', content)
-            if uuid_match:
-                existing_uuid = uuid_match.group(1)
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Using existing blendfile UUID from sidecar '{md_path}': {existing_uuid}{LOG_COLORS['RESET']}")
-                return existing_uuid
-            
-            # Fallback to BV_UUID_KEY for older sidecars or different structures
-            uuid_match_generic = re.search(rf'"{BV_UUID_KEY}"\s*:\s*"([^"]+)"', content)
-            if uuid_match_generic:
-                # This assumes that if BV_UUID_KEY is present at the top level of a blend file's sidecar,
-                # it refers to the blend file's UUID.
-                existing_uuid = uuid_match_generic.group(1)
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Using existing generic UUID (as blendfile UUID) from sidecar '{md_path}': {existing_uuid}{LOG_COLORS['RESET']}")
-                return existing_uuid
-            
-            print(f"{LOG_COLORS['WARN']}[Blend Vault] UUID key not found in existing sidecar '{md_path}'. A new UUID will be generated.{LOG_COLORS['RESET']}")
-
-        except Exception as e:
-            print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not read UUID from sidecar '{md_path}': {e}. A new UUID will be generated.{LOG_COLORS['RESET']}")
-    else:
-        print(f"{LOG_COLORS['INFO']}[Blend Vault] Sidecar file '{md_path}' not found. A new UUID will be generated for the blendfile.{LOG_COLORS['RESET']}")
-    
-    # If UUID not found in sidecar or sidecar doesn't exist, generate a new one
-    new_uuid = ensure_library_hash(blend_path) # Use blend_path for hashing, as bpy.data.filepath is the same
-    print(f"{LOG_COLORS['INFO']}[Blend Vault] Generated new blendfile UUID: {new_uuid}{LOG_COLORS['RESET']}")
-    return new_uuid
+        _log('ERROR', f"[Blend Vault] Failed to push UUIDs to sidecar {sidecar_path}: {e}")
 
 
 @bpy.app.handlers.persistent
 def write_library_info(*args, **kwargs):
-    """Main handler to write sidecar file."""
-    print(f"{LOG_COLORS['INFO']}[Blend Vault] Preparing to write sidecar for: {bpy.data.filepath}{LOG_COLORS['RESET']}")
-    
+    """Simplified main handler to write sidecar file"""
     blend_path = bpy.data.filepath
     if not blend_path:
-        print(f"{LOG_COLORS['WARN']}[Blend Vault] No blend file path found, skipping write.{LOG_COLORS['RESET']}")
+        _log('WARN', "[Blend Vault] No blend file path found, skipping write")
         return
-
-    blend_file_basename = os.path.basename(blend_path)
-    md_path = blend_path + SIDECAR_EXTENSION
-
-    original_lines = []
-    if os.path.exists(md_path):
-        with open(md_path, 'r', encoding='utf-8') as f_read:
-            original_lines = f_read.readlines()
-
-    new_frontmatter_string, original_fm_end_idx = generate_frontmatter_string(original_lines, FRONTMATTER_TAGS)
-
-    user_content_lines = original_lines[original_fm_end_idx + 1:] if original_fm_end_idx != -1 else original_lines
-    processed_user_content = "".join(user_content_lines).strip()
-
-    try:
-        _ensure_all_asset_uuids_are_set()
-    except Exception as e_ensure_uuids:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to ensure all asset UUIDs: {e_ensure_uuids}{LOG_COLORS['RESET']}")
-
+    
+    _log('INFO', f"[Blend Vault] Writing sidecar for: {blend_path}")
+    
+    # Optional relink step
     try:
         from relink.asset_relinker import relink_renamed_assets
-        print(f"{LOG_COLORS['INFO']}[Blend Vault] Attempting asset datablock relink before writing sidecar...{LOG_COLORS['RESET']}")
         relink_renamed_assets()
     except Exception as e:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to run asset datablock relink before writing sidecar: {e}{LOG_COLORS['RESET']}")
-
-    local_assets, linked_assets_by_library = _collect_assets_by_type()
+        _log('ERROR', f"[Blend Vault] Asset relink failed: {e}")
     
-    # Get or create blendfile UUID from its own sidecar or generate new
-    blendfile_uuid = _get_or_create_blendfile_uuid(blend_path)
+    # Collect assets and build content
+    local_assets, linked_assets_by_library = _collect_assets()
+    sidecar_content, uuid_pushes = _build_sidecar_content(blend_path, local_assets, linked_assets_by_library)
     
-    blend_vault_data_lines = []
-    blend_vault_data_lines.append("## %% Blend Vault Data")
-    blend_vault_data_lines.append(
-        "This section is auto-generated by the Blend Vault plugin and will be overwritten on save. "
-        "User content can be written above this heading."
-    )
-    
-    blend_vault_data_lines.append("### Current File")
-    current_file_data = {
-        "path": os.path.basename(blend_path),
-        BV_FILE_UUID_KEY: blendfile_uuid,
-        "assets": list(local_assets.values())
-    }
-    blend_vault_data_lines.append("```json")
-    for line in json.dumps(current_file_data, indent=2, ensure_ascii=False).splitlines():
-        blend_vault_data_lines.append(line)
-    blend_vault_data_lines.append("```")
-    
-    blend_vault_data_lines.append("### Linked Libraries")
-    libraries = list(bpy.data.libraries)
-    
-    # Track UUIDs that need to be pushed to linked files
-    library_uuid_pushes = {}  # {lib_sidecar_path: (file_uuid, {asset_uuid: asset_info})}
-    
-    if libraries:
-        for lib in libraries:
-            processed_lib_path = lib.filepath
-            if processed_lib_path.startswith('//'):
-                processed_lib_path = processed_lib_path[2:]
-            processed_lib_path = processed_lib_path.replace('\\', '/')
-            
-            lib_sidecar_path = os.path.normpath(
-                os.path.join(os.path.dirname(blend_path), processed_lib_path)
-            ) + SIDECAR_EXTENSION
-            
-            library_uuid = "MISSING_HASH"
-            library_uuid_was_generated = False
-            
-            if os.path.exists(lib_sidecar_path):
-                try:
-                    with open(lib_sidecar_path, 'r', encoding='utf-8') as f_lib_sc:
-                        sc_content = f_lib_sc.read()
-                    uuid_match = re.search(rf'"{BV_FILE_UUID_KEY}"\s*:\s*"([^"]+)"', sc_content)
-                    if uuid_match:
-                        library_uuid = uuid_match.group(1)
-                    else:
-                        uuid_match_generic = re.search(rf'"{BV_UUID_KEY}"\s*:\s*"([^"]+)"', sc_content)
-                        if uuid_match_generic:
-                            library_uuid = uuid_match_generic.group(1)
-                            print(f"{LOG_COLORS['WARN']}[Blend Vault] Found generic UUID for library {lib_sidecar_path}, using it. Consider re-saving library to update to {BV_FILE_UUID_KEY}.{LOG_COLORS['RESET']}")
-                except Exception as e:
-                    print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not read library sidecar {lib_sidecar_path}: {e}{LOG_COLORS['RESET']}")
-            
-            if library_uuid == "MISSING_HASH":
-                library_uuid = ensure_library_hash(lib.filepath)
-                library_uuid_was_generated = True
-                print(f"{LOG_COLORS['INFO']}[Blend Vault] Generated new UUID for linked library {processed_lib_path}: {library_uuid}{LOG_COLORS['RESET']}")
-            
-            # Store UUID on library datablock for relinking
-            lib.id_properties_ensure()[BV_UUID_PROP] = library_uuid
-            
-            # Get linked assets for this library and check which ones were newly generated
-            linked_assets = linked_assets_by_library.get(lib, [])
-            newly_generated_assets = {}
-            
-            # Check if any of the linked assets had their UUIDs newly generated
-            for asset_info in linked_assets:
-                asset_uuid = asset_info.get('uuid')
-                if asset_uuid:
-                    # We need to check if this UUID was just generated by ensure_library_hash
-                    # For now, we'll assume any linked asset UUID that doesn't exist in the library's sidecar
-                    # was newly generated and should be pushed
-                    if os.path.exists(lib_sidecar_path):
-                        try:
-                            with open(lib_sidecar_path, 'r', encoding='utf-8') as f_lib_sc:
-                                sc_content = f_lib_sc.read()
-                            # Check if this specific asset UUID exists in the library's sidecar
-                            if asset_uuid not in sc_content:
-                                newly_generated_assets[asset_uuid] = asset_info
-                                print(f"{LOG_COLORS['INFO']}[Blend Vault] Asset UUID {asset_uuid} not found in library sidecar, will be pushed.{LOG_COLORS['RESET']}")
-                        except Exception as e:
-                            print(f"{LOG_COLORS['WARN']}[Blend Vault] Could not check for existing asset UUID in {lib_sidecar_path}: {e}{LOG_COLORS['RESET']}")
-                            newly_generated_assets[asset_uuid] = asset_info
-                    else:
-                        # Library sidecar doesn't exist, so all assets are newly generated
-                        newly_generated_assets[asset_uuid] = asset_info
-            
-            # Schedule UUID pushes if we generated any UUIDs for this library
-            if library_uuid_was_generated or newly_generated_assets:
-                library_uuid_pushes[lib_sidecar_path] = (library_uuid, newly_generated_assets)
-            
-            # Add markdown link and library data to sidecar
-            markdown_link_path = os.path.basename(processed_lib_path)
-            markdown_link_target = processed_lib_path
-            blend_vault_data_lines.append(
-                MD_LINK_FORMATS['MD_ANGLE_BRACKETS']['format'].format(
-                    name=markdown_link_path, 
-                    path=markdown_link_target
-                )
-            )
-            
-            library_data = {
-                "path": processed_lib_path,
-                "uuid": library_uuid,
-                "assets": linked_assets
-            }
-            
-            blend_vault_data_lines.append("```json")
-            for line in json.dumps(library_data, indent=2, ensure_ascii=False).splitlines():
-                blend_vault_data_lines.append(line)
-            blend_vault_data_lines.append("```")
-            blend_vault_data_lines.append("")
-    else:
-        blend_vault_data_lines.append("- None")
-
-    blend_vault_data_block_string = "\n".join(blend_vault_data_lines) + "\n"
-
-    final_content_parts = [new_frontmatter_string]
-    if processed_user_content:
-        final_content_parts.append(processed_user_content)
-        final_content_parts.append("\n\n")
-    elif new_frontmatter_string:
-        final_content_parts.append("\n")
-
-    blend_vault_heading = '## %% Blend Vault Data'
-    if original_lines:
-        heading_idx = -1
-        for idx, line in enumerate(original_lines):
-            if line.strip() == blend_vault_heading:
-                heading_idx = idx
-                break
-        if heading_idx != -1:
-            preserved_content = ''.join(original_lines[:heading_idx])
-            if not preserved_content.endswith('\n'):
-                preserved_content += '\n'
-            output_content = preserved_content + blend_vault_data_block_string
-        else:
-            output_content = ''.join(final_content_parts) + blend_vault_data_block_string
-    else:
-        output_content = ''.join(final_content_parts) + blend_vault_data_block_string
-
+    # Write main sidecar
+    md_path = blend_path + SIDECAR_EXTENSION
     try:
-        with open(md_path, 'w', encoding='utf-8') as f_write:
-            f_write.write(output_content)
-        print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file written to: {md_path}{LOG_COLORS['RESET']}")
-        
-        # Push generated UUIDs to linked library sidecars
-        for lib_sidecar_path, (file_uuid, asset_updates) in library_uuid_pushes.items():
-            # Validate that the linked blend file exists before pushing a sidecar
-            linked_blend_path = lib_sidecar_path[:-len(SIDECAR_EXTENSION)] if lib_sidecar_path.endswith(SIDECAR_EXTENSION) else None
-            if linked_blend_path and os.path.exists(linked_blend_path):
-                if asset_updates or file_uuid != "MISSING_HASH":
-                    print(f"{LOG_COLORS['INFO']}[Blend Vault] Pushing generated UUIDs to linked library: {lib_sidecar_path}{LOG_COLORS['RESET']}")
-                    _push_uuid_to_sidecar(lib_sidecar_path, file_uuid, asset_updates)
-            else:
-                print(f"{LOG_COLORS['WARN']}[Blend Vault] Skipping push to {lib_sidecar_path} because linked blend file does not exist.{LOG_COLORS['RESET']}")
-        
+        _write_sidecar_with_content_preservation(md_path, sidecar_content)
+        _log('SUCCESS', f"[Blend Vault] Sidecar written: {md_path}")
     except Exception as e:
-        print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to write sidecar file {md_path}: {e}{LOG_COLORS['RESET']}")
+        _log('ERROR', f"[Blend Vault] Failed to write sidecar {md_path}: {e}")
+        return
+    
+    # Push UUIDs to linked library sidecars
+    for lib_sidecar_path, (file_uuid, asset_updates) in uuid_pushes.items():
+        # Validate linked blend file exists
+        linked_blend_path = lib_sidecar_path[:-len(SIDECAR_EXTENSION)]
+        if os.path.exists(linked_blend_path) and (asset_updates or file_uuid):
+            _push_uuid_to_sidecar(lib_sidecar_path, file_uuid, asset_updates)
+        elif not os.path.exists(linked_blend_path):
+            _log('WARN', f"[Blend Vault] Skipping push to {lib_sidecar_path} - linked blend file missing")
 
 
 write_library_info.persistent = True
