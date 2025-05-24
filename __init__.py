@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "Blend Vault",
 	"author": "Albert O'Shea",
-	"version": (0, 2, 2),
+	"version": (0, 3, 0),
 	"blender": (4, 0, 0),
 	"location": "File Save",
 	"description": "Writes linked library info (path and session UID) to a markdown file on save",
