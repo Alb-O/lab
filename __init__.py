@@ -18,9 +18,17 @@ if addon_dir not in sys.path:
 import bpy  # type: ignore
 import importlib
 
+# Import preferences and utility functions
+from . import preferences  # Import the new preferences module
+
 # Dynamically import utils and LOG_COLORS for consistent access
 utils = importlib.import_module('utils')
 LOG_COLORS = utils.LOG_COLORS
+
+# Global variable to store preferences across reloads
+# Use bpy.app.driver_namespace to persist data across module reloads
+if 'blend_vault_stored_prefs' not in bpy.app.driver_namespace:
+    bpy.app.driver_namespace['blend_vault_stored_prefs'] = {}
 
 # Registry of app handlers: event name -> list of (module path, function name)
 HANDLERS = {
@@ -35,7 +43,17 @@ MODULES_TO_REGISTER = [
 	'relink.polling',  # Register polling module (includes redirect handler)
 ]
 
+
 def register():
+	# Reload preferences module to get latest class definition
+	importlib.reload(preferences)
+	
+	# Register preferences class
+	bpy.utils.register_class(preferences.BlendVaultPreferences)
+	
+	# Restore stored preference values
+	preferences.restore_preferences()
+	
 	# Reload submodules first (important for dependencies)
 	submodules_to_reload = [
 		'sidecar_io.frontmatter',  # Reload frontmatter before writer
@@ -70,6 +88,12 @@ def register():
 	print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Main addon functionalities registered.{LOG_COLORS['RESET']}")
 
 def unregister():
+	# Store preference values before unregistering
+	preferences.store_preferences()
+	
+	# Unregister preferences
+	bpy.utils.unregister_class(preferences.BlendVaultPreferences)
+	
 	# Unregister modules that have their own register/unregister functions
 	for module_path in MODULES_TO_REGISTER:
 		try:
