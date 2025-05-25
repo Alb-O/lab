@@ -3,8 +3,7 @@ bl_info = {
 	"author": "Albert O'Shea",
 	"version": (0, 4, 0),
 	"blender": (4, 0, 0),
-	"location": "File Save",
-	"description": "Writes linked library info (path and session UID) to a markdown file on save",
+	"description": "Automatically relink and manage libraries/assets with Obsidian integration",
 	"category": "Development",
 }
 
