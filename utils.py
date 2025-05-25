@@ -1,6 +1,7 @@
 import bpy  # type: ignore
 import uuid
 import hashlib
+import os
 
 def get_asset_sources_map():
 	"""
@@ -82,3 +83,37 @@ def ensure_library_hash(lib):
 	# Fallback: just return a new UUID
 	print(f"[Blend Vault][LibraryHash] Input is not a datablock or string, returning random UUID.")
 	return str(uuid.uuid4())
+
+def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_root: str = None) -> str:
+	"""
+	Generate warning prefix for resources outside the Obsidian vault.
+	
+	Args:
+		resource_path: The relative path to the resource from the blend file
+		blend_file_path: The absolute path to the blend file
+		vault_root: The absolute path to the Obsidian vault root (optional)
+	
+	Returns:
+		"⚠️ " if the resource is outside the vault, empty string otherwise
+	"""
+	if not vault_root:
+		return ""
+	
+	try:
+		# Get absolute path of the resource relative to the blend file
+		blend_dir = os.path.dirname(blend_file_path)
+		resource_abs_path = os.path.normpath(os.path.join(blend_dir, resource_path))
+		vault_root_abs = os.path.normpath(vault_root)
+		
+		# Check if resource is outside the vault
+		rel_path = os.path.relpath(resource_abs_path, vault_root_abs)
+		
+		# If relpath starts with "..", it's outside the vault
+		if rel_path.startswith('..'):
+			return "⚠️ "
+			
+	except ValueError:
+		# ValueError occurs when paths are on different drives (Windows)
+		return "⚠️ "
+	
+	return ""
