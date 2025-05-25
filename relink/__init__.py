@@ -2,6 +2,7 @@ from . import library_relinker
 from . import polling
 from . import asset_relinker
 from . import redirect_handler
+from . import resource_relinker
 import sys
 import os
 
@@ -13,6 +14,7 @@ def register():
 	library_relinker.register()
 	polling.register()
 	asset_relinker.register()
+	resource_relinker.register()
 	# redirect_handler.register() is called from polling.register()
 	
 	# The asset relinking handler is registered in the main __init__.py
@@ -24,6 +26,7 @@ def unregister():
 	if asset_relinker.relink_renamed_assets in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(asset_relinker.relink_renamed_assets)
 	
+	resource_relinker.unregister()
 	asset_relinker.unregister()
 	polling.unregister()  # This will also unregister redirect_handler
 	library_relinker.unregister()

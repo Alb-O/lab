@@ -58,6 +58,9 @@ FRONTMATTER_TAGS = {"sidecar", "blendvault"}
 # Default poll interval (seconds) for checking for file changes
 POLL_INTERVAL = 1.0
 
+# Warning prefix for resources outside the vault
+RESOURCE_WARNING_PREFIX = "⚠️ "
+
 # --- Blend Vault UUID/Hash Key Constants ---
 BV_UUID_PROP = "BV_UUID"
 BV_FILE_UUID_KEY = "blendfile_uuid"
@@ -94,7 +97,7 @@ def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_
 		vault_root: The absolute path to the Obsidian vault root (optional)
 	
 	Returns:
-		"⚠️ " if the resource is outside the vault, empty string otherwise
+		RESOURCE_WARNING_PREFIX if the resource is outside the vault, empty string otherwise
 	"""
 	if not vault_root:
 		return ""
@@ -110,10 +113,10 @@ def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_
 		
 		# If relpath starts with "..", it's outside the vault
 		if rel_path.startswith('..'):
-			return "⚠️ "
+			return RESOURCE_WARNING_PREFIX
 			
 	except ValueError:
 		# ValueError occurs when paths are on different drives (Windows)
-		return "⚠️ "
+		return RESOURCE_WARNING_PREFIX
 	
 	return ""

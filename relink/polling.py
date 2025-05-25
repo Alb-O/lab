@@ -4,6 +4,7 @@ from utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS
 from .library_relinker import relink_library_info
 from . import asset_relinker
 from . import redirect_handler
+from .resource_relinker import relink_resources
 
 # Store last modification times for sidecar files
 t_last_sidecar_mtimes = {}
@@ -28,12 +29,13 @@ def sidecar_poll_timer():
 			elif sidecar_mtime > last_known_sidecar_mtime:
 				# Sidecar file changed: update timestamp and trigger full relink logic
 				t_last_sidecar_mtimes[md_path] = sidecar_mtime
-				print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relinking sequence.{LOG_COLORS['RESET']}")
-				# Run asset relinking BEFORE library relinking to avoid session invalidation
+				print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Sidecar file '{md_path}' modified. Triggering relinking sequence.{LOG_COLORS['RESET']}")				# Run asset relinking BEFORE library relinking to avoid session invalidation
 				print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running asset datablock relinking first (before library reloads).{LOG_COLORS['RESET']}")
 				asset_relinker.relink_renamed_assets()
 				print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running library path relinking second.{LOG_COLORS['RESET']}")
 				relink_library_info()
+				print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running resource relinking third.{LOG_COLORS['RESET']}")
+				relink_resources()
 				# Sync library file mtimes to prevent polling-triggered reload wiping out relink
 				try:
 					for lib in bpy.data.libraries:
@@ -65,12 +67,13 @@ def sidecar_poll_timer():
 			elif current_lib_mtime > last_known_lib_mtime:
 				t_last_library_mtimes[lib_abs_path] = current_lib_mtime
 				print(f"{LOG_COLORS['WARN']}[Blend Vault] Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering coordinated relinking sequence.{LOG_COLORS['RESET']}")
-				try:
-					# Run coordinated sequence: asset relinking first, then library relinking
+				try:					# Run coordinated sequence: asset relinking first, then library relinking
 					print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running asset datablock relinking first (before library reload).{LOG_COLORS['RESET']}")
 					asset_relinker.relink_renamed_assets()
 					print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running library reload second.{LOG_COLORS['RESET']}")
 					lib.reload()
+					print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Running resource relinking third.{LOG_COLORS['RESET']}")
+					relink_resources()
 					print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Successfully completed coordinated relinking for library '{lib.name}'.{LOG_COLORS['RESET']}")
 				except Exception as reload_e:
 					print(f"{LOG_COLORS['ERROR']}[Blend Vault][sidecar_poll_timer] Error during coordinated relinking for library '{lib.name}': {reload_e}{LOG_COLORS['RESET']}")
@@ -103,6 +106,7 @@ def register():
 	# Also run library and asset relinkers on file load
 	bpy.app.handlers.load_post.append(relink_library_info)
 	bpy.app.handlers.load_post.append(asset_relinker.relink_renamed_assets)
+	bpy.app.handlers.load_post.append(relink_resources)
 	# Reload and register redirect handler to ensure we get the latest version
 	import importlib
 	importlib.reload(redirect_handler)
@@ -123,6 +127,8 @@ def unregister():
 		bpy.app.handlers.load_post.remove(relink_library_info)
 	if asset_relinker.relink_renamed_assets in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(asset_relinker.relink_renamed_assets)
+	if relink_resources in bpy.app.handlers.load_post:
+		bpy.app.handlers.load_post.remove(relink_resources)
 	# Unregister redirect handler
 	redirect_handler.unregister()
 	if bpy.app.timers.is_registered(sidecar_poll_timer):
