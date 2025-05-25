@@ -41,6 +41,7 @@ HANDLERS = {
 # List of modules that need their register/unregister functions called
 MODULES_TO_REGISTER = [
 	'relink.polling',  # Register polling module (includes redirect handler)
+	'obsidian_integration',  # Register Obsidian integration features
 ]
 
 
