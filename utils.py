@@ -119,3 +119,24 @@ def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_
 		return RESOURCE_WARNING_PREFIX
 	
 	return ""
+
+# Logging utilities
+def log_info(message: str) -> None:
+    """Log an info message."""
+    print(f"{LOG_COLORS['INFO']}{message}{LOG_COLORS['RESET']}")
+
+def log_warning(message: str) -> None:
+    """Log a warning message."""
+    print(f"{LOG_COLORS['WARN']}{message}{LOG_COLORS['RESET']}")
+
+def log_error(message: str) -> None:
+    """Log an error message."""
+    print(f"{LOG_COLORS['ERROR']}{message}{LOG_COLORS['RESET']}")
+
+def log_success(message: str) -> None:
+    """Log a success message."""
+    print(f"{LOG_COLORS['SUCCESS']}{message}{LOG_COLORS['RESET']}")
+
+def log_debug(message: str) -> None:
+    """Log a debug message."""
+    print(f"{LOG_COLORS['DEBUG']}{message}{LOG_COLORS['RESET']}")

@@ -23,6 +23,11 @@ from . import preferences  # Import the new preferences module
 # Dynamically import utils and LOG_COLORS for consistent access
 utils = importlib.import_module('utils')
 LOG_COLORS = utils.LOG_COLORS
+log_info = utils.log_info
+log_warning = utils.log_warning
+log_error = utils.log_error
+log_success = utils.log_success
+log_debug = utils.log_debug
 
 # Global variable to store preferences across reloads
 # Use bpy.app.driver_namespace to persist data across module reloads
@@ -73,7 +78,7 @@ def register():
 			if hasattr(module, 'register'):
 				module.register()
 		except Exception as e:
-			print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to register module {module_path}: {e}{LOG_COLORS['RESET']}")
+			log_error(f"[Blend Vault] Failed to register module {module_path}: {e}")
 	
 	# Reload and register handlers from HANDLERS registry
 	for event, entries in HANDLERS.items():
@@ -85,7 +90,7 @@ def register():
 			if fn not in handler_list:
 				handler_list.append(fn)
 				
-	print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Main addon functionalities registered.{LOG_COLORS['RESET']}")
+	log_success("[Blend Vault] Main addon functionalities registered.")
 
 def unregister():
 	# Store preference values before unregistering
@@ -101,7 +106,7 @@ def unregister():
 			if hasattr(module, 'unregister'):
 				module.unregister()
 		except Exception as e:
-			print(f"{LOG_COLORS['ERROR']}[Blend Vault] Failed to unregister module {module_path}: {e}{LOG_COLORS['RESET']}")
+			log_error(f"[Blend Vault] Failed to unregister module {module_path}: {e}")
 	
 	# Unregister handlers based on HANDLERS registry
 	for event, entries in HANDLERS.items():
@@ -110,17 +115,9 @@ def unregister():
 			fn = globals().get(fn_name) or getattr(importlib.import_module(module_path), fn_name)
 			if fn in handler_list:
 				handler_list.remove(fn)
-	# Also unregister any timers separately if used
-	try:
-		_, _, poll_entry = HANDLERS['load_post'][1]
-		timer_fn = globals().get(poll_entry)
-		if timer_fn and bpy.app.timers.is_registered(timer_fn):
-			bpy.app.timers.unregister(timer_fn)
-	except Exception:
-		pass
-	print(f"{LOG_COLORS['WARN']}[Blend Vault] Main addon functionalities unregistered.{LOG_COLORS['RESET']}")
+	log_warning("[Blend Vault] Main addon functionalities unregistered.")
 
 if __name__ == "__main__":
 	register()
 
-print(f"{LOG_COLORS['SUCCESS']}[Blend Vault] Script loaded.{LOG_COLORS['RESET']}")
+log_success("[Blend Vault] Script loaded.")

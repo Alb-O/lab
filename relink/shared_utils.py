@@ -14,7 +14,12 @@ from utils import (
     BV_UUID_PROP,
     BV_FILE_UUID_KEY,
     BV_UUID_KEY,
-    MD_PRIMARY_FORMAT
+    MD_PRIMARY_FORMAT,
+    log_info,
+    log_warning,
+    log_error,
+    log_success,
+    log_debug
 )
 
 
@@ -264,28 +269,6 @@ class LibraryManager:
             if os.path.basename(lib.filepath) == filename:
                 return lib
         return None
-
-
-# Logging utilities
-def log_info(message: str) -> None:
-    """Log an info message."""
-    print(f"{LOG_COLORS['INFO']}{message}{LOG_COLORS['RESET']}")
-
-def log_warning(message: str) -> None:
-    """Log a warning message."""
-    print(f"{LOG_COLORS['WARN']}{message}{LOG_COLORS['RESET']}")
-
-def log_error(message: str) -> None:
-    """Log an error message."""
-    print(f"{LOG_COLORS['ERROR']}{message}{LOG_COLORS['RESET']}")
-
-def log_success(message: str) -> None:
-    """Log a success message."""
-    print(f"{LOG_COLORS['SUCCESS']}{message}{LOG_COLORS['RESET']}")
-
-def log_debug(message: str) -> None:
-    """Log a debug message."""
-    print(f"{LOG_COLORS['DEBUG']}{message}{LOG_COLORS['RESET']}")
 
 
 def get_sidecar_path(blend_file_path: str) -> str:
