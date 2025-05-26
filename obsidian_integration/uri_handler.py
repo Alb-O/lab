@@ -149,7 +149,7 @@ class BV_PT_ObsidianIntegrationPanel(bpy.types.Panel):
 		else:
 			row = layout.row()
 			row.enabled = False
-			row.label(text="Save file first")
+			row.label(text="Please save the file first.")
 
 
 def _safe_unregister_class(cls):

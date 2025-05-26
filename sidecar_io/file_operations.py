@@ -29,7 +29,7 @@ def write_sidecar_with_content_preservation(md_path: str, new_data_content: str)
 			original_lines = f.readlines()
 	
 	# Generate frontmatter and extract user content
-	frontmatter, fm_end_idx = generate_frontmatter_string(original_lines, FRONTMATTER_TAGS)
+	frontmatter, fm_end_idx = generate_frontmatter_string(original_lines, list(FRONTMATTER_TAGS))
 	user_content = ""
 	
 	if original_lines:

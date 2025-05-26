@@ -87,7 +87,9 @@ def ensure_library_hash(lib):
 	print(f"[Blend Vault][LibraryHash] Input is not a datablock or string, returning random UUID.")
 	return str(uuid.uuid4())
 
-def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_root: str = None) -> str:
+from typing import Optional
+
+def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_root: Optional[str] = None) -> str:
 	"""
 	Generate warning prefix for resources outside the Obsidian vault.
 	

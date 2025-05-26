@@ -6,6 +6,7 @@ Handles building sidecar markdown content from collected data.
 import bpy  # type: ignore
 import os
 import json
+import re
 from typing import Dict, List, Tuple
 from utils import (
 	ensure_library_hash,
@@ -83,27 +84,30 @@ def _build_linked_libraries_section(
 			uuid_was_generated = True
 		
 		# Store UUID on library datablock
-		lib.id_properties_ensure()[BV_UUID_PROP] = lib_uuid
-		
-		# Check for newly generated asset UUIDs
+		lib.id_properties_ensure()[BV_UUID_PROP] = lib_uuid		# Only push UUIDs to libraries that don't have sidecars yet
+		# If a library already has a sidecar, it should manage its own UUIDs
 		linked_assets = linked_assets_by_library.get(lib, [])
 		new_assets = {}
 		
-		if os.path.exists(lib_sidecar_path):
-			try:
-				with open(lib_sidecar_path, 'r', encoding='utf-8') as f:
-					sidecar_content = f.read()
-				new_assets = {
-					asset["uuid"]: asset for asset in linked_assets 
-					if asset["uuid"] not in sidecar_content
-				}
-			except Exception:
-				new_assets = {asset["uuid"]: asset for asset in linked_assets}
-		else:
-			new_assets = {asset["uuid"]: asset for asset in linked_assets}
+		if not os.path.exists(lib_sidecar_path):
+			# Library has no sidecar - we need to create initial sidecar with proper asset UUIDs
+			# Generate UUIDs for each linked asset based on their library and name
+			for asset in linked_assets:
+				if asset["uuid"] is None:
+					# Generate a deterministic UUID for this library asset
+					# This ensures the same asset always gets the same UUID
+					asset_identifier = f"{lib_uuid}:{asset['name']}:{asset['type']}"
+					import hashlib
+					asset_uuid = str(hashlib.md5(asset_identifier.encode()).hexdigest())
+					# Format as UUID
+					asset_uuid = f"{asset_uuid[:8]}-{asset_uuid[8:12]}-{asset_uuid[12:16]}-{asset_uuid[16:20]}-{asset_uuid[20:32]}"
+					asset["uuid"] = asset_uuid
+				
+				new_assets[asset["uuid"]] = asset
+		# If library already has a sidecar, don't push any UUIDs - let library manage its own
 		
-		# Schedule UUID push if needed
-		if uuid_was_generated or new_assets:
+		# Schedule UUID push only for new libraries without sidecars
+		if not os.path.exists(lib_sidecar_path) and (uuid_was_generated or new_assets):
 			uuid_pushes[lib_sidecar_path] = (lib_uuid, new_assets)
 		
 		# Add to sidecar content

@@ -165,17 +165,24 @@ def _parse_main_sidecar_linked_libraries_section(main_sidecar_lines: list[str], 
 				# Skip this JSON block as we don't know which library it belongs to
 				temp_skip_idx = current_line_idx + 1
 				while temp_skip_idx < len(main_sidecar_lines):
-					if main_sidecar_lines[temp_skip_idx].strip() == "```": current_line_idx = temp_skip_idx; break
-					if re.match(r"^(##[^#]|###[^#])", main_sidecar_lines[temp_skip_idx].strip()): current_line_idx = temp_skip_idx -1; break # Stop if new major header
+					if main_sidecar_lines[temp_skip_idx].strip() == "```": 
+						current_line_idx = temp_skip_idx
+						break
+					if re.match(r"^(##[^#]|###[^#])", main_sidecar_lines[temp_skip_idx].strip()): 
+						current_line_idx = temp_skip_idx -1
+						break # Stop if new major header
 					temp_skip_idx += 1
-				else: current_line_idx = temp_skip_idx -1 # Reached EOF while skipping
+				else: 
+					current_line_idx = temp_skip_idx -1 # Reached EOF while skipping
 		
 		else: # Look for library markdown links
 			link_regex_details = MD_PRIMARY_FORMAT
 			link_regex = link_regex_details.get('regex')
 			if not link_regex: link_regex = r"#### \\[(.+?)\\]\\(<(.+?)>\\)" # Default/fallback
 			
-			md_link_match = re.search(link_regex, line_stripped)
+			# Strip heading prefix if present before matching, like library_relinker does
+			line_no_heading = line_stripped.lstrip('#').strip() if line_stripped.startswith('#') else line_stripped
+			md_link_match = re.search(link_regex, line_no_heading)
 			if md_link_match:
 				if parsing_json_block: # Should not happen if sidecar is well-formed
 					print(f"{LOG_COLORS['WARN']}[Blend Vault][AssetRelinkHelper] New library link '{md_link_match.group(1)}' found before previous JSON block for '{active_library_relative_path}' closed. Discarding previous.{LOG_COLORS['RESET']}")
