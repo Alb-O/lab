@@ -72,19 +72,16 @@ def ensure_library_hash(lib):
 	if hasattr(lib, 'id_properties_ensure'):
 		props = lib.id_properties_ensure()
 		if BV_UUID_PROP in props:
-			print(f"[Blend Vault][LibraryHash] Existing hash for '{getattr(lib, 'name', repr(lib))}': {props[BV_UUID_PROP]}")
 			return props[BV_UUID_PROP]
 		# Generate a new UUID4 string
 		new_hash = str(uuid.uuid4())
 		props[BV_UUID_PROP] = new_hash
-		print(f"[Blend Vault][LibraryHash] Generated new hash for '{getattr(lib, 'name', repr(lib))}': {new_hash}")
 		return new_hash
 	# If lib is a string (e.g., file path), return a deterministic hash or UUID
 	if isinstance(lib, str):
 		hash_str = hashlib.sha256(lib.encode('utf-8')).hexdigest()
 		return hash_str
 	# Fallback: just return a new UUID
-	print(f"[Blend Vault][LibraryHash] Input is not a datablock or string, returning random UUID.")
 	return str(uuid.uuid4())
 
 from typing import Optional

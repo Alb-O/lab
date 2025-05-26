@@ -52,8 +52,7 @@ def write_library_info(*args, **kwargs):
 		_log('SUCCESS', f"[Blend Vault] Sidecar written: {md_path}")
 	except Exception as e:
 		_log('ERROR', f"[Blend Vault] Failed to write sidecar {md_path}: {e}")
-		return
-		# Push UUIDs to linked library sidecars
+		return	# Push UUIDs to linked library sidecars
 	for lib_sidecar_path, (file_uuid, asset_updates) in uuid_pushes.items():
 		# Validate linked blend file exists
 		linked_blend_path = lib_sidecar_path[:-len(SIDECAR_EXTENSION)]
@@ -63,7 +62,6 @@ def write_library_info(*args, **kwargs):
 			_log('WARN', f"[Blend Vault] Skipping push to {lib_sidecar_path} - linked blend file missing")
 	
 	# Now that library sidecars exist, resolve UUIDs for linked assets and update main sidecar
-	_log('INFO', f"[Blend Vault] Post-push UUID resolution...")
 	from .collectors import _resolve_linked_asset_uuids
 	
 	# Re-resolve UUIDs now that library sidecars exist
@@ -81,7 +79,6 @@ def write_library_info(*args, **kwargs):
 	
 	# If UUIDs were resolved, rebuild and rewrite the main sidecar
 	if uuids_resolved:
-		_log('INFO', f"[Blend Vault] UUIDs resolved, updating main sidecar...")
 		updated_sidecar_content, _ = build_sidecar_content(
 			blend_path, 
 			local_assets, 
@@ -91,11 +88,9 @@ def write_library_info(*args, **kwargs):
 		
 		try:
 			write_sidecar_with_content_preservation(md_path, updated_sidecar_content)
-			_log('SUCCESS', f"[Blend Vault] Main sidecar updated with resolved UUIDs: {md_path}")
+			_log('SUCCESS', f"[Blend Vault] Main sidecar updated with resolved UUIDs")
 		except Exception as e:
 			_log('ERROR', f"[Blend Vault] Failed to update main sidecar: {e}")
-	else:
-		_log('INFO', f"[Blend Vault] No UUIDs resolved from library sidecars")
 
 
 write_library_info.persistent = True
