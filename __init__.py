@@ -19,15 +19,7 @@ import importlib
 
 # Import preferences and utility functions
 from . import preferences  # Import the new preferences module
-
-# Dynamically import utils and LOG_COLORS for consistent access
-utils = importlib.import_module('utils')
-LOG_COLORS = utils.LOG_COLORS
-log_info = utils.log_info
-log_warning = utils.log_warning
-log_error = utils.log_error
-log_success = utils.log_success
-log_debug = utils.log_debug
+from .utils import log_info, log_warning, log_error, log_success, log_debug
 
 # Global variable to store preferences across reloads
 # Use bpy.app.driver_namespace to persist data across module reloads

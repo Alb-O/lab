@@ -7,6 +7,7 @@ import bpy  # type: ignore
 import os
 import traceback
 from typing import Dict, Optional, Any
+from utils import SIDECAR_EXTENSION
 from .shared_utils import (
     BaseRelinker,
     PathResolver,
@@ -61,23 +62,30 @@ class LibraryRelinkProcessor(BaseRelinker):
     def _process_library_entry(self, lib_data: Dict[str, Any]) -> bool:
         """Process a single library entry from the sidecar."""
         link_name = lib_data["link_name"]
-        link_path = lib_data["link_path"]
+        link_path = lib_data["link_path"]  # This will be like 'mylib.blend.side.md'
         json_data = lib_data["json_data"]
-        
+
         stored_path = json_data.get("path")
         stored_uuid = json_data.get("uuid")
-        
+
         if not stored_path or not stored_uuid or stored_uuid == "MISSING_HASH":
             if stored_uuid == "MISSING_HASH":
                 log_info(f"[Blend Vault][LibraryRelink] Entry for '{link_name}' has 'MISSING_HASH'. Skipping.")
             else:
                 log_warning(f"[Blend Vault][LibraryRelink] Invalid data for '{link_name}': Missing path or UUID")
             return False
-        
-        log_info(f"[Blend Vault][LibraryRelink] Processing: '{link_name}' -> '{stored_path}' (UUID: {stored_uuid})")
-        
-        # Use the markdown link path preferentially
-        target_path = link_path or stored_path
+
+        # Convert sidecar path (e.g., 'mylib.blend.side.md') to blend path (e.g., 'mylib.blend')
+        # Check if link_path ends with SIDECAR_EXTENSION and remove it
+        if link_path and link_path.endswith(SIDECAR_EXTENSION):
+            blend_file_link_path = link_path[:-len(SIDECAR_EXTENSION)]
+        else:
+            blend_file_link_path = link_path
+
+        log_info(f"[Blend Vault][LibraryRelink] Processing: '{link_name}' -> '{stored_path}' (UUID: {stored_uuid}). Link path from MD: '{link_path}' -> Blend path: '{blend_file_link_path}'")
+
+        # Use the markdown link path (converted to .blend) preferentially
+        target_path = blend_file_link_path or stored_path
         relative_path = PathResolver.blender_relative_path(target_path)
         
         # Try to find existing library by UUID
@@ -226,7 +234,7 @@ def execute_relink_operator(self, context: bpy.types.Context):
     
     try:
         # Extract blend file path from sidecar path
-        blend_path = self.sidecar_file_path.replace('.side.md', '')
+        blend_path = self.sidecar_file_path.replace(SIDECAR_EXTENSION, '')
         processor = LibraryRelinkProcessor(blend_path)
         processor.process_relink()
         return {'FINISHED'}

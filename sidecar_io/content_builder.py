@@ -67,10 +67,15 @@ def _build_linked_libraries_section(
 ) -> Dict:
 	"""Build the linked libraries section and return UUID pushes."""
 	uuid_pushes = {}
-	
 	for lib in libraries:
 		# Process library path
 		lib_path = lib.filepath.lstrip('//').replace('\\', '/')
+		# Ensure lib_path doesn't already have sidecar extension
+		if lib_path.endswith(SIDECAR_EXTENSION):
+			lib_path = lib_path[:-len(SIDECAR_EXTENSION)]
+		
+		# Keep the library sidecar path relative for local path resolution
+		# but use absolute path for file existence checking
 		lib_sidecar_path = os.path.normpath(
 			os.path.join(os.path.dirname(blend_path), lib_path)
 		) + SIDECAR_EXTENSION
@@ -109,14 +114,14 @@ def _build_linked_libraries_section(
 		# Schedule UUID push only for new libraries without sidecars
 		if not os.path.exists(lib_sidecar_path) and (uuid_was_generated or new_assets):
 			uuid_pushes[lib_sidecar_path] = (lib_uuid, new_assets)
-		
 		# Add to sidecar content
 		vault_root = get_obsidian_vault_root()
 		warning_prefix = get_resource_warning_prefix(lib_path, blend_path, vault_root)
 		sections.extend([
 			'#### ' + warning_prefix + MD_PRIMARY_FORMAT['format'].format(
+				# Link to the sidecar, not the blend file
 				name=os.path.basename(lib_path), 
-				path=lib_path
+				path=lib_path + SIDECAR_EXTENSION # Use relative lib_path + extension
 			),
 			"```json",
 			json.dumps({
