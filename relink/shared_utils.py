@@ -23,6 +23,30 @@ from utils import (
 )
 
 
+def _build_section_heading_regex(section_name: str) -> str:
+    """
+    Build a regex pattern that can match section headings in both plain and markdown link formats.
+    
+    Args:
+        section_name: The name of the section to match (e.g., "Current File")
+    
+    Returns:
+        A regex pattern that matches both "### Section Name" and "### [Section Name](<path>)"
+    """
+    escaped_name = re.escape(section_name)
+    
+    # Build a specific pattern for markdown links that contain the exact section name
+    # This ensures we match [Section Name](<path>) specifically, not just any markdown link
+    section_link_pattern = rf"\[{escaped_name}\]<[^>]*>"
+    
+    # Build a pattern that matches either:
+    # 1. Plain heading: "### Section Name"
+    # 2. Markdown link heading: "### [Section Name](<path>)"
+    pattern = rf"###\s+(?:{escaped_name}|{section_link_pattern})"
+    
+    return pattern
+
+
 class SidecarParser:
     """Utility class for parsing sidecar markdown files and extracting JSON blocks."""
     
@@ -43,11 +67,14 @@ class SidecarParser:
             raise IOError(f"Failed to read sidecar file {self.sidecar_path}: {e}")
     
     def find_section_start(self, section_name: str) -> int:
-        """Find the line index where a section starts. Returns -1 if not found."""
-        target = f"### {section_name}"
+        """Find the line index where a section starts. Returns -1 if not found.
+        Handles both plain headings and markdown link headings."""
+        pattern = _build_section_heading_regex(section_name)
+        
         for i, line in enumerate(self.lines):
-            if line.strip() == target:
+            if re.match(pattern, line.strip()):
                 return i
+        
         return -1
     
     def extract_json_blocks_with_links(self, section_name: str) -> Dict[str, Dict[str, Any]]:

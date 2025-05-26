@@ -5,9 +5,28 @@ Handles collecting assets and external resources from Blender data.
 
 import bpy  # type: ignore
 import os
+import re
 from typing import Dict, List, Tuple
-from utils import get_asset_sources_map, ensure_library_hash, BV_UUID_PROP, SIDECAR_EXTENSION
+from utils import get_asset_sources_map, ensure_library_hash, BV_UUID_PROP, SIDECAR_EXTENSION, MD_PRIMARY_FORMAT
 from .uuid_manager import read_sidecar_uuid
+
+
+def _matches_current_file_heading(line: str) -> bool:
+	"""Check if a line matches the Current File section heading in any format."""
+	line_stripped = line.strip()
+	
+	# Check plain format
+	if line_stripped == "### Current File":
+		return True
+	
+	# Check markdown link format using the current MD_PRIMARY_FORMAT
+	if line_stripped.startswith("### "):
+		# Use the regex pattern to check if this is a markdown link containing "Current File"
+		link_match = re.search(MD_PRIMARY_FORMAT['regex'], line_stripped[4:])  # Remove "### " prefix
+		if link_match and link_match.group(1) == "Current File":
+			return True
+	
+	return False
 
 
 def _resolve_linked_asset_uuids(
@@ -64,11 +83,10 @@ def _get_current_file_assets_from_sidecar(sidecar_path: str) -> List[dict]:
 	try:
 		with open(sidecar_path, 'r', encoding='utf-8') as f:
 			lines = f.readlines()
-		
-		# Find "### Current File" section
+		# Find "### Current File" section (handle both old and new markdown link format)
 		current_file_start = None
 		for i, line in enumerate(lines):
-			if line.strip() == "### Current File":
+			if _matches_current_file_heading(line):
 				current_file_start = i
 				break
 		
