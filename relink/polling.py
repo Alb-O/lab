@@ -1,5 +1,6 @@
-import bpy # type: ignore
+import bpy  # type: ignore
 import os
+import importlib
 from utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS
 from .library_relinker import relink_library_info
 from . import asset_relinker
@@ -108,7 +109,6 @@ def register():
 	bpy.app.handlers.load_post.append(asset_relinker.relink_renamed_assets)
 	bpy.app.handlers.load_post.append(relink_resources)
 	# Reload and register redirect handler to ensure we get the latest version
-	import importlib
 	importlib.reload(redirect_handler)
 	redirect_handler.register()
 	
