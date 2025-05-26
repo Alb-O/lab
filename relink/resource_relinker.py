@@ -28,7 +28,7 @@ def _remove_warning_prefix(text: str) -> str:
 	return text
 
 
-def _find_resource_by_name_and_type(name: str, resource_type: str) -> Optional[object]:
+def _find_resource_by_name_and_type(name: str, resource_type: str):
 	"""Find a Blender resource by name and type."""
 	collections_map = {
 		"Image": bpy.data.images,
@@ -43,38 +43,38 @@ def _find_resource_by_name_and_type(name: str, resource_type: str) -> Optional[o
 		return None
 	
 	for item in collection:
-		if item and item.name == name:
+		if item and getattr(item, 'name', '') == name:
 			return item
 	return None
 
 
-def _update_resource_path(resource: object, new_path: str, resource_type: str) -> bool:
+def _update_resource_path(resource, new_path: str, resource_type: str) -> bool:
 	"""Update the filepath of a resource and reload if necessary."""
 	try:
 		# Convert to Blender relative path format
 		rel_path = '//' + new_path
 		
 		if resource_type == "Image":
-			old_path = resource.filepath
+			old_path = getattr(resource, 'filepath', '')
 			resource.filepath = rel_path
 			try:
 				resource.reload()
-				_log('SUCCESS', f"[Blend Vault][ResourceRelink] Successfully reloaded image '{resource.name}' from '{old_path}' to '{rel_path}'")
+				_log('SUCCESS', f"[Blend Vault][ResourceRelink] Successfully reloaded image '{getattr(resource, 'name', 'unknown')}' from '{old_path}' to '{rel_path}'")
 				return True
 			except Exception as e:
-				_log('ERROR', f"[Blend Vault][ResourceRelink] Failed to reload image '{resource.name}': {e}")
+				_log('ERROR', f"[Blend Vault][ResourceRelink] Failed to reload image '{getattr(resource, 'name', 'unknown')}': {e}")
 				return False
 				
 		elif resource_type == "Video":
-			old_path = resource.filepath
+			old_path = getattr(resource, 'filepath', '')
 			resource.filepath = rel_path
-			_log('SUCCESS', f"[Blend Vault][ResourceRelink] Updated video clip '{resource.name}' from '{old_path}' to '{rel_path}'")
+			_log('SUCCESS', f"[Blend Vault][ResourceRelink] Updated video clip '{getattr(resource, 'name', 'unknown')}' from '{old_path}' to '{rel_path}'")
 			return True
 			
 		elif resource_type == "Audio":
-			old_path = resource.filepath
+			old_path = getattr(resource, 'filepath', '')
 			resource.filepath = rel_path
-			_log('SUCCESS', f"[Blend Vault][ResourceRelink] Updated sound '{resource.name}' from '{old_path}' to '{rel_path}'")
+			_log('SUCCESS', f"[Blend Vault][ResourceRelink] Updated sound '{getattr(resource, 'name', 'unknown')}' from '{old_path}' to '{rel_path}'")
 			return True
 			
 		elif resource_type == "Text":
@@ -89,23 +89,23 @@ def _update_resource_path(resource: object, new_path: str, resource_type: str) -
 						content = f.read()
 					resource.from_string(content)
 					resource.filepath = rel_path
-					_log('SUCCESS', f"[Blend Vault][ResourceRelink] Reloaded text file '{resource.name}' from '{old_path}' to '{rel_path}'")
+					_log('SUCCESS', f"[Blend Vault][ResourceRelink] Reloaded text file '{getattr(resource, 'name', 'unknown')}' from '{old_path}' to '{rel_path}'")
 					return True
 				except Exception as e:
-					_log('ERROR', f"[Blend Vault][ResourceRelink] Failed to reload text file '{resource.name}': {e}")
+					_log('ERROR', f"[Blend Vault][ResourceRelink] Failed to reload text file '{getattr(resource, 'name', 'unknown')}': {e}")
 					return False
 			else:
 				_log('WARN', f"[Blend Vault][ResourceRelink] Text file not found at '{abs_path}'")
 				return False
 				
 		elif resource_type == "Cache":
-			old_path = resource.filepath
+			old_path = getattr(resource, 'filepath', '')
 			resource.filepath = rel_path
-			_log('SUCCESS', f"[Blend Vault][ResourceRelink] Updated cache file '{resource.name}' from '{old_path}' to '{rel_path}'")
+			_log('SUCCESS', f"[Blend Vault][ResourceRelink] Updated cache file '{getattr(resource, 'name', 'unknown')}' from '{old_path}' to '{rel_path}'")
 			return True
 			
 	except Exception as e:
-		_log('ERROR', f"[Blend Vault][ResourceRelink] Error updating {resource_type.lower()} '{resource.name}': {e}")
+		_log('ERROR', f"[Blend Vault][ResourceRelink] Error updating {resource_type.lower()} '{getattr(resource, 'name', 'unknown')}': {e}")
 		return False
 	
 	return False
