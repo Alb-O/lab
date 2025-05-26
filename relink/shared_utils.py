@@ -433,6 +433,10 @@ class ResourceManager:
 
 def make_paths_relative() -> None:
     """Make all external file paths relative, with error handling."""
+    if not bpy.data.is_saved:
+        log_warning("[Blend Vault] Cannot make paths relative: file is not saved.")
+        return
+    
     try:
         bpy.ops.file.make_paths_relative()
         log_success("[Blend Vault] Made all external file paths relative.")

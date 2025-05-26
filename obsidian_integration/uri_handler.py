@@ -7,9 +7,7 @@ Supports opening sidecar files and other Obsidian actions.
 
 import bpy  # type: ignore
 import os
-import subprocess
 import webbrowser
-import logging
 from urllib.parse import quote
 from utils import LOG_COLORS, SIDECAR_EXTENSION
 
