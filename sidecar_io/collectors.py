@@ -7,7 +7,7 @@ import bpy  # type: ignore
 import os
 import re
 from typing import Dict, List, Tuple
-from utils import get_asset_sources_map, ensure_library_hash, BV_UUID_PROP, SIDECAR_EXTENSION, MD_PRIMARY_FORMAT
+from utils import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, MD_PRIMARY_FORMAT
 from .uuid_manager import read_sidecar_uuid
 
 
@@ -152,46 +152,51 @@ def collect_assets() -> Tuple[Dict[str, dict], Dict]:
 		if not collection:
 			continue
 			
-		for item in collection:
+		for item in collection: # item is a Blender datablock, e.g. an Object, Material, Scene
 			if not item:
 				continue
 				
 			# Check if item is an asset or scene
-			is_asset = asset_type == "Scene" or getattr(item, 'asset_data', None) is not None
-			if not is_asset:
+			is_asset_or_scene = asset_type == "Scene" or getattr(item, 'asset_data', None) is not None
+			if not is_asset_or_scene:
 				continue
 				
-			library = getattr(item, 'library', None)
+			library = getattr(item, 'library', None) # library is a bpy.types.Library, representing the source .blend file
 			item_name = getattr(item, 'name', f'Unnamed{asset_type}')
 			
 			# Collect asset info
 			if library is None:
-				# For local assets, ensure they have UUIDs and use them
-				ensure_library_hash(item)
+				# For local assets (defined in the current .blend file), ensure they have UUIDs and use them
+				asset_uuid = get_or_create_datablock_uuid(item)
 				asset_info = {
 					"name": item_name,
 					"type": asset_type,
-					"uuid": ensure_library_hash(item)
+					"uuid": asset_uuid
 				}
-				local_assets[asset_info["uuid"]] = asset_info
+				local_assets[asset_uuid] = asset_info
 			else:
-				# For linked assets, try to get existing UUID from their properties
-				# If they don't have one, we'll adopt it from the library sidecar later
+				 # Skip assets linked from "copybuffer.blend" files
+				if library.filepath.endswith("copybuffer.blend"):
+					continue
+
+				# For linked assets, try to get existing UUID from their custom properties.
+				# This UUID would have been assigned by Blend Vault in the source library file.
+				# If it doesn't have one, it will be None for now and resolved later
+				# by reading the library's sidecar file.
 				existing_uuid = None
-				if hasattr(item, 'id_properties_ensure'):
+				if hasattr(item, 'id_properties_ensure'): # Should always be true for datablocks
 					props = item.id_properties_ensure()
-					existing_uuid = props.get(BV_UUID_PROP)
+					existing_uuid = props.get(BV_UUID_PROP) 
 				
-				# Don't generate new UUIDs for linked assets - they should adopt from library
-				# The UUID will be set when the library sidecar is processed
 				asset_info = {
 					"name": item_name,
 					"type": asset_type,
-					"uuid": existing_uuid  # May be None, will be set from library sidecar
+					"uuid": existing_uuid  # May be None, will be resolved from library's sidecar if possible
 				}
+				# Group linked assets by their source library object
 				linked_assets_by_library.setdefault(library, []).append(asset_info)
 	
-	# Resolve UUIDs for linked assets from library sidecars
+	# Resolve UUIDs for linked assets by reading their respective library's sidecar files
 	blend_filepath = bpy.data.filepath
 	
 	if blend_filepath:

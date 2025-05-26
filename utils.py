@@ -66,23 +66,49 @@ BV_UUID_PROP = "BV_UUID"
 BV_FILE_UUID_KEY = "blendfile_uuid"
 BV_UUID_KEY = "uuid"
 
-def ensure_library_hash(lib):
-	"""Ensure a unique hash is stored in the datablock's custom properties, or generate a hash for a string path."""
-	# If lib is a Blender datablock with id_properties_ensure
-	if hasattr(lib, 'id_properties_ensure'):
-		props = lib.id_properties_ensure()
-		if BV_UUID_PROP in props:
-			return props[BV_UUID_PROP]
-		# Generate a new UUID4 string
-		new_hash = str(uuid.uuid4())
-		props[BV_UUID_PROP] = new_hash
-		return new_hash
-	# If lib is a string (e.g., file path), return a deterministic hash or UUID
-	if isinstance(lib, str):
-		hash_str = hashlib.sha256(lib.encode('utf-8')).hexdigest()
-		return hash_str
-	# Fallback: just return a new UUID
-	return str(uuid.uuid4())
+def get_or_create_datablock_uuid(datablock: 'bpy.types.ID') -> str:
+    """
+    Gets an existing Blend Vault UUID (BV_UUID_PROP) from a Blender datablock
+    (any item with id_properties_ensure, e.g., asset, library object).
+    If no UUID exists, generates a new UUID (v4), stores it, and returns it.
+    """
+    if not hasattr(datablock, 'id_properties_ensure'):
+        error_msg = f"Cannot ensure UUID for item without 'id_properties_ensure': {datablock}"
+        try:
+            log_error(error_msg)
+        except NameError:
+            print(f"ERROR: {error_msg}")
+        raise TypeError(error_msg)
+
+    props = datablock.id_properties_ensure()
+    if BV_UUID_PROP in props:
+        existing_uuid = props[BV_UUID_PROP]
+        if isinstance(existing_uuid, str):
+            return existing_uuid
+        else:
+            try:
+                log_warning(f"Found non-string BV_UUID_PROP on {datablock.name_full if hasattr(datablock, 'name_full') else datablock}: {existing_uuid}. Generating new UUID.")
+            except NameError:
+                print(f"WARNING: Found non-string BV_UUID_PROP on {datablock.name_full if hasattr(datablock, 'name_full') else datablock}: {existing_uuid}. Generating new UUID.")
+            
+    new_uuid = str(uuid.uuid4())
+    props[BV_UUID_PROP] = new_uuid
+    return new_uuid
+
+def generate_filepath_hash(filepath: str) -> str:
+    """
+    Generates a deterministic SHA256 hash for a given file path string.
+    Useful for creating a consistent ID for library files based on their path.
+    """
+    if not isinstance(filepath, str):
+        error_msg = f"generate_filepath_hash expects a string path, received type {type(filepath)}: {filepath}"
+        try:
+            log_error(error_msg)
+        except NameError:
+            print(f"ERROR: {error_msg}")
+        raise TypeError(error_msg)
+        
+    return hashlib.sha256(filepath.encode('utf-8')).hexdigest()
 
 from typing import Optional
 
