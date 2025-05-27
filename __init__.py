@@ -38,6 +38,7 @@ HANDLERS = {
 MODULES_TO_REGISTER = [
 	'relink.polling',  # Register polling module (includes redirect handler)
 	'obsidian_integration',  # Register Obsidian integration features
+	'paste_path',  # Register paste-path smart clipboard functionality
 ]
 
 
@@ -62,7 +63,6 @@ def register():
 			importlib.reload(importlib.import_module(module_path))
 		except ImportError:
 			pass  # Module might not be imported yet
-	
 	# Register modules that have their own register/unregister functions
 	for module_path in MODULES_TO_REGISTER:
 		try:
@@ -90,7 +90,6 @@ def unregister():
 	
 	# Unregister preferences
 	bpy.utils.unregister_class(preferences.BlendVaultPreferences)
-	
 	# Unregister modules that have their own register/unregister functions
 	for module_path in MODULES_TO_REGISTER:
 		try:
