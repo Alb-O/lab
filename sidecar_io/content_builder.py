@@ -9,7 +9,7 @@ import json
 import re
 from typing import Dict, List, Tuple
 from utils import (
-	ensure_library_hash,
+	generate_filepath_hash,  # Renamed from ensure_library_hash
 	get_resource_warning_prefix,
 	SIDECAR_EXTENSION,
 	BV_UUID_PROP,
@@ -27,8 +27,8 @@ def build_sidecar_content(
 	resources: List[dict]
 ) -> Tuple[str, Dict]:
 	"""Build sidecar content and track UUID pushes."""
-	file_uuid = read_sidecar_uuid(blend_path + SIDECAR_EXTENSION) or ensure_library_hash(blend_path)
-		# Build content sections
+	file_uuid = read_sidecar_uuid(blend_path + SIDECAR_EXTENSION) or generate_filepath_hash(blend_path)
+	# Build content sections
 	blend_filename = os.path.basename(blend_path)
 	sections = [
 		"## %% Blend Vault Data",
@@ -85,7 +85,7 @@ def _build_linked_libraries_section(
 		uuid_was_generated = False
 		
 		if not lib_uuid:
-			lib_uuid = ensure_library_hash(lib.filepath)
+			lib_uuid = generate_filepath_hash(lib.filepath)  # Use renamed function
 			uuid_was_generated = True
 		
 		# Store UUID on library datablock

@@ -255,6 +255,12 @@ def register():
         kmi_window = km_window.keymap_items.new(SmartPasteOperator.bl_idname, 'V', 'PRESS', ctrl=True)
 
 def unregister():
+    bpy.utils.unregister_class(BV_OT_ConfirmSaveBeforeOpen)
+    bpy.utils.unregister_class(BV_OT_SaveAndOpenFile)
+    bpy.utils.unregister_class(BV_OT_OpenFileWithoutSave)
+    bpy.utils.unregister_class(OpenBlendFromClipboardOperator)
+    bpy.utils.unregister_class(SmartPasteOperator)
+
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
