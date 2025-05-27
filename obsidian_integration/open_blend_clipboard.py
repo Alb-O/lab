@@ -4,6 +4,214 @@ import functools # Added import
 import preferences  # Use absolute import for Blender add-on compatibility
 from utils import SIDECAR_EXTENSION
 
+class BV_OT_ProcessOpenAction(bpy.types.Operator):
+    """Open the file, checking for unsaved changes in the current file first."""
+    bl_idname = "blend_vault.process_open_action"
+    bl_label = "Process Open Action"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    file_path: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        if bpy.data.is_dirty:
+            bpy.ops.blend_vault.confirm_save_before_open('INVOKE_DEFAULT', file_path=self.file_path)
+        else:
+            try:
+                bpy.ops.wm.open_mainfile(filepath=self.file_path)
+                self.report({'INFO'}, f"Opened: {os.path.basename(self.file_path)}")
+            except Exception as e:
+                self.report({'ERROR'}, f"Failed to open file: {e}")
+                return {'CANCELLED'}
+        return {'FINISHED'}
+
+class BV_OT_LinkFromFile(bpy.types.Operator):
+    """Link from a Library .blend file."""
+    bl_idname = "blend_vault.link_from_file"
+    bl_label = "Link From File"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    file_path: bpy.props.StringProperty() # type: ignore
+
+    def execute(self, context):
+        if not self.file_path or not os.path.isfile(self.file_path):
+            self.report({'ERROR'}, "File path is invalid or not set for linking.")
+            return {'CANCELLED'}
+        try:
+            bpy.ops.wm.append('INVOKE_DEFAULT', filepath=self.file_path, link=True)
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to invoke link operation: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+class BV_OT_AppendFromFile(bpy.types.Operator):
+    """Append from a Library .blend file."""
+    bl_idname = "blend_vault.append_from_file"
+    bl_label = "Append From File"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    file_path: bpy.props.StringProperty() # type: ignore
+
+    def execute(self, context):
+        if not self.file_path or not os.path.isfile(self.file_path):
+            self.report({'ERROR'}, "File path is invalid or not set for appending.")
+            return {'CANCELLED'}
+        try:
+            bpy.ops.wm.append('INVOKE_DEFAULT', filepath=self.file_path, link=False)
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to invoke append operation: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+def _find_first_asset_in_blend_file(file_path: str):
+    """Find the first asset datablock in a .blend file, prioritizing collections."""
+    try:
+        # Priority order: Collections first, then other asset types
+        asset_types_priority = ["Collection", "Object", "Material", "World", "NodeTree", "Brush", "Action", "Scene"]
+        
+        with bpy.data.libraries.load(file_path, link=False, relative=False) as (data_from, data_to):
+            # Check each asset type in priority order
+            for asset_type in asset_types_priority:
+                collection_name = asset_type.lower() + "s"  # Convert to collection name (e.g., "Collection" -> "collections")
+                if collection_name == "brushs":  # Handle irregular plural
+                    collection_name = "brushes"
+                elif collection_name == "node_trees":  # Handle NodeTree special case
+                    collection_name = "node_groups"
+                
+                # Get the collection from data_from
+                if hasattr(data_from, collection_name):
+                    items = getattr(data_from, collection_name)
+                    if items:
+                        # Return the first item found
+                        return {
+                            "name": items[0],
+                            "type": asset_type,
+                            "directory": f"{file_path}\\{asset_type}\\",
+                            "filename": items[0]
+                        }
+        
+        return None
+    except Exception as e:
+        print(f"Error scanning blend file {file_path}: {e}")
+        return None
+
+class BV_OT_LinkFirstAsset(bpy.types.Operator):
+    """Link the first asset found in a Library .blend file (prioritizing collections)."""
+    bl_idname = "blend_vault.link_first_asset"
+    bl_label = "Quick Link"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    file_path: bpy.props.StringProperty() # type: ignore
+
+    def execute(self, context):
+        if not self.file_path or not os.path.isfile(self.file_path):
+            self.report({'ERROR'}, "File path is invalid or not set for linking.")
+            return {'CANCELLED'}
+        
+        # Find the first asset in the file
+        asset_info = _find_first_asset_in_blend_file(self.file_path)
+        if not asset_info:
+            self.report({'WARNING'}, f"No assets found in {os.path.basename(self.file_path)}")
+            return {'CANCELLED'}
+        
+        try:
+            # Link the specific asset directly
+            bpy.ops.wm.append(
+                filepath=f"{self.file_path}\\{asset_info['type']}\\{asset_info['name']}",
+                directory=asset_info['directory'],
+                filename=asset_info['filename'],
+                instance_collections=True,
+                link=True
+            )
+            self.report({'INFO'}, f"Linked {asset_info['type']}: {asset_info['name']}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to link asset: {e}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
+class BV_OT_AppendFirstAsset(bpy.types.Operator):
+    """Append the first asset found in a Library .blend file (prioritizing collections)."""
+    bl_idname = "blend_vault.append_first_asset"
+    bl_label = "Quick Append"
+    bl_options = {'REGISTER', 'INTERNAL'}
+
+    file_path: bpy.props.StringProperty() # type: ignore
+
+    def execute(self, context):
+        if not self.file_path or not os.path.isfile(self.file_path):
+            self.report({'ERROR'}, "File path is invalid or not set for appending.")
+            return {'CANCELLED'}
+        
+        # Find the first asset in the file
+        asset_info = _find_first_asset_in_blend_file(self.file_path)
+        if not asset_info:
+            self.report({'WARNING'}, f"No assets found in {os.path.basename(self.file_path)}")
+            return {'CANCELLED'}
+        
+        try:
+            # Append the specific asset directly
+            bpy.ops.wm.append(
+                filepath=f"{self.file_path}\\{asset_info['type']}\\{asset_info['name']}",
+                directory=asset_info['directory'],
+                filename=asset_info['filename'],
+                use_recursive=True,
+                link=False
+            )
+            self.report({'INFO'}, f"Appended {asset_info['type']}: {asset_info['name']}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to append asset: {e}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
+class BV_OT_ChooseActionBeforeOpen(bpy.types.Operator):
+    """Modal operator to choose action (Open, Link, Append) before opening/linking a new file."""
+    bl_idname = "blend_vault.choose_action_before_open"
+    bl_label = ""  # Title will be set in popup_menu
+    bl_description = "Choose action for the selected .blend file"
+    bl_options = {'REGISTER', 'INTERNAL'}
+    file_path: bpy.props.StringProperty()  # type: ignore
+
+    def _draw_action_dialog_content(self, menu_self, context):
+        layout = menu_self.layout
+
+        # Primary action
+        open_op = layout.operator("blend_vault.process_open_action", text="Open", icon='FILE_FOLDER')
+        open_op.file_path = self.file_path
+
+        layout.separator()
+
+        # Standard link/append operations (opens file browser)
+        link_op = layout.operator("blend_vault.link_from_file", text="Link...", icon='LINKED')
+        link_op.file_path = self.file_path
+
+        append_op = layout.operator("blend_vault.append_from_file", text="Append...", icon='APPEND_BLEND')
+        append_op.file_path = self.file_path
+
+        layout.separator()
+
+        # Quick operations (automatically finds first asset)
+        link_first_op = layout.operator("blend_vault.link_first_asset", text="Quick Link", icon='LINKED')
+        link_first_op.file_path = self.file_path
+
+        append_first_op = layout.operator("blend_vault.append_first_asset", text="Quick Append", icon='APPEND_BLEND')
+        append_first_op.file_path = self.file_path
+
+    def invoke(self, context, event):
+        filename = os.path.basename(self.file_path)
+        context.window_manager.popup_menu(
+            lambda menu_s, ctx: self._draw_action_dialog_content(menu_s, ctx),
+            title=filename,
+            icon='QUESTION'
+        )
+        return {'FINISHED'}
+
+    def execute(self, context):
+        # This operator should be invoked as a popup.
+        self.report({'WARNING'}, "Dialog operator executed directly; invoking popup instead.")
+        # Fallback to ensure it still tries to show the popup if called directly, though INVOKE_DEFAULT is preferred.
+        return self.invoke(context, None)
+
 class BV_OT_ConfirmSaveBeforeOpen(bpy.types.Operator):
     """Modal operator to confirm save before opening new file"""
     bl_idname = "blend_vault.confirm_save_before_open"
@@ -15,21 +223,8 @@ class BV_OT_ConfirmSaveBeforeOpen(bpy.types.Operator):
 
     def _draw_confirmation_dialog_content(self, menu_self, context):
         layout = menu_self.layout
-        layout.label(text="Save changes before opening", icon='QUESTION')
-
-        # Get vault root from preferences
-        vault_root = preferences.get_obsidian_vault_root(context)
-        display_name = os.path.basename(self.file_path)
-        if vault_root:
-            try:
-                abs_vault = os.path.abspath(os.path.normpath(vault_root))
-                abs_file = os.path.abspath(os.path.normpath(self.file_path))
-                if abs_file.lower().startswith(abs_vault.lower() + os.sep.lower()):
-                    rel_path = os.path.relpath(abs_file, abs_vault)
-                    display_name = rel_path  # Only show the path relative to the vault root
-            except Exception:
-                pass
-        layout.label(text=f"{display_name}?")
+        layout.label(text=f"Save changes before opening {os.path.basename(self.file_path)}?", icon='QUESTION')
+        
         layout.separator()
         
         save_op = layout.operator("blend_vault.save_and_open_file", text="Save", icon='FILE_TICK')
@@ -189,27 +384,32 @@ class SmartPasteOperator(bpy.types.Operator):
                     path = path[1:-1]
                 elif path.startswith("'") and path.endswith("'"):
                     path = path[1:-1]
-                # If it's a sidecar, open the corresponding .blend file
+                
                 if path.lower().endswith(SIDECAR_EXTENSION):
                     path = path[: -len(SIDECAR_EXTENSION)]
-                if bpy.data.is_dirty:
-                    bpy.ops.blend_vault.confirm_save_before_open('INVOKE_DEFAULT', file_path=path)
-                else:
-                    bpy.ops.wm.open_mainfile(filepath=path)
-                    self.report({'INFO'}, f"Opened blend file: {os.path.basename(path)}")
                 
+                # Always show the new choose action dialog
+                bpy.ops.blend_vault.choose_action_before_open('INVOKE_DEFAULT', file_path=path)
                 return {'FINISHED'}
-        except:
-            pass
+        except Exception as e:
+            # Log or report error if needed, e.g., self.report({'ERROR'}, f"SmartPaste error: {e}")
+            pass # Fall through to default paste
         
+        # Fallback to default paste behavior
         try:
             if context.space_data and context.space_data.type == 'VIEW_3D':
                 return bpy.ops.view3d.pastebuffer('INVOKE_DEFAULT')
+            # Attempt to find a generic paste operator if not in 3D View
+            # This part might need more robust handling for different contexts
+            elif hasattr(bpy.ops.ui, 'paste'): # Check for generic UI paste
+                 return bpy.ops.ui.paste('INVOKE_DEFAULT')
+            elif hasattr(bpy.ops.text, 'paste'): # Check for text editor paste
+                 return bpy.ops.text.paste('INVOKE_DEFAULT')
             else:
                 self.report({'WARNING'}, "No valid paste operation for this context")
                 return {'CANCELLED'}
         except Exception as e:
-            self.report({'WARNING'}, f"Paste operation failed: {e}")
+            self.report({'WARNING'}, f"Default paste operation failed: {e}")
             return {'CANCELLED'}
 
 class OpenBlendFromClipboardOperator(bpy.types.Operator):
@@ -231,17 +431,21 @@ class OpenBlendFromClipboardOperator(bpy.types.Operator):
         if not path or not os.path.isfile(path) or not path.lower().endswith('.blend'):
             self.report({'ERROR'}, f"Not a valid .blend file: {path}")
             return {'CANCELLED'}
-        if bpy.data.is_dirty:
-            bpy.ops.blend_vault.confirm_save_before_open('INVOKE_DEFAULT', file_path=path)
-        else:
-            bpy.ops.wm.open_mainfile(filepath=path)
-
+        
+        # Always show the new choose action dialog
+        bpy.ops.blend_vault.choose_action_before_open('INVOKE_DEFAULT', file_path=path)
         return {'FINISHED'}
 
 def register():
+    bpy.utils.register_class(BV_OT_ProcessOpenAction)
+    bpy.utils.register_class(BV_OT_ChooseActionBeforeOpen)
     bpy.utils.register_class(BV_OT_ConfirmSaveBeforeOpen)
     bpy.utils.register_class(BV_OT_SaveAndOpenFile)
     bpy.utils.register_class(BV_OT_OpenFileWithoutSave)
+    bpy.utils.register_class(BV_OT_LinkFromFile)
+    bpy.utils.register_class(BV_OT_AppendFromFile)
+    bpy.utils.register_class(BV_OT_LinkFirstAsset)
+    bpy.utils.register_class(BV_OT_AppendFirstAsset)
     bpy.utils.register_class(OpenBlendFromClipboardOperator)
     bpy.utils.register_class(SmartPasteOperator)
     
@@ -255,9 +459,15 @@ def register():
         kmi_window = km_window.keymap_items.new(SmartPasteOperator.bl_idname, 'V', 'PRESS', ctrl=True)
 
 def unregister():
+    bpy.utils.unregister_class(BV_OT_ProcessOpenAction)
+    bpy.utils.unregister_class(BV_OT_ChooseActionBeforeOpen)
     bpy.utils.unregister_class(BV_OT_ConfirmSaveBeforeOpen)
     bpy.utils.unregister_class(BV_OT_SaveAndOpenFile)
     bpy.utils.unregister_class(BV_OT_OpenFileWithoutSave)
+    bpy.utils.unregister_class(BV_OT_LinkFromFile)
+    bpy.utils.unregister_class(BV_OT_AppendFromFile)
+    bpy.utils.unregister_class(BV_OT_LinkFirstAsset)
+    bpy.utils.unregister_class(BV_OT_AppendFirstAsset)
     bpy.utils.unregister_class(OpenBlendFromClipboardOperator)
     bpy.utils.unregister_class(SmartPasteOperator)
 
