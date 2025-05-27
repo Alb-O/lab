@@ -51,11 +51,16 @@ def register():
 	
 	# Restore stored preference values
 	preferences.restore_preferences()
-	
 	# Reload submodules first (important for dependencies)
 	submodules_to_reload = [
 		'sidecar_io.frontmatter',  # Reload frontmatter before writer
 		'relink',  # Import relink package first
+		'paste_path.core_operators',  # Reload paste_path components
+		'paste_path.asset_discovery',
+		'paste_path.dialogs',
+		'paste_path.file_validation',
+		'paste_path.save_workflow',
+		'paste_path.smart_paste',
 	]
 	
 	for module_path in submodules_to_reload:

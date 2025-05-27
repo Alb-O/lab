@@ -6,15 +6,26 @@ file paths and choose actions (Open, Link, Append) with automatic asset discover
 """
 
 import bpy  # type: ignore
+import importlib
 from . import core_operators
 from . import asset_discovery
 from . import dialogs
+from . import file_validation
 from . import smart_paste
 from . import save_workflow
 
 
 def register():
     """Register all paste-path components."""
+    # Reload submodules to ensure latest code is used
+    importlib.reload(core_operators)
+    importlib.reload(asset_discovery)
+    importlib.reload(dialogs)
+    importlib.reload(file_validation)
+    importlib.reload(smart_paste)
+    importlib.reload(save_workflow)
+    
+    # Register components (only those that have register functions)
     core_operators.register()
     asset_discovery.register()
     dialogs.register()
