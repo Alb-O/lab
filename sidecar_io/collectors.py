@@ -7,7 +7,7 @@ import bpy  # type: ignore
 import os
 import re
 from typing import Dict, List, Tuple
-from utils import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, MD_PRIMARY_FORMAT
+from utils import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link
 from .uuid_manager import read_sidecar_uuid
 
 
@@ -21,8 +21,10 @@ def _matches_current_file_heading(line: str) -> bool:
 	
 	# Check markdown link format using the current MD_PRIMARY_FORMAT
 	if line_stripped.startswith("### "):
-		# Use the regex pattern to check if this is a markdown link containing "Current File"
-		link_match = re.search(MD_PRIMARY_FORMAT['regex'], line_stripped[4:])  # Remove "### " prefix
+		# Use helper to format primary link and compare strings
+		expected = format_primary_link(path="", name="Current File").replace("[]|", "").strip()
+		# Fallback to regex match on text content
+		link_match = re.search(r"\[\[([^\]|]+)\|([^\]]+)\]\]", line_stripped[4:])
 		if link_match and link_match.group(1) == "Current File":
 			return True
 	

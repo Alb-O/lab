@@ -2,7 +2,7 @@ import bpy  # type: ignore
 import os
 import atexit
 import re  # For check_file_relocation
-from utils import LOG_COLORS, REDIRECT_EXTENSION, MD_PRIMARY_FORMAT, MD_EMBED_WIKILINK
+from utils import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK
 from preferences import get_obsidian_vault_root
 
 # Store last known working directory per .blend file
@@ -73,7 +73,7 @@ def create_redirect_file(blend_path: str):
     redirect_path = blend_path + REDIRECT_EXTENSION
 
     redirect_content = f"""{MD_EMBED_WIKILINK['format'].format(name='BV_MSG_REDIR')}
-{MD_PRIMARY_FORMAT['format'].format(name=filename, path=f'./{filename}')}
+{format_primary_link(f'./{filename}', filename)}
 """
 
     try:

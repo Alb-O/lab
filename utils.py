@@ -2,6 +2,8 @@ import bpy  # type: ignore
 import uuid
 import hashlib
 import os
+import re
+from typing import Optional  # required for format_primary_link annotation
 
 def get_asset_sources_map():
 	"""
@@ -35,10 +37,24 @@ MD_LINK_FORMATS = {
 	'MD_ANGLE_BRACKETS': {
 		'format': '[{name}](<{path}>)',
 		'regex': r'\[([^\]]+)\]\(<([^>]+)>\)'
+	},	'MD_WIKILINK': {
+		'format': '[[{path}|{name}]]',
+		'regex': r'\[\[([^\]|]+)\|([^\]]+)\]\]'
 	}
 }
 
-MD_PRIMARY_FORMAT = MD_LINK_FORMATS['MD_ANGLE_BRACKETS']
+MD_PRIMARY_FORMAT = MD_LINK_FORMATS['MD_WIKILINK']  # Set Obsidian wikilink as primary format
+
+# Compile primary link regex and helper functions
+PRIMARY_LINK_REGEX = re.compile(MD_PRIMARY_FORMAT['regex'])
+def format_primary_link(path: str, name: Optional[str] = None) -> str:
+    if name is None:
+        name = os.path.basename(path)
+    return MD_PRIMARY_FORMAT['format'].format(name=name, path=path)
+
+def parse_primary_link(text: str):
+    """Return regex match for primary wikilink format, or None."""
+    return PRIMARY_LINK_REGEX.search(text)
 
 # Obsidian-style embed wikilink format: ![[path|alias]] or ![[name]]
 MD_EMBED_WIKILINK = {
@@ -109,8 +125,6 @@ def generate_filepath_hash(filepath: str) -> str:
         raise TypeError(error_msg)
         
     return hashlib.sha256(filepath.encode('utf-8')).hexdigest()
-
-from typing import Optional
 
 def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_root: Optional[str] = None) -> str:
 	"""

@@ -19,7 +19,8 @@ from utils import (
     log_warning,
     log_error,
     log_success,
-    log_debug
+    log_debug,
+    parse_primary_link
 )
 
 
@@ -143,10 +144,10 @@ class SidecarParser:
             else:
                 # Look for markdown links
                 line_no_heading = line_stripped.lstrip('#').strip() if line_stripped.startswith('#') else line_stripped
-                md_link_match = re.search(MD_PRIMARY_FORMAT['regex'], line_no_heading)
+                md_link_match = parse_primary_link(line_no_heading)
                 if md_link_match:
-                    active_link_name = md_link_match.group(1)
-                    active_link_path = md_link_match.group(2)
+                    active_link_path = md_link_match.group(1)
+                    active_link_name = md_link_match.group(2) or active_link_path
             
             current_line_idx += 1
         

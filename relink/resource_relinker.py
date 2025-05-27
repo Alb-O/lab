@@ -20,10 +20,7 @@ from .shared_utils import (
     log_debug,
     ensure_saved_file
 )
-from utils import (
-    RESOURCE_WARNING_PREFIX,
-    MD_PRIMARY_FORMAT
-)
+from utils import parse_primary_link, RESOURCE_WARNING_PREFIX
 
 
 class ResourceRelinkProcessor(BaseRelinker):
@@ -134,11 +131,11 @@ class ResourceRelinkProcessor(BaseRelinker):
             if re.match(r"^(###|####)", line_stripped):
                 break
             
-            # Look for markdown links
-            md_link_match = re.search(MD_PRIMARY_FORMAT['regex'], line_stripped)
+            # Look for markdown links using parse_primary_link
+            md_link_match = parse_primary_link(line_stripped)
             if md_link_match:
-                link_name = md_link_match.group(1)
-                link_path = md_link_match.group(2)
+                link_path = md_link_match.group(1)
+                link_name = md_link_match.group(2) or link_path
                 
                 # For resources without JSON blocks, create a simple entry
                 results[link_path] = {
