@@ -1,5 +1,11 @@
 
-import bpy  # type: ignore
+# Conditional bpy import - only import if we're running in Blender
+try:
+    import bpy  # type: ignore
+    _BLENDER_AVAILABLE = True
+except ImportError:
+    bpy = None
+    _BLENDER_AVAILABLE = False
 import uuid
 import hashlib
 import os
@@ -14,6 +20,9 @@ def get_asset_sources_map():
     Initializes and returns the ASSET_SOURCES_MAP dictionary.
     This version does not cache the instance, ensuring fresh bpy.data references on each call.
     """
+    if not _BLENDER_AVAILABLE or bpy is None:
+        return {}
+        
     # Always create and return a new dictionary with current bpy.data references
     return {
         "Collection": bpy.data.collections,
@@ -39,12 +48,15 @@ def parse_primary_link(text: str):
     return PRIMARY_LINK_REGEX.search(text)
 
 
-def get_or_create_datablock_uuid(datablock: 'bpy.types.ID') -> str:
+def get_or_create_datablock_uuid(datablock) -> str:
     """
     Gets an existing Blend Vault UUID (BV_UUID_PROP) from a Blender datablock
     (any item with id_properties_ensure, e.g., asset, library object).
     If no UUID exists, generates a new UUID (v4), stores it, and returns it.
     """
+    if not _BLENDER_AVAILABLE or bpy is None:
+        raise RuntimeError("get_or_create_datablock_uuid requires Blender environment")
+        
     if not hasattr(datablock, 'id_properties_ensure'):
         error_msg = f"Cannot ensure UUID for item without 'id_properties_ensure': {datablock}"
         try:

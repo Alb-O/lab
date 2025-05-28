@@ -4,7 +4,7 @@ Provides functions to validate .blend file paths and sidecar files.
 """
 
 import os
-from ..utils import SIDECAR_EXTENSION
+from .. import SIDECAR_EXTENSION
 
 
 def is_valid_blend_file_path(clipboard_text):

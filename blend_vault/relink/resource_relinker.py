@@ -8,19 +8,8 @@ import os
 import re
 import traceback
 from typing import Dict, Optional, Any
-from .shared_utils import (
-    BaseRelinker,
-    SidecarParser,
-    PathResolver,
-    ResourceManager,
-    log_info,
-    log_warning,
-    log_error,
-    log_success,
-    log_debug,
-    ensure_saved_file
-)
-from ..utils import parse_primary_link, RESOURCE_WARNING_PREFIX
+from .shared_utils import BaseRelinker, SidecarParser, PathResolver, ResourceManager, ensure_saved_file
+from .. import parse_primary_link, RESOURCE_WARNING_PREFIX, log_info, log_warning, log_error, log_success, log_debug
 
 
 class ResourceRelinkProcessor(BaseRelinker):

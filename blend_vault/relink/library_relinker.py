@@ -7,15 +7,11 @@ import bpy  # type: ignore
 import os
 import traceback
 from typing import Dict, Optional, Any
-from ..utils import SIDECAR_EXTENSION
+from .. import SIDECAR_EXTENSION, log_info, log_warning, log_error, log_success
 from .shared_utils import (
     BaseRelinker,
     PathResolver,
     LibraryManager,
-    log_info,
-    log_warning,
-    log_error,
-    log_success,
     ensure_saved_file,
     make_paths_relative,
     create_blender_operator_class

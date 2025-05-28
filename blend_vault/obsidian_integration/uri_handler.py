@@ -9,7 +9,7 @@ import bpy  # type: ignore
 import os
 import webbrowser
 from urllib.parse import quote
-from ..utils import LOG_COLORS, SIDECAR_EXTENSION
+from .. import LOG_COLORS, SIDECAR_EXTENSION
 
 
 def _log(level: str, message: str) -> None:

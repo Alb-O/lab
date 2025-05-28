@@ -1,10 +1,9 @@
 import bpy  # type: ignore
 import os
 import importlib
-from ..utils import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS, log_success, log_error, log_warning, log_info
+from .. import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS, log_success, log_error, log_warning, log_info
+from . import asset_relinker, redirect_handler
 from .library_relinker import relink_library_info
-from . import asset_relinker
-from . import redirect_handler
 from .resource_relinker import relink_resources
 
 # Store last modification times for sidecar files
