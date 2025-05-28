@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "blend_vault"
-version = "0.4.0"
+version = "0.4.1"
 name = "Blend Vault"
 tagline = "Automatically relink and manage libraries/assets with Obsidian integration"
 maintainer = "Albert O'Shea"
