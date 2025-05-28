@@ -8,7 +8,7 @@ import os
 import json
 import re
 from typing import Dict, List, Tuple
-from utils import (
+from ..utils import (
 	generate_filepath_hash,  # Renamed from ensure_library_hash
 	get_resource_warning_prefix,
 	SIDECAR_EXTENSION,
@@ -16,7 +16,7 @@ from utils import (
 	BV_FILE_UUID_KEY,
 	format_primary_link
 )
-from preferences import get_obsidian_vault_root
+from ..preferences import get_obsidian_vault_root
 from .uuid_manager import read_sidecar_uuid
 
 

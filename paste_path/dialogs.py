@@ -68,7 +68,8 @@ class BV_OT_ConfirmSaveBeforeOpen(bpy.types.Operator):
 
     def _draw_confirmation_dialog_content(self, menu_self, context):
         layout = menu_self.layout
-        layout.label(text=f"Save changes before opening {os.path.basename(self.file_path)}?", icon='QUESTION')
+        layout.label(text="Save changes to:", icon='QUESTION')
+        layout.label(text=f"* {os.path.basename(bpy.data.filepath) if bpy.data.filepath else 'Untitled.blend'}?")
         
         layout.separator()
         

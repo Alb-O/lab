@@ -2,8 +2,8 @@ import bpy  # type: ignore
 import os
 import atexit
 import re  # For check_file_relocation
-from utils import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK
-from preferences import get_obsidian_vault_root
+from ..utils import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK
+from ..preferences import get_obsidian_vault_root
 
 # Store last known working directory per .blend file
 t_last_working_dirs = {}

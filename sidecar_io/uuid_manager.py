@@ -6,7 +6,7 @@ Handles reading and extracting UUIDs from sidecar files.
 import os
 import re
 from typing import Optional
-from utils import BV_FILE_UUID_KEY, BV_UUID_KEY
+from ..utils import BV_FILE_UUID_KEY, BV_UUID_KEY
 
 
 def extract_uuid_from_content(content: str) -> Optional[str]:

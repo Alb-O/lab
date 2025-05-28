@@ -7,7 +7,7 @@ import os
 import json
 import re
 from typing import Dict
-from utils import (
+from ..utils import (
 	LOG_COLORS,
 	SIDECAR_EXTENSION,
 	FRONTMATTER_TAGS,

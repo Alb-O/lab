@@ -8,7 +8,7 @@ import json
 import re
 from typing import Dict, List, Optional, Tuple, Any
 import bpy  # type: ignore
-from utils import (
+from ..utils import (
     SIDECAR_EXTENSION,
     LOG_COLORS,
     BV_UUID_PROP,

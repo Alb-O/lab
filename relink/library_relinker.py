@@ -7,7 +7,7 @@ import bpy  # type: ignore
 import os
 import traceback
 from typing import Dict, Optional, Any
-from utils import SIDECAR_EXTENSION
+from ..utils import SIDECAR_EXTENSION
 from .shared_utils import (
     BaseRelinker,
     PathResolver,
@@ -16,7 +16,6 @@ from .shared_utils import (
     log_warning,
     log_error,
     log_success,
-    log_debug,
     ensure_saved_file,
     make_paths_relative,
     create_blender_operator_class

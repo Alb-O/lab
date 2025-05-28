@@ -5,7 +5,7 @@ Provides quick operations that find the first asset in a .blend file.
 
 import bpy  # type: ignore
 import os
-from utils import log_debug
+from ..utils import log_debug
 
 
 def _find_first_asset_in_blend_file(file_path: str):

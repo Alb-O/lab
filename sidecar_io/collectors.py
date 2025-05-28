@@ -7,7 +7,7 @@ import bpy  # type: ignore
 import os
 import re
 from typing import Dict, List, Tuple
-from utils import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link
+from ..utils import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link
 from .uuid_manager import read_sidecar_uuid
 
 

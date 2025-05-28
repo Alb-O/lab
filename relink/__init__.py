@@ -11,13 +11,6 @@ from . import polling
 from . import redirect_handler
 from . import shared_utils
 
-import sys
-import os
-
-# Import utils from parent directory
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import utils
-
 
 def register():
     """Register all relinker modules using the refactored architecture."""

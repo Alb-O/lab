@@ -1,0 +1,25 @@
+schema_version = "1.0.0"
+
+id = "blend_vault"
+version = "0.4.0"
+name = "Blend Vault"
+tagline = "Automatically relink and manage libraries/assets with Obsidian integration"
+maintainer = "Albert O'Shea"
+type = "add-on"
+
+tags = ["Development", "Asset Management", "Libraries", "Integration"]
+
+blender_version_min = "4.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+# Optional: Add website if you have one
+# website = "https://github.com/yourusername/blend-vault"
+
+# If your addon needs internet access (for Obsidian integration)
+[permissions]
+network = "Allow network access for Obsidian integration features"
+
+# If you have Python dependencies, list them here
+# [wheels]
+# "./wheels/some_dependency-1.0.0-py3-none-any.whl"

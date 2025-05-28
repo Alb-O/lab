@@ -7,7 +7,7 @@ import bpy  # type: ignore
 import os
 import traceback
 from typing import Dict, List, Optional, Any
-from utils import (
+from ..utils import (
     get_asset_sources_map,
     BV_UUID_PROP
 )

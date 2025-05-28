@@ -20,7 +20,7 @@ from .shared_utils import (
     log_debug,
     ensure_saved_file
 )
-from utils import parse_primary_link, RESOURCE_WARNING_PREFIX
+from ..utils import parse_primary_link, RESOURCE_WARNING_PREFIX
 
 
 class ResourceRelinkProcessor(BaseRelinker):

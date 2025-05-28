@@ -9,7 +9,7 @@ import bpy  # type: ignore
 import os
 import webbrowser
 from urllib.parse import quote
-from utils import LOG_COLORS, SIDECAR_EXTENSION
+from ..utils import LOG_COLORS, SIDECAR_EXTENSION
 
 
 def _log(level: str, message: str) -> None:
@@ -57,11 +57,15 @@ def open_file_in_obsidian(file_path: str) -> bool:
 	if not file_path or not os.path.exists(file_path):
 		_log('ERROR', f"[Blend Vault][Obsidian] File does not exist: {file_path}")
 		return False
-	
-	# Use the path parameter to open by absolute path
+		# Use the path parameter to open by absolute path
 	uri = build_obsidian_uri("open", path=file_path)
 	
 	_log('DEBUG', f"[Blend Vault][Obsidian] Opening URI: {uri}")
+	
+	# Check for internet access permission (required for extensions)
+	if not bpy.app.online_access:
+		_log('ERROR', "[Blend Vault][Obsidian] Online access is disabled. Cannot open URIs.")
+		return False
 	
 	try:
 		# Use webbrowser to open the URI, which should be handled by the OS

@@ -1,9 +1,8 @@
 import bpy # type: ignore
 
-# This should be the name of the addon module (directory name).
-# It's used as bl_idname for AddonPreferences and to retrieve them.
-# This must match the __name__ of the __init__.py of the addon.
-ADDON_ID = __name__.split('.')[0] if '.' in __name__ else "blend-vault"
+# Global variable to store the addon package name
+# This will be set by the main addon module during registration
+ADDON_PACKAGE_NAME = ""
 
 # Storage key for persistent preferences across reloads
 STORAGE_KEY = 'blend_vault_stored_prefs'
@@ -16,7 +15,7 @@ PERSISTENT_PROPERTIES = [
 
 class BlendVaultPreferences(bpy.types.AddonPreferences):
     """Blend Vault addon preferences"""
-    bl_idname = ADDON_ID
+    bl_idname = ""  # This will be set dynamically during registration
 
     obsidian_vault_root: bpy.props.StringProperty(  # type: ignore
         name="Obsidian Vault Root",
@@ -43,10 +42,10 @@ def get_addon_preferences(context=None):
     if context is None:
         context = bpy.context
     try:
-        return context.preferences.addons[ADDON_ID].preferences
+        return context.preferences.addons[ADDON_PACKAGE_NAME].preferences
     except KeyError:
         # This matches the original behavior in utils.py which didn't use LOG_COLORS for this print
-        print(f"[Blend Vault] Warning: Could not find addon preferences for '{ADDON_ID}'. Make sure addon is enabled.")
+        print(f"[Blend Vault] Warning: Could not find addon preferences for '{ADDON_PACKAGE_NAME}'. Make sure addon is enabled.")
         return None
 
 def get_obsidian_vault_root(context=None):
@@ -71,7 +70,7 @@ def store_preferences():
     stored_prefs = bpy.app.driver_namespace[STORAGE_KEY]
     
     try:
-        existing_prefs = bpy.context.preferences.addons.get(ADDON_ID)
+        existing_prefs = bpy.context.preferences.addons.get(ADDON_PACKAGE_NAME)
         if existing_prefs and hasattr(existing_prefs, 'preferences'):
             for prop_name in PERSISTENT_PROPERTIES:
                 if hasattr(existing_prefs.preferences, prop_name):
@@ -92,7 +91,7 @@ def restore_preferences():
     stored_prefs = bpy.app.driver_namespace[STORAGE_KEY]
     
     try:
-        current_prefs = bpy.context.preferences.addons[ADDON_ID].preferences
+        current_prefs = bpy.context.preferences.addons[ADDON_PACKAGE_NAME].preferences
         for prop_name in PERSISTENT_PROPERTIES:
             if prop_name in stored_prefs:
                 prop_value = stored_prefs[prop_name]
