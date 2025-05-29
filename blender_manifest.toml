@@ -1,0 +1,23 @@
+schema_version = "1.0.0"
+
+id = "fly_nav"
+version = "0.1.0"
+name = "Fly Navigation"
+tagline = "A simple fly navigation operator"
+maintainer = "Your Name"
+type = "add-on"
+
+tags = ["Navigation", "3D View"]
+
+blender_version_min = "4.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+# Optional: Add website if you have one
+# website = "https://yourwebsite.com/fly_nav"
+
+# [permissions]
+# network = "If your addon needs network access"
+
+# [wheels]
+# "./wheels/some_dependency-1.0.0-py3-none-any.whl"
