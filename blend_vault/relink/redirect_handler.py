@@ -3,6 +3,7 @@ import os
 import atexit
 import re  # For check_file_relocation
 from .. import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK, get_obsidian_vault_root
+from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
 
 # Store last known working directory per .blend file
 t_last_working_dirs = {}
@@ -18,7 +19,7 @@ _pending_relocations = {}
 
 _current_blend_file_for_cleanup = None
 
-print("[Blend Vault][Redirect] redirect_handler.py module loaded.")
+log_info("redirect_handler.py module loaded.", module_name='RedirectHandler')
 
 
 def _format_display_path(target_path_abs, current_file_dir_abs, vault_root_abs=None):
@@ -55,19 +56,19 @@ def _format_display_path(target_path_abs, current_file_dir_abs, vault_root_abs=N
 
 def create_redirect_file(blend_path: str):
     """Creates or overwrites a .redirect.md file for the current blend file."""
-    print(f"{LOG_COLORS['DEBUG']}[Blend Vault][Redirect] create_redirect_file called with: {blend_path}{LOG_COLORS['RESET']}")
+    log_debug(f"create_redirect_file called with: {blend_path}", module_name='RedirectHandler')
     
     vault_root = None
     if get_obsidian_vault_root is not None: # Check before calling
         vault_root = get_obsidian_vault_root()
 
     if vault_root:
-        print(f"{LOG_COLORS['DEBUG']}[Blend Vault][Redirect] Obsidian vault root: {vault_root}{LOG_COLORS['RESET']}")
+        log_debug(f"Obsidian vault root: {vault_root}", module_name='RedirectHandler')
     else:
-        print(f"{LOG_COLORS['WARN']}[Blend Vault][Redirect] No Obsidian vault root set in preferences{LOG_COLORS['RESET']}")
+        log_warning("No Obsidian vault root set in preferences", module_name='RedirectHandler')
     
     if not blend_path:
-        print(f"{LOG_COLORS['WARN']}[Blend Vault][Redirect] create_redirect_file called with empty blend_path{LOG_COLORS['RESET']}")
+        log_warning("create_redirect_file called with empty blend_path", module_name='RedirectHandler')
         return
 
     filename = os.path.basename(blend_path)
@@ -87,17 +88,13 @@ def create_redirect_file(blend_path: str):
         _current_blend_file_for_cleanup = blend_path
 
     except Exception as e:
-        print(
-            f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Failed to create redirect file {redirect_path}: {e}{LOG_COLORS['RESET']}"
-        )
+        log_error(f"Failed to create redirect file {redirect_path}: {e}", module_name='RedirectHandler')
 
 
 def cleanup_redirect_file(blend_path: str):
     """Removes the redirect file for the given blend file."""
     if not blend_path:
-        print(
-            f"{LOG_COLORS['WARN']}[Blend Vault][Redirect] cleanup_redirect_file called with no blend_path.{LOG_COLORS['RESET']}"
-        )
+        log_warning("cleanup_redirect_file called with no blend_path.", module_name='RedirectHandler')
         return
 
     redirect_path = blend_path + REDIRECT_EXTENSION
@@ -105,13 +102,9 @@ def cleanup_redirect_file(blend_path: str):
     try:
         if os.path.exists(redirect_path):
             os.remove(redirect_path)
-            print(
-                f"{LOG_COLORS['SUCCESS']}[Blend Vault][Redirect] Cleaned up redirect file: {redirect_path}{LOG_COLORS['RESET']}"
-            )
+            log_success(f"Cleaned up redirect file: {redirect_path}", module_name='RedirectHandler')
     except Exception as e:
-        print(
-            f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Failed to cleanup redirect file {redirect_path}: {e}{LOG_COLORS['RESET']}"
-        )
+        log_error(f"Failed to cleanup redirect file {redirect_path}: {e}", module_name='RedirectHandler')
 
 
 def check_file_relocation():
@@ -184,21 +177,20 @@ def check_file_relocation():
                     for area in bpy.context.screen.areas:
                         if area.type == 'VIEW_3D':
                             area.tag_redraw()
-                    print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] Updated relocation path: {os.path.basename(blend_path)} -> {os.path.basename(new_path)}{LOG_COLORS['RESET']}")
+                    log_info(f"Updated relocation path: {os.path.basename(blend_path)} -> {os.path.basename(new_path)}", module_name='RedirectHandler')
                     # Show new modal dialog for the different location
                     if not _relocation_dialog_shown:
                         _prompt_file_relocation(blend_path, new_path)
 
     except Exception as e:
-        print(
-            f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error checking redirect file {redirect_path}: {e}{LOG_COLORS['RESET']}"		)
+        log_error(f"Error checking redirect file {redirect_path}: {e}", module_name='RedirectHandler')
 
 
 def _show_relocation_status_message(current_path: str, new_path: str):
     """Shows a status message for file relocation."""
     filename = os.path.basename(current_path)
     new_filename = os.path.basename(new_path)
-    print(f"{LOG_COLORS['WARN']}[Blend Vault][Redirect] File relocation detected: {filename} -> {new_filename}. Check N-panel 'Blend Vault' tab to handle.{LOG_COLORS['RESET']}")
+    log_warning(f"File relocation detected: {filename} -> {new_filename}. Check N-panel 'Blend Vault' tab to handle.", module_name='RedirectHandler')
 
 
 def _prompt_file_relocation(current_path: str, new_path: str):
@@ -217,9 +209,7 @@ def _prompt_file_relocation(current_path: str, new_path: str):
         )
     except Exception as e:
         _relocation_dialog_shown = False
-        print(
-            f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Failed to invoke relocation dialog: {e}{LOG_COLORS['RESET']}"
-        )
+        log_error(f"Failed to invoke relocation dialog: {e}", module_name='RedirectHandler')
 
 
 @bpy.app.handlers.persistent
@@ -307,7 +297,7 @@ class BV_PT_FileRelocationPanel(bpy.types.Panel):
                             else:
                                 new_path_abs = os.path.normpath(linked_path) 
                 except Exception as e:
-                    print(f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error reading redirect file in panel: {e}{LOG_COLORS['RESET']}")
+                    log_error(f"Error reading redirect file in panel: {e}", module_name='RedirectHandler')
             
             if new_path_abs and os.path.exists(new_path_abs):
                 current_dir_abs = os.path.dirname(current_blend)
@@ -379,7 +369,7 @@ class BV_OT_IgnoreRelocation(bpy.types.Operator):
                     area.tag_redraw()
             
             self.report({'INFO'}, "File relocation ignored for this session")
-            print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] File relocation ignored for this session{LOG_COLORS['RESET']}")
+            log_info("File relocation ignored for this session", module_name='RedirectHandler')
         
         return {'FINISHED'}
 
@@ -409,11 +399,9 @@ class BV_OT_ConfirmFileRelocation(bpy.types.Operator):
                 if area.type == 'VIEW_3D':
                     area.tag_redraw()
             
-            print(f"{LOG_COLORS['SUCCESS']}[Blend Vault][Redirect] File relocated to {self.new_path}{LOG_COLORS['RESET']}")
+            log_success(f"File relocated to {self.new_path}", module_name='RedirectHandler')
         except Exception as e:
-            print(
-                f"{LOG_COLORS['ERROR']}[Blend Vault][Redirect] Error during relocation: {e}{LOG_COLORS['RESET']}"
-            )
+            log_error(f"Error during relocation: {e}", module_name='RedirectHandler')
         return {'FINISHED'}
 
     def cancel(self, context):
@@ -421,7 +409,7 @@ class BV_OT_ConfirmFileRelocation(bpy.types.Operator):
         _relocation_dialog_shown = False
         # Don't clean up redirect file or remove from pending relocations on cancel
         # Keep the relocation pending so user can handle it through the N-panel
-        print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] File relocation dialog dismissed. Use N-panel to handle.{LOG_COLORS['RESET']}")
+        log_info("File relocation dialog dismissed. Use N-panel to handle.", module_name='RedirectHandler')
     
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=450)
@@ -451,7 +439,7 @@ def register():
     bpy.utils.register_class(BV_PT_FileRelocationPanel)
     bpy.utils.register_class(BV_OT_IgnoreRelocation)
 
-    print(f"{LOG_COLORS['INFO']}[Blend Vault][Redirect] Panel registered with category 'Blend Vault'{LOG_COLORS['RESET']}")
+    log_info("Panel registered with category 'Blend Vault'", module_name='RedirectHandler')
 
     # Register handlers
     bpy.app.handlers.save_post.append(create_redirect_on_save)
@@ -459,9 +447,7 @@ def register():
     bpy.app.handlers.load_factory_startup_post.append(clear_session_flags_on_new)
     bpy.app.handlers.load_pre.append(cleanup_redirect_on_load_pre)
 
-    print(
-        f"{LOG_COLORS['SUCCESS']}[Blend Vault][Redirect] Redirect handler module registered.{LOG_COLORS['RESET']}"
-    )
+    log_success("Redirect handler module registered.", module_name='RedirectHandler')
 
 
 def unregister():
@@ -482,9 +468,7 @@ def unregister():
     bpy.utils.unregister_class(BV_PT_FileRelocationPanel)
     bpy.utils.unregister_class(BV_OT_IgnoreRelocation)
 
-    print(
-        f"{LOG_COLORS['WARN']}[Blend Vault] Redirect handler module unregistered.{LOG_COLORS['RESET']}"
-    )
+    log_warning("Redirect handler module unregistered.", module_name='RedirectHandler')
 
 
 if __name__ == "__main__":

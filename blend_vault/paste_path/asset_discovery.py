@@ -11,25 +11,25 @@ from .. import log_debug
 def _find_first_asset_in_blend_file(file_path: str):
     """Find the first marked asset datablock in a .blend file."""
     try:
-        log_debug(f"[Blend Vault][Asset Discovery] Starting marked asset search in {os.path.basename(file_path)}")
+        log_debug(f"Starting marked asset search in {os.path.basename(file_path)}")
         
         # Try to find actual asset-marked items
         actual_asset = _find_actual_assets_in_blend_file(file_path)
         if actual_asset:
-            log_debug(f"[Blend Vault][Asset Discovery] ✓ Found marked asset: {actual_asset['name']} ({actual_asset['type']})")
+            log_debug(f"✓ Found marked asset: {actual_asset['name']} ({actual_asset['type']})")
             return actual_asset
         
-        log_debug("[Blend Vault][Asset Discovery] ✗ No marked assets found")
+        log_debug("✗ No marked assets found")
         return None
     except Exception as e:
-        log_debug(f"[Blend Vault][Asset Discovery] Error scanning blend file {file_path}: {e}")
+        log_debug(f"Error scanning blend file {file_path}: {e}")
         return None
 
 
 def _find_actual_assets_in_blend_file(file_path: str):
     """PRIORITY METHOD: Find actual asset-marked datablocks using Blender's asset system."""
     try:
-        log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: Scanning for marked assets in {os.path.basename(file_path)}")
+        log_debug(f"PRIORITY: Scanning for marked assets in {os.path.basename(file_path)}")
         
         # Simple approach: temporarily link items to check asset_data, then remove them
         found_assets = []
@@ -47,7 +47,7 @@ def _find_actual_assets_in_blend_file(file_path: str):
                 if hasattr(data_from, collection_name):
                     items = getattr(data_from, collection_name)
                     if items:
-                        log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: Found {len(items)} {asset_type}(s), linking to check for asset metadata")
+                        log_debug(f"PRIORITY: Found {len(items)} {asset_type}(s), linking to check for asset metadata")
                         # Link all items to check them
                         setattr(data_to, collection_name, items[:])
         
@@ -72,7 +72,7 @@ def _find_actual_assets_in_blend_file(file_path: str):
                         if (hasattr(item, 'library') and item.library == library and
                             hasattr(item, 'asset_data') and item.asset_data is not None):
                             
-                            log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: ✓ Found marked asset: {item.name} ({asset_type})")
+                            log_debug(f"PRIORITY: ✓ Found marked asset: {item.name} ({asset_type})")
                             found_assets.append({
                                 "name": item.name,
                                 "type": asset_type,
@@ -83,21 +83,21 @@ def _find_actual_assets_in_blend_file(file_path: str):
             # Clean up: remove the linked library
             try:
                 bpy.data.libraries.remove(library)
-                log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: Cleaned up temporary library link")
+                log_debug(f"PRIORITY: Cleaned up temporary library link")
             except Exception as cleanup_error:
-                log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: Library cleanup warning: {cleanup_error}")
+                log_debug(f"PRIORITY: Library cleanup warning: {cleanup_error}")
         
         if found_assets:
             # Return the first asset found (prioritized by the order we checked)
             selected_asset = found_assets[0]
-            log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: Selected marked asset: {selected_asset['name']} ({selected_asset['type']})")
+            log_debug(f"PRIORITY: Selected marked asset: {selected_asset['name']} ({selected_asset['type']})")
             return selected_asset
         
-        log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: No marked assets found in {os.path.basename(file_path)}")
+        log_debug(f"PRIORITY: No marked assets found in {os.path.basename(file_path)}")
         return None
         
     except Exception as e:
-        log_debug(f"[Blend Vault][Asset Discovery] PRIORITY: Asset detection failed for {os.path.basename(file_path)}: {e}")
+        log_debug(f"PRIORITY: Asset detection failed for {os.path.basename(file_path)}: {e}")
         return None
 
 
@@ -118,7 +118,7 @@ class BV_OT_LinkFirstAsset(bpy.types.Operator):
         if not asset_info:
             # No marked assets found, fall back to manual file dialogue
             self.report({'WARNING'}, f"No marked assets found in {os.path.basename(self.file_path)}, opening standard library selector.")
-            log_debug(f"[Blend Vault][Asset Discovery] No marked assets found, opening manual link dialogue for {os.path.basename(self.file_path)}")
+            log_debug(f"No marked assets found, opening manual link dialogue for {os.path.basename(self.file_path)}")
             try:
                 bpy.ops.wm.append('INVOKE_DEFAULT', filepath=self.file_path, link=True)
                 return {'FINISHED'}
@@ -160,7 +160,7 @@ class BV_OT_AppendFirstAsset(bpy.types.Operator):
         if not asset_info:
             # No marked assets found, fall back to manual file dialogue
             self.report({'WARNING'}, f"No marked assets found in {os.path.basename(self.file_path)}, opening standard library selector.")
-            log_debug(f"[Blend Vault][Asset Discovery] No marked assets found, opening manual append dialogue for {os.path.basename(self.file_path)}")
+            log_debug(f"No marked assets found, opening manual append dialogue for {os.path.basename(self.file_path)}")
             try:
                 bpy.ops.wm.append('INVOKE_DEFAULT', filepath=self.file_path, link=False)
                 return {'FINISHED'}

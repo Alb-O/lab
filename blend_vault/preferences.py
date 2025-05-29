@@ -1,5 +1,6 @@
 import bpy
 from typing import Optional, cast # Added cast
+from .utils.helpers import log_info, log_warning, log_error, log_success, log_debug
 
 # Global variable to store the addon package name
 # This will be set by the main addon module during registration
@@ -49,11 +50,11 @@ def get_addon_preferences(context=None) -> Optional[BlendVaultPreferences]:
         return cast(BlendVaultPreferences, addon.preferences)
     else:
         if addon and hasattr(addon, 'preferences') and not isinstance(addon.preferences, BlendVaultPreferences):
-            print(f"[Blend Vault] Warning: Addon preferences for '{ADDON_PACKAGE_NAME}' found, but not of expected type BlendVaultPreferences. Type was {type(addon.preferences)}")
+            log_warning("Addon preferences found, but not of expected type BlendVaultPreferences. Type was {type(addon.preferences)}", module_name='Preferences')
         elif not addon:
-            print(f"[Blend Vault] Warning: Could not find addon preferences for '{ADDON_PACKAGE_NAME}'. Make sure addon is enabled.")
+            log_warning("Could not find addon preferences. Make sure addon is enabled.", module_name='Preferences')
         else: # Addon found, but no 'preferences' attribute
-            print(f"[Blend Vault] Warning: Addon '{ADDON_PACKAGE_NAME}' found, but it has no 'preferences' attribute.")
+            log_warning("Addon found, but it has no 'preferences' attribute.", module_name='Preferences')
         return None
 
 def get_obsidian_vault_root(context=None) -> Optional[str]:
@@ -78,7 +79,7 @@ def get_obsidian_vault_root(context=None) -> Optional[str]:
                     stripped_vault_root = str_vault_root.strip()
                     return stripped_vault_root if stripped_vault_root else None
                 except Exception as e:
-                    print(f"[Blend Vault] Error converting vault root to string: {e}")
+                    log_error(f"Error converting vault root to string: {e}", module_name='Preferences')
                     return None
         return None # obsidian_vault_root attribute doesn't exist
     return None # Preferences object not found
@@ -100,9 +101,9 @@ def store_preferences():
                 if hasattr(existing_prefs, prop_name):
                     prop_value = getattr(existing_prefs, prop_name)
                     stored_prefs[prop_name] = prop_value
-                    print(f"[Blend Vault] Stored preference '{prop_name}': {prop_value}")
+                    log_info(f"Stored preference '{prop_name}': {prop_value}", module_name='Preferences')
     except Exception as e:
-        print(f"[Blend Vault] Failed to store preferences: {e}")
+        log_error(f"Failed to store preferences: {e}", module_name='Preferences')
 
 def restore_preferences():
     """
@@ -122,6 +123,6 @@ def restore_preferences():
                     prop_value = stored_prefs[prop_name]
                     if hasattr(current_prefs, prop_name):
                         setattr(current_prefs, prop_name, prop_value)
-                        print(f"[Blend Vault] Restored preference '{prop_name}': {prop_value}")
+                        log_info(f"Restored preference '{prop_name}': {prop_value}", module_name='Preferences')
     except Exception as e:
-        print(f"[Blend Vault] Failed to restore preferences: {e}")
+        log_error(f"Failed to restore preferences: {e}", module_name='Preferences')

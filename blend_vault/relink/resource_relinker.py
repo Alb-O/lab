@@ -9,7 +9,8 @@ import re
 import traceback
 from typing import Dict, Optional, Any
 from .shared_utils import BaseRelinker, SidecarParser, PathResolver, ResourceManager, ensure_saved_file
-from .. import parse_primary_link, RESOURCE_WARNING_PREFIX, log_info, log_warning, log_error, log_success, log_debug
+from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from .. import parse_primary_link, RESOURCE_WARNING_PREFIX
 
 
 class ResourceRelinkProcessor(BaseRelinker):
@@ -41,35 +42,35 @@ class ResourceRelinkProcessor(BaseRelinker):
                     found_any_resource = True
             
             if not found_any_resource:
-                log_info("[Blend Vault][ResourceRelink] No resource entries found in sidecar.")
+                log_info("No resource entries found in sidecar.")
             
         except Exception as e:
-            log_error(f"[Blend Vault][ResourceRelink] Error during resource relinking: {e}")
+            log_error(f"Error during resource relinking: {e}", module_name='ResourceRelinker')
             traceback.print_exc()
         
         self.log_finish("ResourceRelink")
     
     def _process_resource_subsection(self, parser: SidecarParser, subsection_name: str) -> bool:
         """Process a single resource subsection from the Resources section."""
-        log_debug(f"[Blend Vault][ResourceRelink] Processing subsection: {subsection_name}")
+        log_debug(f"Processing subsection: {subsection_name}", module_name='ResourceRelinker')
         
         # Extract resource type from subsection name
         resource_type = self._extract_resource_type_from_subsection(subsection_name)
         if not resource_type:
-            log_warning(f"[Blend Vault][ResourceRelink] Unknown resource subsection: {subsection_name}")
+            log_warning(f"Unknown resource subsection: {subsection_name}", module_name='ResourceRelinker')
             return False
         
         # First, check if we have a Resources section at all
         resources_section_start = parser.find_section_start("Resources")
         if resources_section_start == -1:
-            log_debug("[Blend Vault][ResourceRelink] No Resources section found")
+            log_debug("No Resources section found", module_name='ResourceRelinker')
             return False
         
         # Look for the specific subsection within Resources
         resource_data = self._extract_resources_from_subsection(parser, resources_section_start, subsection_name)
         
         if not resource_data:
-            log_debug(f"[Blend Vault][ResourceRelink] No resources found in {subsection_name}")
+            log_debug(f"No resources found in {subsection_name}", module_name='ResourceRelinker')
             return False
         
         found_any = False
@@ -152,32 +153,32 @@ class ResourceRelinkProcessor(BaseRelinker):
         
         # Unescape markdown characters (specifically underscores)
         clean_name = self._unescape_markdown_name(clean_name)
-        
-        log_info(f"[Blend Vault][ResourceRelink] Processing {resource_type}: '{clean_name}' -> '{link_path}'")
-        
+
+        log_info(f"Processing {resource_type}: '{clean_name}' -> '{link_path}'", module_name='ResourceRelinker')
+
         # Find the resource in Blender
         resource = ResourceManager.find_resource_by_name(clean_name, resource_type)
         if not resource:
-            log_warning(f"[Blend Vault][ResourceRelink] {resource_type} '{clean_name}' not found in session")
+            log_warning(f"{resource_type} '{clean_name}' not found in session", module_name='ResourceRelinker')
             return False
         
         # Use the markdown link path preferentially
         target_path = link_path or stored_path
         if not target_path:
-            log_warning(f"[Blend Vault][ResourceRelink] No path found for {resource_type} '{clean_name}'")
+            log_warning(f"No path found for {resource_type} '{clean_name}'", module_name='ResourceRelinker')
             return False
-        
+
         # Check if the file exists
         abs_path = PathResolver.resolve_relative_to_absolute(target_path, self.blend_dir)
         if not os.path.exists(abs_path):
-            log_warning(f"[Blend Vault][ResourceRelink] File does not exist: {abs_path}")
+            log_warning(f"File does not exist: {abs_path}", module_name='ResourceRelinker')
             return False
-        
+
         # Update the resource path
         success = ResourceManager.update_resource_filepath(resource, target_path, resource_type)
         if success:
-            log_success(f"[Blend Vault][ResourceRelink] Successfully relinked {resource_type} '{clean_name}'")
-        
+            log_success(f"Successfully relinked {resource_type} '{clean_name}'", module_name='ResourceRelinker')
+
         return success
     
     def _remove_warning_prefix(self, text: str) -> str:
@@ -207,7 +208,7 @@ def relink_resources(*args, **kwargs):
         processor = ResourceRelinkProcessor(blend_path)
         processor.process_relink()
     except Exception as e:
-        log_error(f"[Blend Vault][ResourceRelink] Unexpected error: {e}")
+        log_error(f"Unexpected error: {e}", module_name='ResourceRelinker')
         traceback.print_exc()
 
 
@@ -216,11 +217,11 @@ relink_resources.persistent = True
 
 
 def register():
-    log_success("[Blend Vault] Resource relinking module loaded.")
+    log_success("Resource relinking module loaded.", module_name='ResourceRelinker')
 
 
 def unregister():
-    log_warning("[Blend Vault] Resource relinking module unloaded.")
+    log_warning("Resource relinking module unloaded.", module_name='ResourceRelinker')
 
 
 if __name__ == "__main__":

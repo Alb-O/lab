@@ -11,6 +11,15 @@ from . import polling
 from . import redirect_handler
 from . import shared_utils
 
+from functools import partial
+from ..utils.helpers import log_info as _log_info, log_warning as _log_warning, log_error as _log_error, log_success as _log_success, log_debug as _log_debug
+
+log_info = partial(_log_info, module_name='Relink')
+log_warning = partial(_log_warning, module_name='Relink')
+log_error = partial(_log_error, module_name='Relink')
+log_success = partial(_log_success, module_name='Relink')
+log_debug = partial(_log_debug, module_name='Relink')
+
 
 def register():
     """Register all relinker modules using the refactored architecture."""
@@ -67,10 +76,3 @@ PathResolver = shared_utils.PathResolver
 LibraryManager = shared_utils.LibraryManager
 ResourceManager = shared_utils.ResourceManager
 BaseRelinker = shared_utils.BaseRelinker
-
-# Convenience access to logging functions
-log_info = shared_utils.log_info
-log_warning = shared_utils.log_warning
-log_error = shared_utils.log_error
-log_success = shared_utils.log_success
-log_debug = shared_utils.log_debug

@@ -16,17 +16,17 @@ def write_library_info(*args, **kwargs):
     """Main handler to write sidecar file."""
     blend_path = bpy.data.filepath
     if not blend_path:
-        log_warning("[Blend Vault] No blend file path found, skipping write")
+        log_warning("No blend file path found, skipping write", module_name="SidecarWriter")
         return
     
-    log_info(f"[Blend Vault] Writing sidecar for: {blend_path}")
+    log_info(f"Writing sidecar for: {blend_path}", module_name="SidecarWriter")
     
     # Optional relink step
     try:
         from relink.asset_relinker import relink_renamed_assets
         relink_renamed_assets()
     except Exception as e:
-        log_error(f"[Blend Vault] Asset relink failed: {e}")
+        log_error(f"Asset relink failed: {e}", module_name="SidecarWriter")
     
     # Collect data
     local_assets, linked_assets_by_library = collect_assets()
@@ -44,9 +44,9 @@ def write_library_info(*args, **kwargs):
     md_path = blend_path + SIDECAR_EXTENSION
     try:
         write_sidecar_with_content_preservation(md_path, sidecar_content)
-        log_success(f"[Blend Vault] Sidecar written: {md_path}")
+        log_success(f"Sidecar written: {md_path}", module_name="SidecarWriter")
     except Exception as e:
-        log_error(f"[Blend Vault] Failed to write sidecar {md_path}: {e}")
+        log_error(f"Failed to write sidecar {md_path}: {e}", module_name="SidecarWriter")
         return
     # Push UUIDs to linked library sidecars
     for lib_sidecar_path, (file_uuid, asset_updates) in uuid_pushes.items():
@@ -55,7 +55,7 @@ def write_library_info(*args, **kwargs):
         if os.path.exists(linked_blend_path) and (asset_updates or file_uuid):
             push_uuid_to_sidecar(lib_sidecar_path, file_uuid, asset_updates)
         elif not os.path.exists(linked_blend_path):
-            log_warning(f"[Blend Vault] Skipping push to {lib_sidecar_path} - linked blend file missing")
+            log_warning(f"Skipping push to {lib_sidecar_path} - linked blend file missing", module_name="SidecarWriter")
     
     # Now that library sidecars exist, resolve UUIDs for linked assets and update main sidecar
     from .collectors import _resolve_linked_asset_uuids
@@ -84,9 +84,9 @@ def write_library_info(*args, **kwargs):
         
         try:
             write_sidecar_with_content_preservation(md_path, updated_sidecar_content)
-            log_success(f"[Blend Vault] Main sidecar updated with resolved UUIDs")
+            log_success(f"Main sidecar updated with resolved UUIDs", module_name="SidecarWriter")
         except Exception as e:
-            log_error(f"[Blend Vault] Failed to update main sidecar: {e}")
+            log_error(f"Failed to update main sidecar: {e}", module_name="SidecarWriter")
 
 
 write_library_info.persistent = True

@@ -305,7 +305,7 @@ def get_sidecar_path(blend_file_path: str) -> str:
 def ensure_saved_file() -> Optional[str]:
     """Ensure the current file is saved and return its path. Returns None if not saved."""
     if not bpy.data.is_saved:
-        log_warning("[Blend Vault] Current .blend file is not saved. Cannot process sidecar.")
+        log_warning("Current .blend file is not saved. Cannot process sidecar.")
         return None
     return bpy.data.filepath
 
@@ -326,7 +326,7 @@ class BaseRelinker:
     def ensure_sidecar_exists(self) -> bool:
         """Check if the sidecar file exists."""
         if not os.path.exists(self.sidecar_path):
-            log_warning(f"[Blend Vault] Sidecar file not found: {self.sidecar_path}")
+            log_warning(f"Sidecar file not found: {self.sidecar_path}")
             return False
         return True
     
@@ -338,11 +338,11 @@ class BaseRelinker:
     
     def log_start(self, module_name: str) -> None:
         """Log the start of a relink process."""
-        log_info(f"[Blend Vault][{module_name}] Processing sidecar file: {self.sidecar_path}")
+        log_info(f"[{module_name}] Processing sidecar file: {self.sidecar_path}")
     
     def log_finish(self, module_name: str) -> None:
         """Log the completion of a relink process."""
-        log_info(f"[Blend Vault][{module_name}] Finished relink attempt.")
+        log_info(f"[{module_name}] Finished relink attempt.")
 
 
 class ResourceManager:
@@ -387,15 +387,15 @@ class ResourceManager:
                 resource.filepath = rel_path
                 try:
                     resource.reload()
-                    log_success(f"[Blend Vault] Reloaded image '{resource.name}' from '{old_path}' to '{rel_path}'")
+                    log_success(f"Reloaded image '{resource.name}' from '{old_path}' to '{rel_path}'")
                     return True
                 except Exception as e:
-                    log_error(f"[Blend Vault] Failed to reload image '{resource.name}': {e}")
+                    log_error(f"Failed to reload image '{resource.name}': {e}")
                     return False
             
             elif resource_type in ["Video", "Audio"]:
                 resource.filepath = rel_path
-                log_success(f"[Blend Vault] Updated {resource_type.lower()} '{resource.name}' from '{old_path}' to '{rel_path}'")
+                log_success(f"Updated {resource_type.lower()} '{resource.name}' from '{old_path}' to '{rel_path}'")
                 return True
             
             elif resource_type == "Text":
@@ -409,40 +409,40 @@ class ResourceManager:
                             content = f.read()
                         resource.from_string(content)
                         resource.filepath = rel_path
-                        log_success(f"[Blend Vault] Reloaded text '{resource.name}' from '{old_path}' to '{rel_path}'")
+                        log_success(f"Reloaded text '{resource.name}' from '{old_path}' to '{rel_path}'")
                         return True
                     except Exception as e:
-                        log_error(f"[Blend Vault] Failed to reload text '{resource.name}': {e}")
+                        log_error(f"Failed to reload text '{resource.name}': {e}")
                         return False
                 else:
-                    log_warning(f"[Blend Vault] Text file not found: {abs_path}")
+                    log_warning(f"Text file not found: {abs_path}")
                     return False
             
             elif resource_type == "Cache":
                 resource.filepath = rel_path
-                log_success(f"[Blend Vault] Updated cache '{resource.name}' from '{old_path}' to '{rel_path}'")
+                log_success(f"Updated cache '{resource.name}' from '{old_path}' to '{rel_path}'")
                 return True
             
             return False
             
         except Exception as e:
-            log_error(f"[Blend Vault] Error updating {resource_type} '{getattr(resource, 'name', 'unknown')}': {e}")
+            log_error(f"Error updating {resource_type} '{getattr(resource, 'name', 'unknown')}': {e}")
             return False
 
 
 def make_paths_relative() -> None:
     """Make all external file paths relative, with error handling."""
     if not bpy.data.is_saved:
-        log_warning("[Blend Vault] Cannot make paths relative: file is not saved.")
+        log_warning("Cannot make paths relative: file is not saved.")
         return
     
     try:
         bpy.ops.file.make_paths_relative()
-        log_success("[Blend Vault] Made all external file paths relative.")
+        log_success("Made all external file paths relative.")
     except RuntimeError as e:
-        log_warning(f"[Blend Vault] Could not make paths relative: {e}")
+        log_warning(f"Could not make paths relative: {e}")
     except Exception as e:
-        log_error(f"[Blend Vault] Error making paths relative: {e}")
+        log_error(f"Error making paths relative: {e}")
 
 
 def create_blender_operator_class(class_name: str, bl_idname: str, bl_label: str, execute_func):

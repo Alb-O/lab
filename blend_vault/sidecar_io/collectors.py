@@ -9,6 +9,7 @@ import re
 from typing import Dict, List, Tuple
 from .. import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link
 from .uuid_manager import read_sidecar_uuid
+from ..log import log_error, log_warning, log_info  # Import logging functions
 
 
 def _matches_current_file_heading(line: str) -> bool:
@@ -74,7 +75,7 @@ def _resolve_linked_asset_uuids(
 						asset["uuid"] = lib_asset_lookup[key]
 				
 		except Exception as e:
-			print(f"[Blend Vault] Error reading library sidecar {lib_sidecar_path}: {e}")
+			log_error(f"Error reading library sidecar {lib_sidecar_path}: {e}", module_name='SidecarCollectors')
 			continue
 
 
@@ -319,4 +320,4 @@ def _preserve_existing_uuids_from_current_sidecar(
 					local_assets[preserved_uuid] = asset
 		
 	except Exception as e:
-		print(f"[Blend Vault] Error preserving UUIDs from sidecar: {e}")
+		log_error(f"Error preserving UUIDs from sidecar: {e}", module_name='SidecarCollectors')

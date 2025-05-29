@@ -15,6 +15,7 @@ from .. import (
 	format_primary_link
 )
 from .frontmatter import generate_frontmatter_string
+from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
 
 
 def _build_current_file_section_regex() -> str:
@@ -35,8 +36,18 @@ def _build_current_file_section_regex() -> str:
 
 
 def _log(level: str, message: str) -> None:
-	"""Simplified logging function."""
-	print(f"{LOG_COLORS.get(level, '')}{message}{LOG_COLORS['RESET']}")
+    if level == 'INFO':
+        log_info(message, module_name='SidecarFileOps')
+    elif level == 'WARN':
+        log_warning(message, module_name='SidecarFileOps')
+    elif level == 'ERROR':
+        log_error(message, module_name='SidecarFileOps')
+    elif level == 'SUCCESS':
+        log_success(message, module_name='SidecarFileOps')
+    elif level == 'DEBUG':
+        log_debug(message, module_name='SidecarFileOps')
+    else:
+        print(f"{message}")
 
 
 def write_sidecar_with_content_preservation(md_path: str, new_data_content: str) -> None:

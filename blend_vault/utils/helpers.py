@@ -133,26 +133,41 @@ def get_resource_warning_prefix(resource_path: str, blend_file_path: str, vault_
 
 
 # Logging utilities
-def log_info(message: str) -> None:
+def log_info(message: str, extension_name: str = "Blend Vault", module_name: Optional[str] = None) -> None:
     """Log an info message."""
-    print(f"{LOG_COLORS['INFO']}{message}{LOG_COLORS['RESET']}")
+    prefix = f"[{extension_name}]"
+    if module_name:
+        prefix += f" [{module_name}]"
+    print(f"{LOG_COLORS['INFO']}{prefix} {message}{LOG_COLORS['RESET']}")
 
 
-def log_warning(message: str) -> None:
+def log_warning(message: str, extension_name: str = "Blend Vault", module_name: Optional[str] = None) -> None:
     """Log a warning message."""
-    print(f"{LOG_COLORS['WARN']}{message}{LOG_COLORS['RESET']}")
+    prefix = f"[{extension_name}]"
+    if module_name:
+        prefix += f" [{module_name}]"
+    print(f"{LOG_COLORS['WARN']}{prefix} {message}{LOG_COLORS['RESET']}")
 
 
-def log_error(message: str) -> None:
+def log_error(message: str, extension_name: str = "Blend Vault", module_name: Optional[str] = None) -> None:
     """Log an error message."""
-    print(f"{LOG_COLORS['ERROR']}{message}{LOG_COLORS['RESET']}")
+    prefix = f"[{extension_name}]"
+    if module_name:
+        prefix += f" [{module_name}]"
+    print(f"{LOG_COLORS['ERROR']}{prefix} {message}{LOG_COLORS['RESET']}")
 
 
-def log_success(message: str) -> None:
+def log_success(message: str, extension_name: str = "Blend Vault", module_name: Optional[str] = None) -> None:
     """Log a success message."""
-    print(f"{LOG_COLORS['SUCCESS']}{message}{LOG_COLORS['RESET']}")
+    prefix = f"[{extension_name}]"
+    if module_name:
+        prefix += f" [{module_name}]"
+    print(f"{LOG_COLORS['SUCCESS']}{prefix} {message}{LOG_COLORS['RESET']}")
 
 
-def log_debug(message: str) -> None:
+def log_debug(message: str, extension_name: str = "Blend Vault", module_name: Optional[str] = None) -> None:
     """Log a debug message."""
-    print(f"{LOG_COLORS['DEBUG']}{message}{LOG_COLORS['RESET']}")
+    prefix = f"[{extension_name}]"
+    if module_name:
+        prefix += f" [{module_name}]"
+    print(f"{LOG_COLORS['DEBUG']}{prefix} {message}{LOG_COLORS['RESET']}")

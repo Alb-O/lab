@@ -6,6 +6,7 @@ Provides save-and-open functionality with proper timer-based file opening.
 import bpy
 import os
 import functools
+from ..utils.helpers import log_info, log_error
 
 
 class BV_OT_SaveAndOpenFile(bpy.types.Operator):
@@ -72,10 +73,10 @@ def blend_vault_post_save_handler(dummy):
             else:
                 # This case (file not saved after a save operation) should be rare but is logged.
                 current_file_display = bpy.data.filepath if bpy.data.filepath else "Untitled"
-                print(f"[Blend Vault] Post-save: Current file '{current_file_display}' is NOT marked as saved. Aborting open of '{file_path_to_open}'.")
+                log_info(f"Post-save: Current file '{current_file_display}' is NOT marked as saved. Aborting open of '{file_path_to_open}'.", module_name="PastePathSaveWorkflow")
         except Exception as e:
             # Log any error during the handler's logic, especially before timer registration
-            print(f"[Blend Vault] Error in post_save_handler for '{file_path_to_open}': {e}")
+            log_error(f"Error in post_save_handler for '{file_path_to_open}': {e}", module_name="PastePathSaveWorkflow")
 
 
 def register():

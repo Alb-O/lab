@@ -10,11 +10,7 @@ import os
 import webbrowser
 from urllib.parse import quote
 from .. import LOG_COLORS, SIDECAR_EXTENSION
-
-
-def _log(level: str, message: str) -> None:
-	"""Simplified logging function"""
-	print(f"{LOG_COLORS.get(level, '')}{message}{LOG_COLORS['RESET']}")
+from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
 
 
 def build_obsidian_uri(action: str, **params) -> str:
@@ -55,25 +51,25 @@ def open_file_in_obsidian(file_path: str) -> bool:
 		True if the URI was successfully launched, False otherwise
 	"""
 	if not file_path or not os.path.exists(file_path):
-		_log('ERROR', f"[Blend Vault][Obsidian] File does not exist: {file_path}")
+		log_error(f"File does not exist: {file_path}", module_name='ObsidianIntegration')
 		return False
 		# Use the path parameter to open by absolute path
 	uri = build_obsidian_uri("open", path=file_path)
 	
-	_log('DEBUG', f"[Blend Vault][Obsidian] Opening URI: {uri}")
+	log_debug(f"Opening URI: {uri}", module_name='ObsidianIntegration')
 	
 	# Check for internet access permission (required for extensions)
 	if not bpy.app.online_access:
-		_log('ERROR', "[Blend Vault][Obsidian] Online access is disabled. Cannot open URIs.")
+		log_error("Online access is disabled. Cannot open URIs.", module_name='ObsidianIntegration')
 		return False
 	
 	try:
 		# Use webbrowser to open the URI, which should be handled by the OS
 		webbrowser.open(uri)
-		_log('SUCCESS', f"[Blend Vault][Obsidian] Successfully opened file: {file_path}")
+		log_success(f"Successfully opened file: {file_path}", module_name='ObsidianIntegration')
 		return True
 	except Exception as e:
-		_log('ERROR', f"[Blend Vault][Obsidian] Failed to open file in Obsidian: {e}")
+		log_error(f"Failed to open file in Obsidian: {e}", module_name='ObsidianIntegration')
 		return False
 
 
@@ -85,14 +81,14 @@ def open_current_sidecar_in_obsidian() -> bool:
 		True if successful, False otherwise
 	"""
 	if not bpy.data.is_saved:
-		_log('WARN', "[Blend Vault][Obsidian] Current .blend file is not saved. Cannot open sidecar.")
+		log_warning("Current .blend file is not saved. Cannot open sidecar.", module_name='ObsidianIntegration')
 		return False
 	
 	blend_path = bpy.data.filepath
 	sidecar_path = blend_path + SIDECAR_EXTENSION
 	
 	if not os.path.exists(sidecar_path):
-		_log('WARN', f"[Blend Vault][Obsidian] Sidecar file not found: {sidecar_path}")
+		log_warning(f"Sidecar file not found: {sidecar_path}", module_name='ObsidianIntegration')
 		return False
 	
 	return open_file_in_obsidian(sidecar_path)
@@ -158,25 +154,25 @@ def _safe_unregister_class(cls):
 	"""Safely unregister a class, handling cases where it might not be registered."""
 	try:
 		bpy.utils.unregister_class(cls)
-		_log('DEBUG', f"[Blend Vault][Obsidian] Unregistered class: {cls.__name__}")
+		log_debug(f"Unregistered class: {cls.__name__}", module_name='ObsidianIntegration')
 	except RuntimeError:  # This typically means it wasn't registered or already unregistered.
-		_log('DEBUG', f"[Blend Vault][Obsidian] Class {cls.__name__} was not registered or already unregistered.")
+		log_debug(f"Class {cls.__name__} was not registered or already unregistered.", module_name='ObsidianIntegration')
 	except Exception as e:
-		_log('ERROR', f"[Blend Vault][Obsidian] Unexpected error unregistering class {cls.__name__}: {e}")
+		log_error(f"Unexpected error unregistering class {cls.__name__}: {e}", module_name='ObsidianIntegration')
 
 
 def register():
 	# Register classes
 	bpy.utils.register_class(BV_OT_OpenSidecarInObsidian)
 	bpy.utils.register_class(BV_PT_ObsidianIntegrationPanel)
-	_log('SUCCESS', "[Blend Vault][Obsidian] URI handler module registered.")
+	log_success("URI handler module registered.", module_name='ObsidianIntegration')
 
 
 def unregister():
     # --- BEGIN LINGERING HANDLER CLEANUP ---
     # This section is to clean up a potentially lingering depsgraph handler
     # named '_ui_refresh_handler' from previous versions of this script.
-    _log('INFO', "Obsidian Integration: Attempting to clean up potential lingering UI handlers...")
+    log_info("Obsidian Integration: Attempting to clean up potential lingering UI handlers...", module_name='ObsidianIntegration')
     
     handler_name_to_remove = "_ui_refresh_handler"
     handlers_found_for_removal = []
@@ -191,22 +187,22 @@ def unregister():
             for handler_to_remove in handlers_found_for_removal:
                 try:
                     bpy.app.handlers.depsgraph_update_post.remove(handler_to_remove)
-                    _log('INFO', f"Obsidian Integration: Successfully removed lingering depsgraph handler: {handler_name_to_remove} ({handler_to_remove})")
+                    log_info(f"Obsidian Integration: Successfully removed lingering depsgraph handler: {handler_name_to_remove} ({handler_to_remove})", module_name='ObsidianIntegration')
                 except Exception as e:
-                    _log('WARN', f"Obsidian Integration: Could not remove lingering depsgraph handler {handler_name_to_remove} ({handler_to_remove}): {e}")
+                    log_warning(f"Obsidian Integration: Could not remove lingering depsgraph handler {handler_name_to_remove} ({handler_to_remove}): {e}", module_name='ObsidianIntegration')
         else:
-            _log('INFO', f"Obsidian Integration: No lingering depsgraph handler named '{handler_name_to_remove}' found in depsgraph_update_post.")
+            log_info(f"Obsidian Integration: No lingering depsgraph handler named '{handler_name_to_remove}' found in depsgraph_update_post.", module_name='ObsidianIntegration')
     else:
-        _log('WARN', "Obsidian Integration: bpy.app.handlers.depsgraph_update_post not available for cleanup.")
+        log_warning("Obsidian Integration: bpy.app.handlers.depsgraph_update_post not available for cleanup.", module_name='ObsidianIntegration')
     
     # Add similar cleanup for timers if one was suspected by name, e.g.:
     # timer_callback_name_to_remove = "_delayed_refresh_callback" 
     # However, timer removal without the exact function object is difficult.
     # For now, focusing on the depsgraph handler.
     
-    _log('INFO', "Obsidian Integration: Lingering handler cleanup attempt finished.")
+    log_info("Obsidian Integration: Lingering handler cleanup attempt finished.", module_name='ObsidianIntegration')
     # --- END LINGERING HANDLER CLEANUP ---
 
     _safe_unregister_class(BV_PT_ObsidianIntegrationPanel)
     _safe_unregister_class(BV_OT_OpenSidecarInObsidian)
-    _log('WARN', "[Blend Vault][Obsidian] URI handler module unregistered.")
+    log_warning("URI handler module unregistered.", module_name='ObsidianIntegration')

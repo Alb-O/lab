@@ -37,10 +37,10 @@ class AssetRelinkProcessor:
     def process_relink(self) -> None:
         """Main entry point for asset relinking process."""
         if not os.path.exists(self.sidecar_path):
-            log_warning(f"[Blend Vault][AssetRelink] Main sidecar file not found: {self.sidecar_path}")
+            log_warning(f"Main sidecar file not found: {self.sidecar_path}", module_name='AssetRelink')
             return
         
-        log_info(f"[Blend Vault][AssetRelink] Processing main sidecar for asset relinking: {self.sidecar_path}")
+        log_info(f"Processing main sidecar for asset relinking: {self.sidecar_path}", module_name='AssetRelink')
         
         try:
             parser = SidecarParser(self.sidecar_path)
@@ -48,13 +48,13 @@ class AssetRelinkProcessor:
             # Parse linked libraries from main sidecar
             main_linked_data = parser.extract_json_blocks_with_links("Linked Libraries")
             if not main_linked_data:
-                log_info("[Blend Vault][AssetRelink] No linked library data found in main sidecar.")
+                log_info("No linked library data found in main sidecar.", module_name='AssetRelink')
                 return
             
             # Get authoritative data from library sidecars
             authoritative_data = self._get_authoritative_library_data(main_linked_data)
             if not authoritative_data:
-                log_info("[Blend Vault][AssetRelink] No authoritative data found from any library sidecars.")
+                log_info("No authoritative data found from any library sidecars.", module_name='AssetRelink')
                 return
             
             # Identify and execute relink operations
@@ -62,7 +62,7 @@ class AssetRelinkProcessor:
             self._execute_relink_operations(relink_ops)
             
         except Exception as e:
-            log_error(f"[Blend Vault][AssetRelink] Error during asset relinking process: {e}")
+            log_error(f"Error during asset relinking process: {e}", module_name='AssetRelink')
             traceback.print_exc()
     
     def _get_authoritative_library_data(self, main_linked_data: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Dict[str, str]]]:
@@ -99,12 +99,12 @@ class AssetRelinkProcessor:
                         }
                         for asset in assets_in_lib
                     }
-                    log_debug(f"[Blend Vault][AssetRelink] Authoritative data for '{lib_rel_path}': {len(assets_in_lib)} assets")
+                    log_debug(f"Authoritative data for '{lib_rel_path}': {len(assets_in_lib)} assets", module_name='AssetRelink')
                 else:
-                    log_info(f"[Blend Vault][AssetRelink] No authoritative data found for library '{lib_rel_path}'")
+                    log_info(f"No authoritative data found for library '{lib_rel_path}'", module_name='AssetRelink')
                     
             except Exception as e:
-                log_warning(f"[Blend Vault][AssetRelink] Could not read library sidecar for '{lib_rel_path}': {e}")
+                log_warning(f"Could not read library sidecar for '{lib_rel_path}': {e}", module_name='AssetRelink')
         
         return authoritative_data
     
@@ -121,7 +121,7 @@ class AssetRelinkProcessor:
             authoritative_assets = authoritative_data.get(lib_rel_path, {})
             
             if not authoritative_assets:
-                log_debug(f"[Blend Vault][AssetRelink] Skipping library '{lib_rel_path}' - no authoritative data")
+                log_debug(f"Skipping library '{lib_rel_path}' - no authoritative data", module_name='AssetRelink')
                 continue
             
             for asset_info in assets_in_main:
@@ -130,17 +130,17 @@ class AssetRelinkProcessor:
                 asset_type = asset_info.get("type")
                 
                 if not all([asset_uuid, old_name, asset_type]):
-                    log_warning(f"[Blend Vault][AssetRelink] Incomplete asset data: {asset_info}")
+                    log_warning(f"Incomplete asset data: {asset_info}", module_name='AssetRelink')
                     continue
                 
                 current_asset_info = authoritative_assets.get(asset_uuid)
                 if not current_asset_info:
-                    log_info(f"[Blend Vault][AssetRelink] Asset '{old_name}' (UUID: {asset_uuid}) no longer exists in library")
+                    log_info(f"Asset '{old_name}' (UUID: {asset_uuid}) no longer exists in library", module_name='AssetRelink')
                     continue
                 
                 current_name = current_asset_info["name"]
                 if old_name != current_name:
-                    log_info(f"[Blend Vault][AssetRelink] Name change detected: '{old_name}' -> '{current_name}' (UUID: {asset_uuid})")
+                    log_info(f"Name change detected: '{old_name}' -> '{current_name}' (UUID: {asset_uuid})", module_name='AssetRelink')
                     
                     # Find the session item and prepare relink operation
                     session_item = self._find_and_prepare_session_item(lib_rel_path, asset_uuid, asset_type)
@@ -160,7 +160,7 @@ class AssetRelinkProcessor:
         """Find the session item for an asset and ensure it has the correct UUID."""
         bpy_collection = self.asset_sources_map.get(asset_type)
         if not bpy_collection:
-            log_warning(f"[Blend Vault][AssetRelink] Unknown asset type '{asset_type}'")
+            log_warning(f"Unknown asset type '{asset_type}'", module_name='AssetRelink')
             return None
         
         expected_lib_path = PathResolver.normalize_path(
@@ -173,12 +173,12 @@ class AssetRelinkProcessor:
                 # Assign the correct UUID to the session item
                 try:
                     item.id_properties_ensure()[BV_UUID_PROP] = asset_uuid
-                    log_debug(f"[Blend Vault][AssetRelink] Assigned UUID '{asset_uuid}' to session item '{item.name}'")
+                    log_debug(f"Assigned UUID '{asset_uuid}' to session item '{item.name}'", module_name='AssetRelink')
                 except Exception:
                     pass
                 return item
         
-        log_warning(f"[Blend Vault][AssetRelink] Could not find session item for UUID {asset_uuid}")
+        log_warning(f"Could not find session item for UUID {asset_uuid}", module_name='AssetRelink')
         return None
     
     def _get_item_library_path(self, item) -> Optional[str]:
@@ -192,10 +192,10 @@ class AssetRelinkProcessor:
     def _execute_relink_operations(self, relink_operations: List[Dict[str, Any]]) -> None:
         """Execute the identified relink operations."""
         if not relink_operations:
-            log_info("[Blend Vault][AssetRelink] No relink operations to perform.")
+            log_info("No relink operations to perform.", module_name='AssetRelink')
             return
         
-        log_info(f"[Blend Vault][AssetRelink] Found {len(relink_operations)} operations. Attempting to relocate...")
+        log_info(f"Found {len(relink_operations)} operations. Attempting to relocate...", module_name='AssetRelink')
         
         for op in relink_operations:
             self._execute_single_relink(op)
@@ -204,7 +204,7 @@ class AssetRelinkProcessor:
         """Execute a single relink operation."""
         session_uid = op_data["session_uid"]
         if not session_uid:
-            log_warning(f"[Blend Vault][AssetRelink] No session_uid for asset {op_data['uuid']}")
+            log_warning(f"No session_uid for asset {op_data['uuid']}", module_name='AssetRelink')
             return
         
         # Find the session item
@@ -217,20 +217,20 @@ class AssetRelinkProcessor:
             )
         
         if not session_item:
-            log_warning(f"[Blend Vault][AssetRelink] Could not find session item for session_uid {session_uid}")
+            log_warning(f"Could not find session item for session_uid {session_uid}", module_name='AssetRelink')
             return
         
         # Get library filepath
         lib_filepath = self._get_item_library_path(session_item)
         if not lib_filepath:
-            log_warning(f"[Blend Vault][AssetRelink] Session item {session_item.name} has no library filepath")
+            log_warning(f"Session item {session_item.name} has no library filepath", module_name='AssetRelink')
             return
         
         # Prepare relink parameters
         try:
             self._perform_blender_relink(session_item, lib_filepath, op_data)
         except Exception as e:
-            log_error(f"[Blend Vault][AssetRelink] Exception during relink: {e}")
+            log_error(f"Exception during relink: {e}", module_name='AssetRelink')
             traceback.print_exc()
     
     def _perform_blender_relink(self, session_item, lib_filepath: str, op_data: Dict[str, Any]) -> None:
@@ -263,15 +263,15 @@ class AssetRelinkProcessor:
                 filename=new_name,
                 relative_path=is_relative
             )
-            log_success(f"[Blend Vault][AssetRelink] Relink operation for '{op_data['old_name']}' returned: {result}")
+            log_success(f"Relink operation for '{op_data['old_name']}' returned: {result}", module_name='AssetRelink')
             
             # Verify the relink was successful
             self._verify_relink_success(op_data, original_session_uid, backup_uuid, new_name, abs_lib_path)
             
         except RuntimeError as e:
-            log_error(f"[Blend Vault][AssetRelink] RuntimeError during relink: {e}")
+            log_error(f"RuntimeError during relink: {e}", module_name='AssetRelink')
         except Exception as e:
-            log_error(f"[Blend Vault][AssetRelink] Exception during relink: {e}")
+            log_error(f"Exception during relink: {e}", module_name='AssetRelink')
     
     def _verify_relink_success(
         self,
@@ -297,7 +297,7 @@ class AssetRelinkProcessor:
         
         # Strategy 2: Find by UUID if session_uid failed
         if not refetched_item and backup_uuid:
-            log_debug(f"[Blend Vault][AssetRelink] Session UID lookup failed, trying UUID backup for {backup_uuid}")
+            log_debug(f"Session UID lookup failed, trying UUID backup for {backup_uuid}", module_name='AssetRelink')
             refetched_item = next(
                 (item for item in bpy_collection if getattr(item, BV_UUID_PROP, None) == backup_uuid),
                 None
@@ -305,20 +305,20 @@ class AssetRelinkProcessor:
         
         # Strategy 3: Find by name and library match
         if not refetched_item:
-            log_debug(f"[Blend Vault][AssetRelink] UUID lookup failed, trying name-based lookup for '{expected_name}'")
+            log_debug(f"UUID lookup failed, trying name-based lookup for '{expected_name}'", module_name='AssetRelink')
             for item in bpy_collection:
                 item_lib_path = self._get_item_library_path(item)
                 if (item_lib_path and 
                     PathResolver.normalize_path(item_lib_path) == expected_lib_path and 
                     item.name == expected_name):
                     refetched_item = item
-                    log_debug(f"[Blend Vault][AssetRelink] Found renamed item by name and library match: '{item.name}'")
+                    log_debug(f"Found renamed item by name and library match: '{item.name}'", module_name='AssetRelink')
                     break
         
         if refetched_item:
-            log_success(f"[Blend Vault][AssetRelink] Successfully verified relinked item '{refetched_item.name}'")
+            log_success(f"Successfully verified relinked item '{refetched_item.name}'", module_name='AssetRelink')
         else:
-            log_warning(f"[Blend Vault][AssetRelink] Could not verify relink success for UUID {op_data['uuid']}")
+            log_warning(f"Could not verify relink success for UUID {op_data['uuid']}", module_name='AssetRelink')
 
 
 @bpy.app.handlers.persistent
@@ -328,16 +328,16 @@ def relink_renamed_assets(*args, **kwargs):
     if not blend_path:
         return
     
-    log_info("[Blend Vault][AssetRelink] Starting asset relink process")
+    log_info("Starting asset relink process", module_name='AssetRelink')
     
     try:
         processor = AssetRelinkProcessor(blend_path)
         processor.process_relink()
     except Exception as e:
-        log_error(f"[Blend Vault][AssetRelink] Unexpected error in relink process: {e}")
+        log_error(f"Unexpected error in relink process: {e}", module_name='AssetRelink')
         traceback.print_exc()
     
-    log_info("[Blend Vault][AssetRelink] Finished asset relinking attempt")
+    log_info("Finished asset relinking attempt", module_name='AssetRelink')
 
 
 # Make the handler persistent
