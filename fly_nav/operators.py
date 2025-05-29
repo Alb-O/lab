@@ -94,34 +94,50 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		"""Initialize the operator when invoked."""
 		# Increment instance counter for tracking
 		FLYNAV_OT_right_mouse_navigation._global_instance_count += 1
-		instance_id = FLYNAV_OT_right_mouse_navigation._global_instance_count
+		current_instance_id = FLYNAV_OT_right_mouse_navigation._global_instance_count
 		
-		logger.log_info(f"=== FLYNAV Operator Invoked (Instance #{instance_id}) ===")
+		logger.log_info(f"=== FLYNAV Operator Invoked (Instance #{current_instance_id}) ===")
 		
 		# Check if another instance is already running
 		if FLYNAV_OT_right_mouse_navigation._global_instance_running:
-			logger.log_warning(f"Instance #{instance_id}: Another operator instance is already running, cancelling")
+			logger.log_warning(f"Instance #{current_instance_id}: Another operator instance is already running, cancelling")
 			# Ensure global state is cleaned up properly if previous instance failed
 			temp_manager = FocalLengthManager()
-			if temp_manager._should_clear_global_state():
-				logger.log_info(f"Instance #{instance_id}: Cleaning up stale global state")
-				temp_manager.clear_global_state()
+			if temp_manager._should_clear_global_state(): # Assuming this method exists on FocalLengthManager
+				logger.log_info(f"Instance #{current_instance_id}: Cleaning up stale global state")
+				temp_manager.clear_global_state() # Assuming this method exists on FocalLengthManager
 			return {"CANCELLED"}
 		
 		# Set global lock
 		FLYNAV_OT_right_mouse_navigation._global_instance_running = True
-		logger.log_info(f"Instance #{instance_id}: Global lock acquired")
+		logger.log_info(f"Instance #{current_instance_id}: Global lock acquired")
 		
-		# Reset all state
+		# Reset all state and initialize common members for this instance
 		self._reset_state()
 		self._initial_mouse_pos = (event.mouse_x, event.mouse_y)
-		self._instance_id = instance_id
+		self._instance_id = current_instance_id # Set the instance's ID
+		self._focal_manager = FocalLengthManager() # Initialize the instance's focal manager
 		
-		# Initialize focal length manager
-		self._focal_manager = FocalLengthManager()
+		addon_prefs = get_addon_preferences(context) or self._get_default_prefs()
+		time_val = getattr(addon_prefs, 'time', 0.1)
 		
-		logger.log_info(f"Instance #{instance_id}: Operator initialized at mouse position: {self._initial_mouse_pos}")
-		return self.execute(context)
+		if time_val == 0:
+			logger.log_info(f"Instance #{self._instance_id}: time=0, attempting to start navigation immediately")
+			if self._start_navigation(context, addon_prefs):
+				logger.log_info(f"Instance #{self._instance_id}: Navigation started (time=0), proceeding to execute for modal operation.")
+				# self.execute() will set up the timer and add the modal handler.
+				# This is necessary for focal length transitions via the timer.
+				return self.execute(context)
+			else:
+				# _start_navigation failed (e.g., view locked, or other condition reported by _start_navigation)
+				# _finish_operator will release the global lock and perform other cleanup.
+				logger.log_warning(f"Instance #{self._instance_id}: _start_navigation failed for time=0 case.")
+				self._finish_operator(context) 
+				return {'CANCELLED'}
+		else: # time_val > 0
+			# Standard behavior: execute will set up the timer to wait for timeout or nav key.
+			logger.log_info(f"Instance #{self._instance_id}: Operator initialized for time > 0 (timer will run). Mouse: {self._initial_mouse_pos}")
+			return self.execute(context)
 
 	def execute(self, context):
 		"""Start the modal operator."""
@@ -226,42 +242,62 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 	def _handle_navigation_events(self, context, event, addon_prefs):
 		"""Handle events while navigation is active."""
+		instance_id = getattr(self, '_instance_id', 0)
+
 		# Ignore mouse movement and timer events during navigation
 		if event.type in {"MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER"}:
 			return {"PASS_THROUGH"}
 
-		logger.log_info(f"Navigation ending event: {event.type}({event.value})")
+		time_val = getattr(addon_prefs, 'time', 0.1)
 
-		# Special handling for right mouse button release
+		# Special handling for right mouse button release - this stops navigation for both time=0 and time>0
 		if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
-			logger.log_info("Right mouse button released during navigation")
+			logger.log_info(f"Instance #{instance_id}: Right mouse button released during navigation.")
 			
-			# Check if we should call menu (quick click)
-			if self._time_elapsed < addon_prefs.time:
+			# Context menu only for time > 0 and quick click
+			if time_val > 0 and self._time_elapsed < addon_prefs.time: # Using addon_prefs.time is fine here
 				self._call_menu = True
-				logger.log_info("Quick RMB release detected, will call menu")            # Immediately start exit transition (interrupt entry transition if needed)
-			self._navigation_active = False
+				logger.log_info(f"Instance #{instance_id}: Quick RMB release (time_val > 0), scheduling context menu.")
+			
+			self._navigation_active = False # Stop our operator's sense of navigation
+			self._finished = True           # Mark operator as finishing
+
 			if self._focal_manager:
 				if self._focal_manager.interrupt_and_exit(context, addon_prefs):
-					logger.log_info("Exit transition started for RMB release (interrupted entry transition if needed)")
-					self._finished = True
-					return {"PASS_THROUGH"}
+					logger.log_info(f"Instance #{instance_id}: Focal length exit transition started due to RMB release.")
+					return {"PASS_THROUGH"} # Wait for transition to complete via timer
 				else:
-					logger.log_info("No exit transition needed")
-
-			# No transition needed, finish immediately
-			self._finished = True
+					logger.log_info(f"Instance #{instance_id}: No focal length exit transition needed for RMB release.")
+			
+			# If no transition was started or needed, finish operator immediately
 			return self._finish_operator(context)
 
-		# For any other event, navigation has ended
-		self._navigation_active = False
-		self._finished = True
-		
-		# Start exit transition if needed (interrupt entry transition if needed)
-		if self._focal_manager:
-			self._focal_manager.interrupt_and_exit(context, addon_prefs)
-
-		return {"PASS_THROUGH"}
+		# For events other than RMB release:
+		if time_val == 0:
+			# When time is 0, navigation continues as long as RMB is held.
+			# Keys like W,A,S,D are handled by Blender's walk modal.
+			# We just pass them through and keep our operator active and focal length adjusted.
+			logger.log_debug(f"Instance #{instance_id}: time=0, event {event.type}({event.value}) received. Passing to walk modal.")
+			return {"PASS_THROUGH"}
+		else: # time_val > 0
+			# For time > 0, other events (like ESC from walk mode, or other configured walk-mode exit keys)
+			# should terminate our operator's navigation mode.
+			# Blender's walk modal will handle the event first (e.g., ESC closes walk modal).
+			# Our operator then recognizes this as the end of navigation.
+			logger.log_info(f"Instance #{instance_id}: time > 0, navigation ending due to event: {event.type}({event.value}).")
+			self._navigation_active = False
+			self._finished = True
+			
+			if self._focal_manager:
+				# interrupt_and_exit will start the exit transition if one hasn't started
+				self._focal_manager.interrupt_and_exit(context, addon_prefs)
+				logger.log_info(f"Instance #{instance_id}: Focal length exit transition initiated due to navigation ending (time > 0).")
+			
+			# We return PASS_THROUGH here to:
+			# 1. Allow Blender's walk modal to process the event that ended it (e.g., ESC).
+			# 2. Allow our focal length exit transition (if started) to complete via the modal timer.
+			# The _finished flag ensures the modal will eventually call _finish_operator.
+			return {"PASS_THROUGH"}
 
 	def _handle_waiting_events(self, context, event, addon_prefs):
 		"""Handle events while waiting for user input."""

@@ -197,11 +197,6 @@ class FlyNavPreferences(AddonPreferences):
 			box_view.prop(self, "walk_mode_focal_length")
 			box_view.prop(self, "walk_mode_transition_duration")
 
-		if self.activation_method == 'RMB':
-			layout.label(text="Hint: With Right Mouse, a quick click opens the context menu.")
-		elif self.activation_method == 'KEY':
-			layout.label(text="Hint: Custom key (configured above) activates navigation instantly.")
-
 		# Keymap Customization for Walk Modal keys (from RMN)
 		nav_prop_values = [ # These are kmi.propvalue from the walk modal keymap items
 			"FORWARD", "FORWARD_STOP", "BACKWARD", "BACKWARD_STOP",
