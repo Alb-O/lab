@@ -1,321 +1,449 @@
-import bpy
-from bpy.types import Operator
-from . import logger # Import the logger
+import bpy # type: ignore
+from bpy.types import Operator # type: ignore
+from . import logger
 from .focal_length_manager import FocalLengthManager
-from .preferences import get_addon_preferences # Import the utility function
+from .preferences import get_addon_preferences
+
 
 class FLYNAV_OT_right_mouse_navigation(Operator):
-    """Handles right-click initiated navigation or context menu display."""
-    bl_idname = "flynav.right_mouse_navigation"
-    bl_label = "Right Mouse Navigation"
-    bl_options = {"REGISTER", "UNDO"}
+	"""Handles right-click initiated navigation or context menu display."""
+	bl_idname = "flynav.right_mouse_navigation"
+	bl_label = "Right Mouse Navigation"
+	bl_options = {"REGISTER", "UNDO"}
 
-    _timer = None
-    _count = 0.0 # Using float for time accumulation
-    _finished = False
-    _callMenu = False
-    _ortho = False # Tracks if the view was originally orthographic
-    _back_to_ortho = False # Flag to restore orthographic view on exit
-    _focal_manager = None
-    _waiting_for_input = False
-    _navigation_started = False
-    _initial_event = None # Stores the initial mouse event from invoke
+	# Global lock to prevent multiple instances
+	_global_instance_running = False
+	_global_instance_count = 0
 
-    NAV_KEYS = {
-        'W', 'A', 'S', 'D',  # Standard movement
-        'Q', 'E',          # Up/Down (often Z-axis)
-        'SPACE', 'LEFT_SHIFT', # Alternative Up/Down or modifiers
-        'UP_ARROW', 'DOWN_ARROW', 'LEFT_ARROW', 'RIGHT_ARROW' # Arrow key movement
-    }
+	# Class variables for state tracking
+	_timer = None
+	_time_elapsed = 0.0
+	_finished = False
+	_call_menu = False
+	_restore_ortho = False
+	_focal_manager = None
+	_waiting_for_input = True
+	_navigation_active = False
+	_initial_mouse_pos = None
 
-    menu_by_mode = {
-        "OBJECT": "VIEW3D_MT_object_context_menu",
-        "EDIT_MESH": "VIEW3D_MT_edit_mesh_context_menu",
-        "EDIT_SURFACE": "VIEW3D_MT_edit_surface",
-        "EDIT_TEXT": "VIEW3D_MT_edit_font_context_menu",
-        "EDIT_ARMATURE": "VIEW3D_MT_edit_armature",
-        "EDIT_CURVE": "VIEW3D_MT_edit_curve_context_menu",
-        "EDIT_METABALL": "VIEW3D_MT_edit_metaball_context_menu",
-        "EDIT_LATTICE": "VIEW3D_MT_edit_lattice_context_menu",
-        "POSE": "VIEW3D_MT_pose_context_menu",
-        "PAINT_VERTEX": "VIEW3D_PT_paint_vertex_context_menu",
-        "PAINT_WEIGHT": "VIEW3D_PT_paint_weight_context_menu",
-        "PAINT_TEXTURE": "VIEW3D_PT_paint_texture_context_menu",
-        "SCULPT": "VIEW3D_PT_sculpt_context_menu",
-    }
+	# Navigation keys that trigger walk mode
+	NAV_KEYS = {
+		'W', 'A', 'S', 'D',              # WASD movement
+		'Q', 'E',                        # Up/Down
+		'SPACE', 'LEFT_SHIFT',           # Alternative vertical movement
+		'UP_ARROW', 'DOWN_ARROW',        # Arrow keys
+		'LEFT_ARROW', 'RIGHT_ARROW'
+	}
 
-    def _perform_final_cleanup(self, context):
-        """Performs all necessary cleanup actions when the operator finishes or is cancelled."""
-        addon_prefs = get_addon_preferences(context) # Use the utility function
+	# Context menus for different modes
+	CONTEXT_MENUS = {
+		"OBJECT": "VIEW3D_MT_object_context_menu",
+		"EDIT_MESH": "VIEW3D_MT_edit_mesh_context_menu",
+		"EDIT_SURFACE": "VIEW3D_MT_edit_surface",
+		"EDIT_TEXT": "VIEW3D_MT_edit_font_context_menu",
+		"EDIT_ARMATURE": "VIEW3D_MT_edit_armature",
+		"EDIT_CURVE": "VIEW3D_MT_edit_curve_context_menu",
+		"EDIT_METABALL": "VIEW3D_MT_edit_metaball_context_menu",
+		"EDIT_LATTICE": "VIEW3D_MT_edit_lattice_context_menu",
+		"POSE": "VIEW3D_MT_pose_context_menu",
+		"PAINT_VERTEX": "VIEW3D_PT_paint_vertex_context_menu",
+		"PAINT_WEIGHT": "VIEW3D_PT_paint_weight_context_menu",
+		"PAINT_TEXTURE": "VIEW3D_PT_paint_texture_context_menu",
+		"SCULPT": "VIEW3D_PT_sculpt_context_menu",
+	}
 
-        if self._timer:
-            wm = context.window_manager
-            wm.event_timer_remove(self._timer)
-            self._timer = None
+	def invoke(self, context, event):
+		"""Initialize the operator when invoked."""
+		# Increment instance counter for tracking
+		FLYNAV_OT_right_mouse_navigation._global_instance_count += 1
+		instance_id = FLYNAV_OT_right_mouse_navigation._global_instance_count
+		
+		logger.log_info(f"=== FLYNAV Operator Invoked (Instance #{instance_id}) ===")
+		
+		# Check if another instance is already running
+		if FLYNAV_OT_right_mouse_navigation._global_instance_running:
+			logger.log_warning(f"Instance #{instance_id}: Another operator instance is already running, cancelling")
+			# Ensure global state is cleaned up properly if previous instance failed
+			temp_manager = FocalLengthManager()
+			if temp_manager._should_clear_global_state():
+				logger.log_info(f"Instance #{instance_id}: Cleaning up stale global state")
+				temp_manager.clear_global_state()
+			return {"CANCELLED"}
+		
+		# Set global lock
+		FLYNAV_OT_right_mouse_navigation._global_instance_running = True
+		logger.log_info(f"Instance #{instance_id}: Global lock acquired")
+		
+		# Reset all state
+		self._reset_state()
+		self._initial_mouse_pos = (event.mouse_x, event.mouse_y)
+		self._instance_id = instance_id
+		
+		# Initialize focal length manager
+		self._focal_manager = FocalLengthManager()
+		
+		logger.log_info(f"Instance #{instance_id}: Operator initialized at mouse position: {self._initial_mouse_pos}")
+		return self.execute(context)
 
-        if self._callMenu: # Should be called before potential focal length changes by cleanup
-            self.callMenu(context)
-            self._callMenu = False
+	def execute(self, context):
+		"""Start the modal operator."""
+		if not context.space_data or context.space_data.type != "VIEW_3D":
+			logger.log_warning(f"Instance #{getattr(self, '_instance_id', 0)}: Not in 3D viewport, cancelling")
+			# Release global lock if we acquired it
+			FLYNAV_OT_right_mouse_navigation._global_instance_running = False
+			return {"CANCELLED"}
 
-        if self._back_to_ortho and context.space_data and context.space_data.region_3d:
-            # Use operator for safer ortho/persp toggle
-            if context.space_data.region_3d.view_perspective != 'ORTHO':
-                 bpy.ops.view3d.view_persportho() # Toggles to Ortho if in Persp
-            self._back_to_ortho = False
+		# Start timer for modal operation
+		wm = context.window_manager
+		self._timer = wm.event_timer_add(0.02, window=context.window)  # 50 FPS
+		wm.modal_handler_add(self)
+		
+		instance_id = getattr(self, '_instance_id', 0)
+		logger.log_info(f"Instance #{instance_id}: Modal operator started with timer")
+		return {"RUNNING_MODAL"}
+
+	def modal(self, context, event):
+		"""Handle modal events."""
+		# Early exit if context is invalid
+		if not context.space_data or context.space_data.type != "VIEW_3D":
+			logger.log_warning("Lost 3D viewport context")
+			return self._finish_operator(context)
+
+		# Get addon preferences
+		addon_prefs = get_addon_preferences(context)
+		if not addon_prefs:
+			logger.log_warning("Could not get addon preferences")
+			addon_prefs = self._get_default_prefs()        # Log event for debugging
+		instance_id = getattr(self, '_instance_id', 0)
+		logger.log_debug(f"Instance #{instance_id}: Event: {event.type}({event.value}) | "
+						f"waiting={self._waiting_for_input} | "
+						f"nav_active={self._navigation_active} | "
+						f"finished={self._finished}")
+
+		# Handle timer events
+		if event.type == "TIMER":
+			return self._handle_timer_event(context, addon_prefs)
+
+		# Handle events when operator is finishing
+		if self._finished:
+			return self._handle_finished_state(context, event, addon_prefs)
+
+		# Handle events during navigation
+		if self._navigation_active:
+			return self._handle_navigation_events(context, event, addon_prefs)
+
+		# Handle events while waiting for input
+		if self._waiting_for_input:
+			return self._handle_waiting_events(context, event, addon_prefs)
+
+		# Default pass through
+		return {"PASS_THROUGH"}
+
+	def _handle_timer_event(self, context, addon_prefs):
+		"""Handle timer events for timeouts and transitions."""
+		if not self._finished:
+			self._time_elapsed += 0.02
+
+		# Handle focal length transitions
+		if self._focal_manager and self._focal_manager.is_transitioning:
+			transition_completed = self._focal_manager.update_transition(context)
+			
+			if transition_completed and self._finished:
+				logger.log_info("Exit transition completed, finishing operator")
+				return self._finish_operator(context)
+
+		# Handle auto-navigation timeout
+		if (self._waiting_for_input and 
+			not self._navigation_active and 
+			addon_prefs.time > 0 and 
+			self._time_elapsed >= addon_prefs.time):
+			
+			logger.log_info("Auto-navigation timeout reached")
+			if self._start_navigation(context, addon_prefs):
+				return {"RUNNING_MODAL"}
+			else:
+				return self._finish_operator(context)
+
+		return {"PASS_THROUGH"}
+
+	def _handle_finished_state(self, context, event, addon_prefs):
+		"""Handle events when operator is marked as finished."""
+		logger.log_debug(f"Handling finished state for event: {event.type}")
+		
+		# If focal manager is still transitioning, wait for it
+		if self._focal_manager and self._focal_manager.is_transitioning:
+			logger.log_info("Waiting for focal transition to complete")
+			return {"PASS_THROUGH"}
+
+		# Try to start exit transition if not already done
+		if (self._focal_manager and 
+			not self._focal_manager.exit_transition_attempted and
+			self._focal_manager.start_exit_transition(context, addon_prefs)):
+			logger.log_info("Started exit transition")
+			return {"PASS_THROUGH"}
+
+		# No more transitions needed, finish now
+		logger.log_info("No more transitions, finishing operator")
+		return self._finish_operator(context)
+
+	def _handle_navigation_events(self, context, event, addon_prefs):
+		"""Handle events while navigation is active."""
+		# Ignore mouse movement and timer events during navigation
+		if event.type in {"MOUSEMOVE", "INBETWEEN_MOUSEMOVE", "TIMER"}:
+			return {"PASS_THROUGH"}
+
+		logger.log_info(f"Navigation ending event: {event.type}({event.value})")
+
+		# Special handling for right mouse button release
+		if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
+			logger.log_info("Right mouse button released during navigation")
+			
+			# Check if we should call menu (quick click)
+			if self._time_elapsed < addon_prefs.time:
+				self._call_menu = True
+				logger.log_info("Quick RMB release detected, will call menu")            # Immediately start exit transition (interrupt entry transition if needed)
+			self._navigation_active = False
+			if self._focal_manager:
+				if self._focal_manager.interrupt_and_exit(context, addon_prefs):
+					logger.log_info("Exit transition started for RMB release (interrupted entry transition if needed)")
+					self._finished = True
+					return {"PASS_THROUGH"}
+				else:
+					logger.log_info("No exit transition needed")
+
+			# No transition needed, finish immediately
+			self._finished = True
+			return self._finish_operator(context)
+
+		# For any other event, navigation has ended
+		self._navigation_active = False
+		self._finished = True
+		
+		# Start exit transition if needed (interrupt entry transition if needed)
+		if self._focal_manager:
+			self._focal_manager.interrupt_and_exit(context, addon_prefs)
+
+		return {"PASS_THROUGH"}
+
+	def _handle_waiting_events(self, context, event, addon_prefs):
+		"""Handle events while waiting for user input."""
+		# Check for navigation keys
+		if event.type in self.NAV_KEYS and event.value == "PRESS":
+			logger.log_info(f"Navigation key pressed: {event.type}")
+			if self._start_navigation(context, addon_prefs):
+				return {"RUNNING_MODAL"}
+			else:
+				return self._finish_operator(context)
+
+		# Check for right mouse button release
+		if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
+			logger.log_info("Right mouse button released while waiting")
+			
+			# Quick release means call menu
+			if self._time_elapsed < addon_prefs.time:
+				self._call_menu = True
+				logger.log_info("Quick release detected, will call menu")
+
+			self._finished = True
+			return self._finish_operator(context)
+		return {"PASS_THROUGH"}
+
+	def _start_navigation(self, context, addon_prefs):
+		"""Start walk navigation mode."""
+		logger.log_info("Starting navigation mode")
+		
+		# Check camera navigation permissions
+		if not self._check_camera_navigation_allowed(context, addon_prefs):
+			logger.log_info("Camera navigation not allowed")
+			return False
+
+		try:
+			# Start focal length transition
+			if self._focal_manager:
+				self._focal_manager.start_entry_transition(context, addon_prefs)
+
+			# Handle orthographic view
+			region_3d = context.space_data.region_3d
+			if region_3d and not region_3d.is_perspective:
+				self._restore_ortho = addon_prefs.return_to_ortho_on_exit
+				logger.log_info(f"In ortho view, restore_ortho={self._restore_ortho}")
+
+			# Start Blender's walk mode
+			bpy.ops.view3d.walk('INVOKE_DEFAULT')
+			
+			# Update state
+			self._navigation_active = True
+			self._waiting_for_input = False
+			
+			logger.log_info("Walk navigation started successfully")
+			return True
+
+		except RuntimeError as e:
+			logger.log_error(f"Failed to start navigation: {e}")
+			self.report({"WARNING"}, "Navigation failed. View might be locked or constrained.")
+			return False
+
+	def _check_camera_navigation_allowed(self, context, addon_prefs):
+		"""Check if camera navigation is allowed based on preferences."""
+		if not context.space_data.region_3d:
+			return False
+
+		view_perspective = context.space_data.region_3d.view_perspective
+		
+		if view_perspective == "CAMERA":
+			if not addon_prefs.enable_camera_navigation:
+				logger.log_info("Camera navigation disabled in preferences")
+				return False
+			
+			if addon_prefs.camera_nav_only_if_locked and not context.space_data.lock_camera:
+				logger.log_info("Camera navigation requires locked camera")
+				return False
+
+		return True
+	def _finish_operator(self, context):
+		"""Perform final cleanup and finish the operator."""
+		instance_id = getattr(self, '_instance_id', 0)
+		logger.log_info(f"=== Finishing Operator (Instance #{instance_id}) ===")
+		
+		# Remove timer
+		if self._timer:
+			try:
+				context.window_manager.event_timer_remove(self._timer)
+				logger.log_info(f"Instance #{instance_id}: Timer removed")
+			except Exception as e:
+				logger.log_warning(f"Instance #{instance_id}: Failed to remove timer: {e}")
+			self._timer = None
+
+		# Call context menu if needed
+		if self._call_menu:
+			self._show_context_menu(context)
+
+		# Restore orthographic view if needed
+		if self._restore_ortho and context.space_data and context.space_data.region_3d:
+			if context.space_data.region_3d.view_perspective != 'ORTHO':
+				try:
+					bpy.ops.view3d.view_persportho()
+					logger.log_info(f"Instance #{instance_id}: Restored orthographic view")
+				except Exception as e:
+					logger.log_warning(f"Instance #{instance_id}: Failed to restore ortho view: {e}")
+
+		# Cleanup focal length manager
+		if self._focal_manager:
+			addon_prefs = get_addon_preferences(context) or self._get_default_prefs()
+			self._focal_manager.cleanup(context, addon_prefs)
+			logger.log_info(f"Instance #{instance_id}: Focal manager cleanup completed")
+
+		# Release global lock
+		FLYNAV_OT_right_mouse_navigation._global_instance_running = False
+		logger.log_info(f"Instance #{instance_id}: Global lock released")
+
+		logger.log_info(f"=== Operator Finished (Instance #{instance_id}) ===")
+		return {"CANCELLED"}
+
+	def _show_context_menu(self, context):
+		"""Show the appropriate context menu."""
+		mode = context.mode
+		menu_name = self.CONTEXT_MENUS.get(mode, "VIEW3D_MT_object_context_menu")
+		
+		try:
+			bpy.ops.wm.call_menu(name=menu_name)
+			logger.log_info(f"Called context menu: {menu_name}")
+		except Exception as e:
+			logger.log_error(f"Failed to call menu {menu_name}: {e}")
+
+	def _reset_state(self):
+		"""Reset all operator state variables."""
+		self._timer = None
+		self._time_elapsed = 0.0
+		self._finished = False
+		self._call_menu = False
+		self._restore_ortho = False
+		self._focal_manager = None
+		self._waiting_for_input = True
+		self._navigation_active = False
+		self._initial_mouse_pos = None
+		self._instance_id = 0
+		self._stored_view_matrix = None
+		self._stored_view_location = None
+		self._stored_view_rotation = None
+		self._stored_view_distance = None
+
+	def _get_default_prefs(self):
+		"""Get default preferences when addon prefs are unavailable."""
+		class DefaultPrefs:
+			time = 0.3
+			enable_camera_navigation = True
+			camera_nav_only_if_locked = False
+			return_to_ortho_on_exit = True
+		
+		return DefaultPrefs()
+
+	def cancel(self, context):
+		"""Handle operator cancellation."""
+		logger.log_info("Operator cancel called")
+		
+		if self._focal_manager and context.space_data:
+			addon_prefs = get_addon_preferences(context) or self._get_default_prefs()
+			
+			# If in entry transition, force restore
+			if (self._focal_manager.is_transitioning and 
+				not self._focal_manager.is_exit_transition):
+				logger.log_info("Forcing restore during entry transition")
+				self._focal_manager.force_restore_original(context, addon_prefs)
+			
+			# If navigation was active, start exit transition
+			elif self._navigation_active and not self._focal_manager.exit_transition_attempted:
+				logger.log_info("Starting exit transition from cancel")
+				self._focal_manager.start_exit_transition(context, addon_prefs)
+
+	@classmethod
+	def poll(cls, context):
+		"""Check if operator can run."""
+		return context.area and context.area.type == 'VIEW_3D'
 
 
-        if self._focal_manager:
-            self._focal_manager.cleanup(context, addon_prefs) # CRITICAL: Call cleanup
+class FLYNAV_OT_simple_fly(Operator):
+	"""Simple fly operator for direct navigation."""
+	bl_idname = "flynav.simple_fly"
+	bl_label = "Simple Fly Mode"
+	bl_options = {'REGISTER', 'UNDO'}
 
-        logger.log_info("Navigation operator cleanup completed")
+	def execute(self, context):
+		"""Execute simple fly mode."""
+		logger.log_info("Simple fly mode activated")
+		
+		try:
+			bpy.ops.view3d.walk('INVOKE_DEFAULT')
+			self.report({'INFO'}, "Fly Mode Activated")
+			return {'FINISHED'}
+		except RuntimeError as e:
+			logger.log_error(f"Failed to start fly mode: {e}")
+			self.report({'ERROR'}, "Failed to start navigation")
+			return {'CANCELLED'}
 
-    def modal(self, context, event):
-        """Handles modal events for the navigation operator."""
-        if context.space_data is None: # Important check from RMN
-            if self._timer:
-                try:
-                    context.window_manager.event_timer_remove(self._timer)
-                except Exception:
-                    pass
-                self._timer = None
-            return {'CANCELLED'}
-
-        addon_prefs = get_addon_preferences(context) # Use the utility function
-        if addon_prefs is None:
-            logger.log_warning(f"Could not get addon preferences in modal. Using hardcoded defaults.")
-            class DummyPrefs:
-                time = 0.3 
-            addon_prefs = DummyPrefs()
-
-        space_type = context.space_data.type
-        
-        if space_type == "VIEW_3D":
-            if self._waiting_for_input:
-                # Check for navigation key presses to start walk mode
-                if event.type in self.NAV_KEYS and event.value == "PRESS":
-                    if self._start_navigation(context):
-                        return {"PASS_THROUGH"} # Changed from RUNNING_MODAL to PASS_THROUGH
-                    self._perform_final_cleanup(context)
-                    return {"CANCELLED"}
-                
-                # Corrected RIGHTMOUSE release logic
-                if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
-                    time_threshold = getattr(addon_prefs, 'time', 0.3)
-                    if self._count < time_threshold:
-                        self._callMenu = True
-                    self.cancel(context) # cancel() now primarily sets up for cleanup via _finished
-                    self._finished = True
-                    return {"PASS_THROUGH"}
-                # Removed the broader "event.type not in TIMER/MOUSEMOVE" for cancel here
-
-            # CRITICAL MISSING BLOCK from RMN
-            if self._navigation_started and not self._finished:
-                # If walk mode is active, any event other than Timer or MouseMove
-                # indicates walk mode has ended.
-                if event.type not in {"TIMER", "MOUSEMOVE", "INBETWEEN_MOUSEMOVE"}:
-                    if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
-                        time_threshold = getattr(addon_prefs, 'time', 0.3)
-                        if self._count < time_threshold: # Check if menu should be called
-                            self._callMenu = True
-                    self.cancel(context)
-                    self._finished = True
-                    return {"PASS_THROUGH"}
-
-        if event.type == "TIMER":
-            if space_type == "VIEW_3D":
-                time_threshold = getattr(addon_prefs, 'time', 0.3)
-                
-                if (self._waiting_for_input and
-                        not self._navigation_started and
-                        time_threshold > 0 and # Use time_threshold here
-                        self._count >= time_threshold): # Use time_threshold here
-                    if self._start_navigation(context):
-                        return {"RUNNING_MODAL"} # Correct: Stay modal
-                    self._perform_final_cleanup(context)
-                    return {"CANCELLED"}
-
-                if self._focal_manager:
-                    was_exit_transition = self._focal_manager.is_exit_transition
-                    transition_completed = self._focal_manager.update_transition(context)
-                    if transition_completed and self._finished and was_exit_transition:
-                        self._perform_final_cleanup(context)
-                        return {"CANCELLED"}
-
-            if not self._finished:
-                self._count += 0.02  # Timer interval
-            return {"PASS_THROUGH"}
-
-        if self._finished:
-            if self._focal_manager and self._focal_manager.is_transitioning:
-                return {"PASS_THROUGH"} # Let transition complete
-
-            if self._focal_manager and self._focal_manager.start_exit_transition(context, addon_prefs):
-                return {"PASS_THROUGH"} # Start exit transition if needed
-
-            self._perform_final_cleanup(context)
-            return {"CANCELLED"}
-
-        return {"PASS_THROUGH"}
-
-    def callMenu(self, context):
-        """Calls the appropriate context menu based on the current mode and selection."""
-        space_type = context.space_data.type
-        
-        if space_type == "VIEW_3D":
-            mode = context.mode
-            menu_idname = self.menu_by_mode.get(mode, "VIEW3D_MT_object_context_menu")
-            
-            try:
-                bpy.ops.wm.call_menu(name=menu_idname)
-                logger.log_info(f"Called menu: {menu_idname}")
-            except Exception as e:
-                logger.log_error(f"Failed to call menu {menu_idname}: {e}")
-
-    def invoke(self, context, event):
-        """Initializes the operator when invoked."""
-        self._count = 0.0
-        self._finished = False
-        self._callMenu = False
-        self._ortho = False
-        self._back_to_ortho = False
-        self._waiting_for_input = True
-        self._navigation_started = False
-        self._focal_manager = FocalLengthManager()
-        self._initial_event = event
-
-        self.view_x = event.mouse_x
-        self.view_y = event.mouse_y
-        return self.execute(context)
-
-    def execute(self, context):
-        """Sets up the modal timer if in the 3D View."""
-        space_type = context.space_data.type if context.space_data else None
-        
-        if space_type == "VIEW_3D":
-            wm = context.window_manager
-            self._timer = wm.event_timer_add(0.02, window=context.window)  # 50 FPS timer
-            wm.modal_handler_add(self)
-            logger.log_info("3D View navigation timer created")
-            return {"RUNNING_MODAL"}
-
-        logger.log_info(f"No modal conditions met for {space_type}, returning FINISHED")
-        return {"FINISHED"}
-    def _start_navigation(self, context):
-        """Attempts to start Blender's walk/fly navigation."""
-        addon_prefs = get_addon_preferences(context) # Use the utility function
-        if addon_prefs is None:
-            logger.log_warning(f"Could not get addon preferences in _start_navigation. Using hardcoded defaults.")
-            class DummyPrefs:
-                enable_camera_navigation = True
-                camera_nav_only_if_locked = False
-                return_to_ortho_on_exit = True
-            addon_prefs = DummyPrefs()
-
-        enable_camera_nav = getattr(addon_prefs, 'enable_camera_navigation', True)
-        only_if_locked = getattr(addon_prefs, 'camera_nav_only_if_locked', False)
-
-        if not context.space_data or not context.space_data.region_3d:
-            return False
-
-        view_perspective_type = context.space_data.region_3d.view_perspective
-
-        if view_perspective_type == "CAMERA":
-            if not enable_camera_nav:
-                return False
-            
-            if only_if_locked:
-                if not context.space_data.lock_camera:
-                    return False
-
-        try:
-            if self._focal_manager:
-                self._focal_manager.start_entry_transition(context, addon_prefs)
-
-            bpy.ops.view3d.walk('INVOKE_DEFAULT')
-            self._navigation_started = True
-            self._waiting_for_input = False
-
-            if not context.region_data.is_perspective:
-                self._ortho = True
-                return_to_ortho = getattr(addon_prefs, 'return_to_ortho_on_exit', True)
-                if return_to_ortho:
-                    self._back_to_ortho = True
-            else:
-                self._ortho = False
-                self._back_to_ortho = False
-
-            logger.log_info("Walk navigation started successfully")
-            return True
-        except RuntimeError as e:
-            logger.log_error(f"RuntimeError in _start_navigation: {e}")
-            self.report({"WARNING"}, "Navigation failed. Object might have constraints or view is locked.")
-            return False
-
-    def cancel(self, context):
-        """Handles operator cancellation."""
-        if context.space_data and context.space_data.type == "VIEW_3D" and self._focal_manager:
-            addon_prefs = get_addon_preferences(context) # Use the utility function
-
-            if self._focal_manager.is_transitioning and not self._focal_manager.is_exit_transition:
-                self._focal_manager.force_restore_original(context, addon_prefs)
-
-    @classmethod
-    def poll(cls, context):
-        return context.area and context.area.type == 'VIEW_3D'
+	@classmethod
+	def poll(cls, context):
+		"""Check if operator can run."""
+		return context.area and context.area.type == 'VIEW_3D'
 
 
-class FLYNAV_OT_simple_fly(bpy.types.Operator):
-    """Simple Fly Operator (Legacy)"""
-    bl_idname = "flynav.simple_fly"
-    bl_label = "Simple Fly Mode"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        logger.log_info(f"Simple Fly Operator executed from: {__package__}")
-        self.report({'INFO'}, "Fly Mode Activated")
-        
-        # Start walk mode directly - this is the core functionality
-        try:
-            bpy.ops.view3d.walk('INVOKE_DEFAULT')
-            logger.log_info("Walk mode started successfully via simple_fly operator")
-        except RuntimeError as e:
-            logger.log_error(f"Failed to start walk mode: {e}")
-            self.report({'ERROR'}, "Failed to start navigation")
-            return {'CANCELLED'}
-        
-        return {'FINISHED'}
-
-    @classmethod
-    def poll(cls, context):
-        return context.area and context.area.type == 'VIEW_3D'
-
-# --- Registration ---
-
+# Registration
 classes = (
-    FLYNAV_OT_right_mouse_navigation,
-    FLYNAV_OT_simple_fly,
+	FLYNAV_OT_right_mouse_navigation,
+	FLYNAV_OT_simple_fly,
 )
 
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    logger.log_info(f"Registered operators in: {__package__}")
+	"""Register all operator classes."""
+	for cls in classes:
+		bpy.utils.register_class(cls)
+	logger.log_info("Operators registered")
 
 def unregister():
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-    logger.log_info(f"Unregistered operators in: {__package__}")
+	"""Unregister all operator classes."""
+	for cls in reversed(classes):
+		bpy.utils.unregister_class(cls)
+	logger.log_info("Operators unregistered")
 
 if __name__ == "__main__":
-    # This is for direct testing. Ensure logger is minimally functional.
-    if __package__ is None: # If run as script, __package__ is None
-        # Attempt to set a package name for the logger for this test context
-        # This won't reflect the actual addon structure but helps logger function
-        try:
-            from .. import logger as root_logger # try to get logger from parent if part of a package test
-            root_logger.set_package_name("fly_nav.operators_test")
-        except ImportError:
-            logger.set_package_name("fly_nav_operators_direct_script") # fallback
-            logger.set_log_level("DEBUG")
-
-    register()
+	register()
