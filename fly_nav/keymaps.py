@@ -1,9 +1,27 @@
 import bpy # type: ignore
-from .logger import log_info, log_warning, log_error
-from .preferences import FLYNAV_OPERATOR_IDNAME, FLYNAV_CUSTOM_KMI_ID
+from .logger import log_warning, log_error
+from .preferences import FLYNAV_OPERATOR_IDNAME
 
 # Placeholder for keymap items
 keymap_items = []
+
+menumodes = [
+    "Object Mode",
+	"Mesh", 
+	"Curve",
+	"Armature",
+	"Metaball",
+	"Lattice",
+	"Font",
+	"Pose",
+]
+
+panelmodes = [
+    "Vertex Paint",
+    "Weight Paint",
+    "Image Paint",
+    "Sculpt"
+]
 
 def register_keymaps():
 	"""Register custom keymaps for the Fly Nav extension."""
@@ -27,8 +45,6 @@ def register_keymaps():
 		
 		# Modify walk modal keymaps
 		_modify_walk_modal_keymaps()
-		
-		log_info("Custom keymaps registered successfully.")
 	except Exception as e:
 		log_error(f"Failed to register keymaps: {e}")
 
@@ -48,8 +64,6 @@ def unregister_keymaps():
 		
 		# Restore default walk modal keymaps
 		_restore_walk_modal_keymaps()
-		
-		log_info("Custom keymaps unregistered successfully.")
 	except Exception as e:
 		log_error(f"Failed to unregister keymaps: {e}")
 
@@ -58,29 +72,13 @@ def _disable_default_rmb_menus():
 	try:
 		wm = bpy.context.window_manager
 		active_kc = wm.keyconfigs.active
-		
-		# Modes that call standard menus
-		menumodes = [
-			"Object Mode",
-			"Mesh", 
-			"Curve",
-			"Armature",
-			"Metaball",
-			"Lattice",
-			"Font",
-			"Pose",
-		]
-		
-		# Modes that call panels instead of menus
-		panelmodes = ["Vertex Paint", "Weight Paint", "Image Paint", "Sculpt"]
-		
+  
 		# Disable menu modes
 		for mode in menumodes:
 			if mode in active_kc.keymaps:
 				for key in active_kc.keymaps[mode].keymap_items:
 					if key.type == "RIGHTMOUSE" and key.active:
 						key.active = False
-						log_info(f"Disabled RMB menu in {mode}")
 		
 		# Disable panel modes  
 		for mode in panelmodes:
@@ -89,9 +87,6 @@ def _disable_default_rmb_menus():
 					if (key.idname == "wm.call_panel" and 
 						key.type == "RIGHTMOUSE" and key.active):
 						key.active = False
-						log_info(f"Disabled RMB panel in {mode}")
-						
-		log_info("Default RMB menus disabled.")
 	except Exception as e:
 		log_error(f"Failed to disable default RMB menus: {e}")
 
@@ -100,21 +95,6 @@ def _restore_default_rmb_menus():
 	try:
 		wm = bpy.context.window_manager
 		active_kc = wm.keyconfigs.active
-		
-		# Modes that call standard menus
-		menumodes = [
-			"Object Mode",
-			"Mesh",
-			"Curve", 
-			"Armature",
-			"Metaball",
-			"Lattice",
-			"Font",
-			"Pose",
-		]
-		
-		# Modes that call panels instead of menus
-		panelmodes = ["Vertex Paint", "Weight Paint", "Image Paint", "Sculpt"]
 		
 		# Restore menu modes
 		for mode in menumodes:
@@ -129,8 +109,6 @@ def _restore_default_rmb_menus():
 				for key in active_kc.keymaps[mode].keymap_items:
 					if key.idname == "wm.call_panel" and key.type == "RIGHTMOUSE":
 						key.active = True
-						
-		log_info("Default RMB menus restored.")
 	except Exception as e:
 		log_error(f"Failed to restore default RMB menus: {e}")
 
@@ -140,18 +118,43 @@ def _modify_walk_modal_keymaps():
 		wm = bpy.context.window_manager
 		active_kc = wm.keyconfigs.active
 		
-		if "View3D Walk Modal" in active_kc.keymaps:
-			 # Ensure right mouse cancel is ACTIVE in walk mode
-			for key_item in active_kc.keymaps["View3D Walk Modal"].keymap_items:
-				if hasattr(key_item, 'type') and key_item.type == "RIGHTMOUSE" and \
-				   hasattr(key_item, 'properties') and hasattr(key_item.properties, 'mode') and key_item.properties.mode == 0: # mode 0 is CANCEL
-					if not key_item.active:
-						log_info("Default RMB cancel in walk modal was inactive, setting to active.")
-					key_item.active = True # Ensure RMB cancels view3d.walk
-					log_info("Ensured default RMB cancel is ACTIVE in walk modal.")
-					# No need to break here, though unlikely to have multiple RMB cancel entries
-						
-		log_info("Walk modal keymaps modified (RMB cancel ensured active).")
+		if "View3D Walk Modal" not in active_kc.keymaps:
+			log_warning("View3D Walk Modal keymap not found. Skipping keymap modification.")
+			return
+		
+		# Get the walk modal keymap
+		walk_modal_km = active_kc.keymaps["View3D Walk Modal"]
+		
+		for key_item in walk_modal_km.keymap_items:
+			if key_item.type == "RIGHTMOUSE" and key_item.value == "ANY":
+				key_item.active = False
+				break
+		
+		# Define modifier combinations to ensure RIGHTMOUSE RELEASE works in all cases
+		modifiers = [
+			{"shift": False, "ctrl": False, "alt": False},  # No modifiers
+			{"shift": True, "ctrl": False, "alt": False},   # Shift only
+			{"shift": False, "ctrl": True, "alt": False},   # Ctrl only
+			{"shift": False, "ctrl": False, "alt": True},   # Alt only
+			{"shift": True, "ctrl": True, "alt": False},    # Shift+Ctrl
+			{"shift": True, "ctrl": False, "alt": True},    # Shift+Alt
+			{"shift": False, "ctrl": True, "alt": True},    # Ctrl+Alt
+			{"shift": True, "ctrl": True, "alt": True}      # Shift+Ctrl+Alt
+		]
+		
+		# Add a keymap entry for each modifier combination
+		for mod in modifiers:
+			try:
+				new_kmi = walk_modal_km.keymap_items.new_modal(
+					type="RIGHTMOUSE",
+					value="RELEASE",
+					propvalue="CONFIRM",
+					shift=mod["shift"],
+					ctrl=mod["ctrl"],
+					alt=mod["alt"]
+				)
+			except Exception as e:
+				log_error(f"Failed to add RIGHTMOUSE RELEASE CONFIRM action with modifiers {mod}: {e}")
 	except Exception as e:
 		log_error(f"Failed to modify walk modal keymaps: {e}")
 		
@@ -161,18 +164,37 @@ def _restore_walk_modal_keymaps():
 		wm = bpy.context.window_manager
 		active_kc = wm.keyconfigs.active
 		
-		if "View3D Walk Modal" in active_kc.keymaps:
-			# Restore right mouse cancel in walk mode
-			for key in active_kc.keymaps["View3D Walk Modal"].keymap_items:
-				if key.propvalue == "CANCEL" and key.type == "RIGHTMOUSE":
-					key.active = True
-					
-			# Restore left mouse confirm
-			for key in active_kc.keymaps["View3D Walk Modal"].keymap_items:
-				if key.propvalue == "CONFIRM" and key.type == "RIGHTMOUSE":
-					key.type = "LEFTMOUSE" 
-					key.value = "PRESS"
-					
-		log_info("Walk modal keymaps restored.")
+		if "View3D Walk Modal" not in active_kc.keymaps:
+			log_warning("View3D Walk Modal keymap not found. Skipping keymap restoration.")
+			return
+			
+		walk_modal_km = active_kc.keymaps["View3D Walk Modal"]
+		
+		# Restore right mouse button for cancellation (re-enable it)
+		for key_item in walk_modal_km.keymap_items:
+			if key_item.type == "RIGHTMOUSE" and key_item.value == "ANY":
+				key_item.active = True
+				break
+		
+		# Remove any custom RIGHTMOUSE RELEASE confirm actions we added
+		items_to_remove = []
+		for idx, key_item in enumerate(walk_modal_km.keymap_items):
+			if (key_item.type == "RIGHTMOUSE" and 
+				key_item.value == "RELEASE" and 
+				hasattr(key_item, 'propvalue') and 
+				key_item.propvalue == "CONFIRM"):
+				items_to_remove.append(key_item)
+		
+		# Remove the items (in reverse order to avoid index issues)
+		for key_item in reversed(items_to_remove):
+			try:
+				walk_modal_km.keymap_items.remove(key_item)
+			except Exception:
+				pass
+		
+		# Restore any LEFTMOUSE confirm action we might have disabled
+		for key_item in walk_modal_km.keymap_items:
+			if key_item.type == "LEFTMOUSE" and key_item.value == "ANY":
+				key_item.active = True
 	except Exception as e:
 		log_error(f"Failed to restore walk modal keymaps: {e}")

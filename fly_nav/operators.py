@@ -4,6 +4,44 @@ from . import logger
 from .focal_length_manager import FocalLengthManager
 from .preferences import get_addon_preferences
 
+def start_walk_navigation(context, focal_manager=None, addon_prefs=None):
+	"""Utility function to start Blender's walk navigation mode.
+	
+	Args:
+		context: Blender context
+		focal_manager: Optional FocalLengthManager instance
+		addon_prefs: Optional addon preferences
+		
+	Returns:
+		tuple: (success, restore_ortho)
+			success: True if navigation was started successfully
+			restore_ortho: True if orthographic view needs to be restored on exit
+	"""
+	logger.log_info("Starting walk navigation mode")
+	
+	restore_ortho = False
+	
+	try:
+		# Start focal length transition if focal manager is provided
+		if focal_manager and addon_prefs:
+			focal_manager.start_entry_transition(context, addon_prefs)
+			
+		# Handle orthographic view
+		region_3d = context.space_data.region_3d if context.space_data else None
+		if region_3d and not region_3d.is_perspective:
+			restore_ortho = addon_prefs.return_to_ortho_on_exit if addon_prefs else False
+			logger.log_info(f"In ortho view, restore_ortho={restore_ortho}")
+			
+		# Start Blender's walk mode
+		bpy.ops.view3d.walk('INVOKE_DEFAULT')
+		logger.log_info("Walk navigation started successfully")
+		
+		return True, restore_ortho
+		
+	except RuntimeError as e:
+		logger.log_error(f"Failed to start navigation: {e}")
+		return False, False
+
 
 class FLYNAV_OT_right_mouse_navigation(Operator):
 	"""Handles right-click initiated navigation or context menu display."""
@@ -257,29 +295,13 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			logger.log_info("Camera navigation not allowed")
 			return False
 
-		try:
-			# Start focal length transition
-			if self._focal_manager:
-				self._focal_manager.start_entry_transition(context, addon_prefs)
-
-			# Handle orthographic view
-			region_3d = context.space_data.region_3d
-			if region_3d and not region_3d.is_perspective:
-				self._restore_ortho = addon_prefs.return_to_ortho_on_exit
-				logger.log_info(f"In ortho view, restore_ortho={self._restore_ortho}")
-
-			# Start Blender's walk mode
-			bpy.ops.view3d.walk('INVOKE_DEFAULT')
-			
-			# Update state
+		success, restore_ortho = start_walk_navigation(context, self._focal_manager, addon_prefs)
+		if success:
+			self._restore_ortho = restore_ortho
 			self._navigation_active = True
 			self._waiting_for_input = False
-			
-			logger.log_info("Walk navigation started successfully")
 			return True
-
-		except RuntimeError as e:
-			logger.log_error(f"Failed to start navigation: {e}")
+		else:
 			self.report({"WARNING"}, "Navigation failed. View might be locked or constrained.")
 			return False
 
@@ -412,12 +434,18 @@ class FLYNAV_OT_simple_fly(Operator):
 		"""Execute simple fly mode."""
 		logger.log_info("Simple fly mode activated")
 		
+		# Get preferences if needed
 		try:
-			bpy.ops.view3d.walk('INVOKE_DEFAULT')
+			addon_prefs = get_addon_preferences(context)
+		except:
+			addon_prefs = None
+			
+		success, _ = start_walk_navigation(context)
+		
+		if success:
 			self.report({'INFO'}, "Fly Mode Activated")
 			return {'FINISHED'}
-		except RuntimeError as e:
-			logger.log_error(f"Failed to start fly mode: {e}")
+		else:
 			self.report({'ERROR'}, "Failed to start navigation")
 			return {'CANCELLED'}
 

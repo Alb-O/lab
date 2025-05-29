@@ -1,4 +1,4 @@
-import bpy
+import bpy # type: ignore
 import importlib
 
 # Import preferences, operator, and logger components
