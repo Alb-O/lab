@@ -59,27 +59,19 @@ class FlyNavRefreshKeymapsOperator(Operator):
 def _enum_update_callback(self, context):
 	_update_keymaps_logic(self, context)
 
+# --- BEGIN PROPERTIES ---
+
 class FlyNavPreferences(AddonPreferences):
 	# bl_idname will be set by the root __init__.py to ADDON_PACKAGE_NAME
 	# For linters and direct access, we can assign it here if ADDON_PACKAGE_NAME is known at this point,
 	# but the dynamic assignment from __init__ is typical for Blender addons.
 	# bl_idname = ADDON_PACKAGE_NAME 
 
-	# Original FlyNav property
-	fly_speed: bpy.props.FloatProperty( # type: ignore
-		name="Fly Speed",
-		description="Speed of the fly navigation",
-		default=1.0,
-		min=0.1,
-		max=10.0,
-	)
-
-	# --- Properties from RightMouseNavigation --- 
 	time: FloatProperty( # type: ignore
 		name="Time Threshold (RMB)",
 		description="How long to hold right mouse before auto-activating walk mode (also determines menu timing on release)",
 		default=0.1,
-		min=0.01,
+		min=0,
 		max=1,
 	)
 
@@ -139,16 +131,11 @@ class FlyNavPreferences(AddonPreferences):
 		update=_enum_update_callback
 	)
 
-	# --- End of Properties from RightMouseNavigation ---
+	# --- END PROPERTIES ---
 
 	def draw(self, context):
 		layout = self.layout
 		wm = context.window_manager
-
-		# Original Fly Speed Property
-		box_general = layout.box()
-		box_general.label(text="General Fly Settings", icon="SETTINGS")
-		box_general.prop(self, "fly_speed")
 
 		# Activation Settings Box (from RMN)
 		box_activation = layout.box()
@@ -261,7 +248,6 @@ def get_addon_preferences(context): # Add context as a parameter
 		return None
 
 PREFERENCE_PROPERTIES = [
-	'fly_speed',
 	'time',
 	'return_to_ortho_on_exit',
 	'enable_camera_navigation',
