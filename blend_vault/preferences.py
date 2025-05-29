@@ -1,4 +1,5 @@
-import bpy # type: ignore
+import bpy
+from typing import Optional, cast # Added cast
 
 # Global variable to store the addon package name
 # This will be set by the main addon module during registration
@@ -34,30 +35,53 @@ class BlendVaultPreferences(bpy.types.AddonPreferences):
             warning_box = layout.box()
             warning_box.label(text="Setting the path of your Obsidian vault is only for displaying vault-relative paths in the UI.", icon='INFO')
 
-def get_addon_preferences(context=None):
+def get_addon_preferences(context=None) -> Optional[BlendVaultPreferences]:
     """
     Get the Blend Vault addon preferences.
-    Returns the preferences object which contains user settings like obsidian_vault_root.
+    Returns the preferences object (instance of BlendVaultPreferences) or None.
     """
     if context is None:
         context = bpy.context
-    try:
-        return context.preferences.addons[ADDON_PACKAGE_NAME].preferences
-    except KeyError:
-        # This matches the original behavior in utils.py which didn't use LOG_COLORS for this print
-        print(f"[Blend Vault] Warning: Could not find addon preferences for '{ADDON_PACKAGE_NAME}'. Make sure addon is enabled.")
+    
+    addon = context.preferences.addons.get(ADDON_PACKAGE_NAME)
+    if addon and hasattr(addon, 'preferences') and isinstance(addon.preferences, BlendVaultPreferences):
+        # Explicitly cast to BlendVaultPreferences after checking type
+        return cast(BlendVaultPreferences, addon.preferences)
+    else:
+        if addon and hasattr(addon, 'preferences') and not isinstance(addon.preferences, BlendVaultPreferences):
+            print(f"[Blend Vault] Warning: Addon preferences for '{ADDON_PACKAGE_NAME}' found, but not of expected type BlendVaultPreferences. Type was {type(addon.preferences)}")
+        elif not addon:
+            print(f"[Blend Vault] Warning: Could not find addon preferences for '{ADDON_PACKAGE_NAME}'. Make sure addon is enabled.")
+        else: # Addon found, but no 'preferences' attribute
+            print(f"[Blend Vault] Warning: Addon '{ADDON_PACKAGE_NAME}' found, but it has no 'preferences' attribute.")
         return None
 
-def get_obsidian_vault_root(context=None):
+def get_obsidian_vault_root(context=None) -> Optional[str]:
     """
     Get the Obsidian vault root path from addon preferences.
     Returns the path as a string, or None if not set or preferences not found.
     """
-    prefs = get_addon_preferences(context)
-    if prefs and hasattr(prefs, 'obsidian_vault_root'):
-        vault_root = prefs.obsidian_vault_root.strip()
-        return vault_root if vault_root else None
-    return None
+    prefs: Optional[BlendVaultPreferences] = get_addon_preferences(context)
+    if prefs:
+        # Now that prefs is correctly typed as BlendVaultPreferences | None,
+        # Pylance should recognize obsidian_vault_root directly.
+        # The hasattr check is good for robustness if properties are dynamic.
+        if hasattr(prefs, 'obsidian_vault_root'):
+            vault_root_value = prefs.obsidian_vault_root
+            if isinstance(vault_root_value, str):
+                stripped_vault_root = vault_root_value.strip()
+                return stripped_vault_root if stripped_vault_root else None
+            elif vault_root_value is not None:
+                # Attempt to convert to string if it's not None and not a string
+                try:
+                    str_vault_root = str(vault_root_value)
+                    stripped_vault_root = str_vault_root.strip()
+                    return stripped_vault_root if stripped_vault_root else None
+                except Exception as e:
+                    print(f"[Blend Vault] Error converting vault root to string: {e}")
+                    return None
+        return None # obsidian_vault_root attribute doesn't exist
+    return None # Preferences object not found
 
 def store_preferences():
     """
@@ -70,11 +94,11 @@ def store_preferences():
     stored_prefs = bpy.app.driver_namespace[STORAGE_KEY]
     
     try:
-        existing_prefs = bpy.context.preferences.addons.get(ADDON_PACKAGE_NAME)
-        if existing_prefs and hasattr(existing_prefs, 'preferences'):
+        existing_prefs: Optional[BlendVaultPreferences] = get_addon_preferences()
+        if existing_prefs:
             for prop_name in PERSISTENT_PROPERTIES:
-                if hasattr(existing_prefs.preferences, prop_name):
-                    prop_value = getattr(existing_prefs.preferences, prop_name)
+                if hasattr(existing_prefs, prop_name):
+                    prop_value = getattr(existing_prefs, prop_name)
                     stored_prefs[prop_name] = prop_value
                     print(f"[Blend Vault] Stored preference '{prop_name}': {prop_value}")
     except Exception as e:
@@ -91,12 +115,13 @@ def restore_preferences():
     stored_prefs = bpy.app.driver_namespace[STORAGE_KEY]
     
     try:
-        current_prefs = bpy.context.preferences.addons[ADDON_PACKAGE_NAME].preferences
-        for prop_name in PERSISTENT_PROPERTIES:
-            if prop_name in stored_prefs:
-                prop_value = stored_prefs[prop_name]
-                if hasattr(current_prefs, prop_name):
-                    setattr(current_prefs, prop_name, prop_value)
-                    print(f"[Blend Vault] Restored preference '{prop_name}': {prop_value}")
+        current_prefs: Optional[BlendVaultPreferences] = get_addon_preferences()
+        if current_prefs:
+            for prop_name in PERSISTENT_PROPERTIES:
+                if prop_name in stored_prefs:
+                    prop_value = stored_prefs[prop_name]
+                    if hasattr(current_prefs, prop_name):
+                        setattr(current_prefs, prop_name, prop_value)
+                        print(f"[Blend Vault] Restored preference '{prop_name}': {prop_value}")
     except Exception as e:
         print(f"[Blend Vault] Failed to restore preferences: {e}")

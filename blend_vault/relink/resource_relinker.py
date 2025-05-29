@@ -3,7 +3,7 @@ Resource relinking module for Blend Vault.
 Handles relinking external resources (textures, videos, audio, scripts, caches) based on sidecar file information.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 import re
 import traceback

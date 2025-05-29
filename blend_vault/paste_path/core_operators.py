@@ -3,7 +3,7 @@ Core operators for file operations: Open, Link, Append.
 These operators handle the basic file operations with proper error handling.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 
 
@@ -17,7 +17,7 @@ class BV_OT_ProcessOpenAction(bpy.types.Operator):
 
     def execute(self, context):
         if bpy.data.is_dirty:
-            bpy.ops.blend_vault.confirm_save_before_open('INVOKE_DEFAULT', file_path=self.file_path)
+            bpy.ops.blend_vault.confirm_save_before_open('INVOKE_DEFAULT', file_path=self.file_path) # type: ignore
         else:
             try:
                 bpy.ops.wm.open_mainfile(filepath=self.file_path)

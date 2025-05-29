@@ -1,4 +1,4 @@
-import bpy  # type: ignore
+import bpy
 import os
 import atexit
 import re  # For check_file_relocation
@@ -57,8 +57,10 @@ def create_redirect_file(blend_path: str):
     """Creates or overwrites a .redirect.md file for the current blend file."""
     print(f"{LOG_COLORS['DEBUG']}[Blend Vault][Redirect] create_redirect_file called with: {blend_path}{LOG_COLORS['RESET']}")
     
-    # Example of using the preferences - you can use this in your logic
-    vault_root = get_obsidian_vault_root()
+    vault_root = None
+    if get_obsidian_vault_root is not None: # Check before calling
+        vault_root = get_obsidian_vault_root()
+
     if vault_root:
         print(f"{LOG_COLORS['DEBUG']}[Blend Vault][Redirect] Obsidian vault root: {vault_root}{LOG_COLORS['RESET']}")
     else:
@@ -209,7 +211,8 @@ def _prompt_file_relocation(current_path: str, new_path: str):
     try:
         _relocation_dialog_shown = True
         # Create a modal dialog operator
-        bpy.ops.blend_vault.confirm_file_relocation(
+        # The type checker may not know about dynamically registered operators.
+        bpy.ops.blend_vault.confirm_file_relocation( # type: ignore
             'INVOKE_DEFAULT', current_path=current_path, new_path=new_path
         )
     except Exception as e:
@@ -308,7 +311,10 @@ class BV_PT_FileRelocationPanel(bpy.types.Panel):
             
             if new_path_abs and os.path.exists(new_path_abs):
                 current_dir_abs = os.path.dirname(current_blend)
-                vault_root_abs = get_obsidian_vault_root()
+                
+                vault_root_abs = None
+                if get_obsidian_vault_root is not None: # Check before calling
+                    vault_root_abs = get_obsidian_vault_root()
 
                 current_path_to_display = _format_display_path(current_blend, current_dir_abs, vault_root_abs)
                 new_path_to_display = _format_display_path(new_path_abs, current_dir_abs, vault_root_abs)
@@ -335,9 +341,11 @@ class BV_PT_FileRelocationPanel(bpy.types.Panel):
                 col.scale_y = 1.2
                 
                 # Save to new location button
-                op = col.operator("blend_vault.confirm_file_relocation", text="Save to New Location", icon='FILE_TICK')
-                op.current_path = current_blend
-                op.new_path = new_path_abs
+                op_props = col.operator("blend_vault.confirm_file_relocation", text="Save to New Location", icon='FILE_TICK')
+                # It's expected that BV_OT_ConfirmFileRelocation has these properties defined.
+                # Pylance might not infer this perfectly from layout.operator.
+                setattr(op_props, 'current_path', current_blend) # Use setattr to be more explicit for type checker
+                setattr(op_props, 'new_path', new_path_abs) # Use setattr
                 
                 # Ignore button
                 col.operator("blend_vault.ignore_relocation", text="Ignore for This Session", icon='CANCEL')
@@ -382,8 +390,9 @@ class BV_OT_ConfirmFileRelocation(bpy.types.Operator):
     bl_label = "File Relocation"
     bl_options = {'REGISTER', 'INTERNAL', 'BLOCKING'}
 
-    current_path: bpy.props.StringProperty()  # type: ignore
-    new_path: bpy.props.StringProperty()  # type: ignore
+    # Define properties as class annotations
+    current_path: bpy.props.StringProperty(name="Current Path", description="Current path of the blend file") # type: ignore
+    new_path: bpy.props.StringProperty(name="New Path", description="New detected path of the blend file") # type: ignore
 
     def execute(self, context):
         global _relocation_dialog_shown
@@ -420,7 +429,10 @@ class BV_OT_ConfirmFileRelocation(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         current_dir_abs = os.path.dirname(self.current_path)
-        vault_root_abs = get_obsidian_vault_root()
+        
+        vault_root_abs = None
+        if get_obsidian_vault_root is not None: # Check before calling
+            vault_root_abs = get_obsidian_vault_root()
 
         current_display_path = _format_display_path(self.current_path, current_dir_abs, vault_root_abs)
         new_display_path = _format_display_path(self.new_path, current_dir_abs, vault_root_abs)

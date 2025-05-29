@@ -1,0 +1,23 @@
+{
+    "include": [
+        "."
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/.git"
+    ],
+    "extraPaths": [
+        "${env:APPDATA}/Python/Python311/site-packages"
+    ],
+    "typeCheckingMode": "basic",
+    "useLibraryCodeForTypes": true,
+    "autoImportCompletions": true,
+    "autoSearchPaths": true,
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportGeneralTypeIssues": "none",
+    "reportOptionalMemberAccess": "none",
+    "reportOptionalSubscript": "none",
+    "reportPrivateImportUsage": "none",
+    "pythonVersion": "3.11"
+}

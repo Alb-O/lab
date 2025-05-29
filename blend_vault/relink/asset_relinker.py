@@ -3,7 +3,7 @@ Asset relinking module for Blend Vault.
 Handles relinking renamed individual asset datablocks by comparing sidecar states.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 import traceback
 from typing import Dict, List, Optional, Any

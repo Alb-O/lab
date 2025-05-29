@@ -7,7 +7,7 @@ import os
 import json
 import re
 from typing import Dict, List, Optional, Tuple, Any
-import bpy  # type: ignore
+import bpy
 from .. import (
     SIDECAR_EXTENSION,
     BV_UUID_PROP,

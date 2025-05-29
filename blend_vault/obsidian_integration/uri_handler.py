@@ -5,7 +5,7 @@ This module provides functionality to interact with Obsidian through its URI pro
 Supports opening sidecar files and other Obsidian actions.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 import webbrowser
 from urllib.parse import quote

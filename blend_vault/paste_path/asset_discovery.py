@@ -3,7 +3,7 @@ Asset discovery utilities for automatically finding and linking/appending assets
 Provides quick operations that find the first asset in a .blend file.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 from .. import log_debug
 

@@ -3,10 +3,12 @@ Library relinking module for Blend Vault.
 Handles relinking libraries based on information in the sidecar Markdown file.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 import traceback
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Set  # Ensure Set is imported
+from bpy.types import Context, Event, Operator  # Import specific bpy types for hinting
+
 from .. import SIDECAR_EXTENSION, log_info, log_warning, log_error, log_success
 from .shared_utils import (
     BaseRelinker,
@@ -232,34 +234,42 @@ def execute_relink_operator(self, context: bpy.types.Context):
         blend_path = self.sidecar_file_path.replace(SIDECAR_EXTENSION, '')
         processor = LibraryRelinkProcessor(blend_path)
         processor.process_relink()
+        self.report({'INFO'}, "Library relinking process completed.")
         return {'FINISHED'}
     except Exception as e:
         log_error(f"Error during operator execution: {e}")
+        self.report({'ERROR'}, f"Relinking failed: {e}")
         return {'CANCELLED'}
 
 
 # Create the operator class using the factory function
-BV_OT_RelinkLibraries = create_blender_operator_class(
-    'BV_OT_RelinkLibraries',
-    'blend_vault.relink_libraries',
-    'Relink Libraries from Sidecar',
-    execute_relink_operator
+# We assume create_blender_operator_class returns a type that is a subclass of bpy.types.Operator
+# and that it correctly sets up bl_idname, bl_label, and the execute method.
+BV_OT_RelinkLibraries: Any = create_blender_operator_class(
+    'BV_OT_RelinkLibraries',  # class_name
+    'blend_vault.relink_libraries',  # bl_idname
+    'Relink Libraries from Sidecar',  # bl_label
+    execute_relink_operator  # execute_method (assuming this is how your factory takes it)
 )
 
 # Add the sidecar_file_path property to the operator
-BV_OT_RelinkLibraries.sidecar_file_path = bpy.props.StringProperty(
-    name="Sidecar File Path",
-    description="Path to the sidecar file containing library information",
-    default="",
-    subtype='FILE_PATH',
-)
+# We cast BV_OT_RelinkLibraries to Operator to help Pylance
+if hasattr(BV_OT_RelinkLibraries, 'bl_rna'):  # A check to see if it's a Blender type
+    setattr(BV_OT_RelinkLibraries, 'sidecar_file_path', bpy.props.StringProperty(
+        name="Sidecar File Path",
+        description="Path to the sidecar file containing library information",
+        default="",
+        subtype='FILE_PATH',
+    ))
 
-# Add invoke method for file selection
-def invoke_file_select(self, context: bpy.types.Context, event):
+
+# Define and assign invoke method for file selection with correct type hints
+def invoke_file_select(self: Operator, context: Context, event: Event) -> Set[str]:
     context.window_manager.fileselect_add(self)
     return {'RUNNING_MODAL'}
 
-BV_OT_RelinkLibraries.invoke = invoke_file_select
+if hasattr(BV_OT_RelinkLibraries, 'bl_rna'):  # A check to see if it's a Blender type
+    BV_OT_RelinkLibraries.invoke = invoke_file_select
 
 
 def register():

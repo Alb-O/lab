@@ -3,7 +3,7 @@ Save workflow management for handling unsaved changes before opening new files.
 Provides save-and-open functionality with proper timer-based file opening.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 import functools
 
@@ -31,7 +31,7 @@ class BV_OT_SaveAndOpenFile(bpy.types.Operator):
             return {'FINISHED'}
         except Exception as e:
             # Clean up the key if an error occurs before save op is invoked or if setup fails
-            if 'blend_vault_open_after_save' in context.window_manager:
+            if context.window_manager and 'blend_vault_open_after_save' in context.window_manager: # Check context.window_manager
                 del context.window_manager['blend_vault_open_after_save']
             self.report({'ERROR'}, f"Failed to initiate save and open: {e}")
             return {'CANCELLED'}
@@ -53,7 +53,7 @@ def blend_vault_post_save_handler(dummy):
     """Handler to check after saving if a file should be opened"""
     wm = bpy.context.window_manager
     key = 'blend_vault_open_after_save'
-    if key in wm:
+    if wm and key in wm: # Check wm before using 'in'
         file_path_to_open = wm[key]
         # It's crucial to remove the key immediately after retrieving it
         # to prevent re-processing or issues with stale data.

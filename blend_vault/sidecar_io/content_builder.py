@@ -3,7 +3,7 @@ Content building utilities for Blend Vault.
 Handles building sidecar markdown content from collected data.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 import json
 import re
@@ -115,7 +115,13 @@ def _build_linked_libraries_section(
 		if not os.path.exists(lib_sidecar_path) and (uuid_was_generated or new_assets):
 			uuid_pushes[lib_sidecar_path] = (lib_uuid, new_assets)
 		# Add to sidecar content
-		vault_root = get_obsidian_vault_root()
+		vault_root = None
+		# The get_obsidian_vault_root is imported at the top of the file.
+		# We need to ensure it's not None before calling.
+		if get_obsidian_vault_root is not None:
+			vault_root = get_obsidian_vault_root() # Call the function
+		# If get_obsidian_vault_root was None (e.g. import issue), vault_root remains None.
+		# get_resource_warning_prefix is expected to handle vault_root being None.
 		warning_prefix = get_resource_warning_prefix(lib_path, blend_path, vault_root)
 		sections.extend([
 			'#### ' + warning_prefix + format_primary_link(lib_path + SIDECAR_EXTENSION, os.path.basename(lib_path)),
@@ -160,7 +166,10 @@ def _build_resources_section(sections: List[str], resources: List[dict], blend_p
 		"Cache": "Caches"
 	}
 	
-	vault_root = get_obsidian_vault_root()
+	vault_root_for_res_section = None
+	# Similar check for the resources section
+	if get_obsidian_vault_root is not None:
+		vault_root_for_res_section = get_obsidian_vault_root() # Call the function
 	
 	# Add each resource type as a subheading
 	for resource_type in type_order:
@@ -174,7 +183,7 @@ def _build_resources_section(sections: List[str], resources: List[dict], blend_p
 				warning_prefix = get_resource_warning_prefix(
 					resource["path"], 
 					blend_path, 
-					vault_root
+					vault_root_for_res_section # Use the potentially None vault_root_for_res_section
 				)
 				
 				sections.append('- ' + warning_prefix + format_primary_link(resource["path"], resource["name"]))

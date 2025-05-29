@@ -1,6 +1,6 @@
 # Conditional bpy import - only import if we're running in Blender
 try:
-    import bpy  # type: ignore
+    import bpy
     _BLENDER_AVAILABLE = True
 except ImportError:
     bpy = None

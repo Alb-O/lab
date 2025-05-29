@@ -3,7 +3,7 @@ Main sidecar writing orchestration for Blend Vault.
 Coordinates asset collection, content building, and file operations.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
 from .. import SIDECAR_EXTENSION, LOG_COLORS, log_info, log_warning, log_error, log_success, log_debug
 from .collectors import collect_assets, collect_resources

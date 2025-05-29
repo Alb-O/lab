@@ -1,4 +1,4 @@
-import bpy  # type: ignore
+import bpy
 import importlib
 
 # Import preferences and utility functions
@@ -26,24 +26,33 @@ MODULES_TO_REGISTER = [
 
 
 def register():
-    # Set the package name for preferences
     package_name = __package__
-    # Reload preferences module to get latest class definition
-    importlib.reload(preferences)
 
-    # NOW set the necessary attributes on the reloaded module's contents
-    preferences.ADDON_PACKAGE_NAME = package_name
-    preferences.BlendVaultPreferences.bl_idname = package_name # This is crucial
+    # --- Preferences Registration ---
+    if preferences:
+        try:
+            importlib.reload(preferences)
+            preferences.ADDON_PACKAGE_NAME = package_name
+            if hasattr(preferences, 'BlendVaultPreferences'):
+                preferences.BlendVaultPreferences.bl_idname = package_name
+                bpy.utils.register_class(preferences.BlendVaultPreferences)
+            else:
+                log_error("[Blend Vault] BlendVaultPreferences class not found in preferences module.")
+            
+            if hasattr(preferences, 'restore_preferences'):
+                preferences.restore_preferences()
+            else:
+                log_error("[Blend Vault] restore_preferences function not found in preferences module.")
+        except Exception as e:
+            log_error(f"[Blend Vault] Error during preferences registration/reload: {e}")
+    else:
+        log_error("[Blend Vault] Preferences module not loaded. Skipping preferences registration.")
 
-    # Register preferences class
-    bpy.utils.register_class(preferences.BlendVaultPreferences)
-
-    # Restore stored preference values
-    preferences.restore_preferences()    # Reload submodules first (important for dependencies)
+    # --- Reload Submodules ---
     submodules_to_reload = [
-        'blend_vault.sidecar_io.frontmatter',  # Reload frontmatter before writer
-        'blend_vault.relink',  # Import relink package first
-        'blend_vault.paste_path.core_operators',  # Reload paste_path components
+        'blend_vault.sidecar_io.frontmatter',
+        'blend_vault.relink',
+        'blend_vault.paste_path.core_operators',
         'blend_vault.paste_path.asset_discovery',
         'blend_vault.paste_path.dialogs',
         'blend_vault.paste_path.file_validation',
@@ -53,62 +62,128 @@ def register():
     for module_path in submodules_to_reload:
         try:
             full_module_path = f"{package_name}.{module_path}"
-            importlib.reload(importlib.import_module(full_module_path))
+            module_obj = importlib.import_module(full_module_path)
+            if module_obj:
+                importlib.reload(module_obj)
+            else:
+                log_info(f"[Blend Vault] Submodule {full_module_path} resolved to None during import. Skipping reload.")
         except ImportError:
-            pass  # Module might not be imported yet
+            log_info(f"[Blend Vault] Submodule {full_module_path} not found or failed to import. Skipping reload.")
+        except Exception as e:
+            log_error(f"[Blend Vault] Error reloading submodule {full_module_path}: {e}")
 
-    # Register modules that have their own register/unregister functions
+    # --- Register Modules with their own register functions ---
     for module_path in MODULES_TO_REGISTER:
         try:
             full_module_path = f"{package_name}.{module_path}"
-            module = importlib.reload(importlib.import_module(full_module_path))
-            if hasattr(module, 'register'):
-                module.register()
+            imported_module = importlib.import_module(full_module_path)
+            if imported_module:
+                reloaded_module = importlib.reload(imported_module)
+                if hasattr(reloaded_module, 'register'):
+                    reloaded_module.register()
+                else:
+                    log_warning(f"[Blend Vault] Module {full_module_path} has no register function.")
+            else:
+                log_warning(f"[Blend Vault] Module {full_module_path} for registration resolved to None. Skipping.")
+        except ImportError:
+            log_info(f"[Blend Vault] Module {full_module_path} for registration not found or failed to import. Skipping.")
         except Exception as e:
             log_error(f"[Blend Vault] Failed to register module {full_module_path}: {e}")
 
-    # Reload and register handlers from HANDLERS registry
+    # --- Reload and Register Handlers ---
     for event, entries in HANDLERS.items():
         handler_list = getattr(bpy.app.handlers, event)
         for module_path, fn_name in entries:
-            full_module_path = f"{package_name}.{module_path}"
-            module = importlib.reload(importlib.import_module(full_module_path))
-            fn = getattr(module, fn_name)
-            globals()[fn_name] = fn
-            if fn not in handler_list:
-                handler_list.append(fn)
+            try:
+                full_module_path = f"{package_name}.{module_path}"
+                handler_module_obj = importlib.import_module(full_module_path)
+                if handler_module_obj:
+                    reloaded_handler_module = importlib.reload(handler_module_obj)
+                    if hasattr(reloaded_handler_module, fn_name):
+                        fn = getattr(reloaded_handler_module, fn_name)
+                        globals()[fn_name] = fn  # Store reloaded function in globals for unregistration
+                        if fn not in handler_list:
+                            handler_list.append(fn)
+                    else:
+                        log_error(f"[Blend Vault] Handler function {fn_name} not found in module {full_module_path}.")
+                else:
+                    log_warning(f"[Blend Vault] Handler module {full_module_path} resolved to None during import. Skipping handler registration.")
+            except ImportError:
+                log_info(f"[Blend Vault] Handler module {full_module_path} not found or failed to import. Skipping handler.")
+            except Exception as e:
+                log_error(f"[Blend Vault] Failed to load/register handler {fn_name} from {full_module_path}: {e}")
 
     log_success("[Blend Vault] Main addon functionalities registered.")
 
 
 def unregister():
-    # Store preference values before unregistering
-    preferences.store_preferences()
+    # --- Unregister Preferences ---
+    if preferences:
+        try:
+            if hasattr(preferences, 'store_preferences'):
+                preferences.store_preferences()
+            else:
+                log_warning("[Blend Vault] store_preferences function not found in preferences module for unregistration.")
+            
+            if hasattr(preferences, 'BlendVaultPreferences'):
+                # Check if class is actually registered before trying to unregister
+                # bpy.utils.unregister_class can error if class not registered.
+                # A more robust check would be to see if it's in bpy.types
+                # For now, assume if preferences and class exist, it was registered.
+                bpy.utils.unregister_class(preferences.BlendVaultPreferences)
+            else:
+                log_warning("[Blend Vault] BlendVaultPreferences class not found in preferences module for unregistration.")
+        except Exception as e:
+            log_error(f"[Blend Vault] Error during preferences unregistration: {e}")
+    else:
+        log_warning("[Blend Vault] Preferences module not loaded. Skipping preferences unregistration.")
 
-    # Unregister preferences
-    bpy.utils.unregister_class(preferences.BlendVaultPreferences)
-    
-    # Get package name for building absolute module paths
-    package_name = __package__ or "blend_vault_ext"  # Fallback for development
+    package_name = __package__ or "blend_vault_ext"
 
-    # Unregister modules that have their own register/unregister functions
+    # --- Unregister Modules with their own unregister functions ---
     for module_path in MODULES_TO_REGISTER:
         try:
             full_module_path = f"{package_name}.{module_path}"
-            module = importlib.import_module(full_module_path)
-            if hasattr(module, 'unregister'):
-                module.unregister()
+            module_obj = importlib.import_module(full_module_path) # No reload needed for unregister
+            if module_obj and hasattr(module_obj, 'unregister'):
+                module_obj.unregister()
+            elif module_obj:
+                log_warning(f"[Blend Vault] Module {full_module_path} has no unregister function.")
+            # If module_obj is None, import_module likely failed, error caught by except
+        except ImportError:
+            log_info(f"[Blend Vault] Module {full_module_path} for unregistration not found or failed to import. Skipping.")
         except Exception as e:
             log_error(f"[Blend Vault] Failed to unregister module {full_module_path}: {e}")
 
-    # Unregister handlers based on HANDLERS registry
+    # --- Unregister Handlers ---
     for event, entries in HANDLERS.items():
-        handler_list = getattr(bpy.app.handlers, event)
-        for module_path, fn_name in entries:
-            full_module_path = f"{package_name}.{module_path}"
-            fn = globals().get(fn_name) or getattr(importlib.import_module(full_module_path), fn_name)
-            if fn in handler_list:
-                handler_list.remove(fn)
+        if hasattr(bpy.app.handlers, event):
+            handler_list = getattr(bpy.app.handlers, event)
+            for module_path, fn_name in entries:
+                try:
+                    # Attempt to retrieve the function from globals() first, as it was stored there during registration
+                    fn_to_remove = globals().get(fn_name)
+                    
+                    if not fn_to_remove:
+                        # Fallback: if not in globals, try to get it from a fresh import of the module
+                        # This might not be the exact same object if module was reloaded and original not cleaned from globals
+                        full_module_path = f"{package_name}.{module_path}"
+                        handler_module_obj = importlib.import_module(full_module_path)
+                        if handler_module_obj and hasattr(handler_module_obj, fn_name):
+                            fn_to_remove = getattr(handler_module_obj, fn_name)
+                    
+                    if fn_to_remove and fn_to_remove in handler_list:
+                        handler_list.remove(fn_to_remove)
+                    elif fn_to_remove:
+                        log_warning(f"[Blend Vault] Handler {fn_name} was found but not in the active handler list for event '{event}'.")
+                    # If fn_to_remove is None here, it means it wasn't found in globals or module.
+                except ImportError:
+                    log_info(f"[Blend Vault] Handler module {module_path} for unregistration not found. Skipping handler {fn_name}.")
+                except Exception as e:
+                    log_error(f"[Blend Vault] Failed to unregister handler {fn_name} from {module_path}: {e}")
+        else:
+            log_warning(f"[Blend Vault] Event type '{event}' not found in bpy.app.handlers during unregistration.")
+            
     log_warning("[Blend Vault] Main addon functionalities unregistered.")
 
 

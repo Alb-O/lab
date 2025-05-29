@@ -5,7 +5,7 @@ Provides smart clipboard integration for .blend files, allowing users to paste
 file paths and choose actions (Open, Link, Append) with automatic asset discovery.
 """
 
-import bpy  # type: ignore
+import bpy
 import importlib
 from . import core_operators
 from . import asset_discovery

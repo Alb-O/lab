@@ -3,8 +3,10 @@ Dialog operators for user interaction.
 Provides popup menus for choosing actions and confirming save operations.
 """
 
-import bpy  # type: ignore
+import bpy
 import os
+from typing import Optional
+from bpy.types import Event, Context
 
 
 class BV_OT_ChooseActionBeforeOpen(bpy.types.Operator):
@@ -41,7 +43,7 @@ class BV_OT_ChooseActionBeforeOpen(bpy.types.Operator):
         append_first_op = layout.operator("blend_vault.append_first_asset", text="Quick Append", icon='APPEND_BLEND')
         append_first_op.file_path = self.file_path
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event: Optional[Event]):
         filename = os.path.basename(self.file_path)
         context.window_manager.popup_menu(
             lambda menu_s, ctx: self._draw_action_dialog_content(menu_s, ctx),
@@ -50,11 +52,11 @@ class BV_OT_ChooseActionBeforeOpen(bpy.types.Operator):
         )
         return {'FINISHED'}
 
-    def execute(self, context):
+    def execute(self, context: Context):
         # This operator should be invoked as a popup.
         self.report({'WARNING'}, "Dialog operator executed directly; invoking popup instead.")
         # Fallback to ensure it still tries to show the popup if called directly, though INVOKE_DEFAULT is preferred.
-        return self.invoke(context, None)
+        return self.invoke(context, event=None)
 
 
 class BV_OT_ConfirmSaveBeforeOpen(bpy.types.Operator):
@@ -79,7 +81,7 @@ class BV_OT_ConfirmSaveBeforeOpen(bpy.types.Operator):
         dont_save_op = layout.operator("blend_vault.open_file_without_save", text="Don't Save")
         dont_save_op.file_path = self.file_path
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event: Optional[Event]):
         context.window_manager.popup_menu(
             lambda menu_s, ctx: self._draw_confirmation_dialog_content(menu_s, ctx),
             title=self.bl_label, 
@@ -87,7 +89,7 @@ class BV_OT_ConfirmSaveBeforeOpen(bpy.types.Operator):
         )
         return {'FINISHED'}
 
-    def execute(self, context):
+    def execute(self, context: Context):
         self.report({'WARNING'}, "Dialog operator executed directly; invoking popup instead.")
         return {'CANCELLED'}
 
