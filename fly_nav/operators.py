@@ -88,6 +88,9 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		'LEFT_ARROW', 'RIGHT_ARROW'
 	}
 
+	# Track if initial fast mode was set to avoid double transition
+	_initial_fast_mode_applied = False
+
 	# Context menus for different modes
 	CONTEXT_MENUS = {
 		"OBJECT": "VIEW3D_MT_object_context_menu",
@@ -139,19 +142,24 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		
 		if time_val == 0:
 			logger.log_debug(f"Instance #{self._instance_id}: time=0, attempting to start navigation immediately")
-			if self._start_navigation(context, addon_prefs):
+			# Determine fast mode state at the moment navigation starts
+			modal_keys = get_all_walk_modal_keys()
+			fast_keys = modal_keys.get("FAST_ENABLE", [])
+			fast_now = False
+			for key in fast_keys:
+				if event_matches_key(event, key):
+					fast_now = True
+					break
+			self._initial_fast_mode_applied = False
+			if self._start_navigation(context, addon_prefs, force_fast_mode=fast_now):
 				logger.log_debug(f"Instance #{self._instance_id}: Navigation started (time=0), proceeding to execute for modal operation.")
-				# self.execute() will set up the timer and add the modal handler.
-				# This is necessary for focal length transitions via the timer.
 				return self.execute(context)
 			else:
-				# _start_navigation failed (e.g., view locked, or other condition reported by _start_navigation)
-				# _finish_operator will release the global lock and perform other cleanup.
 				logger.log_warning(f"Instance #{self._instance_id}: _start_navigation failed for time=0 case.")
 				self._finish_operator(context) 
 				return {'CANCELLED'}
 		else: # time_val > 0
-			# Standard behavior: execute will set up the timer to wait for timeout or nav key.
+			self._initial_fast_mode_applied = False
 			logger.log_debug(f"Instance #{self._instance_id}: Operator initialized for time > 0 (timer will run). Mouse: {self._initial_mouse_pos}")
 			return self.execute(context)
 
@@ -192,15 +200,16 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 		# Generalized walk modal key detection for all walk modal actions
 		if self._navigation_active:
-			# Always log the event and modal keys for debugging
+			# Only update fast mode state if the event is a fast key or a modifier change
 			modal_keys = get_all_walk_modal_keys()
 			fast_keys = modal_keys.get("FAST_ENABLE", [])
+			is_fast_key_event = False
+			fast_now = self._fast_mode_applied if hasattr(self, '_fast_mode_applied') else False
 
-			# On TIMER events, check for modifier-based fast mode (Shift, Ctrl, Alt) only
+			# On TIMER events, check modifier state
 			if event.type == "TIMER":
 				modifier_fast = False
 				for key in fast_keys:
-					# Only consider pure modifier keys (no other modifiers required)
 					if key["type"] in {"LEFT_SHIFT", "RIGHT_SHIFT"} and key["ctrl"] in {-1, 0} and key["alt"] in {-1, 0} and key["shift"] in {-1, 0}:
 						if event.shift:
 							modifier_fast = True
@@ -211,29 +220,34 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 						if event.alt:
 							modifier_fast = True
 				fast_now = modifier_fast
+				is_fast_key_event = True  # TIMER is used to poll modifier state
 			else:
-				# For non-TIMER events, update non-modifier fast key state
-				non_modifier_keys = [key for key in fast_keys if key["type"] not in {"LEFT_SHIFT", "RIGHT_SHIFT", "LEFT_CTRL", "RIGHT_CTRL", "LEFT_ALT", "RIGHT_ALT"}]
-				for key in non_modifier_keys:
+				# For non-TIMER events, only react to fast key events
+				for key in fast_keys:
 					if event_matches_key(event, key):
+						is_fast_key_event = True
 						if event.value == "PRESS":
+							fast_now = True
 							self._fast_key_active = True
 							logger.log_debug(f"[DEBUG] Non-modifier fast key pressed: {key}")
 						elif event.value == "RELEASE":
+							fast_now = False
 							self._fast_key_active = False
 							logger.log_debug(f"[DEBUG] Non-modifier fast key released: {key}")
-				# For other keys or modifier fast mode, use event matching
-				fast_now = any(event_matches_key(event, key) for key in fast_keys)
+						break
 
 			if not hasattr(self, '_fast_mode_applied'):
 				self._fast_mode_applied = False
-			if self._focal_manager and self._focal_manager.is_transitioning:
-				pass
-			elif self._focal_manager and (fast_now != self._fast_mode_applied):
-				is_fast_exit = self._fast_mode_applied and not fast_now
-				logger.log_debug(f"[DEBUG] Triggering focal transition: fast_mode={fast_now}, fast_mode_exit={is_fast_exit}")
-				self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_now, fast_mode_exit=is_fast_exit)
-				self._fast_mode_applied = fast_now
+			# Only trigger transition if this is a fast key event or TIMER (modifier poll)
+			if (is_fast_key_event or (self._navigation_active and not self._initial_fast_mode_applied)):
+				# Prevent double-application of initial fast mode (for time==0)
+				if self._navigation_active and not self._initial_fast_mode_applied:
+					self._initial_fast_mode_applied = True
+				if self._focal_manager and (fast_now != self._fast_mode_applied):
+					is_fast_exit = self._fast_mode_applied and not fast_now
+					logger.log_debug(f"[DEBUG] Triggering focal transition: fast_mode={fast_now}, fast_mode_exit={is_fast_exit}")
+					self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_now, fast_mode_exit=is_fast_exit)
+					self._fast_mode_applied = fast_now
 
 		# Handle timer events
 		if event.type == "TIMER":
@@ -383,7 +397,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			return self._finish_operator(context)
 		return {"PASS_THROUGH"}
 
-	def _start_navigation(self, context, addon_prefs):
+	def _start_navigation(self, context, addon_prefs, force_fast_mode=None):
 		"""Start walk navigation mode."""
 		logger.log_debug("Starting navigation mode")
 		
@@ -392,6 +406,10 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			logger.log_debug("Camera navigation not allowed")
 			return False
 
+		# If force_fast_mode is not None, pass it to focal_manager
+		if force_fast_mode is not None and self._focal_manager and addon_prefs:
+			self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=force_fast_mode)
+			self._fast_mode_applied = force_fast_mode
 		success, restore_ortho = start_walk_navigation(context, self._focal_manager, addon_prefs)
 		if success:
 			self._restore_ortho = restore_ortho
@@ -498,6 +516,9 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		self._stored_view_location = None
 		self._stored_view_rotation = None
 		self._stored_view_distance = None
+		self._initial_fast_mode_applied = False
+		self._lock_fast_mode = False
+		self._locked_fast_mode_value = False
 
 	def _get_default_prefs(self):
 		"""Get default preferences when addon prefs are unavailable."""
