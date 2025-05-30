@@ -184,20 +184,17 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		if not addon_prefs:
 			logger.log_warning("Could not get addon preferences")
 			addon_prefs = self._get_default_prefs()        # Log event for debugging
-		instance_id = getattr(self, '_instance_id', 0)
+		"""instance_id = getattr(self, '_instance_id', 0)
 		logger.log_debug(f"Instance #{instance_id}: Event: {event.type}({event.value}) | "
 						f"waiting={self._waiting_for_input} | "
 						f"nav_active={self._navigation_active} | "
-						f"finished={self._finished}")
+						f"finished={self._finished}")"""
 
 		# Generalized walk modal key detection for all walk modal actions
 		if self._navigation_active:
 			# Always log the event and modal keys for debugging
 			modal_keys = get_all_walk_modal_keys()
 			fast_keys = modal_keys.get("FAST_ENABLE", [])
-			logger.log_debug(f"[DEBUG] FAST_ENABLE keys: {fast_keys}")
-			logger.log_debug(f"[DEBUG] Event: type={event.type}, value={event.value}, ctrl={event.ctrl}, alt={event.alt}, shift={event.shift}")
-			logger.log_debug(f"[DEBUG] modal_keys: {modal_keys}")
 
 			# On TIMER events, check for modifier-based fast mode (Shift, Ctrl, Alt) only
 			if event.type == "TIMER":
@@ -367,7 +364,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		"""Handle events while waiting for user input."""
 		# Check for navigation keys
 		if event.type in self.NAV_KEYS and event.value == "PRESS":
-			logger.log_info(f"Navigation key pressed: {event.type}")
+			logger.log_debug(f"Navigation key pressed: {event.type}")
 			if self._start_navigation(context, addon_prefs):
 				return {"RUNNING_MODAL"}
 			else:
@@ -375,12 +372,12 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 		# Check for right mouse button release
 		if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
-			logger.log_info("Right mouse button released while waiting")
+			logger.log_debug("Right mouse button released while waiting")
 			
 			# Quick release means call menu
 			if self._time_elapsed < addon_prefs.time:
 				self._call_menu = True
-				logger.log_info("Quick release detected, will call menu")
+				logger.log_debug("Quick release detected, will call menu")
 
 			self._finished = True
 			return self._finish_operator(context)
@@ -388,11 +385,11 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 	def _start_navigation(self, context, addon_prefs):
 		"""Start walk navigation mode."""
-		logger.log_info("Starting navigation mode")
+		logger.log_debug("Starting navigation mode")
 		
 		# Check camera navigation permissions
 		if not self._check_camera_navigation_allowed(context, addon_prefs):
-			logger.log_info("Camera navigation not allowed")
+			logger.log_debug("Camera navigation not allowed")
 			return False
 
 		success, restore_ortho = start_walk_navigation(context, self._focal_manager, addon_prefs)
@@ -414,24 +411,24 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		
 		if view_perspective == "CAMERA":
 			if not addon_prefs.enable_camera_navigation:
-				logger.log_info("Camera navigation disabled in preferences")
+				logger.log_debug("Camera navigation disabled in preferences")
 				return False
 			
 			if addon_prefs.camera_nav_only_if_locked and not context.space_data.lock_camera:
-				logger.log_info("Camera navigation requires locked camera")
+				logger.log_debug("Camera navigation requires locked camera")
 				return False
 
 		return True
 	def _finish_operator(self, context):
 		"""Perform final cleanup and finish the operator."""
 		instance_id = getattr(self, '_instance_id', 0)
-		logger.log_info(f"=== Finishing Operator (Instance #{instance_id}) ===")
+		logger.log_debug(f"=== Finishing Operator (Instance #{instance_id}) ===")
 		
 		# Remove timer
 		if self._timer:
 			try:
 				context.window_manager.event_timer_remove(self._timer)
-				logger.log_info(f"Instance #{instance_id}: Timer removed")
+				logger.log_debug(f"Instance #{instance_id}: Timer removed")
 			except Exception as e:
 				logger.log_warning(f"Instance #{instance_id}: Failed to remove timer: {e}")
 			self._timer = None
@@ -445,7 +442,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			if context.space_data.region_3d.view_perspective != 'ORTHO':
 				try:
 					bpy.ops.view3d.view_persportho()
-					logger.log_info(f"Instance #{instance_id}: Restored orthographic view")
+					logger.log_debug(f"Instance #{instance_id}: Restored orthographic view")
 				except Exception as e:
 					logger.log_warning(f"Instance #{instance_id}: Failed to restore ortho view: {e}")
 
@@ -453,25 +450,25 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		if self._focal_manager:
 			addon_prefs = get_addon_preferences(context) or self._get_default_prefs()
 			self._focal_manager.cleanup(context, addon_prefs)
-			logger.log_info(f"Instance #{instance_id}: Focal manager cleanup completed")
+			logger.log_debug(f"Instance #{instance_id}: Focal manager cleanup completed")
 
 		# Release global lock
 		FLYNAV_OT_right_mouse_navigation._global_instance_running = False
-		logger.log_info(f"Instance #{instance_id}: Global lock released")
+		logger.log_debug(f"Instance #{instance_id}: Global lock released")
 
 		# --- Queue system: If there are queued activations, start the next one ---
 		if FLYNAV_OT_right_mouse_navigation._activation_queue:
-			logger.log_info(f"Operator finished. Activations in queue: {len(FLYNAV_OT_right_mouse_navigation._activation_queue)}. Launching next queued activation.")
+			logger.log_debug(f"Operator finished. Activations in queue: {len(FLYNAV_OT_right_mouse_navigation._activation_queue)}. Launching next queued activation.")
 			# Pop the next activation and start a new operator instance
 			try:
 				queued_context, queued_type, queued_value = FLYNAV_OT_right_mouse_navigation._activation_queue.popleft()
 				# Use bpy.ops to invoke the operator again (simulate the input)
 				bpy.ops.flynav.right_mouse_navigation('INVOKE_DEFAULT')
-				logger.log_info("Queued activation started.")
+				logger.log_debug("Queued activation started.")
 			except Exception as e:
 				logger.log_error(f"Failed to start queued activation: {e}")
 
-		logger.log_info(f"=== Operator Finished (Instance #{instance_id}) ===")
+		logger.log_debug(f"=== Operator Finished (Instance #{instance_id}) ===")
 		return {"CANCELLED"}
 
 	def _show_context_menu(self, context):
@@ -481,7 +478,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		
 		try:
 			bpy.ops.wm.call_menu(name=menu_name)
-			logger.log_info(f"Called context menu: {menu_name}")
+			logger.log_debug(f"Called context menu: {menu_name}")
 		except Exception as e:
 			logger.log_error(f"Failed to call menu {menu_name}: {e}")
 
@@ -514,7 +511,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 	def cancel(self, context):
 		"""Handle operator cancellation."""
-		logger.log_info("Operator cancel called")
+		logger.log_debug("Operator cancel called")
 		
 		if self._focal_manager and context.space_data:
 			addon_prefs = get_addon_preferences(context) or self._get_default_prefs()
@@ -522,12 +519,12 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			# If in entry transition, force restore
 			if (self._focal_manager.is_transitioning and 
 				not self._focal_manager.is_exit_transition):
-				logger.log_info("Forcing restore during entry transition")
+				logger.log_debug("Forcing restore during entry transition")
 				self._focal_manager.force_restore_original(context, addon_prefs)
 			
 			# If navigation was active, start exit transition
 			elif self._navigation_active and not self._focal_manager.exit_transition_attempted:
-				logger.log_info("Starting exit transition from cancel")
+				logger.log_debug("Starting exit transition from cancel")
 				self._focal_manager.start_exit_transition(context, addon_prefs)
 
 	@classmethod
@@ -544,7 +541,7 @@ class FLYNAV_OT_simple_fly(Operator):
 
 	def execute(self, context):
 		"""Execute simple fly mode."""
-		logger.log_info("Simple fly mode activated")
+		logger.log_debug("Simple fly mode activated")
 		
 		# Get preferences if needed
 		try:
@@ -577,13 +574,13 @@ def register():
 	"""Register all operator classes."""
 	for cls in classes:
 		bpy.utils.register_class(cls)
-	logger.log_info("Operators registered")
+	logger.log_debug("Operators registered")
 
 def unregister():
 	"""Unregister all operator classes."""
 	for cls in reversed(classes):
 		bpy.utils.unregister_class(cls)
-	logger.log_info("Operators unregistered")
+	logger.log_debug("Operators unregistered")
 
 if __name__ == "__main__":
 	register()
