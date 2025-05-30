@@ -121,7 +121,7 @@ class FlyNavPreferences(AddonPreferences):
 	walk_mode_transition_duration: FloatProperty( # type: ignore
 		name="Transition Duration",
 		description="Duration of focal length transition in seconds (0 = instant)",
-		default=0.1,
+		default=0.15,
 		min=0.0,
 		max=1.0,
 		step=1,
@@ -132,7 +132,7 @@ class FlyNavPreferences(AddonPreferences):
 	walk_mode_fast_transition_duration: FloatProperty( # type: ignore
 		name="Transition Duration",
 		description="Duration of focal length transition when entering/exiting Fast mode (0 = instant)",
-		default=0.08,
+		default=0.2,
 		min=0.0,
 		max=1.0,
 		step=1,
