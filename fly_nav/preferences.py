@@ -21,14 +21,13 @@ def _update_keymaps_logic(self_prefs, context):
 	"""Requests keymap update when activation preferences change."""
 	logger.log_debug(f"_update_keymaps_logic called by: {self_prefs}", module_name="Preferences")
 	try:
-		# This assumes a keymaps.py module will be created in the fly_nav package
-		from . import keymaps 
-		logger.log_info("Triggering keymap reregistration.", module_name="Preferences")
+		from . import keymaps
+		logger.log_debug("Triggering keymap reregistration.", module_name="Preferences")
 		keymaps.unregister_keymaps()
 		keymaps.register_keymaps()
-		logger.log_info("Keymaps reregistered.", module_name="Preferences")
+		logger.log_debug("Keymaps reregistered.", module_name="Preferences")
 	except ImportError:
-		logger.log_info(
+		logger.log_debug(
 			"Keymap update skipped: 'fly_nav.keymaps' module or its functions not found. Please implement.",
 			module_name="Preferences"
 		)
@@ -232,6 +231,7 @@ class FlyNavPreferences(AddonPreferences):
 			"LEFT", "LEFT_STOP", "RIGHT", "RIGHT_STOP",
 			"UP", "UP_STOP", "DOWN", "DOWN_STOP",
 			"LOCAL_UP", "LOCAL_UP_STOP", "LOCAL_DOWN", "LOCAL_DOWN_STOP",
+			"FAST_ENABLE", "FAST_DISABLE", "SLOW_ENABLE", "SLOW_DISABLE",
 		]
 
 		active_kc = wm.keyconfigs.active
@@ -258,6 +258,9 @@ class FlyNavPreferences(AddonPreferences):
 					col.context_pointer_set("keymap", km_map)
 					rna_keymap_ui.draw_kmi([], active_kc, km_map, kmi_item, col, 0)
 					col.separator()
+
+		if self.walk_mode_focal_length_enable:
+			layout.label(text="Focal length offset (Fast Mode) only works with modifier keys (Shift, Ctrl, Alt). ", icon="ERROR")
 
 # --- Preference Storage (Updated) ---
 def get_addon_preferences(context): # Add context as a parameter
@@ -292,7 +295,7 @@ def store_preferences(context): # Add context
 		for prop_name in PREFERENCE_PROPERTIES:
 			if hasattr(prefs, prop_name):
 				stored_prefs_dict[prop_name] = getattr(prefs, prop_name)
-		logger.log_info(f"Stored preferences for {ADDON_PACKAGE_NAME}", module_name="Preferences")
+		logger.log_debug(f"Stored preferences for {ADDON_PACKAGE_NAME}", module_name="Preferences")
 	elif not prefs:
 		logger.log_warning("Could not store preferences: Preferences object not found.", module_name="Preferences")
 	elif 'fly_nav_stored_prefs' not in bpy.app.driver_namespace:
@@ -309,7 +312,7 @@ def restore_preferences(context): # Add context
 					setattr(prefs, prop_name, stored_prefs_dict[prop_name])
 				except TypeError as e:
 					logger.log_error(f"Error restoring preference '{prop_name}': {e}. Value: {stored_prefs_dict[prop_name]}", module_name="Preferences")
-		logger.log_info(f"Restored preferences for {ADDON_PACKAGE_NAME}", module_name="Preferences")
+		logger.log_debug(f"Restored preferences for {ADDON_PACKAGE_NAME}", module_name="Preferences")
 	elif not prefs:
 		logger.log_warning("Could not restore preferences: Preferences object not found.", module_name="Preferences")
 	elif 'fly_nav_stored__prefs' not in bpy.app.driver_namespace: # Typo fixed here

@@ -1,3 +1,4 @@
+from .keymaps import event_matches_key, get_all_walk_modal_keys
 import bpy # type: ignore
 from bpy.types import Operator # type: ignore
 from . import logger
@@ -18,7 +19,7 @@ def start_walk_navigation(context, focal_manager=None, addon_prefs=None):
 			success: True if navigation was started successfully
 			restore_ortho: True if orthographic view needs to be restored on exit
 	"""
-	logger.log_info("Starting walk navigation mode")
+	logger.log_debug("Starting walk navigation mode")
 	
 	restore_ortho = False
 	
@@ -39,11 +40,11 @@ def start_walk_navigation(context, focal_manager=None, addon_prefs=None):
 		region_3d = context.space_data.region_3d if context.space_data else None
 		if region_3d and not region_3d.is_perspective:
 			restore_ortho = addon_prefs.return_to_ortho_on_exit if addon_prefs else False
-			logger.log_info(f"In ortho view, restore_ortho={restore_ortho}")
+			logger.log_debug(f"In ortho view, restore_ortho={restore_ortho}")
 			
 		# Start Blender's walk mode
 		bpy.ops.view3d.walk('INVOKE_DEFAULT')
-		logger.log_info("Walk navigation started successfully")
+		logger.log_debug("Walk navigation started successfully")
 		
 		return True, restore_ortho
 		
@@ -57,6 +58,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 	bl_idname = "flynav.right_mouse_navigation"
 	bl_label = "Right Mouse Navigation"
 	bl_options = {"REGISTER", "UNDO"}
+	_fast_key_active = False  # Track non-modifier fast key state (instance var, but safe as class default)
 
 	# Global lock to prevent multiple instances
 	_global_instance_running = False
@@ -109,14 +111,14 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		FLYNAV_OT_right_mouse_navigation._global_instance_count += 1
 		current_instance_id = FLYNAV_OT_right_mouse_navigation._global_instance_count
 		
-		logger.log_info(f"=== FLYNAV Operator Invoked (Instance #{current_instance_id}) ===")
+		logger.log_debug(f"=== FLYNAV Operator Invoked (Instance #{current_instance_id}) ===")
 		
 		# --- Queue system: If another instance is running, buffer this activation ---
 		if FLYNAV_OT_right_mouse_navigation._global_instance_running:
 			# Only queue if not already at max size
 			if len(FLYNAV_OT_right_mouse_navigation._activation_queue) < FLYNAV_OT_right_mouse_navigation._MAX_QUEUE_SIZE:
 				FLYNAV_OT_right_mouse_navigation._activation_queue.append((context.copy(), event.type, event.value))
-				logger.log_info(f"Instance #{current_instance_id}: Operator busy, activation queued. Queue size: {len(FLYNAV_OT_right_mouse_navigation._activation_queue)}")
+				logger.log_debug(f"Instance #{current_instance_id}: Operator busy, activation queued. Queue size: {len(FLYNAV_OT_right_mouse_navigation._activation_queue)}")
 			else:
 				logger.log_warning(f"Instance #{current_instance_id}: Operator busy, queue full. Activation ignored.")
 			# Always cancel this invocation if another is running
@@ -124,7 +126,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 		# Set global lock
 		FLYNAV_OT_right_mouse_navigation._global_instance_running = True
-		logger.log_info(f"Instance #{current_instance_id}: Global lock acquired")
+		logger.log_debug(f"Instance #{current_instance_id}: Global lock acquired")
 
 		# Reset all state and initialize common members for this instance
 		self._reset_state()
@@ -136,9 +138,9 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		time_val = getattr(addon_prefs, 'time', 0.1)
 		
 		if time_val == 0:
-			logger.log_info(f"Instance #{self._instance_id}: time=0, attempting to start navigation immediately")
+			logger.log_debug(f"Instance #{self._instance_id}: time=0, attempting to start navigation immediately")
 			if self._start_navigation(context, addon_prefs):
-				logger.log_info(f"Instance #{self._instance_id}: Navigation started (time=0), proceeding to execute for modal operation.")
+				logger.log_debug(f"Instance #{self._instance_id}: Navigation started (time=0), proceeding to execute for modal operation.")
 				# self.execute() will set up the timer and add the modal handler.
 				# This is necessary for focal length transitions via the timer.
 				return self.execute(context)
@@ -150,7 +152,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 				return {'CANCELLED'}
 		else: # time_val > 0
 			# Standard behavior: execute will set up the timer to wait for timeout or nav key.
-			logger.log_info(f"Instance #{self._instance_id}: Operator initialized for time > 0 (timer will run). Mouse: {self._initial_mouse_pos}")
+			logger.log_debug(f"Instance #{self._instance_id}: Operator initialized for time > 0 (timer will run). Mouse: {self._initial_mouse_pos}")
 			return self.execute(context)
 
 	def execute(self, context):
@@ -167,7 +169,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		wm.modal_handler_add(self)
 		
 		instance_id = getattr(self, '_instance_id', 0)
-		logger.log_info(f"Instance #{instance_id}: Modal operator started with timer")
+		logger.log_debug(f"Instance #{instance_id}: Modal operator started with timer")
 		return {"RUNNING_MODAL"}
 
 	def modal(self, context, event):
@@ -188,33 +190,51 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 						f"nav_active={self._navigation_active} | "
 						f"finished={self._finished}")
 
-		# Poll fast mode (Shift) state during walk mode
-		if not hasattr(self, '_fast_mode_active'):
-			self._fast_mode_active = False
-		def poll_shift():
-			# Try to poll the shift key state from the window manager
-			try:
-				win = context.window
-				if win is not None:
-					# Use the window's event state if available
-					return win.event_state.shift
-			except Exception:
-				pass
-			# Fallback: try to use event.shift if available
-			return getattr(event, 'shift', False)
-
+		# Generalized walk modal key detection for all walk modal actions
 		if self._navigation_active:
-			fast_now = poll_shift()
-			# State machine: desired vs applied fast mode
+			# Always log the event and modal keys for debugging
+			modal_keys = get_all_walk_modal_keys()
+			fast_keys = modal_keys.get("FAST_ENABLE", [])
+			logger.log_debug(f"[DEBUG] FAST_ENABLE keys: {fast_keys}")
+			logger.log_debug(f"[DEBUG] Event: type={event.type}, value={event.value}, ctrl={event.ctrl}, alt={event.alt}, shift={event.shift}")
+			logger.log_debug(f"[DEBUG] modal_keys: {modal_keys}")
+
+			# On TIMER events, check for modifier-based fast mode (Shift, Ctrl, Alt) only
+			if event.type == "TIMER":
+				modifier_fast = False
+				for key in fast_keys:
+					# Only consider pure modifier keys (no other modifiers required)
+					if key["type"] in {"LEFT_SHIFT", "RIGHT_SHIFT"} and key["ctrl"] in {-1, 0} and key["alt"] in {-1, 0} and key["shift"] in {-1, 0}:
+						if event.shift:
+							modifier_fast = True
+					elif key["type"] in {"LEFT_CTRL", "RIGHT_CTRL"} and key["ctrl"] in {-1, 0} and key["alt"] in {-1, 0} and key["shift"] in {-1, 0}:
+						if event.ctrl:
+							modifier_fast = True
+					elif key["type"] in {"LEFT_ALT", "RIGHT_ALT"} and key["ctrl"] in {-1, 0} and key["alt"] in {-1, 0} and key["shift"] in {-1, 0}:
+						if event.alt:
+							modifier_fast = True
+				fast_now = modifier_fast
+			else:
+				# For non-TIMER events, update non-modifier fast key state
+				non_modifier_keys = [key for key in fast_keys if key["type"] not in {"LEFT_SHIFT", "RIGHT_SHIFT", "LEFT_CTRL", "RIGHT_CTRL", "LEFT_ALT", "RIGHT_ALT"}]
+				for key in non_modifier_keys:
+					if event_matches_key(event, key):
+						if event.value == "PRESS":
+							self._fast_key_active = True
+							logger.log_debug(f"[DEBUG] Non-modifier fast key pressed: {key}")
+						elif event.value == "RELEASE":
+							self._fast_key_active = False
+							logger.log_debug(f"[DEBUG] Non-modifier fast key released: {key}")
+				# For other keys or modifier fast mode, use event matching
+				fast_now = any(event_matches_key(event, key) for key in fast_keys)
+
 			if not hasattr(self, '_fast_mode_applied'):
 				self._fast_mode_applied = False
-			# If a transition is running, do nothing (wait for it to finish)
 			if self._focal_manager and self._focal_manager.is_transitioning:
 				pass
-			# If transition is not running and desired != applied, trigger transition
 			elif self._focal_manager and (fast_now != self._fast_mode_applied):
-				# Determine if this is a fast mode exit (was fast, now not fast)
 				is_fast_exit = self._fast_mode_applied and not fast_now
+				logger.log_debug(f"[DEBUG] Triggering focal transition: fast_mode={fast_now}, fast_mode_exit={is_fast_exit}")
 				self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_now, fast_mode_exit=is_fast_exit)
 				self._fast_mode_applied = fast_now
 
@@ -247,7 +267,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			transition_completed = self._focal_manager.update_transition(context)
 			
 			if transition_completed and self._finished:
-				logger.log_info("Exit transition completed, finishing operator")
+				logger.log_debug("Exit transition completed, finishing operator")
 				return self._finish_operator(context)
 
 		# Handle auto-navigation timeout
@@ -256,7 +276,7 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			addon_prefs.time > 0 and 
 			self._time_elapsed >= addon_prefs.time):
 			
-			logger.log_info("Auto-navigation timeout reached")
+			logger.log_debug("Auto-navigation timeout reached")
 			if self._start_navigation(context, addon_prefs):
 				return {"RUNNING_MODAL"}
 			else:
@@ -270,18 +290,18 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		
 		# If focal manager is still transitioning, wait for it
 		if self._focal_manager and self._focal_manager.is_transitioning:
-			logger.log_info("Waiting for focal transition to complete")
+			logger.log_debug("Waiting for focal transition to complete")
 			return {"PASS_THROUGH"}
 
 		# Try to start exit transition if not already done
 		if (self._focal_manager and 
 			not self._focal_manager.exit_transition_attempted and
 			self._focal_manager.start_exit_transition(context, addon_prefs)):
-			logger.log_info("Started exit transition")
+			logger.log_debug("Started exit transition")
 			return {"PASS_THROUGH"}
 
 		# No more transitions needed, finish now
-		logger.log_info("No more transitions, finishing operator")
+		logger.log_debug("No more transitions, finishing operator")
 		return self._finish_operator(context)
 
 	def _handle_navigation_events(self, context, event, addon_prefs):
@@ -296,22 +316,22 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 
 		# Special handling for right mouse button release - this stops navigation for both time=0 and time>0
 		if event.type == "RIGHTMOUSE" and event.value == "RELEASE":
-			logger.log_info(f"Instance #{instance_id}: Right mouse button released during navigation.")
+			logger.log_debug(f"Instance #{instance_id}: Right mouse button released during navigation.")
 			
 			# Context menu only for time > 0 and quick click
 			if time_val > 0 and self._time_elapsed < addon_prefs.time: # Using addon_prefs.time is fine here
 				self._call_menu = True
-				logger.log_info(f"Instance #{instance_id}: Quick RMB release (time_val > 0), scheduling context menu.")
+				logger.log_debug(f"Instance #{instance_id}: Quick RMB release (time_val > 0), scheduling context menu.")
 			
 			self._navigation_active = False # Stop our operator's sense of navigation
 			self._finished = True           # Mark operator as finishing
 
 			if self._focal_manager:
 				if self._focal_manager.interrupt_and_exit(context, addon_prefs):
-					logger.log_info(f"Instance #{instance_id}: Focal length exit transition started due to RMB release.")
+					logger.log_debug(f"Instance #{instance_id}: Focal length exit transition started due to RMB release.")
 					return {"PASS_THROUGH"} # Wait for transition to complete via timer
 				else:
-					logger.log_info(f"Instance #{instance_id}: No focal length exit transition needed for RMB release.")
+					logger.log_debug(f"Instance #{instance_id}: No focal length exit transition needed for RMB release.")
 			
 			# If no transition was started or needed, finish operator immediately
 			return self._finish_operator(context)
@@ -328,14 +348,14 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 			# should terminate our operator's navigation mode.
 			# Blender's walk modal will handle the event first (e.g., ESC closes walk modal).
 			# Our operator then recognizes this as the end of navigation.
-			logger.log_info(f"Instance #{instance_id}: time > 0, navigation ending due to event: {event.type}({event.value}).")
+			logger.log_debug(f"Instance #{instance_id}: time > 0, navigation ending due to event: {event.type}({event.value}).")
 			self._navigation_active = False
 			self._finished = True
 			
 			if self._focal_manager:
 				# interrupt_and_exit will start the exit transition if one hasn't started
 				self._focal_manager.interrupt_and_exit(context, addon_prefs)
-				logger.log_info(f"Instance #{instance_id}: Focal length exit transition initiated due to navigation ending (time > 0).")
+				logger.log_debug(f"Instance #{instance_id}: Focal length exit transition initiated due to navigation ending (time > 0).")
 			
 			# We return PASS_THROUGH here to:
 			# 1. Allow Blender's walk modal to process the event that ended it (e.g., ESC).

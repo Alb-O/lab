@@ -198,3 +198,73 @@ def _restore_walk_modal_keymaps():
 				key_item.active = True
 	except Exception as e:
 		log_error(f"Failed to restore walk modal keymaps: {e}")
+
+def get_walk_modal_keys(propvalue=None):
+    """
+    Return a list of keymap items (dicts) for the given walk modal propvalue, or all if None.
+    Each key is a dict with type, ctrl, alt, shift, value, and propvalue.
+    """
+    keys = []
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.active
+    if "View3D Walk Modal" in kc.keymaps:
+        walk_km = kc.keymaps["View3D Walk Modal"]
+        for kmi in walk_km.keymap_items:
+            if propvalue is None or getattr(kmi, "propvalue", None) == propvalue:
+                keys.append({
+                    "type": kmi.type,
+                    "ctrl": kmi.ctrl,
+                    "alt": kmi.alt,
+                    "shift": kmi.shift,
+                    "value": kmi.value,
+                    "propvalue": getattr(kmi, "propvalue", None),
+                })
+    return keys
+
+def get_all_walk_modal_keys():
+    """
+    Return a dict mapping each walk modal propvalue to a list of keymap item dicts.
+    { propvalue: [keymap_item_dict, ...], ... }
+    """
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.active
+    modal_map = {}
+    if "View3D Walk Modal" in kc.keymaps:
+        walk_km = kc.keymaps["View3D Walk Modal"]
+        for kmi in walk_km.keymap_items:
+            prop = getattr(kmi, "propvalue", None)
+            key = {
+                "type": kmi.type,
+                "ctrl": kmi.ctrl,
+                "alt": kmi.alt,
+                "shift": kmi.shift,
+                "value": kmi.value,
+                "propvalue": prop,
+            }
+            if prop not in modal_map:
+                modal_map[prop] = []
+            modal_map[prop].append(key)
+    return modal_map
+
+def event_matches_key(event, key):
+    """
+    Return True if the Blender event matches the keymap item dict.
+    """
+    return (
+        event.type == key["type"] and
+        event.ctrl == key["ctrl"] and
+        event.alt == key["alt"] and
+        event.shift == key["shift"] and
+        ("value" not in key or event.value == key["value"])
+    )
+
+def get_walk_modal_action_for_event(event):
+    """
+    Return the walk modal propvalue (action) for the given event, or None if not found.
+    """
+    modal_map = get_all_walk_modal_keys()
+    for propvalue, keys in modal_map.items():
+        for key in keys:
+            if event_matches_key(event, key):
+                return propvalue
+    return None

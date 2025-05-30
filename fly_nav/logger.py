@@ -3,7 +3,7 @@ import bpy # type: ignore
 
 # --- Configuration ---
 ADDON_PACKAGE_NAME = ""  # This will be set by fly_nav.__init__.py or root __init__.py
-LOG_LEVEL = logging.INFO  # Default log level, can be changed by preferences
+LOG_LEVEL = logging.DEBUG  # Default log level, can be changed by preferences
 # Prettier log format: [LEVEL | LOGGER_NAME] Message
 LOG_FORMAT = '[%(levelname)s | %(name)s] %(message)s'
 # Shorter date format, or remove if too verbose for console
@@ -52,17 +52,17 @@ def get_logger(name="fly_nav"):
 	# Prevent duplicate handlers if the function is called multiple times (e.g., during reloads for the same name)
 	if not logger.handlers:
 		logger.setLevel(LOG_LEVEL)
-		
 		# Console Handler
 		ch = logging.StreamHandler() # Outputs to stderr by default, which Blender shows in console
-		ch.setLevel(LOG_LEVEL)
-		
+		ch.setLevel(logging.DEBUG)  # Always allow DEBUG to pass through handler
 		# Formatter
 		formatter = ColoredFormatter(LOG_FORMAT, datefmt=DATE_FORMAT) # New Colored Formatter
 		ch.setFormatter(formatter)
-		
 		logger.addHandler(ch)
-		
+	# Always set logger and handler level to LOG_LEVEL (fixes dynamic level changes)
+	logger.setLevel(LOG_LEVEL)
+	for handler in logger.handlers:
+		handler.setLevel(LOG_LEVEL)
 	_loggers[name] = logger
 	return logger
 
@@ -127,7 +127,6 @@ def set_package_name(name):
 if __name__ == "__main__":
 	# Example Usage (won't have ADDON_PACKAGE_NAME set here initially)
 	set_package_name("fly_nav_ext.test_scope") # Simulate package name setting
-	set_log_level("DEBUG")
 
 	# Test default logger name (based on ADDON_PACKAGE_NAME's last part)
 	log_info("Info from base logger.") 
