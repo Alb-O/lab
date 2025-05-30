@@ -109,6 +109,16 @@ class FlyNavPreferences(AddonPreferences):
 		unit='CAMERA'
 	)
 
+	walk_mode_fast_offset: FloatProperty( # type: ignore
+		name="Focal Length",
+		description="Amount (in mm) to subtract from focal length in Fast mode (Shift key in walk modal).",
+		default=10.0,
+		min=0.0,
+		max=100.0,
+		subtype='UNSIGNED',
+		unit='CAMERA'
+	)
+
 	walk_mode_transition_duration: FloatProperty( # type: ignore
 		name="Transition Duration",
 		description="Duration of focal length transition in seconds (0 = instant)",
@@ -196,6 +206,9 @@ class FlyNavPreferences(AddonPreferences):
 		if self.walk_mode_focal_length_enable:
 			box_view.prop(self, "walk_mode_focal_length")
 			box_view.prop(self, "walk_mode_transition_duration")
+			# --- Fast Mode Negative Offset UI ---
+			box_view.label(text="Fast Mode Negative Offset:")
+			box_view.prop(self, "walk_mode_fast_offset")
 
 		# Keymap Customization for Walk Modal keys (from RMN)
 		nav_prop_values = [ # These are kmi.propvalue from the walk modal keymap items
@@ -249,6 +262,7 @@ PREFERENCE_PROPERTIES = [
 	'camera_nav_only_if_locked',
 	'walk_mode_focal_length_enable',
 	'walk_mode_focal_length',
+	'walk_mode_fast_offset',
 	'walk_mode_transition_duration',
 	'activation_method',
 ]

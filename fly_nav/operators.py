@@ -23,9 +23,17 @@ def start_walk_navigation(context, focal_manager=None, addon_prefs=None):
 	restore_ortho = False
 	
 	try:
+		# Detect if Fast mode (Shift) is active from context or pass as argument (default False)
+		fast_mode = False
+		# Try to detect if Shift is held in the event queue (if available)
+		if hasattr(context, 'window_manager') and hasattr(context.window_manager, 'events'):
+			for evt in context.window_manager.events:
+				if evt.type == 'LEFT_SHIFT' and evt.value in {'PRESS', 'CLICK_DRAG'}:
+					fast_mode = True
+					break
 		# Start focal length transition if focal manager is provided
 		if focal_manager and addon_prefs:
-			focal_manager.start_entry_transition(context, addon_prefs)
+			focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_mode)
 			
 		# Handle orthographic view
 		region_3d = context.space_data.region_3d if context.space_data else None
@@ -179,6 +187,34 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 						f"waiting={self._waiting_for_input} | "
 						f"nav_active={self._navigation_active} | "
 						f"finished={self._finished}")
+
+		# Poll fast mode (Shift) state during walk mode
+		if not hasattr(self, '_fast_mode_active'):
+			self._fast_mode_active = False
+		def poll_shift():
+			# Try to poll the shift key state from the window manager
+			try:
+				win = context.window
+				if win is not None:
+					# Use the window's event state if available
+					return win.event_state.shift
+			except Exception:
+				pass
+			# Fallback: try to use event.shift if available
+			return getattr(event, 'shift', False)
+
+		if self._navigation_active:
+			fast_now = poll_shift()
+			# State machine: desired vs applied fast mode
+			if not hasattr(self, '_fast_mode_applied'):
+				self._fast_mode_applied = False
+			# If a transition is running, do nothing (wait for it to finish)
+			if self._focal_manager and self._focal_manager.is_transitioning:
+				pass
+			# If transition is not running and desired != applied, trigger transition
+			elif self._focal_manager and (fast_now != self._fast_mode_applied):
+				self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_now)
+				self._fast_mode_applied = fast_now
 
 		# Handle timer events
 		if event.type == "TIMER":

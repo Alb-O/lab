@@ -50,7 +50,7 @@ class FocalLengthManager:
 		walk_focal_length = getattr(addon_prefs, "walk_mode_focal_length", 0)
 		return walk_focal_length_enable and walk_focal_length > 0
 	
-	def start_entry_transition(self, context, addon_prefs):
+	def start_entry_transition(self, context, addon_prefs, fast_mode=False):
 		fml_log("start_entry_transition: Called")
 		if self.is_transitioning:
 			fml_log("start_entry_transition: Already transitioning, returning.")
@@ -59,14 +59,17 @@ class FocalLengthManager:
 		if not self.should_change_focal_length(addon_prefs):
 			fml_log("start_entry_transition: Focal length change not enabled or not needed, returning.")
 			return
-		
+
 		import time
 		FocalLengthManager._last_activity_time = time.time()
-		
+
 		current_lens = context.space_data.lens
 		walk_focal_length = getattr(addon_prefs, "walk_mode_focal_length", 30.0)
-		fml_log(f"start_entry_transition: current_lens={current_lens}, walk_focal_length={walk_focal_length}")
-		
+		fast_offset = getattr(addon_prefs, "walk_mode_fast_offset", 0.0)
+		if fast_mode:
+			walk_focal_length = max(0.0, walk_focal_length - fast_offset)
+		fml_log(f"start_entry_transition: current_lens={current_lens}, walk_focal_length={walk_focal_length}, fast_mode={fast_mode}")
+
 		if not FocalLengthManager._global_walk_mode_session_active:
 			fml_log("start_entry_transition: New global walk mode session.")
 			if FocalLengthManager._global_true_original_lens is None:
@@ -87,10 +90,10 @@ class FocalLengthManager:
 
 		self.original_lens = self.true_original_lens # Instance's original for this transition session
 		fml_log(f"start_entry_transition: self.true_original_lens = {self.true_original_lens}")
-		
+
 		FocalLengthManager._global_walk_mode_session_active = True
 		fml_log("start_entry_transition: _global_walk_mode_session_active = True")
-		
+
 		self.walk_mode_ever_activated = True
 		self.exit_transition_attempted = False # Reset for new entry
 		if abs(current_lens - walk_focal_length) > 0.001:
@@ -99,7 +102,7 @@ class FocalLengthManager:
 			if transition_duration == 0:
 				context.space_data.lens = walk_focal_length
 				return
-			
+
 			self.transition_initial_lens = current_lens
 			self.transition_target_lens = walk_focal_length
 			self.is_transitioning = True
