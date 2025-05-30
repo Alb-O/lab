@@ -213,7 +213,9 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 				pass
 			# If transition is not running and desired != applied, trigger transition
 			elif self._focal_manager and (fast_now != self._fast_mode_applied):
-				self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_now)
+				# Determine if this is a fast mode exit (was fast, now not fast)
+				is_fast_exit = self._fast_mode_applied and not fast_now
+				self._focal_manager.start_entry_transition(context, addon_prefs, fast_mode=fast_now, fast_mode_exit=is_fast_exit)
 				self._fast_mode_applied = fast_now
 
 		# Handle timer events

@@ -1,12 +1,11 @@
-import bpy
-from bpy.props import (
+import bpy # type: ignore
+from bpy.props import ( # type: ignore
 	BoolProperty,
 	FloatProperty,
-	# StringProperty, # Not used in the final merged code
 	EnumProperty,
 )
-from bpy.types import AddonPreferences, Operator
-import rna_keymap_ui # Ensure it's imported for draw_kmi
+from bpy.types import AddonPreferences, Operator # type: ignore
+import rna_keymap_ui # Ensure it's imported for draw_kmi # type: ignore
 
 from . import logger # Import the logger
 
@@ -110,8 +109,8 @@ class FlyNavPreferences(AddonPreferences):
 	)
 
 	walk_mode_fast_offset: FloatProperty( # type: ignore
-		name="Focal Length",
-		description="Amount (in mm) to subtract from focal length in Fast mode (Shift key in walk modal).",
+		name="Focal Length (Negative Offset)",
+		description="Amount to subtract from focal length in Fast mode (Shift key in walk modal).",
 		default=10.0,
 		min=0.0,
 		max=100.0,
@@ -123,6 +122,17 @@ class FlyNavPreferences(AddonPreferences):
 		name="Transition Duration",
 		description="Duration of focal length transition in seconds (0 = instant)",
 		default=0.1,
+		min=0.0,
+		max=1.0,
+		step=1,
+		precision=2,
+		subtype='TIME'
+	)
+
+	walk_mode_fast_transition_duration: FloatProperty( # type: ignore
+		name="Transition Duration",
+		description="Duration of focal length transition when entering/exiting Fast mode (0 = instant)",
+		default=0.08,
 		min=0.0,
 		max=1.0,
 		step=1,
@@ -182,33 +192,39 @@ class FlyNavPreferences(AddonPreferences):
 				box_activation.label(text="Custom key item not found. Configure or re-select 'KEY'.", icon='ERROR')
 				box_activation.operator(FlyNavRefreshKeymapsOperator.bl_idname, text="Initialize/Refresh Custom Key", icon='FILE_REFRESH')
 
-		row_time_outer = layout.row()
-		box_timing = row_time_outer.box()
+		row2 = layout.row()
+
+		# Camera Navigation and Timing (left column)
+		col_left = row2.column()
+		# Menu / Movement Delay (RMB Only)
+		box_timing = col_left.box()
 		box_timing.label(text="Menu / Movement Delay (RMB Only)", icon="DRIVER_DISTANCE")
 		row_time_prop = box_timing.row()
 		row_time_prop.prop(self, "time")
 		row_time_prop.enabled = self.activation_method == 'RMB'
 		if self.activation_method != 'RMB':
 			box_timing.label(text="Delay not applicable for current activation method.")
-
-		row2 = layout.row()
-
-		box_camera = row2.box()
+		# Camera Navigation box
+		box_camera = col_left.box()
 		box_camera.label(text="Camera Navigation", icon="CAMERA_DATA")
 		box_camera.prop(self, "enable_camera_navigation")
 		if self.enable_camera_navigation:
 			box_camera.prop(self, "camera_nav_only_if_locked")
 
-		box_view = row2.box()
+		# View Settings box (right column)
+		col_right = row2.column()
+		box_view = col_right.box()
 		box_view.label(text="View Settings", icon="VIEW3D")
 		box_view.prop(self, "return_to_ortho_on_exit")
 		box_view.prop(self, "walk_mode_focal_length_enable")
+
 		if self.walk_mode_focal_length_enable:
 			box_view.prop(self, "walk_mode_focal_length")
 			box_view.prop(self, "walk_mode_transition_duration")
-			# --- Fast Mode Negative Offset UI ---
-			box_view.label(text="Fast Mode Negative Offset:")
+			# --- Fast Mode UI ---
+			box_view.label(text="Fast Mode")
 			box_view.prop(self, "walk_mode_fast_offset")
+			box_view.prop(self, "walk_mode_fast_transition_duration")
 
 		# Keymap Customization for Walk Modal keys (from RMN)
 		nav_prop_values = [ # These are kmi.propvalue from the walk modal keymap items
@@ -264,6 +280,7 @@ PREFERENCE_PROPERTIES = [
 	'walk_mode_focal_length',
 	'walk_mode_fast_offset',
 	'walk_mode_transition_duration',
+	'walk_mode_fast_transition_duration',
 	'activation_method',
 ]
 

@@ -50,7 +50,7 @@ class FocalLengthManager:
 		walk_focal_length = getattr(addon_prefs, "walk_mode_focal_length", 0)
 		return walk_focal_length_enable and walk_focal_length > 0
 	
-	def start_entry_transition(self, context, addon_prefs, fast_mode=False):
+	def start_entry_transition(self, context, addon_prefs, fast_mode=False, fast_mode_exit=False):
 		fml_log("start_entry_transition: Called")
 		if self.is_transitioning:
 			fml_log("start_entry_transition: Already transitioning, returning.")
@@ -66,9 +66,19 @@ class FocalLengthManager:
 		current_lens = context.space_data.lens
 		walk_focal_length = getattr(addon_prefs, "walk_mode_focal_length", 30.0)
 		fast_offset = getattr(addon_prefs, "walk_mode_fast_offset", 0.0)
+		# Track last fast mode state for exit transition logic
+		if not hasattr(self, '_last_fast_mode'):
+			self._last_fast_mode = False
+		# Choose transition duration based on fast mode and fast mode exit
 		if fast_mode:
 			walk_focal_length = max(0.0, walk_focal_length - fast_offset)
-		fml_log(f"start_entry_transition: current_lens={current_lens}, walk_focal_length={walk_focal_length}, fast_mode={fast_mode}")
+			transition_duration = getattr(addon_prefs, 'walk_mode_fast_transition_duration', 0.08) if addon_prefs else 0.08
+		elif fast_mode_exit:
+			transition_duration = getattr(addon_prefs, 'walk_mode_fast_transition_duration', 0.08) if addon_prefs else 0.08
+		else:
+			transition_duration = getattr(addon_prefs, 'walk_mode_transition_duration', 0.3) if addon_prefs else 0.3
+		fml_log(f"start_entry_transition: current_lens={current_lens}, walk_focal_length={walk_focal_length}, fast_mode={fast_mode}, fast_mode_exit={fast_mode_exit}, transition_duration={transition_duration}")
+		self._last_fast_mode = fast_mode
 
 		if not FocalLengthManager._global_walk_mode_session_active:
 			fml_log("start_entry_transition: New global walk mode session.")
@@ -98,7 +108,6 @@ class FocalLengthManager:
 		self.exit_transition_attempted = False # Reset for new entry
 		if abs(current_lens - walk_focal_length) > 0.001:
 			fml_log("start_entry_transition: Starting transition to walk_focal_length.")
-			transition_duration = getattr(addon_prefs, 'walk_mode_transition_duration', 0.3) if addon_prefs else 0.3
 			if transition_duration == 0:
 				context.space_data.lens = walk_focal_length
 				return
@@ -133,31 +142,39 @@ class FocalLengthManager:
 	def _start_exit_transition_internal(self, context, addon_prefs):
 		"""Internal method to start exit transition without transition checking."""
 		fml_log("_start_exit_transition_internal: Called")
-		
+
 		FocalLengthManager._last_activity_time = time.time()
-		
+
 		if self.exit_transition_attempted:
 			fml_log("_start_exit_transition_internal: Exit transition already attempted this session, returning False.")
 			return False
-			
+
 		self.exit_transition_attempted = True
-		
+
 		target_lens = self.true_original_lens if self.true_original_lens is not None else self.original_lens
 		fml_log(f"_start_exit_transition_internal: Determined target_lens={target_lens} (true_original_lens={self.true_original_lens}, original_lens={self.original_lens})")
-		
+
 		if not self.should_change_focal_length(addon_prefs) or target_lens is None:
 			fml_log("_start_exit_transition_internal: Conditions not met (change disabled or target_lens is None), returning False.")
 			return False
 		current_lens = context.space_data.lens
-		fml_log(f"_start_exit_transition_internal: current_lens={current_lens}")        
-		if abs(current_lens - target_lens) > 0.001:
-			fml_log("_start_exit_transition_internal: Starting transition to target_lens.")
+		fml_log(f"_start_exit_transition_internal: current_lens={current_lens}")
+		# Use fast transition duration if last state was fast mode, else normal
+		walk_focal_length = getattr(addon_prefs, "walk_mode_focal_length", 30.0)
+		fast_offset = getattr(addon_prefs, "walk_mode_fast_offset", 0.0)
+		if hasattr(self, '_last_fast_mode') and self._last_fast_mode:
+			transition_duration = getattr(addon_prefs, 'walk_mode_fast_transition_duration', 0.08) if addon_prefs else 0.08
+		else:
 			transition_duration = getattr(addon_prefs, 'walk_mode_transition_duration', 0.3) if addon_prefs else 0.3
+		self._last_fast_mode = False
+
+		if abs(current_lens - target_lens) > 0.001:
+			fml_log(f"_start_exit_transition_internal: Starting transition to target_lens. transition_duration={transition_duration}")
 			if transition_duration == 0:
 				context.space_data.lens = target_lens
 				self._cleanup_after_exit()
 				return False
-			
+
 			self.transition_initial_lens = current_lens
 			self.transition_target_lens = target_lens
 			self.is_transitioning = True
@@ -168,7 +185,7 @@ class FocalLengthManager:
 		else:
 			fml_log("_start_exit_transition_internal: Lens already at target, calling _cleanup_after_exit.")
 			self._cleanup_after_exit()
-		
+
 		return False
 	
 	def _cleanup_after_exit(self):
