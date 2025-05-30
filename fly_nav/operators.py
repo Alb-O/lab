@@ -3,6 +3,7 @@ from bpy.types import Operator # type: ignore
 from . import logger
 from .focal_length_manager import FocalLengthManager
 from .preferences import get_addon_preferences
+from collections import deque
 
 def start_walk_navigation(context, focal_manager=None, addon_prefs=None):
 	"""Utility function to start Blender's walk navigation mode.
@@ -53,6 +54,10 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 	_global_instance_running = False
 	_global_instance_count = 0
 
+	# --- Queue system for input buffering ---
+	_activation_queue = deque()
+	_MAX_QUEUE_SIZE = 4  # Limit to avoid runaway queue
+
 	# Class variables for state tracking
 	_timer = None
 	_time_elapsed = 0.0
@@ -98,20 +103,21 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		
 		logger.log_info(f"=== FLYNAV Operator Invoked (Instance #{current_instance_id}) ===")
 		
-		# Check if another instance is already running
+		# --- Queue system: If another instance is running, buffer this activation ---
 		if FLYNAV_OT_right_mouse_navigation._global_instance_running:
-			logger.log_warning(f"Instance #{current_instance_id}: Another operator instance is already running, cancelling")
-			# Ensure global state is cleaned up properly if previous instance failed
-			temp_manager = FocalLengthManager()
-			if temp_manager._should_clear_global_state(): # Assuming this method exists on FocalLengthManager
-				logger.log_info(f"Instance #{current_instance_id}: Cleaning up stale global state")
-				temp_manager.clear_global_state() # Assuming this method exists on FocalLengthManager
+			# Only queue if not already at max size
+			if len(FLYNAV_OT_right_mouse_navigation._activation_queue) < FLYNAV_OT_right_mouse_navigation._MAX_QUEUE_SIZE:
+				FLYNAV_OT_right_mouse_navigation._activation_queue.append((context.copy(), event.type, event.value))
+				logger.log_info(f"Instance #{current_instance_id}: Operator busy, activation queued. Queue size: {len(FLYNAV_OT_right_mouse_navigation._activation_queue)}")
+			else:
+				logger.log_warning(f"Instance #{current_instance_id}: Operator busy, queue full. Activation ignored.")
+			# Always cancel this invocation if another is running
 			return {"CANCELLED"}
-		
+
 		# Set global lock
 		FLYNAV_OT_right_mouse_navigation._global_instance_running = True
 		logger.log_info(f"Instance #{current_instance_id}: Global lock acquired")
-		
+
 		# Reset all state and initialize common members for this instance
 		self._reset_state()
 		self._initial_mouse_pos = (event.mouse_x, event.mouse_y)
@@ -394,6 +400,18 @@ class FLYNAV_OT_right_mouse_navigation(Operator):
 		# Release global lock
 		FLYNAV_OT_right_mouse_navigation._global_instance_running = False
 		logger.log_info(f"Instance #{instance_id}: Global lock released")
+
+		# --- Queue system: If there are queued activations, start the next one ---
+		if FLYNAV_OT_right_mouse_navigation._activation_queue:
+			logger.log_info(f"Operator finished. Activations in queue: {len(FLYNAV_OT_right_mouse_navigation._activation_queue)}. Launching next queued activation.")
+			# Pop the next activation and start a new operator instance
+			try:
+				queued_context, queued_type, queued_value = FLYNAV_OT_right_mouse_navigation._activation_queue.popleft()
+				# Use bpy.ops to invoke the operator again (simulate the input)
+				bpy.ops.flynav.right_mouse_navigation('INVOKE_DEFAULT')
+				logger.log_info("Queued activation started.")
+			except Exception as e:
+				logger.log_error(f"Failed to start queued activation: {e}")
 
 		logger.log_info(f"=== Operator Finished (Instance #{instance_id}) ===")
 		return {"CANCELLED"}
