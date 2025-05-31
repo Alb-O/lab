@@ -20,6 +20,14 @@ from .. import (
     log_debug,
     parse_primary_link
 )
+from ..utils.constants import HEADING_LEVEL_2, HEADING_LEVEL_3
+
+
+def _build_heading_section_break_regex() -> str:
+    """Build a regex pattern to match heading section breaks (## or ###)."""
+    h2_pattern = f"^{re.escape(HEADING_LEVEL_2.strip())}[^#]"
+    h3_pattern = f"^{re.escape(HEADING_LEVEL_3.strip())}[^#]"
+    return f"({h2_pattern}|{h3_pattern})"
 
 
 def _build_section_heading_regex(section_name: str) -> str:
@@ -33,6 +41,7 @@ def _build_section_heading_regex(section_name: str) -> str:
         A regex pattern that matches both "### Section Name" and "### [Section Name](<path>)"
     """
     escaped_name = re.escape(section_name)
+    heading_prefix = re.escape(HEADING_LEVEL_3.strip())
     
     # Build a specific pattern for markdown links that contain the exact section name
     # This ensures we match [Section Name](<path>) specifically, not just any markdown link
@@ -41,7 +50,7 @@ def _build_section_heading_regex(section_name: str) -> str:
     # Build a pattern that matches either:
     # 1. Plain heading: "### Section Name"
     # 2. Markdown link heading: "### [Section Name](<path>)"
-    pattern = rf"###\s+(?:{escaped_name}|{section_link_pattern})"
+    pattern = rf"{heading_prefix}\s+(?:{escaped_name}|{section_link_pattern})"
     
     return pattern
 
@@ -121,7 +130,6 @@ class SidecarParser:
                             }
                         except json.JSONDecodeError as e:
                             log_error(f"Failed to parse JSON for '{active_link_name}': {e}")
-                    
                     active_link_name = None
                     active_link_path = None
                 else:
@@ -135,7 +143,7 @@ class SidecarParser:
                     # Skip this JSON block as no link precedes it
                     self._skip_to_end_of_json_block(current_line_idx)
             
-            elif re.match(r"^(##[^#]|###[^#])", line_stripped):
+            elif re.match(_build_heading_section_break_regex(), line_stripped):
                 # Hit another section
                 break
             
@@ -157,7 +165,7 @@ class SidecarParser:
         while current_idx < len(self.lines):
             if self.lines[current_idx].strip() == "```":
                 return current_idx
-            if re.match(r"^(##[^#]|###[^#])", self.lines[current_idx].strip()):
+            if re.match(_build_heading_section_break_regex(), self.lines[current_idx].strip()):
                 return current_idx - 1
             current_idx += 1
         return current_idx
@@ -209,7 +217,7 @@ class SidecarParser:
                 parsing_json_block = True
                 json_accumulator = []
             
-            elif re.match(r"^(##[^#]|###[^#])", line_stripped):
+            elif re.match(_build_heading_section_break_regex(), line_stripped):
                 break
             
             current_line_idx += 1

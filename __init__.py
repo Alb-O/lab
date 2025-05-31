@@ -24,7 +24,6 @@ MODULES_TO_REGISTER = [
     'blend_vault.paste_path',  # Register paste-path smart clipboard functionality
 ]
 
-
 def register():
     package_name = __package__
 
@@ -51,6 +50,11 @@ def register():
     # --- Reload Submodules ---
     submodules_to_reload = [
         'blend_vault.sidecar_io.frontmatter',
+        'blend_vault.sidecar_io.writer',
+        'blend_vault.sidecar_io.collectors',
+        'blend_vault.sidecar_io.content_builder',
+        'blend_vault.sidecar_io.file_operations',
+        'blend_vault.sidecar_io.uuid_manager',
         'blend_vault.relink',
         'blend_vault.paste_path.core_operators',
         'blend_vault.paste_path.asset_discovery',
@@ -89,32 +93,37 @@ def register():
         except ImportError:
             log_info(f"Module {full_module_path} for registration not found or failed to import. Skipping.", module_name="Init")
         except Exception as e:
-            log_error(f"Failed to register module {full_module_path}: {e}", module_name="Init")
-
-    # --- Reload and Register Handlers ---
+            log_error(f"Failed to register module {full_module_path}: {e}", module_name="Init")    # --- Reload and Register Handlers ---
     for event, entries in HANDLERS.items():
         handler_list = getattr(bpy.app.handlers, event)
+        log_debug(f"Registering handlers for event '{event}', current count: {len(handler_list)}", module_name="Init")
         for module_path, fn_name in entries:
             try:
                 full_module_path = f"{package_name}.{module_path}"
+                log_debug(f"Attempting to import handler module: {full_module_path}", module_name="Init")
                 handler_module_obj = importlib.import_module(full_module_path)
                 if handler_module_obj:
+                    log_debug(f"Successfully imported {full_module_path}, reloading...", module_name="Init")
                     reloaded_handler_module = importlib.reload(handler_module_obj)
                     if hasattr(reloaded_handler_module, fn_name):
                         fn = getattr(reloaded_handler_module, fn_name)
                         globals()[fn_name] = fn  # Store reloaded function in globals for unregistration
                         if fn not in handler_list:
                             handler_list.append(fn)
+                            log_success(f"Successfully registered handler {fn_name} for event '{event}'", module_name="Init")
+                        else:
+                            log_warning(f"Handler {fn_name} already registered for event '{event}'", module_name="Init")
                     else:
                         log_error(f"Handler function {fn_name} not found in module {full_module_path}.", module_name="Init")
                 else:
                     log_warning(f"Handler module {full_module_path} resolved to None during import. Skipping handler registration.", module_name="Init")
-            except ImportError:
-                log_info(f"Handler module {full_module_path} not found or failed to import. Skipping handler.", module_name="Init")
+            except ImportError as e:
+                log_error(f"Handler module {full_module_path} import failed: {e}. Skipping handler.", module_name="Init")
             except Exception as e:
                 log_error(f"Failed to load/register handler {fn_name} from {full_module_path}: {e}", module_name="Init")
 
     log_success("Main addon functionalities registered.", module_name="Init")
+    debug_handler_status()  # Debug: Check handler registration
 
 
 def unregister():
@@ -186,6 +195,28 @@ def unregister():
             log_warning(f"Event type '{event}' not found in bpy.app.handlers during unregistration.", module_name="Init")
             
     log_warning("Main addon functionalities unregistered.", module_name="Init")
+
+
+def debug_handler_status():
+    """Debug function to check if handlers are properly registered."""
+    from . import log_info, log_warning
+    
+    save_post_handlers = bpy.app.handlers.save_post
+    log_info(f"Total save_post handlers registered: {len(save_post_handlers)}", module_name="Init")
+    
+    # Look for our handler specifically
+    write_library_info_found = False
+    for handler in save_post_handlers:
+        handler_name = getattr(handler, '__name__', 'unknown')
+        handler_module = getattr(handler, '__module__', 'unknown')
+        log_info(f"Handler: {handler_name} from module: {handler_module}", module_name="Init")
+        if handler_name == 'write_library_info':
+            write_library_info_found = True
+    
+    if write_library_info_found:
+        log_info("write_library_info handler is registered!", module_name="Init")
+    else:
+        log_warning("write_library_info handler NOT found in save_post handlers!", module_name="Init")
 
 
 if __name__ == "__main__":

@@ -7,26 +7,25 @@ import bpy  # type: ignore
 import os
 import re
 from typing import Dict, List, Tuple
-from .. import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link
+from .. import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link, log_error, log_warning, log_info
+from ..utils.constants import SIDECAR_CURRENT_FILE_HEADING, HEADING_LEVEL_3
 from .uuid_manager import read_sidecar_uuid
-from ..log import log_error, log_warning, log_info  # Import logging functions
 
 
 def _matches_current_file_heading(line: str) -> bool:
 	"""Check if a line matches the Current File section heading in any format."""
 	line_stripped = line.strip()
-	
 	# Check plain format
-	if line_stripped == "### Current File":
+	if line_stripped == f"{HEADING_LEVEL_3.strip()}{SIDECAR_CURRENT_FILE_HEADING}":
 		return True
 	
 	# Check markdown link format using the current MD_PRIMARY_FORMAT
-	if line_stripped.startswith("### "):
+	if line_stripped.startswith(HEADING_LEVEL_3):
 		# Use helper to format primary link and compare strings
-		expected = format_primary_link(path="", name="Current File").replace("[]|", "").strip()
+		expected = format_primary_link(path="", name=SIDECAR_CURRENT_FILE_HEADING).replace("[]|", "").strip()
 		# Fallback to regex match on text content
 		link_match = re.search(r"\[\[([^\]|]+)\|([^\]]+)\]\]", line_stripped[4:])
-		if link_match and link_match.group(1) == "Current File":
+		if link_match and link_match.group(1) == SIDECAR_CURRENT_FILE_HEADING:
 			return True
 	
 	return False

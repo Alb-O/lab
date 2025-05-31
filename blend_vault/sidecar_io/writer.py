@@ -21,9 +21,9 @@ def write_library_info(*args, **kwargs):
     
     log_info(f"Writing sidecar for: {blend_path}", module_name="SidecarWriter")
     
-    # Optional relink step
+    # Optional relink step\
     try:
-        from relink.asset_relinker import relink_renamed_assets
+        from ..relink.asset_relinker import relink_renamed_assets
         relink_renamed_assets()
     except Exception as e:
         log_error(f"Asset relink failed: {e}", module_name="SidecarWriter")
@@ -72,7 +72,6 @@ def write_library_info(*args, **kwargs):
                 break
         if uuids_resolved:
             break
-    
     # If UUIDs were resolved, rebuild and rewrite the main sidecar
     if uuids_resolved:
         updated_sidecar_content, _ = build_sidecar_content(
@@ -87,6 +86,3 @@ def write_library_info(*args, **kwargs):
             log_success(f"Main sidecar updated with resolved UUIDs", module_name="SidecarWriter")
         except Exception as e:
             log_error(f"Failed to update main sidecar: {e}", module_name="SidecarWriter")
-
-
-write_library_info.persistent = True
