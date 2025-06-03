@@ -41,8 +41,7 @@ export class BlenderBuildsRenderer {
 		
 		// Main content area
 		const contentEl = listItem.createEl('div', { cls: 'blender-build-content' });
-		
-		// First line: Version, Branch, Date
+				// First line: Version, Branch, Date, Hash
 		const mainLineEl = contentEl.createEl('div', { cls: 'blender-build-main-line' });
 		
 		// Version (more prominent)
@@ -59,6 +58,15 @@ export class BlenderBuildsRenderer {
 		});
 		setTooltip(branchEl, `Branch: ${build.branch}`);
 
+		// Build hash
+		if (build.buildHash) {
+			const hashEl = mainLineEl.createEl('span', { 
+				text: build.buildHash.substring(0, 8),
+				cls: 'blender-build-hash'
+			});
+			setTooltip(hashEl, `Build hash: ${build.buildHash}`);
+		}
+
 		// Date
 		const dateEl = mainLineEl.createEl('span', { 
 			text: build.commitTime.toLocaleDateString(),
@@ -66,17 +74,9 @@ export class BlenderBuildsRenderer {
 		});
 		setTooltip(dateEl, `Committed: ${build.commitTime.toLocaleString()}`);
 
-		// Second line: Build hash and filename
+		// Second line: Filename only
 		const detailsLineEl = contentEl.createEl('div', { cls: 'blender-build-details-line' });
 		
-		if (build.buildHash) {
-			const hashEl = detailsLineEl.createEl('span', { 
-				text: build.buildHash.substring(0, 8),
-				cls: 'blender-build-hash'
-			});
-			setTooltip(hashEl, `Build hash: ${build.buildHash}`);
-		}
-
 		// Filename
 		const filenameEl = detailsLineEl.createEl('span', { 
 			text: this.getFilenameFromUrl(build.link),
@@ -194,15 +194,21 @@ export class BlenderBuildsRenderer {
 		// TODO: Implement build info modal
 		console.log('Build info:', build);
 	}
-
 	/**
-	 * Extract filename from URL
+	 * Extract filename from URL (removes .zip extension since all builds are ZIP files)
 	 */
 	private getFilenameFromUrl(url: string): string {
 		try {
 			const urlObj = new URL(url);
 			const pathname = urlObj.pathname;
-			return pathname.split('/').pop() || 'unknown-file';
+			let filename = pathname.split('/').pop() || 'unknown-file';
+			
+			// Remove .zip extension since all Blender builds are ZIP files
+			if (filename.toLowerCase().endsWith('.zip')) {
+				filename = filename.slice(0, -4);
+			}
+			
+			return filename;
 		} catch {
 			return 'unknown-file';
 		}
