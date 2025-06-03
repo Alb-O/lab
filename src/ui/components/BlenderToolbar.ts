@@ -86,6 +86,22 @@ export class BlenderToolbar {
 	}
 
 	/**
+	 * Set refreshing state for the refresh button
+	 */
+	setRefreshingState(isRefreshing: boolean): void {
+		const refreshButton = this.buttons.get('refresh');
+		if (refreshButton) {
+			if (isRefreshing) {
+				refreshButton.setButtonText('Refreshing...');
+				refreshButton.setDisabled(true);
+			} else {
+				refreshButton.setButtonText('Refresh');
+				refreshButton.setDisabled(false);
+			}
+		}
+	}
+
+	/**
 	 * Toggle filter functionality (placeholder)
 	 */
 	private toggleFilter(): void {
