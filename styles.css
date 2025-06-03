@@ -77,8 +77,8 @@
 
 .blender-builds-list {
     list-style: none;
-    padding: 0;
-    margin: 0;
+    padding: var(--size-4-4);
+    margin-top: var(--size-4-2);
     overflow-y: auto;
     flex: 1;
 }

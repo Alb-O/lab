@@ -17,10 +17,16 @@ export class BlenderBuildsRenderer {
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 	}
+	
 	/**
 	 * Render builds list in container
 	 */
-	renderBuilds(container: HTMLElement, builds: BlenderBuildInfo[]): void {
+	renderBuilds(
+		container: HTMLElement, 
+		builds: BlenderBuildInfo[], 
+		searchFilter?: string, 
+		highlightFunction?: (needle: string, haystack: string) => string
+	): void {
 		container.empty();
 		
 		if (builds.length === 0) {
@@ -31,58 +37,75 @@ export class BlenderBuildsRenderer {
 		const buildsList = container.createEl('div', { cls: 'blender-builds-list' });
 		
 		builds.forEach((build, index) => {
-			this.createBuildItem(buildsList, build, index);
+			this.createBuildItem(buildsList, build, index, searchFilter, highlightFunction);
 		});
-	}	/**
+	}
+	
+	/**
 	 * Create a single build item - compact two-line design
 	 */
-	private createBuildItem(buildsList: HTMLElement, build: BlenderBuildInfo, index: number): void {
+	private createBuildItem(
+		buildsList: HTMLElement, 
+		build: BlenderBuildInfo, 
+		index: number,
+		searchFilter?: string,
+		highlightFunction?: (needle: string, haystack: string) => string
+	): void {
 		const listItem = buildsList.createEl('div', { cls: 'blender-build-item' });
 		
 		// Main content area
 		const contentEl = listItem.createEl('div', { cls: 'blender-build-content' });
 				// First line: Version, Branch, Date, Hash
 		const mainLineEl = contentEl.createEl('div', { cls: 'blender-build-main-line' });
-		
-		// Version (more prominent)
+				// Version (more prominent) - with highlighting
+		const versionText = searchFilter && highlightFunction ? 
+			highlightFunction(searchFilter, build.subversion) : build.subversion;
 		const versionEl = mainLineEl.createEl('span', { 
-			text: build.subversion,
 			cls: 'blender-build-version'
 		});
+		versionEl.innerHTML = versionText;
 		setTooltip(versionEl, `Version: ${build.subversion}`);
 
-		// Branch tag
+		// Branch tag - with highlighting
+		const branchText = searchFilter && highlightFunction ? 
+			highlightFunction(searchFilter, build.branch.toUpperCase()) : build.branch.toUpperCase();
 		const branchEl = mainLineEl.createEl('span', { 
-			text: build.branch.toUpperCase(),
 			cls: `blender-branch-tag branch-${build.branch.toLowerCase()}`
 		});
+		branchEl.innerHTML = branchText;
 		setTooltip(branchEl, `Branch: ${build.branch}`);
-
-		// Build hash
+		// Build hash - with highlighting
 		if (build.buildHash) {
+			const hashText = searchFilter && highlightFunction ? 
+				highlightFunction(searchFilter, build.buildHash.substring(0, 8)) : build.buildHash.substring(0, 8);
 			const hashEl = mainLineEl.createEl('span', { 
-				text: build.buildHash.substring(0, 8),
 				cls: 'blender-build-hash'
 			});
+			hashEl.innerHTML = hashText;
 			setTooltip(hashEl, `Build hash: ${build.buildHash}`);
 		}
 
-		// Date
+		// Date - with highlighting
+		const dateText = searchFilter && highlightFunction ? 
+			highlightFunction(searchFilter, build.commitTime.toLocaleDateString()) : build.commitTime.toLocaleDateString();
 		const dateEl = mainLineEl.createEl('span', { 
-			text: build.commitTime.toLocaleDateString(),
 			cls: 'blender-build-date'
 		});
+		dateEl.innerHTML = dateText;
 		setTooltip(dateEl, `Committed: ${build.commitTime.toLocaleString()}`);
 
 		// Second line: Filename only
 		const detailsLineEl = contentEl.createEl('div', { cls: 'blender-build-details-line' });
 		
-		// Filename
+		// Filename - with highlighting
+		const filename = this.getFilenameFromUrl(build.link);
+		const filenameText = searchFilter && highlightFunction ? 
+			highlightFunction(searchFilter, filename) : filename;
 		const filenameEl = detailsLineEl.createEl('span', { 
-			text: this.getFilenameFromUrl(build.link),
 			cls: 'blender-build-filename'
 		});
-		setTooltip(filenameEl, `File: ${this.getFilenameFromUrl(build.link)}`);
+		filenameEl.innerHTML = filenameText;
+		setTooltip(filenameEl, `File: ${filename}`);
 
 		// Add action buttons
 		const actionsEl = listItem.createEl('div', { cls: 'blender-build-actions' });
@@ -106,6 +129,7 @@ export class BlenderBuildsRenderer {
 			}
 		});
 	}
+
 	/**
 	 * Add action buttons for a build item
 	 */
@@ -151,29 +175,25 @@ export class BlenderBuildsRenderer {
 	}
 
 	/**
-	 * Render empty state using native Obsidian setting style
+	 * Render empty state when no builds are available
 	 */
 	private renderEmptyState(container: HTMLElement): void {
-		// Create a settings-style container
-		const settingItem = container.createEl('div', { cls: 'setting-item' });
+		const emptyState = container.createEl('div', { cls: 'blender-empty-state' });
 		
-		// Info section with title and description
-		const settingInfo = settingItem.createEl('div', { cls: 'setting-item-info' });
-		settingInfo.createEl('div', { 
-			text: 'Check for available Blender builds',
-			cls: 'setting-item-name'
-		});
-		settingInfo.createEl('div', { 
-			text: 'Refresh the available Blender builds from the official download servers.',
-			cls: 'setting-item-description'
+		const emptyIcon = emptyState.createEl('div', { 
+			cls: 'blender-empty-icon',
+			text: '📦' 
 		});
 		
-		// Control section with the refresh button
-		const settingControl = settingItem.createEl('div', { cls: 'setting-item-control' });
-		new ButtonComponent(settingControl)
-			.setButtonText('Refresh now')
-			.setClass('mod-cta')
-			.onClick(() => this.onRefresh());
+		const emptyMessage = emptyState.createEl('div', { 
+			cls: 'blender-empty-message',
+			text: 'No Blender builds found'
+		});
+		
+		const emptySubtext = emptyState.createEl('div', { 
+			cls: 'blender-empty-subtext',
+			text: 'Try refreshing or adjusting your filters'
+		});
 	}
 
 	/**
@@ -194,6 +214,7 @@ export class BlenderBuildsRenderer {
 		// TODO: Implement build info modal
 		console.log('Build info:', build);
 	}
+	
 	/**
 	 * Extract filename from URL (removes .zip extension since all builds are ZIP files)
 	 */
