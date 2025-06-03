@@ -1,18 +1,18 @@
 import { ButtonComponent } from 'obsidian';
-import { BlenderBuildManager } from '../../buildManager';
-import type BlenderBuildManagerPlugin from '../../main';
+import { FetchBlenderBuilds } from '../../buildManager';
+import type FetchBlenderBuildsPlugin from '../../main';
 
 export class BlenderToolbar {
-	private plugin: BlenderBuildManagerPlugin;
-	private buildManager: BlenderBuildManager;
+	private plugin: FetchBlenderBuildsPlugin;
+	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
 	private onShowSettings: () => void;
 	private containerEl: HTMLElement | null = null;
 	private buttons: Map<string, ButtonComponent> = new Map();
 
 	constructor(
-		plugin: BlenderBuildManagerPlugin, 
-		buildManager: BlenderBuildManager,
+		plugin: FetchBlenderBuildsPlugin, 
+		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void,
 		onShowSettings: () => void
 	) {

@@ -40,47 +40,6 @@ export interface ExtractionProgress {
 	status?: 'extracting' | 'completed' | 'error';
 }
 
-export interface BlenderPluginSettings {
-	libraryFolder: string;
-	scrapeStableBuilds: boolean;
-	scrapeAutomatedBuilds: boolean;
-	minimumBlenderVersion: string;
-	checkForBuildsOnStartup: boolean;
-	autoDownloadLatest: boolean;
-	showNotifications: boolean;
-	maxBuildsToKeep: number;
-	autoExtract: boolean;
-	cleanupArchives: boolean;
-	// Additional settings for the UI
-	refreshOnStartup: boolean;
-	enableStableBuilds: boolean;
-	enableDailyBuilds: boolean;
-	enableExperimentalBuilds: boolean;
-	preferredArchitecture: 'auto' | 'x64' | 'arm64';
-	maxConcurrentDownloads: number;
-	keepOldBuilds: boolean;
-}
-
-export const DEFAULT_SETTINGS: BlenderPluginSettings = {
-	libraryFolder: '.blender',
-	scrapeStableBuilds: true,
-	scrapeAutomatedBuilds: true,
-	minimumBlenderVersion: '3.0',
-	checkForBuildsOnStartup: true,
-	autoDownloadLatest: false,
-	showNotifications: true,
-	maxBuildsToKeep: 5,
-	autoExtract: true,
-	cleanupArchives: false,
-	refreshOnStartup: true,
-	enableStableBuilds: true,
-	enableDailyBuilds: true,
-	enableExperimentalBuilds: false,
-	preferredArchitecture: 'auto',
-	maxConcurrentDownloads: 2,
-	keepOldBuilds: true
-};
-
 export enum Platform {
 	Windows = 'Windows',
 	macOS = 'macOS',
@@ -97,6 +56,14 @@ export enum BuildType {
 	Daily = 'daily',
 	Experimental = 'experimental',
 	LTS = 'lts'
+}
+
+export interface ScrapingStatus {
+	isActive: boolean;
+	currentTask: string;
+	progress: number;
+	lastChecked?: Date;
+	error?: string;
 }
 
 export interface ScrapingStatus {

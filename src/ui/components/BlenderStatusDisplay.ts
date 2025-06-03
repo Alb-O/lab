@@ -1,11 +1,11 @@
-import { BlenderBuildManager } from '../../buildManager';
+import { FetchBlenderBuilds } from '../../buildManager';
 import { ScrapingStatus, DownloadProgress } from '../../types';
 
 export class BlenderStatusDisplay {
-	private buildManager: BlenderBuildManager;
+	private buildManager: FetchBlenderBuilds;
 	private statusEl: HTMLElement | null = null;
 
-	constructor(buildManager: BlenderBuildManager) {
+	constructor(buildManager: FetchBlenderBuilds) {
 		this.buildManager = buildManager;
 	}
 
