@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"id": "fetch-blender-builds",
+	"name": "Fetch Blender Builds",
+	"version": "0.0.1",
+	"minAppVersion": "1.18.10",
+	"description": "Download and manage Blender builds (stable, daily, experimental) directly within your Obsidian vault.",
+	"author": "Albert O'Shea",
+	"authorUrl": "",
+	"isDesktopOnly": true
 }
