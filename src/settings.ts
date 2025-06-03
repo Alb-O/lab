@@ -6,7 +6,6 @@ export interface BlenderPluginSettings {
 	scrapeStableBuilds: boolean;
 	scrapeAutomatedBuilds: boolean;
 	minimumBlenderVersion: string;
-	checkForBuildsOnStartup: boolean;
 	autoDownloadLatest: boolean;
 	showNotifications: boolean;
 	maxBuildsToKeep: number;
@@ -27,7 +26,6 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	scrapeStableBuilds: true,
 	scrapeAutomatedBuilds: true,
 	minimumBlenderVersion: '3.0',
-	checkForBuildsOnStartup: true,
 	autoDownloadLatest: false,
 	showNotifications: true,
 	maxBuildsToKeep: 5,
