@@ -1,4 +1,5 @@
-import { BlenderBuildInfo, BlenderPluginSettings, DEFAULT_SETTINGS, DownloadProgress, ExtractionProgress, ScrapingStatus } from './types';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus } from './types';
+import { BlenderPluginSettings, DEFAULT_SETTINGS } from './settings';
 import { BlenderScraper } from './scraper';
 import { BlenderDownloader } from './downloader';
 import { Notice, TFile, TFolder } from 'obsidian';
@@ -6,7 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
 
-export class BlenderBuildManager extends EventEmitter {
+export class FetchBlenderBuilds extends EventEmitter {
 	private scraper: BlenderScraper;
 	private downloader: BlenderDownloader;
 	private settings: BlenderPluginSettings;

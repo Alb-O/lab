@@ -1,16 +1,16 @@
 import { ButtonComponent, setTooltip } from 'obsidian';
 import { BlenderBuildInfo } from '../../types';
-import { BlenderBuildManager } from '../../buildManager';
-import type BlenderBuildManagerPlugin from '../../main';
+import { FetchBlenderBuilds } from '../../buildManager';
+import type FetchBlenderBuildsPlugin from '../../main';
 
 export class BlenderBuildsRenderer {
-	private plugin: BlenderBuildManagerPlugin;
-	private buildManager: BlenderBuildManager;
+	private plugin: FetchBlenderBuildsPlugin;
+	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
 
 	constructor(
-		plugin: BlenderBuildManagerPlugin,
-		buildManager: BlenderBuildManager,
+		plugin: FetchBlenderBuildsPlugin,
+		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void
 	) {
 		this.plugin = plugin;

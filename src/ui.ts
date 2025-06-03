@@ -1,15 +1,16 @@
-import { BlenderBuildInfo, BlenderPluginSettings, DownloadProgress, ExtractionProgress, ScrapingStatus } from './types';
-import { BlenderBuildManager } from './buildManager';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus } from './types';
+import { BlenderPluginSettings } from './settings';
+import { FetchBlenderBuilds } from './buildManager';
 import { Modal, App, Setting, Notice, ButtonComponent, ProgressBarComponent } from 'obsidian';
 
 export class BlenderBuildsModal extends Modal {
-	private buildManager: BlenderBuildManager;
+	private buildManager: FetchBlenderBuilds;
 	private builds: BlenderBuildInfo[] = [];
 	private filteredBuilds: BlenderBuildInfo[] = [];
 	private currentFilter: string = '';
 	private currentBranch: string = 'all';
 
-	constructor(app: App, buildManager: BlenderBuildManager) {
+	constructor(app: App, buildManager: FetchBlenderBuilds) {
 		super(app);
 		this.buildManager = buildManager;
 		this.builds = buildManager.getCachedBuilds();
