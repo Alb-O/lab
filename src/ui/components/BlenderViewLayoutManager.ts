@@ -7,10 +7,10 @@ import { BlenderToolbar } from '.';
 export class BlenderViewLayoutManager {
 	private containerEl: HTMLElement;
 	private isInitialized = false;
-	
 	// UI Elements with persistent references
 	private toolbarContainer: HTMLElement | null = null;
 	private statusContainer: HTMLElement | null = null;
+	private filterContainer: HTMLElement | null = null;
 	private contentArea: HTMLElement | null = null;
 
 	constructor(containerEl: HTMLElement) {
@@ -24,10 +24,10 @@ export class BlenderViewLayoutManager {
 		
 		this.containerEl.empty();
 		this.containerEl.addClass('blender-view-container');
-		
-		// Create persistent container structure with proper CSS classes
+				// Create persistent container structure with proper CSS classes
 		this.toolbarContainer = this.containerEl.createEl('div', { cls: 'nav-header' });
 		this.statusContainer = this.containerEl.createEl('div', { cls: 'blender-status-display' });
+		this.filterContainer = this.containerEl.createEl('div', { cls: 'blender-filter-container' });
 		this.contentArea = this.containerEl.createEl('div', { cls: 'blender-content-area' });
 		
 		this.isInitialized = true;
@@ -51,6 +51,14 @@ export class BlenderViewLayoutManager {
 			this.statusContainer.empty();
 		}
 	}
+	/**
+	 * Clear the filter container
+	 */
+	clearFilterContainer(): void {
+		if (this.filterContainer) {
+			this.filterContainer.empty();
+		}
+	}
 
 	/**
 	 * Clear the content area
@@ -60,14 +68,13 @@ export class BlenderViewLayoutManager {
 			this.contentArea.empty();
 		}
 	}
-
 	// Getters for UI elements
 	getToolbarContainer(): HTMLElement | null { return this.toolbarContainer; }
 	getStatusContainer(): HTMLElement | null { return this.statusContainer; }
+	getFilterContainer(): HTMLElement | null { return this.filterContainer; }
 	getContentArea(): HTMLElement | null { return this.contentArea; }
 	
 	isLayoutInitialized(): boolean { return this.isInitialized; }
-
 	/**
 	 * Reset layout state
 	 */
@@ -75,6 +82,7 @@ export class BlenderViewLayoutManager {
 		this.isInitialized = false;
 		this.toolbarContainer = null;
 		this.statusContainer = null;
+		this.filterContainer = null;
 		this.contentArea = null;
 	}
 }

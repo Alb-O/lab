@@ -1,4 +1,4 @@
-import { BlenderBuildInfo } from '../../types';
+import { BlenderBuildInfo, BuildType } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
 import type FetchBlenderBuildsPlugin from '../../main';
 import { 
@@ -23,13 +23,14 @@ export class BlenderViewRenderer {
 	private toolbar: BlenderToolbar;
 	private statusDisplay: BlenderStatusDisplay;
 	private buildsRenderer: BlenderBuildsRenderer;
-	
-	// State handling
+		// State handling
 	private isInitialized = false;
 	private isRefreshing = false;
 	private cachedBuilds: BlenderBuildInfo[] = [];
 	private currentFilter: string = '';
 	private currentBranch: string = 'all';
+	private currentBuildType: BuildType | 'all' = 'all';
+	private isTypeFilterVisible = false;
 
 	constructor(
 		plugin: FetchBlenderBuildsPlugin,
@@ -41,12 +42,13 @@ export class BlenderViewRenderer {
 		
 		// Initialize layout manager
 		this.layoutManager = new BlenderViewLayoutManager(containerEl);
-				// Initialize component instances
+		// Initialize component instances
 		this.toolbar = new BlenderToolbar(
 			this.plugin,
 			buildManager,
 			() => this.refreshBuilds(),
-			() => this.showSettings()
+			() => this.showSettings(),
+			() => this.toggleTypeFilter()
 		);
 		
 		this.statusDisplay = new BlenderStatusDisplay(buildManager);
@@ -72,7 +74,6 @@ export class BlenderViewRenderer {
 		// Initial render
 		this.render();
 	}
-
 	/**
 	 * Main render method - coordinates all components
 	 */
@@ -84,13 +85,15 @@ export class BlenderViewRenderer {
 		// Update toolbar
 		this.updateToolbar();
 		
+		// Update filter section
+		this.updateFilterSection();
+		
 		// Update status display
 		this.updateStatusDisplay();
 		
 		// Update builds content
 		await this.updateBuildsContent();
 	}
-
 	/**
 	 * Update toolbar section only
 	 */
@@ -98,6 +101,16 @@ export class BlenderViewRenderer {
 		const toolbarContainer = this.layoutManager.getToolbarContainer();
 		if (toolbarContainer) {
 			this.toolbar.render(toolbarContainer);
+			this.toolbar.setButtonActive('filter', this.isTypeFilterVisible);
+		}
+	}
+	/**
+	 * Update filter section only
+	 */
+	private updateFilterSection(): void {
+		const filterContainer = this.layoutManager.getFilterContainer();
+		if (filterContainer) {
+			this.renderTypeFilterDropdown(filterContainer);
 		}
 	}
 
@@ -109,9 +122,7 @@ export class BlenderViewRenderer {
 		if (statusContainer) {
 			this.statusDisplay.render(statusContainer);
 		}
-	}
-
-	/**
+	}	/**
 	 * Update builds content section only
 	 */
 	private async updateBuildsContent(): Promise<void> {
@@ -127,7 +138,55 @@ export class BlenderViewRenderer {
 		// Render builds
 		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds);
 	}
-
+	/**
+	 * Render the type filter dropdown
+	 */
+	private renderTypeFilterDropdown(filterContainer: HTMLElement): void {
+		// Clear existing content
+		filterContainer.empty();
+		
+		if (!this.isTypeFilterVisible) {
+			return;
+		}
+		
+		// Create dropdown container
+		const dropdownContainer = filterContainer.createEl('div', { cls: 'blender-type-filter-dropdown' });
+		
+		// Create label
+		dropdownContainer.createEl('label', { 
+			text: 'Filter by build type:', 
+			cls: 'blender-filter-label' 
+		});
+		
+		// Create the dropdown
+		const select = dropdownContainer.createEl('select', { cls: 'dropdown' });
+		
+		// Add options
+		const options = [
+			{ value: 'all', text: 'All Types' },
+			{ value: BuildType.Stable, text: 'Stable' },
+			{ value: BuildType.Daily, text: 'Daily' },
+			{ value: BuildType.LTS, text: 'LTS' },
+			{ value: BuildType.Experimental, text: 'Experimental' }
+		];
+		
+		options.forEach(option => {
+			const optionEl = select.createEl('option', { 
+				value: option.value,
+				text: option.text
+			});
+			if (option.value === this.currentBuildType) {
+				optionEl.selected = true;
+			}
+		});
+		
+		// Add change handler
+		select.addEventListener('change', (e) => {
+			const target = e.target as HTMLSelectElement;
+			this.currentBuildType = target.value as BuildType | 'all';
+			this.updateBuildsContent();
+		});
+	}
 	/**
 	 * Filter builds based on current filter criteria
 	 */
@@ -139,9 +198,37 @@ export class BlenderViewRenderer {
 				(build.buildHash && build.buildHash.toLowerCase().includes(this.currentFilter.toLowerCase()));
 
 			const matchesBranch = this.currentBranch === 'all' || build.branch === this.currentBranch;
+			
+			const matchesBuildType = this.currentBuildType === 'all' || this.getBuildType(build) === this.currentBuildType;
 
-			return matchesSearch && matchesBranch;
+			return matchesSearch && matchesBranch && matchesBuildType;
 		});
+	}
+
+	/**
+	 * Determine build type from build info
+	 */
+	private getBuildType(build: BlenderBuildInfo): BuildType {
+		const version = build.subversion.toLowerCase();
+		const branch = build.branch.toLowerCase();
+		
+		// Check for stable releases (e.g., "4.2.0", "3.6.5")
+		if (/^\d+\.\d+\.\d+$/.test(version) && !version.includes('alpha') && !version.includes('beta') && !version.includes('rc')) {
+			return BuildType.Stable;
+		}
+		
+		// Check for LTS releases
+		if (version.includes('lts') || branch.includes('lts')) {
+			return BuildType.LTS;
+		}
+		
+		// Check for experimental builds
+		if (branch.includes('experimental') || version.includes('experimental')) {
+			return BuildType.Experimental;
+		}
+		
+		// Default to daily builds for everything else
+		return BuildType.Daily;
 	}
 
 	/**
@@ -169,7 +256,6 @@ export class BlenderViewRenderer {
 			this.toolbar.setRefreshingState(false);
 		}
 	}
-
 	/**
 	 * Show settings (placeholder for future implementation)
 	 */
@@ -178,6 +264,14 @@ export class BlenderViewRenderer {
 		// For now, we'll just trigger the existing command
 		// @ts-ignore - Using app's internal command system
 		this.plugin.app.commands.executeCommandById('app:open-settings');
+	}
+	/**
+	 * Toggle type filter dropdown visibility
+	 */
+	private toggleTypeFilter(): void {
+		this.isTypeFilterVisible = !this.isTypeFilterVisible;
+		this.updateToolbar();
+		this.updateFilterSection();
 	}
 
 	/**
@@ -245,14 +339,23 @@ export class BlenderViewRenderer {
 		this.currentBranch = branch;
 		this.updateBuildsContent();
 	}
+	/**
+	 * Set build type filter
+	 */
+	setBuildTypeFilter(buildType: BuildType | 'all'): void {
+		this.currentBuildType = buildType;
+		this.updateBuildsContent();
+	}
 
 	/**
 	 * Get current filter state
 	 */
-	getFilterState(): { filter: string; branch: string } {
+	getFilterState(): { filter: string; branch: string; buildType: BuildType | 'all'; typeFilterVisible: boolean } {
 		return {
 			filter: this.currentFilter,
-			branch: this.currentBranch
+			branch: this.currentBranch,
+			buildType: this.currentBuildType,
+			typeFilterVisible: this.isTypeFilterVisible
 		};
 	}
 

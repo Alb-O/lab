@@ -7,6 +7,7 @@ export class BlenderToolbar {
 	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
 	private onShowSettings: () => void;
+	private onToggleFilter: () => void;
 	private containerEl: HTMLElement | null = null;
 	private buttons: Map<string, ButtonComponent> = new Map();
 
@@ -14,12 +15,14 @@ export class BlenderToolbar {
 		plugin: FetchBlenderBuildsPlugin, 
 		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void,
-		onShowSettings: () => void
+		onShowSettings: () => void,
+		onToggleFilter: () => void
 	) {
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 		this.onShowSettings = onShowSettings;
+		this.onToggleFilter = onToggleFilter;
 	}
 	render(container: HTMLElement): void {
 		container.empty();
@@ -97,13 +100,11 @@ export class BlenderToolbar {
 			}
 		}
 	}
-
 	/**
 	 * Toggle filter functionality (placeholder)
 	 */
 	private toggleFilter(): void {
-		// TODO: Implement filter toggle
-		this.setButtonActive('filter', !this.isButtonActive('filter'));
+		this.onToggleFilter();
 	}
 
 	/**
