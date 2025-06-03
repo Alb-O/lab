@@ -27,10 +27,11 @@ export class BlenderBuildsView extends ItemView {
 
 	getIcon(): string {
 		return 'download';
-	}
-
-	async onOpen() {
+	}	async onOpen() {
 		this.initializeView();
+		
+		// Wait for cached builds to be loaded
+		await this.buildManager.waitForCacheLoading();
 		
 		// Initial render
 		await this.viewRenderer.render();

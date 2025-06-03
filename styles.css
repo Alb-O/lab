@@ -1,8 +1,468 @@
-/*
+/* Blender Builds Plugin - Modern Obsidian UI Styles */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Main container and smooth transitions */
+.blender-view-container {
+    transition: opacity 0.15s ease-in-out;
+    min-height: 100px; /* Prevents layout shifts */
+}
 
-If your plugin does not need CSS, delete this file.
+.blender-view-container.loading {
+    opacity: 0.7;
+}
 
-*/
+.blender-cached-content {
+    opacity: 0.9;
+}
+
+/* Status display styles */
+.blender-status-display {
+    font-size: var(--font-ui-small);
+    padding-left: var(--size-4-4);
+    padding-right: var(--size-4-4);
+}
+
+.blender-status-line {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+}
+
+.blender-status-icon {
+    display: inline-block;
+    width: 1.2em;
+    text-align: center;
+    margin-right: 0.7em;
+}
+
+.blender-status-label {
+    display: inline-block;
+}
+
+.blender-status-indicator {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-weight-medium);
+    padding: var(--size-2-1) var(--size-4-2);
+    border-radius: var(--radius-s);
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+}
+
+/* Status states */
+.blender-status-clean {
+    color: var(--text-success);
+}
+
+.blender-status-refreshing {
+    color: var(--text-warning);
+}
+
+.blender-status-error {
+    color: var(--text-error);
+}
+
+.blender-status-loading {
+    color: var(--text-muted);
+}
+
+/* Builds list styles */
+.blender-builds-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.blender-build-item {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--background-modifier-border-hover);
+    padding: var(--size-4-2);
+    gap: var(--size-4-2);
+    position: relative;
+}
+
+.blender-build-item:hover {
+    background: var(--background-modifier-hover);
+    border-radius: var(--radius-s);
+}
+
+.blender-build-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    min-width: 0;
+}
+
+.blender-build-version {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-normal);
+    gap: var(--size-2-1);
+}
+
+.blender-version-text {
+    font-weight: var(--font-weight-semibold);
+}
+
+.blender-build-hash {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    background: var(--background-modifier-border);
+    padding: 1px var(--size-2-2);
+    border-radius: var(--radius-s);
+    align-self: flex-start;
+}
+
+.blender-build-branch {
+    display: flex;
+    align-items: center;
+    min-width: 80px;
+}
+
+.blender-branch-tag {
+    font-size: var(--font-ui-smaller);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-on-accent);
+    background: var(--interactive-accent);
+    padding: 1px var(--size-2-2);
+    margin: 1px var(--size-4-2);
+    border-radius: var(--radius-s);
+}
+
+/* Branch-specific colors */
+.blender-branch-tag.branch-main,
+.blender-branch-tag.branch-master {
+    background: var(--color-accent);
+}
+
+.blender-branch-tag.branch-lts {
+    background: var(--color-green);
+}
+
+.blender-branch-tag.branch-alpha,
+.blender-branch-tag.branch-beta {
+    background: var(--color-orange);
+}
+
+.blender-branch-tag.branch-experimental {
+    background: var(--color-purple);
+}
+
+.blender-build-date {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    white-space: nowrap;
+    gap: var(--size-2-1);
+    margin: 1px var(--size-4-2);
+}
+
+.blender-date-text {
+    font-weight: var(--font-weight-medium);
+}
+
+.blender-time-text {
+    opacity: 0.8;
+}
+
+.blender-build-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--size-2-1);
+    flex-shrink: 0;
+    padding-left: var(--size-4-2);
+}
+
+/* Toolbar styles */
+.blender-toolbar {
+    padding: var(--size-4-2);
+}
+
+.blender-toolbar-buttons {
+    display: flex;
+    gap: var(--size-2-1);
+}
+
+.blender-toolbar .clickable-icon:disabled {
+    color: var(--text-faint);
+    pointer-events: none;
+}
+
+/* Loading state for refresh button */
+.blender-toolbar .clickable-icon.is-loading {
+    animation: spin 1s linear infinite;
+    opacity: 0.7;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Filters section */
+.blender-filters {
+    padding: var(--size-4-2);
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    display: flex;
+    gap: var(--size-4-3);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.blender-filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+}
+
+.blender-filter-group label {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-normal);
+    white-space: nowrap;
+}
+
+.blender-filter-group input,
+.blender-filter-group select {
+    padding: var(--size-2-1) var(--size-2-3);
+    border-radius: var(--radius-s);
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+}
+
+.blender-filter-group input:focus,
+.blender-filter-group select:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
+/* Footer and stats */
+.blender-builds-footer {
+    padding: var(--size-4-2);
+    border-top: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--size-2-2);
+}
+
+.blender-builds-stats {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    display: flex;
+    gap: var(--size-4-2);
+    align-items: center;
+}
+
+.blender-last-update {
+    font-style: italic;
+}
+
+/* Empty state */
+.blender-empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: var(--size-4-6);
+}
+
+.blender-empty-state p {
+    margin-bottom: var(--size-2-2);
+}
+
+/* Loading states */
+.blender-loading {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: var(--size-4-6);
+}
+
+.blender-loading-small {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Modal styles */
+.blender-builds-modal .modal-content {
+    max-width: 900px;
+    max-height: 80vh;
+}
+
+.blender-builds-modal .modal-header {
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: var(--size-4-2);
+    margin-bottom: var(--size-4-3);
+}
+
+.blender-builds-modal .modal-title {
+    font-size: var(--font-ui-large);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-normal);
+}
+
+/* Progress modal */
+.blender-download-progress-modal {
+    text-align: center;
+}
+
+.blender-download-status {
+    font-size: var(--font-ui-medium);
+    color: var(--text-normal);
+    margin: var(--size-4-3) 0;
+    min-height: 2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.blender-progress-bar {
+    width: 100%;
+    height: var(--size-4-2);
+    background: var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    overflow: hidden;
+    margin: var(--size-4-2) 0;
+}
+
+.blender-progress-fill {
+    height: 100%;
+    background: var(--interactive-accent);
+    transition: width 0.3s ease;
+    border-radius: var(--radius-s);
+}
+
+/* Build info modal */
+.blender-build-info-modal .modal-content {
+    max-width: 600px;
+}
+
+.blender-info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.blender-info-item {
+    font-size: var(--font-ui-smaller);
+    margin-bottom: var(--size-4-2);
+    display: flex;
+    gap: var(--size-2-1);
+}
+
+.blender-info-item:last-child {
+    margin-bottom: 0;
+}
+
+.blender-info-item strong {
+    font-weight: var(--font-weight-medium);
+    min-width: 120px;
+    flex-shrink: 0;
+    color: var(--text-normal);
+}
+
+.blender-info-item span {
+    color: var(--text-muted);
+    flex: 1;
+    word-break: break-word;
+}
+
+.blender-info-url {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-accent);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.blender-info-url:hover {
+    color: var(--text-accent-hover);
+}
+
+/* Settings integration */
+.blender-setting-item {
+    margin-bottom: var(--size-4-3);
+}
+
+.blender-setting-item .setting-item-info {
+    margin-bottom: var(--size-2-2);
+}
+
+.blender-setting-item .setting-item-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-normal);
+}
+
+.blender-setting-item .setting-item-description {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+    .blender-build-item {
+        flex-direction: column;
+        gap: var(--size-2-2);
+    }
+    
+    .blender-build-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .blender-build-actions {
+        justify-content: flex-start;
+        padding-left: 0;
+    }
+    
+    .blender-filters {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--size-2-2);
+    }
+    
+    .blender-builds-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* Animation for refreshing state */
+@keyframes blender-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.blender-refreshing .blender-status-icon {
+    animation: blender-spin 1s linear infinite;
+}
+
+/* Accessibility improvements */
+.blender-build-item:focus-within {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-s);
+}
+
+button:focus,
+input:focus,
+select:focus {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 2px;
+}
+
+/* Dark/light theme compatibility */
+.theme-dark .blender-build-hash {
+    background: var(--background-modifier-border-focus);
+}
+
+.theme-light .blender-build-hash {
+    background: var(--background-modifier-border);
+}

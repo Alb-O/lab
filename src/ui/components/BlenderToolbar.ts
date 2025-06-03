@@ -21,14 +21,13 @@ export class BlenderToolbar {
 		this.onRefresh = onRefresh;
 		this.onShowSettings = onShowSettings;
 	}
-
 	render(container: HTMLElement): void {
 		container.empty();
 		this.containerEl = container;
 		this.buttons.clear();
 		
-		// Create toolbar with nav-buttons-container class (matches SVN plugin)
-		const toolbarEl = container.createEl('div', { cls: 'nav-buttons-container' });
+		// Create toolbar with updated CSS classes
+		const toolbarEl = container.createEl('div', { cls: 'blender-toolbar-buttons' });
 
 		// Refresh button
 		this.buttons.set('refresh', new ButtonComponent(toolbarEl)
@@ -43,13 +42,12 @@ export class BlenderToolbar {
 			.setTooltip('Filter builds')
 			.setClass('clickable-icon')
 			.onClick(() => this.toggleFilter()));
-
 		// Download folder button
 		this.buttons.set('folder', new ButtonComponent(toolbarEl)
 			.setIcon('folder')
-			.setTooltip('Open downloads folder')
+			.setTooltip('Open builds folder')
 			.setClass('clickable-icon')
-			.onClick(() => this.openDownloadsFolder()));
+			.onClick(() => this.openBuildsFolder()));
 
 		// Settings button
 		this.buttons.set('settings', new ButtonComponent(toolbarEl)
@@ -58,7 +56,6 @@ export class BlenderToolbar {
 			.setClass('clickable-icon')
 			.onClick(() => this.onShowSettings()));
 	}
-
 	/**
 	 * Set a button's active state by its key
 	 */
@@ -84,7 +81,6 @@ export class BlenderToolbar {
 			}
 		});
 	}
-
 	/**
 	 * Set refreshing state for the refresh button
 	 */
@@ -92,11 +88,12 @@ export class BlenderToolbar {
 		const refreshButton = this.buttons.get('refresh');
 		if (refreshButton) {
 			if (isRefreshing) {
-				refreshButton.setButtonText('Refreshing...');
 				refreshButton.setDisabled(true);
+				// Add a visual indicator that it's refreshing (but keep the icon)
+				refreshButton.buttonEl.addClass('is-loading');
 			} else {
-				refreshButton.setButtonText('Refresh');
 				refreshButton.setDisabled(false);
+				refreshButton.buttonEl.removeClass('is-loading');
 			}
 		}
 	}
@@ -115,26 +112,44 @@ export class BlenderToolbar {
 	private isButtonActive(buttonKey: string): boolean {
 		const button = this.buttons.get(buttonKey);
 		return button?.buttonEl?.hasClass('is-active') || false;
-	}
-	/**
-	 * Open downloads folder
+	}	/**
+	 * Open builds folder
 	 */
-	private async openDownloadsFolder(): Promise<void> {
+	private async openBuildsFolder(): Promise<void> {
 		try {
 			const { exec } = require('child_process');
-			const path = require('path');
-			const downloadPath = path.join(this.plugin.settings.libraryFolder);
+			const fs = require('fs');
+			
+			// Try to open the actual builds folder first (where extracted builds are stored)
+			const extractsPath = this.buildManager.getExtractsPath();
+			const basePath = this.buildManager.getBuildsPath();
+			
+			let pathToOpen = extractsPath;
+			
+			// Check if the builds folder exists
+			if (!fs.existsSync(extractsPath)) {
+				// If builds folder doesn't exist, check if base .blender folder exists
+				if (!fs.existsSync(basePath)) {
+					// Create the base .blender folder if it doesn't exist
+					fs.mkdirSync(basePath, { recursive: true });
+					console.log('Created base folder:', basePath);
+				}
+				// Use the base folder since builds folder doesn't exist yet
+				pathToOpen = basePath;
+			}
+			
+			console.log('Opening builds folder:', pathToOpen);
 			
 			// Open folder in system file manager
 			if (process.platform === 'win32') {
-				exec(`explorer "${downloadPath}"`);
+				exec(`explorer "${pathToOpen}"`);
 			} else if (process.platform === 'darwin') {
-				exec(`open "${downloadPath}"`);
+				exec(`open "${pathToOpen}"`);
 			} else {
-				exec(`xdg-open "${downloadPath}"`);
+				exec(`xdg-open "${pathToOpen}"`);
 			}
 		} catch (error) {
-			console.error('Failed to open downloads folder:', error);
+			console.error('Failed to open builds folder:', error);
 		}
 	}
 }

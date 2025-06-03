@@ -16,7 +16,6 @@ export class BlenderViewLayoutManager {
 	constructor(containerEl: HTMLElement) {
 		this.containerEl = containerEl;
 	}
-
 	/**
 	 * Initialize the persistent DOM layout structure
 	 */
@@ -24,11 +23,12 @@ export class BlenderViewLayoutManager {
 		if (this.isInitialized) return;
 		
 		this.containerEl.empty();
+		this.containerEl.addClass('blender-view-container');
 		
-		// Create persistent container structure (matching SVN plugin)
+		// Create persistent container structure with proper CSS classes
 		this.toolbarContainer = this.containerEl.createEl('div', { cls: 'nav-header' });
 		this.statusContainer = this.containerEl.createEl('div', { cls: 'blender-status-display' });
-		this.contentArea = this.containerEl.createEl('div', { cls: 'blender-builds-content' });
+		this.contentArea = this.containerEl.createEl('div', { cls: 'blender-content-area' });
 		
 		this.isInitialized = true;
 	}

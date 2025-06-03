@@ -66,10 +66,8 @@ export interface ScrapingStatus {
 	error?: string;
 }
 
-export interface ScrapingStatus {
-	isActive: boolean;
-	currentTask: string;
-	progress: number;
-	lastChecked?: Date;
-	error?: string;
+export interface BuildCache {
+	builds: BlenderBuildInfo[];
+	lastUpdated: string; // ISO string
+	version: string; // Cache format version for future compatibility
 }

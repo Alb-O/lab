@@ -17,7 +17,6 @@ export class BlenderBuildsRenderer {
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 	}
-
 	/**
 	 * Render builds list in container
 	 */
@@ -29,71 +28,68 @@ export class BlenderBuildsRenderer {
 			return;
 		}
 
-		const buildsList = container.createEl('ul', { cls: 'blender-builds-list' });
+		const buildsList = container.createEl('div', { cls: 'blender-builds-list' });
 		
 		builds.forEach((build, index) => {
 			this.createBuildItem(buildsList, build, index);
 		});
-	}
-
-	/**
-	 * Create a single build item (inspired by SVN history items)
+	}	/**
+	 * Create a single build item - compact two-line design
 	 */
 	private createBuildItem(buildsList: HTMLElement, build: BlenderBuildInfo, index: number): void {
-		const listItem = buildsList.createEl('li', { cls: 'blender-build-item' });
+		const listItem = buildsList.createEl('div', { cls: 'blender-build-item' });
 		
-		// Create main content container
-		const contentEl = listItem.createEl('div', { cls: 'blender-build-info-container' });
+		// Main content area
+		const contentEl = listItem.createEl('div', { cls: 'blender-build-content' });
 		
-		// Create header with build info
-		const headerEl = contentEl.createEl('div', { cls: 'blender-build-header' });
+		// First line: Version, Branch, Date
+		const mainLineEl = contentEl.createEl('div', { cls: 'blender-build-main-line' });
 		
-		// Branch indicator
-		const branchEl = headerEl.createEl('span', { 
+		// Version (more prominent)
+		const versionEl = mainLineEl.createEl('span', { 
+			text: build.subversion,
+			cls: 'blender-build-version'
+		});
+		setTooltip(versionEl, `Version: ${build.subversion}`);
+
+		// Branch tag
+		const branchEl = mainLineEl.createEl('span', { 
 			text: build.branch.toUpperCase(),
-			cls: `blender-branch blender-branch-${build.branch.toLowerCase()}`
+			cls: `blender-branch-tag branch-${build.branch.toLowerCase()}`
 		});
 		setTooltip(branchEl, `Branch: ${build.branch}`);
 
-		// Subversion
-		const subversionEl = headerEl.createEl('span', { 
-			text: build.subversion,
-			cls: 'blender-subversion'
-		});
-		setTooltip(subversionEl, `Subversion: ${build.subversion}`);
-
-		// Commit time
-		const dateEl = headerEl.createEl('span', { 
+		// Date
+		const dateEl = mainLineEl.createEl('span', { 
 			text: build.commitTime.toLocaleDateString(),
-			cls: 'blender-commit-date'
+			cls: 'blender-build-date'
 		});
 		setTooltip(dateEl, `Committed: ${build.commitTime.toLocaleString()}`);
 
-		// Build hash (if available)
+		// Second line: Build hash and filename
+		const detailsLineEl = contentEl.createEl('div', { cls: 'blender-build-details-line' });
+		
 		if (build.buildHash) {
-			const hashEl = headerEl.createEl('span', { 
+			const hashEl = detailsLineEl.createEl('span', { 
 				text: build.buildHash.substring(0, 8),
 				cls: 'blender-build-hash'
 			});
 			setTooltip(hashEl, `Build hash: ${build.buildHash}`);
 		}
 
-		// Create content area for additional info
-		const infoEl = contentEl.createEl('div', { cls: 'blender-build-details' });
-		
-		// Add link preview
-		const linkEl = infoEl.createEl('div', { cls: 'blender-build-link' });
-		linkEl.createSpan({
+		// Filename
+		const filenameEl = detailsLineEl.createEl('span', { 
 			text: this.getFilenameFromUrl(build.link),
-			cls: 'blender-filename'
+			cls: 'blender-build-filename'
 		});
+		setTooltip(filenameEl, `File: ${this.getFilenameFromUrl(build.link)}`);
 
 		// Add action buttons
 		const actionsEl = listItem.createEl('div', { cls: 'blender-build-actions' });
 		this.addBuildActions(actionsEl, build, index);
 
 		// Make the entire item clickable for download
-		listItem.addClass('clickable-build-item');
+		listItem.addClass('blender-build-clickable');
 		listItem.addEventListener('click', async (evt) => {
 			// Don't trigger download if clicking on action buttons
 			if ((evt.target as HTMLElement).closest('.blender-build-actions')) {
@@ -110,7 +106,6 @@ export class BlenderBuildsRenderer {
 			}
 		});
 	}
-
 	/**
 	 * Add action buttons for a build item
 	 */
@@ -119,7 +114,8 @@ export class BlenderBuildsRenderer {
 		const downloadBtn = new ButtonComponent(actionsEl)
 			.setIcon('download')
 			.setTooltip('Download this build')
-			.setClass('clickable-icon');
+			.setClass('clickable-icon')
+			.setClass('blender-action-button');
 		
 		downloadBtn.buttonEl.addEventListener('click', (evt) => {
 			evt.preventDefault();
@@ -131,7 +127,8 @@ export class BlenderBuildsRenderer {
 		const infoBtn = new ButtonComponent(actionsEl)
 			.setIcon('info')
 			.setTooltip('Build information')
-			.setClass('clickable-icon');
+			.setClass('clickable-icon')
+			.setClass('blender-action-button');
 		
 		infoBtn.buttonEl.addEventListener('click', (evt) => {
 			evt.preventDefault();
@@ -143,7 +140,8 @@ export class BlenderBuildsRenderer {
 		const copyBtn = new ButtonComponent(actionsEl)
 			.setIcon('copy')
 			.setTooltip('Copy download link')
-			.setClass('clickable-icon');
+			.setClass('clickable-icon')
+			.setClass('blender-action-button');
 		
 		copyBtn.buttonEl.addEventListener('click', (evt) => {
 			evt.preventDefault();
@@ -153,29 +151,28 @@ export class BlenderBuildsRenderer {
 	}
 
 	/**
-	 * Render empty state
+	 * Render empty state using native Obsidian setting style
 	 */
 	private renderEmptyState(container: HTMLElement): void {
-		const emptyState = container.createDiv('blender-empty-state');
+		// Create a settings-style container
+		const settingItem = container.createEl('div', { cls: 'setting-item' });
 		
-		emptyState.createEl('div', {
-			text: '📦',
-			cls: 'empty-state-icon'
+		// Info section with title and description
+		const settingInfo = settingItem.createEl('div', { cls: 'setting-item-info' });
+		settingInfo.createEl('div', { 
+			text: 'Check for available Blender builds',
+			cls: 'setting-item-name'
+		});
+		settingInfo.createEl('div', { 
+			text: 'Refresh the available Blender builds from the official download servers.',
+			cls: 'setting-item-description'
 		});
 		
-		emptyState.createEl('h3', {
-			text: 'No Blender builds found',
-			cls: 'empty-state-title'
-		});
-		
-		emptyState.createEl('p', {
-			text: 'Click the refresh button to scrape for available builds.',
-			cls: 'empty-state-description'
-		});
-
-		const refreshBtn = new ButtonComponent(emptyState)
-			.setButtonText('Refresh Builds')
-			.setCta()
+		// Control section with the refresh button
+		const settingControl = settingItem.createEl('div', { cls: 'setting-item-control' });
+		new ButtonComponent(settingControl)
+			.setButtonText('Refresh now')
+			.setClass('mod-cta')
 			.onClick(() => this.onRefresh());
 	}
 

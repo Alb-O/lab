@@ -1,8 +1,8 @@
-import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus } from './types';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache } from './types';
 import { BlenderPluginSettings, DEFAULT_SETTINGS } from './settings';
 import { BlenderScraper } from './scraper';
 import { BlenderDownloader } from './downloader';
-import { Notice, TFile, TFolder } from 'obsidian';
+import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
@@ -18,6 +18,9 @@ export class FetchBlenderBuilds extends EventEmitter {
 		currentTask: '',
 		progress: 0
 	};
+	private cacheFilePath: string;
+	private static readonly CACHE_VERSION = '1.0.0';
+	private cacheLoadingPromise: Promise<void>;
 
 	constructor(vaultPath: string, settings: BlenderPluginSettings = DEFAULT_SETTINGS) {
 		super();
@@ -25,18 +28,23 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.settings = settings;
 		this.scraper = new BlenderScraper(settings.minimumBlenderVersion);
 		this.downloader = new BlenderDownloader();
+		this.cacheFilePath = path.join(this.getBuildsPath(), 'build-cache.json');
 		
 		this.setupEventListeners();
+		this.cacheLoadingPromise = this.loadCachedBuildsAsync();
 	}
 
 	/**
 	 * Set up event listeners for scraper and downloader
-	 */
-	private setupEventListeners(): void {
-		// Scraper events
+	 */	private setupEventListeners(): void {
+		// Scraper events - we'll ignore detailed status messages and show simple user-friendly messages
 		this.scraper.on('status', (status: string) => {
-			this.scrapingStatus.currentTask = status;
-			this.emit('scrapingStatus', this.scrapingStatus);
+			// Don't update the status with detailed scraper messages during active scraping
+			// Let the refreshBuilds method handle the user-facing status messages
+			if (!this.scrapingStatus.isActive) {
+				this.scrapingStatus.currentTask = status;
+				this.emit('scrapingStatus', this.scrapingStatus);
+			}
 		});
 
 		this.scraper.on('error', (error: string) => {
@@ -152,19 +160,17 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 		});
 	}
-
 	/**
 	 * Refresh builds by scraping
 	 */
 	async refreshBuilds(): Promise<BlenderBuildInfo[]> {
 		this.scrapingStatus = {
 			isActive: true,
-			currentTask: 'Starting scraping...',
+			currentTask: 'Checking for available builds...',
 			progress: 0,
 			lastChecked: new Date()
 		};
 		this.emit('scrapingStatus', this.scrapingStatus);
-
 		try {
 			const builds = await this.scraper.getAllBuilds(
 				this.settings.scrapeStableBuilds,
@@ -173,10 +179,14 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 			this.buildCache = builds;
 			this.scrapingStatus.isActive = false;
-			this.scrapingStatus.currentTask = 'Scraping completed';
+			this.scrapingStatus.currentTask = 'Check completed';
 			this.scrapingStatus.progress = 100;
+			this.scrapingStatus.lastChecked = new Date();
 			this.emit('scrapingStatus', this.scrapingStatus);
 			this.emit('buildsUpdated', builds);
+
+			// Save the builds to cache
+			await this.saveCacheBuilds(builds);
 
 			if (this.settings.showNotifications) {
 				new Notice(`Found ${builds.length} Blender builds`);
@@ -510,5 +520,123 @@ export class FetchBlenderBuilds extends EventEmitter {
 				new Notice(`Failed to open directory: ${error.message}`);
 			}
 		});
+	}
+	/**
+	 * Load cached builds asynchronously without blocking constructor
+	 */
+	private async loadCachedBuildsAsync(): Promise<void> {
+		try {
+			await this.loadCachedBuilds();
+		} catch (error) {
+			console.log('No cached builds found or cache invalid, will need to refresh');
+		}
+	}
+
+	/**
+	 * Load cached builds from disk
+	 */
+	private async loadCachedBuilds(): Promise<BlenderBuildInfo[]> {
+		try {
+			if (!fs.existsSync(this.cacheFilePath)) {
+				return [];
+			}
+
+			const cacheData = fs.readFileSync(this.cacheFilePath, 'utf8');
+			const cache: BuildCache = JSON.parse(cacheData);
+
+			// Validate cache version
+			if (cache.version !== FetchBlenderBuilds.CACHE_VERSION) {
+				console.log('Cache version mismatch, invalidating cache');
+				return [];
+			}
+
+			// Parse dates back from ISO strings
+			const builds = cache.builds.map(build => ({
+				...build,
+				commitTime: new Date(build.commitTime)
+			}));
+
+			this.buildCache = builds;
+			
+			// Update scraping status with cache info
+			this.scrapingStatus.lastChecked = new Date(cache.lastUpdated);
+			this.emit('scrapingStatus', this.scrapingStatus);
+
+			// Emit cached builds
+			if (builds.length > 0) {
+				this.emit('buildsUpdated', builds);
+				console.log(`Loaded ${builds.length} builds from cache`);
+			}
+
+			return builds;
+		} catch (error) {
+			console.error('Failed to load cached builds:', error);
+			// Remove invalid cache file
+			if (fs.existsSync(this.cacheFilePath)) {
+				fs.unlinkSync(this.cacheFilePath);
+			}
+			return [];
+		}
+	}
+
+	/**
+	 * Save builds to cache
+	 */
+	private async saveCacheBuilds(builds: BlenderBuildInfo[]): Promise<void> {
+		try {
+			this.ensureDirectories();
+
+			const cache: BuildCache = {
+				builds: builds,
+				lastUpdated: new Date().toISOString(),
+				version: FetchBlenderBuilds.CACHE_VERSION
+			};
+
+			const cacheData = JSON.stringify(cache, null, 2);
+			fs.writeFileSync(this.cacheFilePath, cacheData, 'utf8');
+			console.log(`Cached ${builds.length} builds to disk`);
+		} catch (error) {
+			console.error('Failed to save builds cache:', error);
+		}
+	}
+
+	/**
+	 * Clear cached builds
+	 */
+	clearCache(): void {
+		try {
+			if (fs.existsSync(this.cacheFilePath)) {
+				fs.unlinkSync(this.cacheFilePath);
+				console.log('Build cache cleared');
+			}
+			this.buildCache = [];
+			this.emit('buildsUpdated', []);
+		} catch (error) {
+			console.error('Failed to clear cache:', error);
+		}
+	}
+
+	/**
+	 * Wait for cached builds to be loaded
+	 */
+	async waitForCacheLoading(): Promise<void> {
+		await this.cacheLoadingPromise;
+	}
+
+	/**
+	 * Check if cached builds are available
+	 */
+	hasCachedBuilds(): boolean {
+		return this.buildCache.length > 0;
+	}
+
+	/**
+	 * Get cache age in milliseconds
+	 */
+	getCacheAge(): number | null {
+		if (!this.scrapingStatus.lastChecked) {
+			return null;
+		}
+		return Date.now() - this.scrapingStatus.lastChecked.getTime();
 	}
 }
