@@ -101,7 +101,6 @@
     flex: 1;
     display: flex;
     align-items: center;
-    gap: var(--size-4-2);
     min-width: 0;
 }
 
@@ -109,7 +108,8 @@
     font-size: var(--font-ui-small);
     font-weight: var(--font-weight-medium);
     color: var(--text-normal);
-    gap: var(--size-2-1);
+    margin: 1px var(--size-2-2);
+    margin-left: 0;
 }
 
 .blender-version-text {
@@ -122,8 +122,8 @@
     color: var(--text-muted);
     background: var(--background-modifier-border);
     padding: 1px var(--size-2-2);
+    margin: 1px var(--size-2-2);
     border-radius: var(--radius-s);
-    align-self: flex-start;
 }
 
 .blender-build-branch {
@@ -134,11 +134,10 @@
 
 .blender-branch-tag {
     font-size: var(--font-ui-smaller);
-    font-weight: var(--font-weight-semibold);
     color: var(--text-on-accent);
     background: var(--interactive-accent);
     padding: 1px var(--size-2-2);
-    margin: 1px var(--size-4-2);
+    margin: 1px var(--size-2-2);
     border-radius: var(--radius-s);
 }
 
@@ -165,8 +164,7 @@
     font-size: var(--font-ui-smaller);
     color: var(--text-muted);
     white-space: nowrap;
-    gap: var(--size-2-1);
-    margin: 1px var(--size-4-2);
+    margin: 1px var(--size-2-2);
 }
 
 .blender-date-text {
@@ -378,7 +376,8 @@
 }
 
 .blender-build-filename {
-    font-size: var(--font-ui-small);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
 }
 
 .blender-info-item:last-child {
