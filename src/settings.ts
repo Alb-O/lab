@@ -8,10 +8,8 @@ export interface BlenderPluginSettings {
 	minimumBlenderVersion: string;
 	autoDownloadLatest: boolean;
 	showNotifications: boolean;
-	maxBuildsToKeep: number;
-	autoExtract: boolean;
+	maxBuildsToKeep: number;	autoExtract: boolean;
 	cleanupArchives: boolean;
-	segregateBuildsByType: boolean;
 	// Additional settings for the UI
 	enableStableBuilds: boolean;
 	enableDailyBuilds: boolean;
@@ -46,10 +44,8 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	minimumBlenderVersion: '3.0',
 	autoDownloadLatest: false,
 	showNotifications: true,
-	maxBuildsToKeep: 5,
-	autoExtract: true,
+	maxBuildsToKeep: 5,	autoExtract: true,
 	cleanupArchives: false,
-	segregateBuildsByType: false,
 	enableStableBuilds: true,
 	enableDailyBuilds: true,
 	enableExperimentalBuilds: false,
@@ -72,10 +68,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'Blender Build Manager Settings' });
-
 		// General Settings
-		containerEl.createEl('h3', { text: 'General Settings' });
 		new Setting(containerEl)
 			.setName('Blender Directory')
 			.setDesc('Directory relative to vault root where Blender builds will be stored')
@@ -86,7 +79,6 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					this.plugin.settings.libraryFolder = value;
 					await this.plugin.saveSettings();
 				}));
-
 		new Setting(containerEl)
 			.setName('Auto-extract builds')
 			.setDesc('Automatically extract downloaded archives')
@@ -97,18 +89,9 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		new Setting(containerEl)
-			.setName('Segregate builds by type')
-			.setDesc('Store different types of builds (stable, daily, experimental) in separate subfolders')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.segregateBuildsByType)
-				.onChange(async (value) => {
-					this.plugin.settings.segregateBuildsByType = value;
-					await this.plugin.saveSettings();
-				}));
-
 		// Build Types
-		containerEl.createEl('h3', { text: 'Build Types' });
+		new Setting(containerEl).setName('Build types').setHeading();
+		
 		new Setting(containerEl)
 			.setName('Enable Stable Builds')
 			.setDesc('Show stable Blender releases')

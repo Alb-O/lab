@@ -1,8 +1,9 @@
-import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache } from './types';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache, BuildType } from './types';
 import { BlenderPluginSettings, DEFAULT_SETTINGS } from './settings';
 import { BlenderScraper } from './scraper';
 import { BlenderDownloader } from './downloader';
 import { BlenderLauncher } from './launcher';
+import { BuildFilter } from './buildFilter';
 import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -12,6 +13,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 	private scraper: BlenderScraper;
 	private downloader: BlenderDownloader;
 	private launcher: BlenderLauncher;
+	private buildFilter: BuildFilter;
 	private settings: BlenderPluginSettings;
 	private vaultPath: string;
 	private buildCache: BlenderBuildInfo[] = [];
@@ -29,6 +31,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.scraper = new BlenderScraper(settings.minimumBlenderVersion);
 		this.downloader = new BlenderDownloader();
 		this.launcher = new BlenderLauncher(settings);
+		this.buildFilter = new BuildFilter(this);
 		this.cacheFilePath = path.join(this.getBuildsPath(), 'build-cache.json');
 		
 		this.setupEventListeners();
@@ -178,6 +181,21 @@ export class FetchBlenderBuilds extends EventEmitter {
 	}
 
 	/**
+	 * Get build type specific directory path for extracts
+	 */
+	getExtractsPathForBuild(build: BlenderBuildInfo): string {
+		const buildType = this.buildFilter.getBuildType(build);
+		return path.join(this.getExtractsPath(), buildType);
+	}
+
+	/**
+	 * Get build type specific directory path for downloads
+	 */
+	getDownloadsPathForBuild(build: BlenderBuildInfo): string {
+		const buildType = this.buildFilter.getBuildType(build);
+		return path.join(this.getDownloadsPath(), buildType);
+	}
+	/**
 	 * Ensure directories exist
 	 */
 	private ensureDirectories(): void {
@@ -189,6 +207,19 @@ export class FetchBlenderBuilds extends EventEmitter {
 			if (!fs.existsSync(dir)) {
 				fs.mkdirSync(dir, { recursive: true });
 			}
+		});
+
+		// Create subdirectories for each build type
+		const buildTypes = [BuildType.Stable, BuildType.Daily, BuildType.LTS, BuildType.Experimental, BuildType.Patch, BuildType.ReleaseCandidate];
+		buildTypes.forEach(buildType => {
+			const downloadTypeDir = path.join(downloadsPath, buildType);
+			const extractTypeDir = path.join(extractsPath, buildType);
+			
+			[downloadTypeDir, extractTypeDir].forEach(dir => {
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir, { recursive: true });
+				}
+			});
 		});
 	}
 
@@ -238,7 +269,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 	getCachedBuilds(): BlenderBuildInfo[] {
 		return [...this.buildCache];
 	}
-
 	/**
 	 * Download a specific build
 	 */
@@ -247,7 +277,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		onProgress?: (progress: DownloadProgress) => void
 	): Promise<string> {
 		this.ensureDirectories();
-		const downloadsPath = this.getDownloadsPath();
+		const downloadsPath = this.getDownloadsPathForBuild(build);
 		
 		try {
 			const filePath = await this.downloader.downloadBuild(build, downloadsPath, onProgress);
@@ -258,7 +288,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw error;
 		}
 	}
-
 	/**
 	 * Extract a downloaded build
 	 */	async extractBuild(
@@ -267,7 +296,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		onProgress?: (progress: ExtractionProgress) => void
 	): Promise<string> {
 		this.ensureDirectories();
-		const extractsPath = this.getExtractsPath();
+		const extractsPath = this.getExtractsPathForBuild(build);
 		
 		// Extract directly to the extracts folder - let the ZIP create its own folder structure
 		try {
@@ -315,7 +344,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 		const name = `${build.subversion}-${build.branch}`;
 		return name.replace(/[^a-zA-Z0-9.-]/g, '_');
 	}
-
 	/**
 	 * Get downloaded builds
 	 */
@@ -325,29 +353,37 @@ export class FetchBlenderBuilds extends EventEmitter {
 			return [];
 		}
 
-		const files = fs.readdirSync(downloadsPath);
 		const downloadedBuilds: Array<{ build: BlenderBuildInfo; filePath: string }> = [];
-
-		for (const file of files) {
-			const filePath = path.join(downloadsPath, file);
-			const stats = fs.statSync(filePath);
+		
+		// Check each build type subdirectory
+		const buildTypes = [BuildType.Stable, BuildType.Daily, BuildType.LTS, BuildType.Experimental, BuildType.Patch, BuildType.ReleaseCandidate];
+		
+		for (const buildType of buildTypes) {
+			const typeDir = path.join(downloadsPath, buildType);
+			if (!fs.existsSync(typeDir)) continue;
 			
-			if (stats.isFile()) {
-				// Try to match with cached builds
-				const matchingBuild = this.buildCache.find(build => {
-					const expectedFileName = this.extractFileName(build.link);
-					return file === expectedFileName;
-				});
+			const files = fs.readdirSync(typeDir);
+			
+			for (const file of files) {
+				const filePath = path.join(typeDir, file);
+				const stats = fs.statSync(filePath);
+				
+				if (stats.isFile()) {
+					// Try to match with cached builds
+					const matchingBuild = this.buildCache.find(build => {
+						const expectedFileName = this.extractFileName(build.link);
+						return file === expectedFileName && this.buildFilter.getBuildType(build) === buildType;
+					});
 
-				if (matchingBuild) {
-					downloadedBuilds.push({ build: matchingBuild, filePath });
+					if (matchingBuild) {
+						downloadedBuilds.push({ build: matchingBuild, filePath });
+					}
 				}
 			}
 		}
 
 		return downloadedBuilds;
 	}
-
 	/**
 	 * Get extracted builds
 	 */
@@ -357,27 +393,36 @@ export class FetchBlenderBuilds extends EventEmitter {
 			return [];
 		}
 
-		const dirs = fs.readdirSync(extractsPath);
 		const extractedBuilds: Array<{ build: BlenderBuildInfo; extractPath: string; executable?: string }> = [];
-
-		for (const dir of dirs) {
-			const extractPath = path.join(extractsPath, dir);
-			const stats = fs.statSync(extractPath);
+		
+		// Check each build type subdirectory
+		const buildTypes = [BuildType.Stable, BuildType.Daily, BuildType.LTS, BuildType.Experimental, BuildType.Patch, BuildType.ReleaseCandidate];
+		
+		for (const buildType of buildTypes) {
+			const typeDir = path.join(extractsPath, buildType);
+			if (!fs.existsSync(typeDir)) continue;
 			
-			if (stats.isDirectory()) {
-				// Try to match with cached builds based on directory name
-				const matchingBuild = this.buildCache.find(build => {
-					const expectedDirName = this.sanitizeBuildName(build);
-					return dir === expectedDirName;
-				});
-
-				if (matchingBuild) {
-					const executable = this.downloader.findBlenderExecutable(extractPath);
-					extractedBuilds.push({ 
-						build: matchingBuild, 
-						extractPath,
-						executable: executable || undefined
+			const dirs = fs.readdirSync(typeDir);
+			
+			for (const dir of dirs) {
+				const extractPath = path.join(typeDir, dir);
+				const stats = fs.statSync(extractPath);
+				
+				if (stats.isDirectory()) {
+					// Try to match with cached builds based on directory name
+					const matchingBuild = this.buildCache.find(build => {
+						const expectedDirName = this.sanitizeBuildName(build);
+						return dir === expectedDirName && this.buildFilter.getBuildType(build) === buildType;
 					});
+
+					if (matchingBuild) {
+						const executable = this.downloader.findBlenderExecutable(extractPath);
+						extractedBuilds.push({ 
+							build: matchingBuild, 
+							extractPath,
+							executable: executable || undefined
+						});
+					}
 				}
 			}
 		}
@@ -400,7 +445,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		return { removedDownloads, removedExtracts };
 	}
-
 	/**
 	 * Clean up old downloads
 	 */
@@ -410,26 +454,44 @@ export class FetchBlenderBuilds extends EventEmitter {
 			return 0;
 		}
 
-		const files = fs.readdirSync(downloadsPath)
-			.map(name => ({
-				name,
-				path: path.join(downloadsPath, name),
-				stats: fs.statSync(path.join(downloadsPath, name))
-			}))
-			.filter(item => item.stats.isFile())
-			.sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
+		const allFiles: Array<{ name: string; path: string; stats: fs.Stats }> = [];
+		
+		// Collect files from all build type subdirectories
+		const buildTypes = [BuildType.Stable, BuildType.Daily, BuildType.LTS, BuildType.Experimental, BuildType.Patch, BuildType.ReleaseCandidate];
+		
+		for (const buildType of buildTypes) {
+			const typeDir = path.join(downloadsPath, buildType);
+			if (!fs.existsSync(typeDir)) continue;
+			
+			const files = fs.readdirSync(typeDir)
+				.map(name => ({
+					name,
+					path: path.join(typeDir, name),
+					stats: fs.statSync(path.join(typeDir, name))
+				}))
+				.filter(item => item.stats.isFile());
+				
+			allFiles.push(...files);
+		}
 
-		if (files.length <= maxBuilds) {
+		// Sort by modification time (newest first)
+		allFiles.sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
+
+		if (allFiles.length <= maxBuilds) {
 			return 0;
 		}
 
-		const filesToRemove = files.slice(maxBuilds);
+		const filesToRemove = allFiles.slice(maxBuilds);
 		let removedCount = 0;
 
 		for (const file of filesToRemove) {
 			try {
 				fs.unlinkSync(file.path);
 				removedCount++;
+				
+				// Clean up empty type directory if needed
+				const typeDir = path.dirname(file.path);
+				await this.cleanupEmptyDirectory(typeDir);
 			} catch (error) {
 				console.error(`Failed to remove file ${file.name}:`, error);
 			}
@@ -671,7 +733,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 		}
 		return Date.now() - this.scrapingStatus.lastChecked.getTime();
 	}
-
 	/**
 	 * Delete a build completely (both downloaded archive and extracted files)
 	 */
@@ -680,8 +741,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 		let deletedExtract = false;
 
 		try {
-			// Delete downloaded archive
-			const downloadsPath = this.getDownloadsPath();
+			// Delete downloaded archive from segregated downloads path
+			const downloadsPath = this.getDownloadsPathForBuild(build);
 			const expectedFileName = this.extractFileName(build.link);
 			const downloadPath = path.join(downloadsPath, expectedFileName);
 			
@@ -691,8 +752,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				console.log(`Deleted download: ${downloadPath}`);
 			}
 
-			// Delete extracted build
-			const extractsPath = this.getExtractsPath();
+			// Delete extracted build from segregated extracts path
+			const extractsPath = this.getExtractsPathForBuild(build);
 			const expectedDirName = this.sanitizeBuildName(build);
 			const extractPath = path.join(extractsPath, expectedDirName);
 			
@@ -701,6 +762,10 @@ export class FetchBlenderBuilds extends EventEmitter {
 				deletedExtract = true;
 				console.log(`Deleted extract: ${extractPath}`);
 			}
+
+			// Clean up empty type directories if needed
+			await this.cleanupEmptyDirectory(downloadsPath);
+			await this.cleanupEmptyDirectory(extractsPath);
 
 			// Emit deletion event
 			this.emit('buildDeleted', build, { deletedDownload, deletedExtract });
@@ -725,56 +790,25 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 			throw error;
 		}
-	}
-	/**
+	}	/**
 	 * Check if a build is installed (downloaded or extracted)
 	 */
 	isBuildInstalled(build: BlenderBuildInfo): { downloaded: boolean; extracted: boolean } {
-		const downloadsPath = this.getDownloadsPath();
-		const extractsPath = this.getExtractsPath();
+		const downloadsPath = this.getDownloadsPathForBuild(build);
+		const extractsPath = this.getExtractsPathForBuild(build);
 		
 		const expectedFileName = this.extractFileName(build.link);
 		const downloadPath = path.join(downloadsPath, expectedFileName);
 		const downloaded = fs.existsSync(downloadPath);
 		
-		// Check for extracted build - look for any directory that might contain this build
-		let extracted = false;
-		
-		if (fs.existsSync(extractsPath)) {
-			const dirs = fs.readdirSync(extractsPath);
-			
-			// Check using multiple strategies to find the build
-			for (const dir of dirs) {
-				const dirPath = path.join(extractsPath, dir);
-				const stats = fs.statSync(dirPath);
-				
-				if (stats.isDirectory()) {
-					// Strategy 1: Check if directory name matches sanitized build name
-					const expectedDirName = this.sanitizeBuildName(build);
-					if (dir === expectedDirName) {
-						extracted = true;
-						break;
-					}
-					
-					// Strategy 2: Check if directory name contains the subversion
-					if (dir.includes(build.subversion)) {
-						extracted = true;
-						break;
-					}
-					
-					// Strategy 3: Check if directory name contains the build hash (if available)
-					if (build.buildHash && dir.includes(build.buildHash)) {
-						extracted = true;
-						break;
-					}
-				}
-			}
-		}
+		// Check for extracted build in the segregated extracts path
+		const expectedDirName = this.sanitizeBuildName(build);
+		const extractPath = path.join(extractsPath, expectedDirName);
+		const extracted = fs.existsSync(extractPath);
 		
 		return { downloaded, extracted };
 	}
-	
-	/**
+		/**
 	 * Launch a Blender build
 	 */
 	async launchBuild(build: BlenderBuildInfo): Promise<void> {
@@ -784,42 +818,11 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw new Error('Build must be extracted to launch');
 		}
 
-		const extractsPath = this.getExtractsPath();
+		const extractsPath = this.getExtractsPathForBuild(build);
+		const expectedDirName = this.sanitizeBuildName(build);
+		const extractPath = path.join(extractsPath, expectedDirName);
 		
-		// Find the actual extracted directory using the same logic as isBuildInstalled
-		let extractPath: string | null = null;
-		
-		if (fs.existsSync(extractsPath)) {
-			const dirs = fs.readdirSync(extractsPath);
-			
-			for (const dir of dirs) {
-				const dirPath = path.join(extractsPath, dir);
-				const stats = fs.statSync(dirPath);
-				
-				if (stats.isDirectory()) {
-					// Strategy 1: Check if directory name matches sanitized build name
-					const expectedDirName = this.sanitizeBuildName(build);
-					if (dir === expectedDirName) {
-						extractPath = dirPath;
-						break;
-					}
-					
-					// Strategy 2: Check if directory name contains the subversion
-					if (dir.includes(build.subversion)) {
-						extractPath = dirPath;
-						break;
-					}
-					
-					// Strategy 3: Check if directory name contains the build hash (if available)
-					if (build.buildHash && dir.includes(build.buildHash)) {
-						extractPath = dirPath;
-						break;
-					}
-				}
-			}
-		}
-		
-		if (!extractPath) {
+		if (!fs.existsSync(extractPath)) {
 			throw new Error('Extracted build directory not found');
 		}
 
