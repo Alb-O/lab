@@ -138,12 +138,24 @@ export class FetchBlenderBuilds extends EventEmitter {
 	getSettings(): BlenderPluginSettings {
 		return this.settings;
 	}
-
+	
 	/**
 	 * Get preferred architecture from settings
 	 */
 	getPreferredArchitecture(): string {
-		return this.settings.preferredArchitecture || 'x64';
+		const settingArch = this.settings.preferredArchitecture || 'auto';
+		
+		// If set to auto, detect system architecture
+		if (settingArch === 'auto') {
+			const arch = process.arch;
+			if (arch === 'arm64') {
+				return 'arm64';
+			} else {
+				return 'x64'; // Default to x64 for x64, ia32, etc.
+			}
+		}
+		
+		return settingArch;
 	}
 
 	/**
@@ -220,7 +232,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw error;
 		}
 	}
-
 	/**
 	 * Get cached builds
 	 */
@@ -495,6 +506,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 	getScrapingStatus(): ScrapingStatus {
 		return { ...this.scrapingStatus };
 	}
+
 	/**
 	 * Cancel all active downloads
 	 */
@@ -552,7 +564,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 			console.log('No cached builds found or cache invalid, will need to refresh');
 		}
 	}
-
 	/**
 	 * Load cached builds from disk
 	 */
@@ -692,7 +703,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 
 			// Emit deletion event
-			this.emit('buildDeleted', build, { deletedDownload, deletedExtract });			// Show notification if enabled
+			this.emit('buildDeleted', build, { deletedDownload, deletedExtract });
+			// Show notification if enabled
 			if (this.settings.showNotifications) {
 				const deletedItems: string[] = [];
 				if (deletedDownload) deletedItems.push('download');
@@ -760,7 +772,9 @@ export class FetchBlenderBuilds extends EventEmitter {
 		}
 		
 		return { downloaded, extracted };
-	}	/**
+	}
+	
+	/**
 	 * Launch a Blender build
 	 */
 	async launchBuild(build: BlenderBuildInfo): Promise<void> {
@@ -814,8 +828,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 	}
 
 	/**
-	 * Find blender-launcher.exe in the extracted build directory
-	 */	/**
 	 * Recursively delete a directory and all its contents
 	 */
 	private async deleteDirectory(dirPath: string): Promise<void> {

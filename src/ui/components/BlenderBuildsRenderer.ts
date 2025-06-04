@@ -17,7 +17,7 @@ export class BlenderBuildsRenderer {
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 	}
-	
+
 	/**
 	 * Render builds list in container
 	 */
@@ -136,7 +136,9 @@ export class BlenderBuildsRenderer {
 			// For installed builds, add a different visual style
 			listItem.addClass('blender-build-installed');
 		}
-	}	/**
+	}
+	
+	/**
 	 * Add action buttons for a build item
 	 */
 	private addBuildActions(actionsEl: HTMLElement, build: BlenderBuildInfo, index: number): void {
@@ -246,9 +248,11 @@ export class BlenderBuildsRenderer {
 			text: 'Try refreshing or adjusting your filters'
 		});
 	}
+
 	/**
 	 * Download a build
-	 */	private async downloadBuild(build: BlenderBuildInfo): Promise<void> {
+	 */
+	private async downloadBuild(build: BlenderBuildInfo): Promise<void> {
 		try {
 			await this.buildManager.downloadBuild(build);
 			// The buildManager handles all notifications via events
@@ -257,6 +261,7 @@ export class BlenderBuildsRenderer {
 			new Notice(`Failed to start download: ${error.message}`);
 		}
 	}
+
 	/**
 	 * Delete a build
 	 */

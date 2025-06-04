@@ -129,8 +129,7 @@ export class BlenderViewRenderer {
 			this.statusDisplay.render(statusContainer);
 		}
 	}
-	
-	/**
+		/**
 	 * Update builds content section only
 	 */
 	private async updateBuildsContent(): Promise<void> {
@@ -139,7 +138,8 @@ export class BlenderViewRenderer {
 		
 		// Get current builds
 		const builds = this.buildManager.getCachedBuilds();
-				// Apply filters
+		
+		// Apply filters
 		const filteredBuilds = this.buildFilter.filterBuilds(builds, {
 			searchFilter: this.currentFilter,
 			branch: this.currentBranch,
@@ -316,6 +316,7 @@ export class BlenderViewRenderer {
 	 * Handle builds updated event
 	 */
 	private async onBuildsUpdated(builds: BlenderBuildInfo[]): Promise<void> {
+		console.log('[BlenderViewRenderer] onBuildsUpdated called with', builds.length, 'builds');
 		this.cachedBuilds = builds;
 		await this.updateBuildsContent();
 	}
