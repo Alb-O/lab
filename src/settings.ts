@@ -304,7 +304,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					button.setDisabled(true);
 					try {
 						const removed = await this.plugin.buildManager.cleanupOldBuilds();
-						new Notice(`Removed ${removed.removedDownloads} downloads and ${removed.removedExtracts} extracts`);
+						new Notice(`Removed ${removed.removedDownloads} downloads and ${removed.removedExtracts} extracts.`);
 					} catch (error) {
 						new Notice(`Failed to clean up builds: ${error.message}`);
 					} finally {

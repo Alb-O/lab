@@ -105,6 +105,10 @@
     position: relative;
 }
 
+.blender-build-installed {
+    border-left: 4px solid var(--background-modifier-success);
+}
+
 .blender-build-item:hover {
     background: var(--background-modifier-hover);
 }

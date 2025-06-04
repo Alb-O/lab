@@ -220,7 +220,7 @@ export class BlenderBuildsRenderer {
 				new Notice('Download link copied to clipboard');
 			} catch (error) {
 				console.error('Failed to copy to clipboard:', error);
-				new Notice('Failed to copy link to clipboard');
+				new Notice('Failed to copy link to clipboard.');
 			}
 		});
 	}

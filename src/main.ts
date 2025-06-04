@@ -23,7 +23,7 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 		addIcon('blender-logo', BLENDER_ICON_SVG);
 
 		// Add ribbon icon with custom Blender logo
-		this.addRibbonIcon('blender-logo', 'Blender Build Manager', () => {
+		this.addRibbonIcon('blender-logo', 'Open Blender build manager', () => {
 			this.openBuildsView();
 		});
 

@@ -22,7 +22,7 @@ export class BlenderBuildsView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Blender Builds';
+		return 'Blender build manager';
 	}
 
 	getIcon(): string {

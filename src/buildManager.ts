@@ -209,7 +209,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			await this.saveCacheBuilds(builds);
 
 			if (this.settings.showNotifications) {
-				new Notice(`Found ${builds.length} Blender builds`);
+				new Notice(`Found ${builds.length} Blender builds.`);
 			}
 
 			return builds;
@@ -384,7 +384,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		const removedExtracts = await this.downloader.cleanupOldBuilds(this.getExtractsPath(), maxBuilds);
 
 		if (this.settings.showNotifications && (removedDownloads > 0 || removedExtracts > 0)) {
-			new Notice(`Cleaned up ${removedDownloads} downloads and ${removedExtracts} extracts`);
+			new Notice(`Cleaned up ${removedDownloads} downloads and ${removedExtracts} extracts.`);
 		}
 
 		return { removedDownloads, removedExtracts };
@@ -467,7 +467,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		const newBuilds = await this.scraper.checkForNewBuilds(lastCheck);
 		
 		if (newBuilds.length > 0 && this.settings.showNotifications) {
-			new Notice(`Found ${newBuilds.length} new Blender builds`);
+			new Notice(`Found ${newBuilds.length} new Blender builds.`);
 		}
 
 		return newBuilds;
