@@ -292,7 +292,6 @@ export class BlenderViewRenderer {
 		this.updateToolbar();
 		this.updateFilterSection();
 	}
-
 	/**
 	 * Set up event listeners for build manager events
 	 */	private setupEventListeners(): void {
@@ -305,6 +304,9 @@ export class BlenderViewRenderer {
 		// Listen for download events
 		this.buildManager.on('downloadStarted', this.onDownloadStarted.bind(this));
 		this.buildManager.on('downloadCompleted', this.onDownloadCompleted.bind(this));
+		
+		// Listen for build deletion events
+		this.buildManager.on('buildDeleted', this.onBuildDeleted.bind(this));
 		
 		// Listen for settings updates (to refresh view when architecture changes)
 		this.buildManager.on('settingsUpdated', this.onSettingsUpdated.bind(this));
@@ -351,6 +353,15 @@ export class BlenderViewRenderer {
 	private async onSettingsUpdated(): Promise<void> {
 		// When settings change (like architecture preference), refresh the build list view
 		// without requiring a full scrape - just re-filter the existing builds
+		await this.updateBuildsContent();
+	}
+
+	/**
+	 * Handle build deleted event
+	 */
+	private async onBuildDeleted(build: BlenderBuildInfo, deletionResult: { deletedDownload: boolean; deletedExtract: boolean }): Promise<void> {
+		console.log(`Build deleted: ${build.subversion}`, deletionResult);
+		// Refresh the builds content to update button visibility
 		await this.updateBuildsContent();
 	}
 

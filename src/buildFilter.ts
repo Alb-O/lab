@@ -308,20 +308,19 @@ export class BuildFilter {
 		if (haystackLower.includes(needleLower)) {
 			const startIndex = haystackLower.indexOf(needleLower);
 			const endIndex = startIndex + needleLower.length;
-			return haystack.substring(0, startIndex) + 
-				   '<strong style="color: var(--text-normal);">' + haystack.substring(startIndex, endIndex) + '</strong>' + 
+            return haystack.substring(0, startIndex) + 
+				   '<div class="blender-search-highlight">' + haystack.substring(startIndex, endIndex) + '</div>' + 
 				   haystack.substring(endIndex);
 		}
 		
 		// For fuzzy matches, highlight individual matching characters
 		let result = '';
 		let needleIndex = 0;
-		
-		for (let i = 0; i < haystack.length; i++) {
+				for (let i = 0; i < haystack.length; i++) {
 			const char = haystack[i];
 			if (needleIndex < needleLower.length && 
 				char.toLowerCase() === needleLower[needleIndex]) {
-				result += '<strong style="color: var(--text-normal);">' + char + '</strong>';
+				result += '<div class="blender-search-highlight">' + char + '</div>';
 				needleIndex++;
 			} else {
 				result += char;

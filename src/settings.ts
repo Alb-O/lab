@@ -19,6 +19,24 @@ export interface BlenderPluginSettings {
 	preferredArchitecture: 'auto' | 'x64' | 'arm64';
 	maxConcurrentDownloads: number;
 	keepOldBuilds: boolean;
+	// Blender environment variables
+	blenderEnvironmentVariables: {
+		BLENDER_USER_RESOURCES?: string;
+		BLENDER_USER_CONFIG?: string;
+		BLENDER_USER_SCRIPTS?: string;
+		BLENDER_USER_EXTENSIONS?: string;
+		BLENDER_USER_DATAFILES?: string;
+		BLENDER_SYSTEM_RESOURCES?: string;
+		BLENDER_SYSTEM_SCRIPTS?: string;
+		BLENDER_SYSTEM_EXTENSIONS?: string;
+		BLENDER_SYSTEM_DATAFILES?: string;
+		BLENDER_SYSTEM_PYTHON?: string;
+		BLENDER_CUSTOM_SPLASH?: string;
+		BLENDER_CUSTOM_SPLASH_BANNER?: string;
+		OCIO?: string;
+		TEMP?: string;
+		TMPDIR?: string;
+	};
 }
 
 export const DEFAULT_SETTINGS: BlenderPluginSettings = {
@@ -37,7 +55,8 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	enableExperimentalBuilds: false,
 	preferredArchitecture: 'auto',
 	maxConcurrentDownloads: 2,
-	keepOldBuilds: true
+	keepOldBuilds: true,
+	blenderEnvironmentVariables: {}
 };
 
 export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
@@ -197,9 +216,50 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.showNotifications)
 				.onChange(async (value) => {
-					this.plugin.settings.showNotifications = value;
-					await this.plugin.saveSettings();
+					this.plugin.settings.showNotifications = value;					await this.plugin.saveSettings();
 				}));
+
+		// Blender Environment Variables
+		containerEl.createEl('h3', { text: 'Blender Environment Variables' });
+		containerEl.createEl('p', { 
+			text: 'Set custom environment variables that will be passed to Blender when launching builds. Leave empty to use system defaults.',
+			cls: 'setting-item-description'
+		});
+
+		const envVarDescriptions: Record<string, string> = {
+			BLENDER_USER_RESOURCES: 'User-specific resources directory',
+			BLENDER_USER_CONFIG: 'User configuration directory',
+			BLENDER_USER_SCRIPTS: 'User scripts directory',
+			BLENDER_USER_EXTENSIONS: 'User extensions directory',
+			BLENDER_USER_DATAFILES: 'User data files directory',
+			BLENDER_SYSTEM_RESOURCES: 'System resources directory',
+			BLENDER_SYSTEM_SCRIPTS: 'System scripts directory',
+			BLENDER_SYSTEM_EXTENSIONS: 'System extensions directory',
+			BLENDER_SYSTEM_DATAFILES: 'System data files directory',
+			BLENDER_SYSTEM_PYTHON: 'System Python directory',
+			BLENDER_CUSTOM_SPLASH: 'Custom splash screen image',
+			BLENDER_CUSTOM_SPLASH_BANNER: 'Custom splash banner text',
+			OCIO: 'OpenColorIO configuration file',
+			TEMP: 'Temporary files directory',
+			TMPDIR: 'Alternative temporary files directory'
+		};
+
+		Object.entries(envVarDescriptions).forEach(([envVar, description]) => {
+			new Setting(containerEl)
+				.setName(envVar)
+				.setDesc(description)
+				.addText(text => text
+					.setPlaceholder('Leave empty for system default')
+					.setValue(this.plugin.settings.blenderEnvironmentVariables[envVar as keyof typeof this.plugin.settings.blenderEnvironmentVariables] || '')
+					.onChange(async (value) => {
+						if (value.trim() === '') {
+							delete this.plugin.settings.blenderEnvironmentVariables[envVar as keyof typeof this.plugin.settings.blenderEnvironmentVariables];
+						} else {
+							this.plugin.settings.blenderEnvironmentVariables[envVar as keyof typeof this.plugin.settings.blenderEnvironmentVariables] = value.trim();
+						}
+						await this.plugin.saveSettings();
+					}));
+		});
 
 		// Actions
 		containerEl.createEl('h3', { text: 'Actions' });

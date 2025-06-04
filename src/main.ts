@@ -1,4 +1,5 @@
-import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, WorkspaceLeaf, addIcon } from 'obsidian';
+import { BLENDER_ICON_SVG } from './constants';
 import { BlenderPluginSettings, DEFAULT_SETTINGS, FetchBlenderBuildsSettingTab } from './settings';
 import { FetchBlenderBuilds } from './buildManager';
 import { BlenderBuildsView, BLENDER_BUILDS_VIEW_TYPE } from './views/BlenderBuildsView';
@@ -18,10 +19,11 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 		this.registerView(
 			BLENDER_BUILDS_VIEW_TYPE,
 			(leaf: WorkspaceLeaf) => new BlenderBuildsView(leaf, this, this.buildManager)
-		);
+		);		// Register custom Blender icon
+		addIcon('blender-logo', BLENDER_ICON_SVG);
 
-		// Add ribbon icon
-		this.addRibbonIcon('download', 'Blender Build Manager', (evt: MouseEvent) => {
+		// Add ribbon icon with custom Blender logo
+		this.addRibbonIcon('blender-logo', 'Blender Build Manager', () => {
 			this.openBuildsView();
 		});
 

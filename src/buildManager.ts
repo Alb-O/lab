@@ -2,6 +2,7 @@ import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus,
 import { BlenderPluginSettings, DEFAULT_SETTINGS } from './settings';
 import { BlenderScraper } from './scraper';
 import { BlenderDownloader } from './downloader';
+import { BlenderLauncher } from './launcher';
 import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -10,6 +11,7 @@ import { EventEmitter } from 'events';
 export class FetchBlenderBuilds extends EventEmitter {
 	private scraper: BlenderScraper;
 	private downloader: BlenderDownloader;
+	private launcher: BlenderLauncher;
 	private settings: BlenderPluginSettings;
 	private vaultPath: string;
 	private buildCache: BlenderBuildInfo[] = [];
@@ -26,6 +28,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.settings = settings;
 		this.scraper = new BlenderScraper(settings.minimumBlenderVersion);
 		this.downloader = new BlenderDownloader();
+		this.launcher = new BlenderLauncher(settings);
 		this.cacheFilePath = path.join(this.getBuildsPath(), 'build-cache.json');
 		
 		this.setupEventListeners();
@@ -34,7 +37,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Set up event listeners for scraper and downloader
-	 */	private setupEventListeners(): void {
+	 */
+	private setupEventListeners(): void {
 		// Scraper events - we'll ignore detailed status messages and show simple user-friendly messages
 		this.scraper.on('status', (status: string) => {
 			// Don't update the status with detailed scraper messages during active scraping
@@ -80,9 +84,11 @@ export class FetchBlenderBuilds extends EventEmitter {
 				new Notice(`Download failed: ${build.subversion} - ${error.message}`);
 			}
 		});
-
 		this.downloader.on('extractionStarted', (archivePath: string, extractPath: string) => {
 			this.emit('extractionStarted', archivePath, extractPath);
+			if (this.settings.showNotifications) {
+				new Notice(`Extracting ${path.basename(archivePath)}...`);
+			}
 		});
 
 		this.downloader.on('extractionCompleted', (archivePath: string, extractPath: string) => {
@@ -100,19 +106,29 @@ export class FetchBlenderBuilds extends EventEmitter {
 				}
 			}
 		});
-
 		this.downloader.on('extractionError', (archivePath: string, error: any) => {
 			this.emit('extractionError', archivePath, error);
 			if (this.settings.showNotifications) {
 				new Notice(`Extraction failed: ${path.basename(archivePath)} - ${error.message}`);
 			}
 		});
-	}	/**
+
+		// Launcher events - forward to our own events
+		this.launcher.on('buildLaunched', (build: BlenderBuildInfo, launcherPath: string) => {
+			this.emit('buildLaunched', build, launcherPath);
+		});
+
+		this.launcher.on('launchError', (build: BlenderBuildInfo, error: any) => {
+			this.emit('launchError', build, error);
+		});
+	}
+	/**
 	 * Update plugin settings
 	 */
 	updateSettings(newSettings: Partial<BlenderPluginSettings>): void {
 		this.settings = { ...this.settings, ...newSettings };
 		this.scraper = new BlenderScraper(this.settings.minimumBlenderVersion);
+		this.launcher.updateSettings(this.settings);
 		this.emit('settingsUpdated', this.settings);
 	}
 
@@ -163,6 +179,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 		});
 	}
+
 	/**
 	 * Refresh builds by scraping
 	 */
@@ -524,6 +541,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 		});
 	}
+
 	/**
 	 * Load cached builds asynchronously without blocking constructor
 	 */
@@ -641,5 +659,182 @@ export class FetchBlenderBuilds extends EventEmitter {
 			return null;
 		}
 		return Date.now() - this.scrapingStatus.lastChecked.getTime();
+	}
+
+	/**
+	 * Delete a build completely (both downloaded archive and extracted files)
+	 */
+	async deleteBuild(build: BlenderBuildInfo): Promise<{ deletedDownload: boolean; deletedExtract: boolean }> {
+		let deletedDownload = false;
+		let deletedExtract = false;
+
+		try {
+			// Delete downloaded archive
+			const downloadsPath = this.getDownloadsPath();
+			const expectedFileName = this.extractFileName(build.link);
+			const downloadPath = path.join(downloadsPath, expectedFileName);
+			
+			if (fs.existsSync(downloadPath)) {
+				fs.unlinkSync(downloadPath);
+				deletedDownload = true;
+				console.log(`Deleted download: ${downloadPath}`);
+			}
+
+			// Delete extracted build
+			const extractsPath = this.getExtractsPath();
+			const expectedDirName = this.sanitizeBuildName(build);
+			const extractPath = path.join(extractsPath, expectedDirName);
+			
+			if (fs.existsSync(extractPath)) {
+				await this.deleteDirectory(extractPath);
+				deletedExtract = true;
+				console.log(`Deleted extract: ${extractPath}`);
+			}
+
+			// Emit deletion event
+			this.emit('buildDeleted', build, { deletedDownload, deletedExtract });			// Show notification if enabled
+			if (this.settings.showNotifications) {
+				const deletedItems: string[] = [];
+				if (deletedDownload) deletedItems.push('download');
+				if (deletedExtract) deletedItems.push('extracted files');
+				
+				if (deletedItems.length > 0) {
+					new Notice(`Deleted ${build.subversion}: ${deletedItems.join(' and ')}`);
+				} else {
+					new Notice(`No installed files found for ${build.subversion}`);
+				}
+			}
+
+			return { deletedDownload, deletedExtract };
+		} catch (error) {
+			this.emit('deletionError', build, error);
+			if (this.settings.showNotifications) {
+				new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
+			}
+			throw error;
+		}
+	}
+	/**
+	 * Check if a build is installed (downloaded or extracted)
+	 */
+	isBuildInstalled(build: BlenderBuildInfo): { downloaded: boolean; extracted: boolean } {
+		const downloadsPath = this.getDownloadsPath();
+		const extractsPath = this.getExtractsPath();
+		
+		const expectedFileName = this.extractFileName(build.link);
+		const downloadPath = path.join(downloadsPath, expectedFileName);
+		const downloaded = fs.existsSync(downloadPath);
+		
+		// Check for extracted build - look for any directory that might contain this build
+		let extracted = false;
+		
+		if (fs.existsSync(extractsPath)) {
+			const dirs = fs.readdirSync(extractsPath);
+			
+			// Check using multiple strategies to find the build
+			for (const dir of dirs) {
+				const dirPath = path.join(extractsPath, dir);
+				const stats = fs.statSync(dirPath);
+				
+				if (stats.isDirectory()) {
+					// Strategy 1: Check if directory name matches sanitized build name
+					const expectedDirName = this.sanitizeBuildName(build);
+					if (dir === expectedDirName) {
+						extracted = true;
+						break;
+					}
+					
+					// Strategy 2: Check if directory name contains the subversion
+					if (dir.includes(build.subversion)) {
+						extracted = true;
+						break;
+					}
+					
+					// Strategy 3: Check if directory name contains the build hash (if available)
+					if (build.buildHash && dir.includes(build.buildHash)) {
+						extracted = true;
+						break;
+					}
+				}
+			}
+		}
+		
+		return { downloaded, extracted };
+	}	/**
+	 * Launch a Blender build
+	 */
+	async launchBuild(build: BlenderBuildInfo): Promise<void> {
+		const installStatus = this.isBuildInstalled(build);
+		
+		if (!installStatus.extracted) {
+			throw new Error('Build must be extracted to launch');
+		}
+
+		const extractsPath = this.getExtractsPath();
+		
+		// Find the actual extracted directory using the same logic as isBuildInstalled
+		let extractPath: string | null = null;
+		
+		if (fs.existsSync(extractsPath)) {
+			const dirs = fs.readdirSync(extractsPath);
+			
+			for (const dir of dirs) {
+				const dirPath = path.join(extractsPath, dir);
+				const stats = fs.statSync(dirPath);
+				
+				if (stats.isDirectory()) {
+					// Strategy 1: Check if directory name matches sanitized build name
+					const expectedDirName = this.sanitizeBuildName(build);
+					if (dir === expectedDirName) {
+						extractPath = dirPath;
+						break;
+					}
+					
+					// Strategy 2: Check if directory name contains the subversion
+					if (dir.includes(build.subversion)) {
+						extractPath = dirPath;
+						break;
+					}
+					
+					// Strategy 3: Check if directory name contains the build hash (if available)
+					if (build.buildHash && dir.includes(build.buildHash)) {
+						extractPath = dirPath;
+						break;
+					}
+				}
+			}
+		}
+		
+		if (!extractPath) {
+			throw new Error('Extracted build directory not found');
+		}
+
+		// Use the launcher to launch the build
+		await this.launcher.launchBuild(build, extractPath);
+	}
+
+	/**
+	 * Find blender-launcher.exe in the extracted build directory
+	 */	/**
+	 * Recursively delete a directory and all its contents
+	 */
+	private async deleteDirectory(dirPath: string): Promise<void> {
+		if (!fs.existsSync(dirPath)) {
+			return;
+		}
+
+		const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+		
+		for (const entry of entries) {
+			const fullPath = path.join(dirPath, entry.name);
+			
+			if (entry.isDirectory()) {
+				await this.deleteDirectory(fullPath);
+			} else {
+				fs.unlinkSync(fullPath);
+			}
+		}
+		
+		fs.rmdirSync(dirPath);
 	}
 }

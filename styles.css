@@ -2,7 +2,6 @@
 
 /* Main container and smooth transitions */
 .blender-view-container {
-    transition: opacity 0.15s ease-in-out;
     min-height: 100px; /* Prevents layout shifts */
     height: 100%;
     display: flex;
@@ -67,6 +66,20 @@
     color: var(--text-muted);
 }
 
+.blender-status-active {
+    color: var(--text-accent);
+    font-weight: var(--font-weight-medium);
+}
+
+.blender-status-idle {
+    color: var(--text-muted);
+}
+
+.blender-status-time {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+}
+
 /* Builds list styles */
 .blender-content-area {
     flex: 1;
@@ -94,7 +107,6 @@
 
 .blender-build-item:hover {
     background: var(--background-modifier-hover);
-    border-radius: var(--radius-s);
 }
 
 .blender-build-info {
@@ -341,31 +353,9 @@
     justify-content: center;
 }
 
-.blender-progress-bar {
-    width: 100%;
-    height: var(--size-4-2);
-    background: var(--background-modifier-border);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-    margin: var(--size-4-2) 0;
-}
-
-.blender-progress-fill {
-    height: 100%;
-    background: var(--interactive-accent);
-    transition: width 0.3s ease;
-    border-radius: var(--radius-s);
-}
-
 /* Build info modal */
 .blender-build-info-modal .modal-content {
     max-width: 600px;
-}
-
-.blender-info-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
 }
 
 .blender-info-item {
@@ -407,6 +397,26 @@
 
 .blender-info-url:hover {
     color: var(--text-accent-hover);
+}
+
+/* Delete button styling */
+.blender-delete-button {
+    color: var(--text-error) !important;
+}
+
+.blender-delete-button:hover {
+    background-color: var(--background-modifier-error-hover) !important;
+}
+
+.blender-delete-button svg {
+    color: inherit;
+}
+
+/* Search highlighting */
+.blender-search-highlight {
+    color: var(--text-normal);
+    font-weight: var(--bold-weight);
+    display: inline;
 }
 
 /* Responsive design */

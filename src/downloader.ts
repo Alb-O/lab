@@ -35,10 +35,13 @@ export class BlenderDownloader extends EventEmitter {
 		if (onProgress) {
 			this.progressCallbacks.set(buildId, onProgress);
 		}
-
 		// Create abort controller for this download
 		const abortController = new AbortController();
 		this.downloadQueue.set(buildId, abortController);
+		
+		// Emit download started event
+		this.emit('downloadStarted', build, fullPath);
+		
 		try {
 			// Get file size first
 			let totalSize = 0;
@@ -72,10 +75,12 @@ export class BlenderDownloader extends EventEmitter {
 			fs.writeFileSync(fullPath, Buffer.from(response.arrayBuffer));
 
 			progress.downloaded = response.arrayBuffer.byteLength;
-			progress.total = progress.total || progress.downloaded;
-			progress.percentage = 100;
+			progress.total = progress.total || progress.downloaded;			progress.percentage = 100;
 			progress.status = 'completed';
 			this.notifyProgress(buildId, progress);
+
+			// Emit download completed event
+			this.emit('downloadCompleted', build, fullPath);
 
 			return fullPath;
 		} catch (error) {
@@ -85,10 +90,13 @@ export class BlenderDownloader extends EventEmitter {
 				percentage: 0,
 				speed: 0,
 				status: 'error',
-				error: error instanceof Error ? error.message : 'Unknown error'
-			};
+				error: error instanceof Error ? error.message : 'Unknown error'			};
 			
 			this.notifyProgress(buildId, progress);
+			
+			// Emit download error event
+			this.emit('downloadError', build, error);
+			
 			throw error;
 		} finally {
 			this.downloadQueue.delete(buildId);
@@ -141,7 +149,6 @@ export class BlenderDownloader extends EventEmitter {
 			callback(progress);
 		}
 	}
-
 	/**
 	 * Extract downloaded archive
 	 */
@@ -149,24 +156,39 @@ export class BlenderDownloader extends EventEmitter {
 		const path = require('path');
 		const fs = require('fs');
 		
-		// Create extraction directory
-		if (!fs.existsSync(extractPath)) {
-			fs.mkdirSync(extractPath, { recursive: true });
-		}
+		// Emit extraction started event
+		this.emit('extractionStarted', archivePath, extractPath);
+		
+		try {
+			// Create extraction directory
+			if (!fs.existsSync(extractPath)) {
+				fs.mkdirSync(extractPath, { recursive: true });
+			}
 
-		const fileName = path.basename(archivePath);
-		const isZip = fileName.endsWith('.zip');
-		const isTarGz = fileName.endsWith('.tar.gz');
-		const isDmg = fileName.endsWith('.dmg');
+			const fileName = path.basename(archivePath);
+			const isZip = fileName.endsWith('.zip');
+			const isTarGz = fileName.endsWith('.tar.gz');
+			const isDmg = fileName.endsWith('.dmg');
 
-		if (isZip) {
-			return this.extractZip(archivePath, extractPath);
-		} else if (isTarGz) {
-			return this.extractTarGz(archivePath, extractPath);
-		} else if (isDmg) {
-			return this.extractDmg(archivePath, extractPath);
-		} else {
-			throw new Error(`Unsupported archive format: ${fileName}`);
+			let result: string;
+			if (isZip) {
+				result = await this.extractZip(archivePath, extractPath);
+			} else if (isTarGz) {
+				result = await this.extractTarGz(archivePath, extractPath);
+			} else if (isDmg) {
+				result = await this.extractDmg(archivePath, extractPath);
+			} else {
+				throw new Error(`Unsupported archive format: ${fileName}`);
+			}
+			
+			// Emit extraction completed event
+			this.emit('extractionCompleted', archivePath, extractPath);
+			
+			return result;
+		} catch (error) {
+			// Emit extraction error event
+			this.emit('extractionError', archivePath, error);
+			throw error;
 		}
 	}
 

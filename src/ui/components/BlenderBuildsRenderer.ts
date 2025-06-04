@@ -1,4 +1,4 @@
-import { ButtonComponent, setTooltip } from 'obsidian';
+import { ButtonComponent, setTooltip, Notice } from 'obsidian';
 import { BlenderBuildInfo } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
 import type FetchBlenderBuildsPlugin from '../../main';
@@ -55,9 +55,9 @@ export class BlenderBuildsRenderer {
 		
 		// Main content area
 		const contentEl = listItem.createEl('div', { cls: 'blender-build-content' });
-				// First line: Version, Branch, Date, Hash
+		// First line: Version, Branch, Date, Hash
 		const mainLineEl = contentEl.createEl('div', { cls: 'blender-build-main-line' });
-				// Version (more prominent) - with highlighting
+		// Version (more prominent) - with highlighting
 		const versionText = searchFilter && highlightFunction ? 
 			highlightFunction(searchFilter, build.subversion) : build.subversion;
 		const versionEl = mainLineEl.createEl('span', { 
@@ -106,71 +106,122 @@ export class BlenderBuildsRenderer {
 		});
 		filenameEl.innerHTML = filenameText;
 		setTooltip(filenameEl, `File: ${filename}`);
-
 		// Add action buttons
 		const actionsEl = listItem.createEl('div', { cls: 'blender-build-actions' });
 		this.addBuildActions(actionsEl, build, index);
 
-		// Make the entire item clickable for download
-		listItem.addClass('blender-build-clickable');
-		listItem.addEventListener('click', async (evt) => {
-			// Don't trigger download if clicking on action buttons
-			if ((evt.target as HTMLElement).closest('.blender-build-actions')) {
-				return;
-			}
-			
-			evt.preventDefault();
-			evt.stopPropagation();
-			
-			try {
-				await this.downloadBuild(build);
-			} catch (error) {
-				console.error('Error downloading build:', error);
-			}
-		});
-	}
+		// Check if build is installed to determine clickable behavior
+		const installStatus = this.buildManager.isBuildInstalled(build);
+		const isInstalled = installStatus.downloaded || installStatus.extracted;
 
-	/**
+		// Make the entire item clickable for download only if not installed
+		if (!isInstalled) {
+			listItem.addClass('blender-build-clickable');
+			listItem.addEventListener('click', async (evt) => {
+				// Don't trigger download if clicking on action buttons
+				if ((evt.target as HTMLElement).closest('.blender-build-actions')) {
+					return;
+				}
+				
+				evt.preventDefault();
+				evt.stopPropagation();
+				
+				try {
+					await this.downloadBuild(build);
+				} catch (error) {
+					console.error('Error downloading build:', error);
+				}
+			});
+		} else {
+			// For installed builds, add a different visual style
+			listItem.addClass('blender-build-installed');
+		}
+	}	/**
 	 * Add action buttons for a build item
 	 */
 	private addBuildActions(actionsEl: HTMLElement, build: BlenderBuildInfo, index: number): void {
-		// Download button
-		const downloadBtn = new ButtonComponent(actionsEl)
-			.setIcon('download')
-			.setTooltip('Download this build')
-			.setClass('clickable-icon')
-			.setClass('blender-action-button');
-		
-		downloadBtn.buttonEl.addEventListener('click', (evt) => {
-			evt.preventDefault();
-			evt.stopPropagation();
-			this.downloadBuild(build);
-		});
+		// Check if build is installed
+		const installStatus = this.buildManager.isBuildInstalled(build);
+		const isInstalled = installStatus.downloaded || installStatus.extracted;
+		if (isInstalled) {
+			// For installed builds: Launch button (first), Delete button (second)
+			
+			// Launch button - show for all installed builds, but only enable if extracted
+			const launchBtn = new ButtonComponent(actionsEl)
+				.setIcon('play')
+				.setTooltip(installStatus.extracted ? 'Launch Blender' : 'Extract build first to launch')
+				.setClass('clickable-icon')
+				.setClass('blender-action-button')
+				.setClass('blender-launch-button');
+			
+			if (installStatus.extracted) {
+				launchBtn.buttonEl.addEventListener('click', async (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					try {
+						await this.launchBuild(build);
+					} catch (error) {
+						console.error('Failed to launch build:', error);
+						new Notice(`Failed to launch ${build.subversion}: ${error.message}`);
+					}
+				});
+			} else {
+				// Disable the button if not extracted
+				launchBtn.setDisabled(true);
+			}
+			
+			// Delete button
+			const deleteBtn = new ButtonComponent(actionsEl)
+				.setIcon('trash-2')
+				.setTooltip('Delete this build')
+				.setClass('clickable-icon')
+				.setClass('blender-action-button')
+				.setClass('blender-delete-button');
+			deleteBtn.buttonEl.addEventListener('click', async (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				try {
+					await this.deleteBuild(build);
+				} catch (error) {
+					console.error('Failed to delete build:', error);
+					new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
+				}
+			});
+		}else {
+			// For non-installed builds: Download button (first position)
+			const downloadBtn = new ButtonComponent(actionsEl)
+				.setIcon('download')
+				.setTooltip('Download this build')
+				.setClass('clickable-icon')
+				.setClass('blender-action-button');
+			downloadBtn.buttonEl.addEventListener('click', async (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				try {
+					await this.downloadBuild(build);
+				} catch (error) {
+					console.error('Failed to download build:', error);
+					new Notice(`Failed to download ${build.subversion}: ${error.message}`);
+				}
+			});
+		}
 
-		// Info button
-		const infoBtn = new ButtonComponent(actionsEl)
-			.setIcon('info')
-			.setTooltip('Build information')
-			.setClass('clickable-icon')
-			.setClass('blender-action-button');
-		
-		infoBtn.buttonEl.addEventListener('click', (evt) => {
-			evt.preventDefault();
-			evt.stopPropagation();
-			this.showBuildInfo(build);
-		});
-
-		// Copy link button
+		// Copy link button - always shown (last position)
 		const copyBtn = new ButtonComponent(actionsEl)
 			.setIcon('copy')
 			.setTooltip('Copy download link')
 			.setClass('clickable-icon')
 			.setClass('blender-action-button');
-		
-		copyBtn.buttonEl.addEventListener('click', (evt) => {
+		copyBtn.buttonEl.addEventListener('click', async (evt) => {
 			evt.preventDefault();
 			evt.stopPropagation();
-			navigator.clipboard.writeText(build.link);
+			try {
+				await navigator.clipboard.writeText(build.link);
+				new Notice('Download link copied to clipboard');
+			} catch (error) {
+				console.error('Failed to copy to clipboard:', error);
+				new Notice('Failed to copy link to clipboard');
+			}
 		});
 	}
 
@@ -195,26 +246,43 @@ export class BlenderBuildsRenderer {
 			text: 'Try refreshing or adjusting your filters'
 		});
 	}
-
 	/**
 	 * Download a build
-	 */
-	private async downloadBuild(build: BlenderBuildInfo): Promise<void> {
+	 */	private async downloadBuild(build: BlenderBuildInfo): Promise<void> {
 		try {
 			await this.buildManager.downloadBuild(build);
+			// The buildManager handles all notifications via events
 		} catch (error) {
 			console.error('Failed to download build:', error);
+			new Notice(`Failed to start download: ${error.message}`);
+		}
+	}
+	/**
+	 * Delete a build
+	 */
+	private async deleteBuild(build: BlenderBuildInfo): Promise<void> {
+		try {
+			await this.buildManager.deleteBuild(build);
+			// Refresh the view to update the UI
+			this.onRefresh();
+		} catch (error) {
+			console.error('Failed to delete build:', error);
+			new Notice(`Failed to delete build: ${error.message}`);
 		}
 	}
 
 	/**
-	 * Show build information
+	 * Launch a build
 	 */
-	private showBuildInfo(build: BlenderBuildInfo): void {
-		// TODO: Implement build info modal
-		console.log('Build info:', build);
+	private async launchBuild(build: BlenderBuildInfo): Promise<void> {
+		try {
+			await this.buildManager.launchBuild(build);
+		} catch (error) {
+			console.error('Failed to launch build:', error);
+			new Notice(`Failed to launch build: ${error.message}`);
+		}
 	}
-	
+
 	/**
 	 * Extract filename from URL (removes .zip extension since all builds are ZIP files)
 	 */
