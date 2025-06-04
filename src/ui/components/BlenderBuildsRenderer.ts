@@ -137,16 +137,16 @@ export class BlenderBuildsRenderer {
 			listItem.addClass('blender-build-installed');
 		}
 	}
-	
-	/**
+		/**
 	 * Add action buttons for a build item
 	 */
 	private addBuildActions(actionsEl: HTMLElement, build: BlenderBuildInfo, index: number): void {
 		// Check if build is installed
 		const installStatus = this.buildManager.isBuildInstalled(build);
 		const isInstalled = installStatus.downloaded || installStatus.extracted;
+		
 		if (isInstalled) {
-			// For installed builds: Launch button (first), Delete button (second)
+			// For installed builds: Launch button (first), Extract button (if needed), Trash button (last)
 			
 			// Launch button - show for all installed builds, but only enable if extracted
 			const launchBtn = new ButtonComponent(actionsEl)
@@ -172,14 +172,34 @@ export class BlenderBuildsRenderer {
 				launchBtn.setDisabled(true);
 			}
 			
-			// Delete button
-			const deleteBtn = new ButtonComponent(actionsEl)
+			// Extract button - show only if downloaded but not extracted and auto-extract is off
+			if (installStatus.downloaded && !installStatus.extracted && !this.plugin.settings.autoExtract) {
+				const extractBtn = new ButtonComponent(actionsEl)
+					.setIcon('folder-open')
+					.setTooltip('Extract this build')
+					.setClass('clickable-icon')
+					.setClass('blender-action-button')
+					.setClass('blender-extract-button');
+				extractBtn.buttonEl.addEventListener('click', async (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					try {
+						await this.extractBuild(build);
+					} catch (error) {
+						console.error('Failed to extract build:', error);
+						new Notice(`Failed to extract ${build.subversion}: ${error.message}`);
+					}
+				});
+			}
+			
+			// Trash button - for all installed builds
+			const trashBtn = new ButtonComponent(actionsEl)
 				.setIcon('trash-2')
 				.setTooltip('Delete this build')
 				.setClass('clickable-icon')
 				.setClass('blender-action-button')
-				.setClass('blender-delete-button');
-			deleteBtn.buttonEl.addEventListener('click', async (evt) => {
+				.setClass('blender-trash-button');
+			trashBtn.buttonEl.addEventListener('click', async (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
 				try {
@@ -189,7 +209,7 @@ export class BlenderBuildsRenderer {
 					new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
 				}
 			});
-		}else {
+		} else {
 			// For non-installed builds: Download button (first position)
 			const downloadBtn = new ButtonComponent(actionsEl)
 				.setIcon('download')
@@ -261,7 +281,6 @@ export class BlenderBuildsRenderer {
 			new Notice(`Failed to start download: ${error.message}`);
 		}
 	}
-
 	/**
 	 * Delete a build
 	 */
@@ -273,6 +292,37 @@ export class BlenderBuildsRenderer {
 		} catch (error) {
 			console.error('Failed to delete build:', error);
 			new Notice(`Failed to delete build: ${error.message}`);
+		}
+	}	/**
+	 * Extract a build
+	 */
+	private async extractBuild(build: BlenderBuildInfo): Promise<void> {
+		try {
+			// Get the archive path for the build (same logic as isBuildInstalled)
+			const downloadsPath = this.buildManager.getDownloadsPathForBuild(build);
+			const expectedFileName = this.extractFileName(build.link);
+			const path = require('path');
+			const archivePath = path.join(downloadsPath, expectedFileName);
+			
+			await this.buildManager.extractBuild(archivePath, build);
+			// Refresh the view to update the UI
+			this.onRefresh();
+		} catch (error) {
+			console.error('Failed to extract build:', error);
+			new Notice(`Failed to extract build: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Extract filename from URL (helper method)
+	 */
+	private extractFileName(url: string): string {
+		try {
+			const urlObj = new URL(url);
+			const pathname = urlObj.pathname;
+			return pathname.split('/').pop() || 'unknown-file.zip';
+		} catch {
+			return 'unknown-file.zip';
 		}
 	}
 

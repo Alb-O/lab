@@ -1,22 +1,14 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { MINIMUM_BLENDER_VERSIONS, MinimumBlenderVersionType } from './constants';
 import type FetchBlenderBuildsPlugin from './main';
 
 export interface BlenderPluginSettings {
 	libraryFolder: string;
-	scrapeStableBuilds: boolean;
-	scrapeAutomatedBuilds: boolean;
-	minimumBlenderVersion: string;
-	autoDownloadLatest: boolean;
-	showNotifications: boolean;
-	maxBuildsToKeep: number;	autoExtract: boolean;
-	cleanupArchives: boolean;
-	// Additional settings for the UI
-	enableStableBuilds: boolean;
-	enableDailyBuilds: boolean;
-	enableExperimentalBuilds: boolean;
+	autoExtract: boolean;
+	cleanUpAfterExtraction: boolean;
 	preferredArchitecture: 'auto' | 'x64' | 'arm64';
 	maxConcurrentDownloads: number;
-	keepOldBuilds: boolean;
+	minimumBlenderVersion: MinimumBlenderVersionType;
 	// Blender environment variables
 	blenderEnvironmentVariables: {
 		BLENDER_USER_RESOURCES?: string;
@@ -39,19 +31,11 @@ export interface BlenderPluginSettings {
 
 export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	libraryFolder: '.blender',
-	scrapeStableBuilds: true,
-	scrapeAutomatedBuilds: true,
-	minimumBlenderVersion: '3.0',
-	autoDownloadLatest: false,
-	showNotifications: true,
-	maxBuildsToKeep: 5,	autoExtract: true,
-	cleanupArchives: false,
-	enableStableBuilds: true,
-	enableDailyBuilds: true,
-	enableExperimentalBuilds: false,
+	autoExtract: true,
+	cleanUpAfterExtraction: true,
 	preferredArchitecture: 'auto',
 	maxConcurrentDownloads: 2,
-	keepOldBuilds: true,
+	minimumBlenderVersion: '3.0',
 	blenderEnvironmentVariables: {}
 };
 
@@ -68,10 +52,9 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		// General Settings
 		new Setting(containerEl)
-			.setName('Blender Directory')
-			.setDesc('Directory relative to vault root where Blender builds will be stored')
+			.setName('Storage directory')
+			.setDesc('Directory relative to vault root where Blender builds will be stored. It is highly recommended to prefix the directory with a dot so Obsidian doesn\'t index it.')
 			.addText(text => text
 				.setPlaceholder('.blender')
 				.setValue(this.plugin.settings.libraryFolder)
@@ -79,9 +62,10 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					this.plugin.settings.libraryFolder = value;
 					await this.plugin.saveSettings();
 				}));
+
 		new Setting(containerEl)
 			.setName('Auto-extract builds')
-			.setDesc('Automatically extract downloaded archives')
+			.setDesc('Automatically extract downloaded archives.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoExtract)
 				.onChange(async (value) => {
@@ -89,45 +73,38 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// Build Types
-		new Setting(containerEl).setName('Build types').setHeading();
-		
 		new Setting(containerEl)
-			.setName('Enable Stable Builds')
-			.setDesc('Show stable Blender releases')
+			.setName('Clean up after extraction')
+			.setDesc('Remove downloaded archives after extraction.')
 			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableStableBuilds)
+				.setValue(this.plugin.settings.cleanUpAfterExtraction)
 				.onChange(async (value) => {
-					this.plugin.settings.enableStableBuilds = value;
+					this.plugin.settings.cleanUpAfterExtraction = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
-			.setName('Enable Daily Builds')
-			.setDesc('Show daily development builds')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableDailyBuilds)
-				.onChange(async (value) => {
-					this.plugin.settings.enableDailyBuilds = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName('Minimum Blender version')
+			.setDesc('Only show builds with this version or higher.')
+			.addDropdown(dropdown => {
+				// Add all version options from the constant array
+				MINIMUM_BLENDER_VERSIONS.forEach(version => {
+					dropdown.addOption(version, version);
+				});
+				
+				return dropdown
+					.setValue(this.plugin.settings.minimumBlenderVersion)
+					.onChange(async (value: MinimumBlenderVersionType) => {
+						this.plugin.settings.minimumBlenderVersion = value;
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl).setName('Downloads').setHeading();
 
 		new Setting(containerEl)
-			.setName('Enable Experimental Builds')
-			.setDesc('Show experimental and branch builds')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enableExperimentalBuilds)
-				.onChange(async (value) => {
-					this.plugin.settings.enableExperimentalBuilds = value;
-					await this.plugin.saveSettings();
-				}));
-
-		// Download Settings
-		containerEl.createEl('h3', { text: 'Download Settings' });
-
-		new Setting(containerEl)
-			.setName('Preferred Architecture')
-			.setDesc('Architecture preference for downloads')
+			.setName('Preferred architecture')
+			.setDesc('Architecture preference for downloads.')
 			.addDropdown(dropdown => dropdown
 				.addOption('auto', 'Auto-detect')
 				.addOption('x64', 'x64')
@@ -139,8 +116,8 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Max Concurrent Downloads')
-			.setDesc('Maximum number of simultaneous downloads')
+			.setName('Max concurrent downloads')
+			.setDesc('Maximum number of simultaneous downloads.')
 			.addSlider(slider => slider
 				.setLimits(1, 5, 1)
 				.setValue(this.plugin.settings.maxConcurrentDownloads)
@@ -150,64 +127,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		// Build Management
-		containerEl.createEl('h3', { text: 'Build Management' });
-
-		new Setting(containerEl)
-			.setName('Keep Old Builds')
-			.setDesc('Keep older builds when downloading new ones')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.keepOldBuilds)
-				.onChange(async (value) => {
-					this.plugin.settings.keepOldBuilds = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Max Builds to Keep')
-			.setDesc('Maximum number of builds to keep (0 = unlimited)')
-			.addText(text => text
-				.setPlaceholder('10')
-				.setValue(this.plugin.settings.maxBuildsToKeep.toString())
-				.onChange(async (value) => {
-					const num = parseInt(value);
-					if (!isNaN(num) && num >= 0) {
-						this.plugin.settings.maxBuildsToKeep = num;
-						await this.plugin.saveSettings();
-					}
-				}));
-
-		// Version Filtering
-		containerEl.createEl('h3', { text: 'Version Filtering' });
-		new Setting(containerEl)
-			.setName('Minimum Stable Version')
-			.setDesc('Minimum version for stable builds (e.g., "3.0", "4.0")')
-			.addText(text => text
-				.setPlaceholder('3.0')
-				.setValue(this.plugin.settings.minimumBlenderVersion)
-				.onChange(async (value) => {
-					this.plugin.settings.minimumBlenderVersion = value;
-					await this.plugin.saveSettings();
-				}));
-
-		// Notifications
-		containerEl.createEl('h3', { text: 'Notifications' });
-
-		new Setting(containerEl)
-			.setName('Notify on New Builds')
-			.setDesc('Show notifications when new builds are available')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.showNotifications)
-				.onChange(async (value) => {
-					this.plugin.settings.showNotifications = value;					await this.plugin.saveSettings();
-				}));
-
-		// Blender Environment Variables
-		containerEl.createEl('h3', { text: 'Blender Environment Variables' });
-		containerEl.createEl('p', { 
-			text: 'Set custom environment variables that will be passed to Blender when launching builds. Leave empty to use system defaults.',
-			cls: 'setting-item-description'
-		});
+		new Setting(containerEl).setName('Environment variables').setHeading().setDesc('Set custom path environment variables that will be passed to Blender when launching builds.');
 
 		const envVarDescriptions: Record<string, string> = {
 			BLENDER_USER_RESOURCES: 'User-specific resources directory',
@@ -232,7 +152,6 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 				.setName(envVar)
 				.setDesc(description)
 				.addText(text => text
-					.setPlaceholder('Leave empty for system default')
 					.setValue(this.plugin.settings.blenderEnvironmentVariables[envVar as keyof typeof this.plugin.settings.blenderEnvironmentVariables] || '')
 					.onChange(async (value) => {
 						if (value.trim() === '') {
@@ -243,57 +162,5 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}));
 		});
-
-		// Actions
-		containerEl.createEl('h3', { text: 'Actions' });
-
-		new Setting(containerEl)
-			.setName('Open Blender Directory')
-			.setDesc('Open the directory where Blender builds are stored')
-			.addButton(button => button
-				.setButtonText('Open Directory')
-				.setCta()
-				.onClick(() => {
-					this.plugin.buildManager.openBuildsDirectory();
-				}));
-
-		new Setting(containerEl)
-			.setName('Refresh Builds')
-			.setDesc('Manually refresh the list of available builds')
-			.addButton(button => button
-				.setButtonText('Refresh Now')
-				.onClick(async () => {
-					button.setButtonText('Refreshing...');
-					button.setDisabled(true);
-					try {
-						await this.plugin.buildManager.refreshBuilds();
-						new Notice('Builds refreshed successfully!');
-					} catch (error) {
-						new Notice(`Failed to refresh builds: ${error.message}`);
-					} finally {
-						button.setButtonText('Refresh Now');
-						button.setDisabled(false);
-					}
-				}));
-
-		new Setting(containerEl)
-			.setName('Clean Up Old Builds')
-			.setDesc('Remove old builds based on the maximum builds setting')
-			.addButton(button => button
-				.setButtonText('Clean Up')
-				.setWarning()
-				.onClick(async () => {
-					button.setButtonText('Cleaning...');
-					button.setDisabled(true);
-					try {
-						const removed = await this.plugin.buildManager.cleanupOldBuilds();
-						new Notice(`Removed ${removed.removedDownloads} downloads and ${removed.removedExtracts} extracts.`);
-					} catch (error) {
-						new Notice(`Failed to clean up builds: ${error.message}`);
-					} finally {
-						button.setButtonText('Clean Up');
-						button.setDisabled(false);
-					}
-				}));
 	}
 }

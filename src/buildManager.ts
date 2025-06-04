@@ -56,25 +56,19 @@ export class FetchBlenderBuilds extends EventEmitter {
 			this.scrapingStatus.error = error;
 			this.scrapingStatus.isActive = false;
 			this.emit('scrapingError', error);
-			if (this.settings.showNotifications) {
-				new Notice(`Scraping error: ${error}`);
-			}
+			new Notice(`Scraping error: ${error}`);
 		});
 
 		// Downloader events
 		this.downloader.on('downloadStarted', (build: BlenderBuildInfo, filePath: string) => {
 			this.emit('downloadStarted', build, filePath);
-			if (this.settings.showNotifications) {
-				new Notice(`Started downloading ${build.subversion}`);
-			}
+			new Notice(`Started downloading ${build.subversion}`);
 		});
 
 		this.downloader.on('downloadCompleted', (build: BlenderBuildInfo, filePath: string) => {
 			this.emit('downloadCompleted', build, filePath);
-			if (this.settings.showNotifications) {
-				new Notice(`Download completed: ${build.subversion}`);
-			}
-			
+			new Notice(`Download completed: ${build.subversion}`);
+
 			// Auto-extract if enabled
 			if (this.settings.autoExtract) {
 				this.extractBuild(filePath, build).catch(console.error);
@@ -83,37 +77,20 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		this.downloader.on('downloadError', (build: BlenderBuildInfo, error: any) => {
 			this.emit('downloadError', build, error);
-			if (this.settings.showNotifications) {
-				new Notice(`Download failed: ${build.subversion} - ${error.message}`);
-			}
+			new Notice(`Download failed: ${build.subversion} - ${error.message}`);
 		});
 		this.downloader.on('extractionStarted', (archivePath: string, extractPath: string) => {
 			this.emit('extractionStarted', archivePath, extractPath);
-			if (this.settings.showNotifications) {
-				new Notice(`Extracting ${path.basename(archivePath)}...`);
-			}
+			new Notice(`Extracting ${path.basename(archivePath)}...`);
 		});
 
 		this.downloader.on('extractionCompleted', (archivePath: string, extractPath: string) => {
 			this.emit('extractionCompleted', archivePath, extractPath);
-			if (this.settings.showNotifications) {
-				new Notice(`Extraction completed: ${path.basename(archivePath)}`);
-			}
-			
-			// Cleanup archive if enabled
-			if (this.settings.cleanupArchives) {
-				try {
-					fs.unlinkSync(archivePath);
-				} catch (error) {
-					console.warn('Failed to cleanup archive:', error);
-				}
-			}
+			new Notice(`Extraction completed: ${path.basename(archivePath)}`);
 		});
 		this.downloader.on('extractionError', (archivePath: string, error: any) => {
 			this.emit('extractionError', archivePath, error);
-			if (this.settings.showNotifications) {
-				new Notice(`Extraction failed: ${path.basename(archivePath)} - ${error.message}`);
-			}
+			new Notice(`Extraction failed: ${path.basename(archivePath)} - ${error.message}`);
 		});
 
 		// Launcher events - forward to our own events
@@ -130,7 +107,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 	 */
 	updateSettings(newSettings: Partial<BlenderPluginSettings>): void {
 		this.settings = { ...this.settings, ...newSettings };
-		this.scraper = new BlenderScraper(this.settings.minimumBlenderVersion);
 		this.launcher.updateSettings(this.settings);
 		this.emit('settingsUpdated', this.settings);
 	}
@@ -235,10 +211,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		};
 		this.emit('scrapingStatus', this.scrapingStatus);
 		try {
-			const builds = await this.scraper.getAllBuilds(
-				this.settings.scrapeStableBuilds,
-				this.settings.scrapeAutomatedBuilds
-			);
+			const builds = await this.scraper.getAllBuilds();
 
 			this.buildCache = builds;
 			this.scrapingStatus.isActive = false;
@@ -251,9 +224,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			// Save the builds to cache
 			await this.saveCacheBuilds(builds);
 
-			if (this.settings.showNotifications) {
-				new Notice(`Found ${builds.length} Blender builds.`);
-			}
+			new Notice(`Found ${builds.length} Blender builds.`);
 
 			return builds;
 		} catch (error) {
@@ -263,12 +234,14 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw error;
 		}
 	}
+	
 	/**
 	 * Get cached builds
 	 */
 	getCachedBuilds(): BlenderBuildInfo[] {
 		return [...this.buildCache];
 	}
+
 	/**
 	 * Download a specific build
 	 */
@@ -297,6 +270,9 @@ export class FetchBlenderBuilds extends EventEmitter {
 	): Promise<string> {
 		this.ensureDirectories();
 		const extractsPath = this.getExtractsPathForBuild(build);
+		
+		// Emit extraction started event for this specific build
+		this.emit('extractionStarted', archivePath);
 		
 		// Extract directly to the extracts folder - let the ZIP create its own folder structure
 		try {
@@ -344,6 +320,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		const name = `${build.subversion}-${build.branch}`;
 		return name.replace(/[^a-zA-Z0-9.-]/g, '_');
 	}
+
 	/**
 	 * Get downloaded builds
 	 */
@@ -384,6 +361,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		return downloadedBuilds;
 	}
+
 	/**
 	 * Get extracted builds
 	 */
@@ -431,76 +409,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 	}
 
 	/**
-	 * Clean up old builds
-	 */
-	async cleanupOldBuilds(): Promise<{ removedDownloads: number; removedExtracts: number }> {
-		const maxBuilds = this.settings.maxBuildsToKeep;
-		
-		const removedDownloads = await this.cleanupOldDownloads(maxBuilds);
-		const removedExtracts = await this.downloader.cleanupOldBuilds(this.getExtractsPath(), maxBuilds);
-
-		if (this.settings.showNotifications && (removedDownloads > 0 || removedExtracts > 0)) {
-			new Notice(`Cleaned up ${removedDownloads} downloads and ${removedExtracts} extracts.`);
-		}
-
-		return { removedDownloads, removedExtracts };
-	}
-	/**
-	 * Clean up old downloads
-	 */
-	private async cleanupOldDownloads(maxBuilds: number): Promise<number> {
-		const downloadsPath = this.getDownloadsPath();
-		if (!fs.existsSync(downloadsPath)) {
-			return 0;
-		}
-
-		const allFiles: Array<{ name: string; path: string; stats: fs.Stats }> = [];
-		
-		// Collect files from all build type subdirectories
-		const buildTypes = [BuildType.Stable, BuildType.Daily, BuildType.LTS, BuildType.Experimental, BuildType.Patch, BuildType.ReleaseCandidate];
-		
-		for (const buildType of buildTypes) {
-			const typeDir = path.join(downloadsPath, buildType);
-			if (!fs.existsSync(typeDir)) continue;
-			
-			const files = fs.readdirSync(typeDir)
-				.map(name => ({
-					name,
-					path: path.join(typeDir, name),
-					stats: fs.statSync(path.join(typeDir, name))
-				}))
-				.filter(item => item.stats.isFile());
-				
-			allFiles.push(...files);
-		}
-
-		// Sort by modification time (newest first)
-		allFiles.sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
-
-		if (allFiles.length <= maxBuilds) {
-			return 0;
-		}
-
-		const filesToRemove = allFiles.slice(maxBuilds);
-		let removedCount = 0;
-
-		for (const file of filesToRemove) {
-			try {
-				fs.unlinkSync(file.path);
-				removedCount++;
-				
-				// Clean up empty type directory if needed
-				const typeDir = path.dirname(file.path);
-				await this.cleanupEmptyDirectory(typeDir);
-			} catch (error) {
-				console.error(`Failed to remove file ${file.name}:`, error);
-			}
-		}
-
-		return removedCount;
-	}
-
-	/**
 	 * Clean up empty directories
 	 */
 	private async cleanupEmptyDirectory(dirPath: string): Promise<void> {
@@ -539,7 +447,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		const lastCheck = this.scrapingStatus.lastChecked;
 		const newBuilds = await this.scraper.checkForNewBuilds(lastCheck);
 		
-		if (newBuilds.length > 0 && this.settings.showNotifications) {
+		if (newBuilds.length > 0) {
 			new Notice(`Found ${newBuilds.length} new Blender builds.`);
 		}
 
@@ -769,28 +677,25 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 			// Emit deletion event
 			this.emit('buildDeleted', build, { deletedDownload, deletedExtract });
-			// Show notification if enabled
-			if (this.settings.showNotifications) {
-				const deletedItems: string[] = [];
-				if (deletedDownload) deletedItems.push('download');
-				if (deletedExtract) deletedItems.push('extracted files');
-				
-				if (deletedItems.length > 0) {
-					new Notice(`Deleted ${build.subversion}: ${deletedItems.join(' and ')}`);
-				} else {
-					new Notice(`No installed files found for ${build.subversion}`);
-				}
+			const deletedItems: string[] = [];
+			if (deletedDownload) deletedItems.push('download');
+			if (deletedExtract) deletedItems.push('extracted files');
+			
+			if (deletedItems.length > 0) {
+				new Notice(`Deleted ${build.subversion}: ${deletedItems.join(' and ')}`);
+			} else {
+				new Notice(`No installed files found for ${build.subversion}`);
 			}
 
 			return { deletedDownload, deletedExtract };
 		} catch (error) {
 			this.emit('deletionError', build, error);
-			if (this.settings.showNotifications) {
-				new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
-			}
+			new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
 			throw error;
 		}
-	}	/**
+	}
+
+	/**
 	 * Check if a build is installed (downloaded or extracted)
 	 */
 	isBuildInstalled(build: BlenderBuildInfo): { downloaded: boolean; extracted: boolean } {
@@ -808,7 +713,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 		
 		return { downloaded, extracted };
 	}
-		/**
+	
+	/**
 	 * Launch a Blender build
 	 */
 	async launchBuild(build: BlenderBuildInfo): Promise<void> {

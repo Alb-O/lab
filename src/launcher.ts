@@ -23,6 +23,7 @@ export class BlenderLauncher extends EventEmitter {
 		if (!launcherPath) {
 			throw new Error('blender-launcher.exe not found in build directory');
 		}
+		
 		try {
 			// Launch Blender as a detached process
 			const { spawn } = require('child_process');
@@ -43,14 +44,9 @@ export class BlenderLauncher extends EventEmitter {
 			
 			// Unreference the child process so Node.js can exit
 			child.unref();
-			
 			this.emit('buildLaunched', build, launcherPath);
-			
-			if (this.settings.showNotifications) {
-				new Notice(`Launched ${build.subversion}`);
-			}
-			
 			console.log(`Launched Blender: ${launcherPath}`);
+			
 		} catch (error) {
 			this.emit('launchError', build, error);
 			throw error;

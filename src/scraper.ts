@@ -283,7 +283,8 @@ export class BlenderScraper extends EventEmitter {
 						}
 						if (build.branch && branch === 'experimental') {
 							buildVar = build.branch;
-						}						// Always include architecture info for later filtering in the view
+						}
+						// Always include architecture info for later filtering in the view
 						if (build.architecture) {
 							buildVar += ` | ${build.architecture}`;
 						}
@@ -296,7 +297,8 @@ export class BlenderScraper extends EventEmitter {
 							buildHash: build.hash,
 							commitTime,
 							branch
-						});					}
+						});
+					}
 				}
 			} catch (error) {
 				console.error(`Error scraping ${branch} builds:`, error);
@@ -309,16 +311,11 @@ export class BlenderScraper extends EventEmitter {
 	/**
 	 * Get all builds (stable + automated)
 	 */
-	async getAllBuilds(scrapeStable: boolean = true, scrapeAutomated: boolean = true): Promise<BlenderBuildInfo[]> {
+	async getAllBuilds(): Promise<BlenderBuildInfo[]> {
 		const buildPromises: Promise<BlenderBuildInfo[]>[] = [];
 
-		if (scrapeStable) {
-			buildPromises.push(this.scrapeStableReleases());
-		}
-
-		if (scrapeAutomated) {
-			buildPromises.push(this.scrapeAutomatedReleases());
-		}
+		buildPromises.push(this.scrapeStableReleases());
+		buildPromises.push(this.scrapeAutomatedReleases());
 
 		try {
 			const results = await Promise.all(buildPromises);

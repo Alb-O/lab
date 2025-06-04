@@ -128,6 +128,13 @@ export class BlenderStatusDisplay {
 			setTimeout(() => this.clearActivity(), 5000);
 		});
 
+		// Build extraction events (for manual extraction)
+		this.buildManager.on('buildExtracted', (build: BlenderBuildInfo, extractedPath: string) => {
+			this.setActivity(`Extracted ${build.subversion} successfully`);
+			// Clear activity after 3 seconds
+			setTimeout(() => this.clearActivity(), 3000);
+		});
+
 		// Scraping events
 		this.buildManager.on('scrapingStatus', () => {
 			// Only refresh if no current download/extraction activity

@@ -8,11 +8,11 @@
  */
 export const BLENDER_LTS_VERSIONS = [
 	'2.83',
-    '2.93',
+  '2.93',
 	'3.3',
 	'3.6',
 	'4.2',
-    // '4.5', // Uncomment when 4.5 is released
+  // '4.5', // Uncomment when 4.5 is released
 	// Future LTS versions should be added here
 ] as const;
 
@@ -33,3 +33,27 @@ export const BLENDER_ICON_SVG = `
       </g>
     </g>
 </svg>`;
+
+/**
+ * Available minimum Blender version options for filtering builds
+ */
+export const MINIMUM_BLENDER_VERSIONS = [
+	'2.8',
+	'2.9',
+	'3.0',
+	'3.1',
+	'3.2',
+	'3.3',
+	'3.4',
+	'3.5',
+	'3.6',
+	'4.0',
+	'4.1',
+	'4.2',
+	'4.3'
+] as const;
+
+/**
+ * Type for minimum version strings
+ */
+export type MinimumBlenderVersionType = typeof MINIMUM_BLENDER_VERSIONS[number];
