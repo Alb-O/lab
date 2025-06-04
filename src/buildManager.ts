@@ -891,6 +891,51 @@ export class FetchBlenderBuilds extends EventEmitter {
 		// Use the launcher to launch the build
 		await this.launcher.launchBuild(build, extractPath);
 	}
+	/**
+	 * Create a symlink named 'bl_symlink' in the root builds directory pointing to the extracted build
+	 */
+	async symlinkBuild(build: BlenderBuildInfo): Promise<void> {
+		// Get extracted builds once and reuse the results
+		const extractedBuilds = this.getExtractedBuilds();
+		const extractedBuild = extractedBuilds.find(extracted => extracted.build === build);
+		
+		if (!extractedBuild) {
+			throw new Error('Build must be extracted to create symlink');
+		}
+
+		const buildPath = extractedBuild.extractPath;
+		
+		if (!fs.existsSync(buildPath)) {
+			throw new Error('Extracted build directory not found on filesystem');
+		}
+
+		const buildsRootPath = this.getBuildsPath();
+		const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
+		
+		// Remove existing symlink if it exists
+		if (fs.existsSync(symlinkPath)) {
+			try {
+				// Check if it's a symlink before removing
+				const stats = fs.lstatSync(symlinkPath);
+				if (stats.isSymbolicLink()) {
+					fs.unlinkSync(symlinkPath);
+				} else {
+					throw new Error('bl_symlink exists but is not a symlink - cannot replace');
+				}
+			} catch (error) {
+				throw new Error(`Failed to remove existing bl_symlink: ${error.message}`);
+			}
+		}
+		try {
+			// Create the symlink - use platform-appropriate type
+			const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+			fs.symlinkSync(buildPath, symlinkPath, symlinkType);
+			this.emit('buildSymlinked', build, symlinkPath);
+			new Notice(`Created symlink: bl_symlink -> ${build.subversion}`);
+		} catch (error) {
+			throw new Error(`Failed to create symlink: ${error.message}`);
+		}
+	}
 
 	/**
 	 * Recursively delete a directory and all its contents

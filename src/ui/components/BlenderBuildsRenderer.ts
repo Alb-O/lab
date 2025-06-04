@@ -189,6 +189,26 @@ export class BlenderBuildsRenderer {
 					}
 				});
 			}
+
+			// Symlink button - show only for extracted builds
+			if (installStatus.extracted) {
+				const symlinkBtn = new ButtonComponent(actionsEl)
+					.setIcon('link')
+					.setTooltip('Create symlink to this build')
+					.setClass('clickable-icon')
+					.setClass('blender-action-button')
+					.setClass('blender-symlink-button');
+				symlinkBtn.buttonEl.addEventListener('click', async (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					try {
+						await this.symlinkBuild(build);
+					} catch (error) {
+						console.error('Failed to symlink build:', error);
+						new Notice(`Failed to symlink ${build.subversion}: ${error.message}`);
+					}
+				});
+			}
 			
 			// Trash button - for all installed builds
 			const trashBtn = new ButtonComponent(actionsEl)
@@ -333,6 +353,20 @@ export class BlenderBuildsRenderer {
 		} catch (error) {
 			console.error('Failed to launch build:', error);
 			new Notice(`Failed to launch build: ${error.message}`);
+		}
+	}
+
+	/**
+	 * Create a symlink to a build
+	 */
+	private async symlinkBuild(build: BlenderBuildInfo): Promise<void> {
+		try {
+			await this.buildManager.symlinkBuild(build);
+			// Refresh the view to update the UI
+			this.onRefresh();
+		} catch (error) {
+			console.error('Failed to symlink build:', error);
+			new Notice(`Failed to symlink build: ${error.message}`);
 		}
 	}
 

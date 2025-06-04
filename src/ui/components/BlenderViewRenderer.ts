@@ -54,11 +54,10 @@ export class BlenderViewRenderer {
 			() => this.toggleTypeFilter()
 		);
 		
-		this.statusDisplay = new BlenderStatusDisplay(buildManager);
-				this.buildsRenderer = new BlenderBuildsRenderer(
+		this.statusDisplay = new BlenderStatusDisplay(buildManager);		this.buildsRenderer = new BlenderBuildsRenderer(
 			this.plugin,
 			buildManager,
-			() => this.refreshBuilds()
+			() => this.refreshUI()
 		);
 		
 		// Set up event listeners
@@ -272,6 +271,15 @@ export class BlenderViewRenderer {
 			this.isRefreshing = false;
 			this.toolbar.setRefreshingState(false);
 		}
+	}
+
+	/**
+	 * Refresh only the UI display without scraping new data
+	 * Useful for when local state changes (install/extract/delete operations)
+	 */
+	async refreshUI(): Promise<void> {
+		await this.updateBuildsContent();
+		this.updateStatusDisplay();
 	}
 
 	/**

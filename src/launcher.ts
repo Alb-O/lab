@@ -12,16 +12,16 @@ export class BlenderLauncher extends EventEmitter {
 		super();
 		this.settings = settings;
 	}
-
 	/**
 	 * Launch a Blender build from the extracted directory
 	 */
 	async launchBuild(build: BlenderBuildInfo, extractPath: string): Promise<void> {
-		// Look for blender-launcher.exe in the extracted build directory
+		// Look for blender launcher/executable in the extracted build directory
 		const launcherPath = this.findBlenderLauncher(extractPath);
 		
 		if (!launcherPath) {
-			throw new Error('blender-launcher.exe not found in build directory');
+			const expectedName = process.platform === 'win32' ? 'blender-launcher.exe' : 'blender executable';
+			throw new Error(`${expectedName} not found in build directory`);
 		}
 		
 		try {
@@ -65,16 +65,15 @@ export class BlenderLauncher extends EventEmitter {
 		
 		return env;
 	}
-
 	/**
-	 * Find blender-launcher.exe in the extracted build directory
+	 * Find blender launcher/executable in the extracted build directory
 	 */
 	private findBlenderLauncher(extractPath: string): string | null {
 		if (!fs.existsSync(extractPath)) {
 			return null;
 		}
 
-		// Search for blender-launcher.exe recursively
+		// Search for blender launcher/executable recursively
 		const searchForLauncher = (dir: string): string | null => {
 			try {
 				const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -82,8 +81,15 @@ export class BlenderLauncher extends EventEmitter {
 				for (const entry of entries) {
 					const fullPath = path.join(dir, entry.name);
 					
-					if (entry.isFile() && entry.name.toLowerCase() === 'blender-launcher.exe') {
-						return fullPath;
+					if (entry.isFile()) {
+						// Platform-specific executable detection
+						const isLauncher = process.platform === 'win32' 
+							? entry.name.toLowerCase() === 'blender-launcher.exe'
+							: entry.name === 'blender' || entry.name === 'Blender';
+						
+						if (isLauncher) {
+							return fullPath;
+						}
 					} else if (entry.isDirectory()) {
 						const result = searchForLauncher(fullPath);
 						if (result) return result;
