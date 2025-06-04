@@ -105,14 +105,13 @@ export class BlenderBuildsRenderer {
 			cls: 'blender-build-filename'
 		});
 		filenameEl.innerHTML = filenameText;
-		setTooltip(filenameEl, `File: ${filename}`);
-		// Add action buttons
-		const actionsEl = listItem.createEl('div', { cls: 'blender-build-actions' });
-		this.addBuildActions(actionsEl, build, index);
-
-		// Check if build is installed to determine clickable behavior
+		setTooltip(filenameEl, `File: ${filename}`);		// Check if build is installed to determine clickable behavior
 		const installStatus = this.buildManager.isBuildInstalled(build);
 		const isInstalled = installStatus.downloaded || installStatus.extracted;
+
+		// Add action buttons (pass install status to avoid duplicate calls)
+		const actionsEl = listItem.createEl('div', { cls: 'blender-build-actions' });
+		this.addBuildActions(actionsEl, build, index, installStatus);
 
 		// Make the entire item clickable for download only if not installed
 		if (!isInstalled) {
@@ -137,12 +136,11 @@ export class BlenderBuildsRenderer {
 			listItem.addClass('blender-build-installed');
 		}
 	}
-		/**
+	
+	/**
 	 * Add action buttons for a build item
 	 */
-	private addBuildActions(actionsEl: HTMLElement, build: BlenderBuildInfo, index: number): void {
-		// Check if build is installed
-		const installStatus = this.buildManager.isBuildInstalled(build);
+	private addBuildActions(actionsEl: HTMLElement, build: BlenderBuildInfo, index: number, installStatus: { downloaded: boolean; extracted: boolean }): void {
 		const isInstalled = installStatus.downloaded || installStatus.extracted;
 		
 		if (isInstalled) {

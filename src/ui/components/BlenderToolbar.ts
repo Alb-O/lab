@@ -133,13 +133,10 @@ export class BlenderToolbar {
 				if (!fs.existsSync(basePath)) {
 					// Create the base .blender folder if it doesn't exist
 					fs.mkdirSync(basePath, { recursive: true });
-					console.log('Created base folder:', basePath);
 				}
 				// Use the base folder since builds folder doesn't exist yet
 				pathToOpen = basePath;
 			}
-			
-			console.log('Opening builds folder:', pathToOpen);
 			
 			// Open folder in system file manager
 			if (process.platform === 'win32') {

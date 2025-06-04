@@ -31,8 +31,6 @@ export class BlenderLauncher extends EventEmitter {
 			// Create environment with explicit Windows environment variable support
 			const env = this.getBlenderEnvironment();
 			
-			console.log('Launching Blender with launcher:', launcherPath);
-			
 			// Use detached: true and stdio: 'ignore' to make the process independent
 			// Include the enhanced environment so Blender respects all custom variables
 			const child = spawn(launcherPath, [], {
@@ -45,7 +43,6 @@ export class BlenderLauncher extends EventEmitter {
 			// Unreference the child process so Node.js can exit
 			child.unref();
 			this.emit('buildLaunched', build, launcherPath);
-			console.log(`Launched Blender: ${launcherPath}`);
 			
 		} catch (error) {
 			this.emit('launchError', build, error);

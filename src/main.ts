@@ -51,6 +51,52 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			}
 		});
 
+		// Add command to debug build detection
+		this.addCommand({
+			id: 'debug-build-detection',
+			name: 'Debug Build Detection',
+			callback: async () => {
+				try {
+					new Notice('Starting build detection debug...', 3000);
+					await this.buildManager.forceRefreshExtractedBuilds();
+				} catch (error) {
+					new Notice(`Failed to debug build detection: ${error.message}`, 8000);
+					console.error('[DEBUG] Build detection error:', error);
+				}
+			}
+		});
+
+		// Add command to check paths
+		this.addCommand({
+			id: 'check-build-paths',
+			name: 'Check Build Paths',
+			callback: () => {
+				const buildsPath = this.buildManager.getBuildsPath();
+				const extractsPath = this.buildManager.getExtractsPath();
+				
+				new Notice(`Builds path: ${buildsPath}`, 8000);
+				new Notice(`Extracts path: ${extractsPath}`, 8000);
+			}
+		});
+		
+		// Add command to debug cache contents
+		this.addCommand({
+			id: 'debug-cache-contents',
+			name: 'Debug Cache Contents',
+			callback: () => {
+				this.buildManager.debugShowCacheContents();
+			}
+		});
+
+		// Add command to test specific folder detection
+		this.addCommand({
+			id: 'test-folder-detection',
+			name: 'Test Specific Folder Detection',
+			callback: () => {
+				this.buildManager.testSpecificFolderDetection();
+			}
+		});
+
 		// Add command to open builds directory
 		this.addCommand({
 			id: 'open-blender-directory',
@@ -62,12 +108,6 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 
 		// Add settings tab
 		this.addSettingTab(new FetchBlenderBuildsSettingTab(this.app, this));
-
-		console.log('Blender Build Manager plugin loaded');
-	}
-
-	onunload() {
-		console.log('Blender Build Manager plugin unloaded');
 	}
 
 	async loadSettings() {
