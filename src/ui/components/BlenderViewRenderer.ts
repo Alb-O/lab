@@ -25,7 +25,7 @@ export class BlenderViewRenderer {
 	private toolbar: BlenderToolbar;
 	private statusDisplay: BlenderStatusDisplay;
 	private buildsRenderer: BlenderBuildsRenderer;
-		// State handling
+	// State handling
 	private isInitialized = false;
 	private isRefreshing = false;
 	private cachedBuilds: BlenderBuildInfo[] = [];
@@ -128,7 +128,8 @@ export class BlenderViewRenderer {
 			this.statusDisplay.render(statusContainer);
 		}
 	}
-		/**
+
+	/**
 	 * Update builds content section only
 	 */
 	private async updateBuildsContent(): Promise<void> {
@@ -245,8 +246,6 @@ export class BlenderViewRenderer {
 		});
 	}
 	
-
-
 	/**
 	 * Refresh builds data
 	 */
@@ -300,6 +299,7 @@ export class BlenderViewRenderer {
 		this.updateToolbar();
 		this.updateFilterSection();
 	}
+	
 	/**
 	 * Set up event listeners for build manager events
 	 */	private setupEventListeners(): void {
@@ -312,6 +312,8 @@ export class BlenderViewRenderer {
 		// Listen for download events
 		this.buildManager.on('downloadStarted', this.onDownloadStarted.bind(this));
 		this.buildManager.on('downloadCompleted', this.onDownloadCompleted.bind(this));
+		// Listen for extraction events
+		this.buildManager.on('buildExtracted', this.onBuildExtracted.bind(this));
 		
 		// Listen for build deletion events
 		this.buildManager.on('buildDeleted', this.onBuildDeleted.bind(this));
@@ -354,6 +356,15 @@ export class BlenderViewRenderer {
 	private onDownloadCompleted(build: BlenderBuildInfo, filePath: string): void {
 		console.log(`Download completed: ${build.subversion}`);
 		// Could update UI to show completion
+	}
+	
+	/**
+	 * Handle build extracted event
+	 */
+	private async onBuildExtracted(build: BlenderBuildInfo, extractedPath: string, executable?: string): Promise<void> {
+		console.log(`Build extracted: ${build.subversion} to ${extractedPath}`);
+		// Refresh the builds content to update installation status and show Launch button
+		await this.updateBuildsContent();
 	}
 
 	/**
@@ -415,7 +426,6 @@ export class BlenderViewRenderer {
 	dispose(): void {
 		this.buildManager.removeAllListeners();
 	}
-
 
 	// Expose managers for external access if needed
 	getLayoutManager(): BlenderViewLayoutManager { 

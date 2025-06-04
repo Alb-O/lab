@@ -5,6 +5,7 @@ export class BlenderStatusDisplay {
 	private buildManager: FetchBlenderBuilds;
 	private statusEl: HTMLElement | null = null;
 	private currentActivity: string | null = null;
+	private currentActivityType: 'download' | 'extraction' | 'scraping' | null = null;
 	private activityStartTime: Date | null = null;
 
 	constructor(buildManager: FetchBlenderBuilds) {
@@ -86,24 +87,24 @@ export class BlenderStatusDisplay {
 			progressBar.style.width = `${status.progress}%`;
 		}
 	}
-
+	
 	/**
 	 * Setup event listeners for build manager events
 	 */
 	private setupEventListeners(): void {
 		// Download events
 		this.buildManager.on('downloadStarted', (build: BlenderBuildInfo) => {
-			this.setActivity(`Downloading ${build.subversion}...`);
+			this.setActivity(`Downloading ${build.subversion}...`, 'download');
 		});
 
 		this.buildManager.on('downloadCompleted', (build: BlenderBuildInfo) => {
-			this.setActivity(`Downloaded ${build.subversion} successfully`);
+			this.setActivity(`Downloaded ${build.subversion} successfully`, 'download');
 			// Clear activity after 3 seconds
 			setTimeout(() => this.clearActivity(), 3000);
 		});
 
 		this.buildManager.on('downloadError', (build: BlenderBuildInfo, error: any) => {
-			this.setActivity(`Download failed: ${build.subversion}`);
+			this.setActivity(`Download failed: ${build.subversion}`, 'download');
 			// Clear activity after 5 seconds for errors
 			setTimeout(() => this.clearActivity(), 5000);
 		});
@@ -111,43 +112,45 @@ export class BlenderStatusDisplay {
 		// Extraction events
 		this.buildManager.on('extractionStarted', (archivePath: string) => {
 			const fileName = archivePath.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || 'build';
-			this.setActivity(`Extracting ${fileName}...`);
+			this.setActivity(`Extracting ${fileName}...`, 'extraction');
 		});
 
 		this.buildManager.on('extractionCompleted', (archivePath: string) => {
 			const fileName = archivePath.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || 'build';
-			this.setActivity(`Extracted ${fileName} successfully`);
+			this.setActivity(`Extracted ${fileName} successfully`, 'extraction');
 			// Clear activity after 3 seconds
 			setTimeout(() => this.clearActivity(), 3000);
 		});
 
 		this.buildManager.on('extractionError', (archivePath: string, error: any) => {
 			const fileName = archivePath.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || 'build';
-			this.setActivity(`Extraction failed: ${fileName}`);
+			this.setActivity(`Extraction failed: ${fileName}`, 'extraction');
 			// Clear activity after 5 seconds for errors
 			setTimeout(() => this.clearActivity(), 5000);
 		});
 
 		// Build extraction events (for manual extraction)
 		this.buildManager.on('buildExtracted', (build: BlenderBuildInfo, extractedPath: string) => {
-			this.setActivity(`Extracted ${build.subversion} successfully`);
+			this.setActivity(`Extracted ${build.subversion} successfully`, 'extraction');
 			// Clear activity after 3 seconds
 			setTimeout(() => this.clearActivity(), 3000);
 		});
 
 		// Scraping events
 		this.buildManager.on('scrapingStatus', () => {
-			// Only refresh if no current download/extraction activity
-			if (!this.currentActivity) {
+			// Only refresh if no current high-priority activity (download/extraction)
+			if (!this.currentActivity || this.currentActivityType === 'scraping') {
 				this.refreshStatus();
 			}
 		});
 	}
+	
 	/**
 	 * Set current activity status
 	 */
-	private setActivity(activity: string): void {
+	private setActivity(activity: string, activityType: 'download' | 'extraction' | 'scraping' = 'scraping'): void {
 		this.currentActivity = activity;
+		this.currentActivityType = activityType;
 		this.activityStartTime = new Date();
 		this.refreshStatus();
 		
@@ -166,6 +169,7 @@ export class BlenderStatusDisplay {
 	 */
 	private clearActivity(): void {
 		this.currentActivity = null;
+		this.currentActivityType = null;
 		this.activityStartTime = null;
 		this.refreshStatus();
 	}

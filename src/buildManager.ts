@@ -810,23 +810,24 @@ export class FetchBlenderBuilds extends EventEmitter {
 			const downloadsPath = this.getDownloadsPathForBuild(build);
 			const expectedFileName = this.extractFileName(build.link);
 			const downloadPath = path.join(downloadsPath, expectedFileName);
-			
 			if (fs.existsSync(downloadPath)) {
 				fs.unlinkSync(downloadPath);
 				deletedDownload = true;
-							}
+			}
 
-			// Delete extracted build from segregated extracts path
-			const extractsPath = this.getExtractsPathForBuild(build);
-			const expectedDirName = this.sanitizeBuildName(build);
-			const extractPath = path.join(extractsPath, expectedDirName);
+			// Delete extracted build - find the actual path using getExtractedBuilds
+			const extractedBuilds = this.getExtractedBuilds();
+			const extractedBuild = extractedBuilds.find(extracted => extracted.build === build);
 			
-			if (fs.existsSync(extractPath)) {
-				await this.deleteDirectory(extractPath);
+			if (extractedBuild && fs.existsSync(extractedBuild.extractPath)) {
+				await this.deleteDirectory(extractedBuild.extractPath);
 				deletedExtract = true;
-							}			// Clean up empty type directories if needed
+			}			// Clean up empty type directories if needed
 			await this.cleanupEmptyDirectory(downloadsPath);
-			await this.cleanupEmptyDirectory(extractsPath);
+			if (extractedBuild) {
+				const extractsPath = this.getExtractsPathForBuild(build);
+				await this.cleanupEmptyDirectory(extractsPath);
+			}
 
 			// Invalidate extracted builds cache if we deleted an extracted build
 			if (deletedExtract) {
@@ -869,8 +870,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		
 		return { downloaded, extracted };
 	}
-	
-	/**
+		/**
 	 * Launch a Blender build
 	 */
 	async launchBuild(build: BlenderBuildInfo): Promise<void> {
@@ -880,16 +880,16 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw new Error('Build must be extracted to launch');
 		}
 
-		const extractsPath = this.getExtractsPathForBuild(build);
-		const expectedDirName = this.sanitizeBuildName(build);
-		const extractPath = path.join(extractsPath, expectedDirName);
+		// Find the actual extracted build path from the filesystem scan
+		const extractedBuilds = this.getExtractedBuilds();
+		const extractedBuild = extractedBuilds.find(extracted => extracted.build === build);
 		
-		if (!fs.existsSync(extractPath)) {
+		if (!extractedBuild) {
 			throw new Error('Extracted build directory not found');
 		}
 
-		// Use the launcher to launch the build
-		await this.launcher.launchBuild(build, extractPath);
+		// Use the launcher to launch the build with the actual extracted path
+		await this.launcher.launchBuild(build, extractedBuild.extractPath);
 	}
 	/**
 	 * Create a symlink named 'bl_symlink' in the root builds directory pointing to the extracted build
