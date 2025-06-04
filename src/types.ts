@@ -55,7 +55,9 @@ export enum BuildType {
 	Stable = 'stable',
 	Daily = 'daily',
 	Experimental = 'experimental',
-	LTS = 'lts'
+	LTS = 'lts',
+	Patch = 'patch',
+	ReleaseCandidate = 'release-candidate'
 }
 
 export interface ScrapingStatus {

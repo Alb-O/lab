@@ -20,9 +20,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 	};
 	private cacheFilePath: string;
 	private static readonly CACHE_VERSION = '1.0.0';
-	private cacheLoadingPromise: Promise<void>;
-
-	constructor(vaultPath: string, settings: BlenderPluginSettings = DEFAULT_SETTINGS) {
+	private cacheLoadingPromise: Promise<void>;	constructor(vaultPath: string, settings: BlenderPluginSettings = DEFAULT_SETTINGS) {
 		super();
 		this.vaultPath = vaultPath;
 		this.settings = settings;
@@ -109,9 +107,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 				new Notice(`Extraction failed: ${path.basename(archivePath)} - ${error.message}`);
 			}
 		});
-	}
-
-	/**
+	}	/**
 	 * Update plugin settings
 	 */
 	updateSettings(newSettings: Partial<BlenderPluginSettings>): void {
@@ -125,6 +121,13 @@ export class FetchBlenderBuilds extends EventEmitter {
 	 */
 	getSettings(): BlenderPluginSettings {
 		return this.settings;
+	}
+
+	/**
+	 * Get preferred architecture from settings
+	 */
+	getPreferredArchitecture(): string {
+		return this.settings.preferredArchitecture || 'x64';
 	}
 
 	/**

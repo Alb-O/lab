@@ -9,13 +9,11 @@ export class BlenderScraper extends EventEmitter {
 	private static readonly DAILY_BUILDS_URL = 'https://builder.blender.org/download/';
 	private static readonly BFA_NC_BASE_URL = 'https://cloud.bforartists.de';
 	private static readonly BFA_NC_WEBDAV_SHARE_TOKEN = 'JxCjbyt2fFcHjy4';
-	
-	private platform: Platform;
+		private platform: Platform;
 	private architecture: Architecture;
 	private cache: ScraperCache;
 	private minimumVersion: string;
-	
-	constructor(minimumVersion: string = '3.0') {
+		constructor(minimumVersion: string = '3.0') {
 		super();
 		this.platform = this.getCurrentPlatform();
 		this.architecture = this.getCurrentArchitecture();
@@ -49,6 +47,16 @@ export class BlenderScraper extends EventEmitter {
 	}
 
 	/**
+	 * Get the target architecture based on user preference
+	 */
+	private getTargetArchitecture(preferredArchitecture: 'auto' | 'x64' | 'arm64'): Architecture {
+		if (preferredArchitecture === 'auto') {
+			return this.getCurrentArchitecture();
+		}
+		return preferredArchitecture === 'arm64' ? Architecture.arm64 : Architecture.x64;
+	}
+
+	/**
 	 * Map API architecture names to our standard names
 	 */
 	private normalizeArchitecture(apiArch: string): string {
@@ -67,15 +75,31 @@ export class BlenderScraper extends EventEmitter {
 	}
 
 	/**
-	 * Generate regex filter for the current platform
+	 * Extract architecture from stable build filename
+	 */
+	private extractArchitectureFromFilename(filename: string): string {
+		const filenameLower = filename.toLowerCase();
+		
+		// Look for architecture patterns in the filename
+		if (filenameLower.includes('arm64')) {
+			return 'arm64';
+		} else if (filenameLower.includes('x64') || filenameLower.includes('amd64') || filenameLower.includes('x86_64')) {
+			return 'x64';
+		}
+		
+		// Default to x64 if no specific architecture is found (for older builds)
+		return 'x64';
+	}
+	/**
+	 * Generate regex filter for the current platform (includes all architectures)
 	 */
 	private getRegexFilter(): RegExp {
 		if (this.platform === Platform.Windows) {
-			return /blender-.+win.+64.+zip$/i;
+			return /blender-.+win.+(x64|arm64|64).+zip$/i;
 		} else if (this.platform === Platform.macOS) {
 			return /blender-.+(macOS|darwin).+dmg$/i;
 		} else {
-			return /blender-.+lin.+64.+tar+(?!.*sha256).*/i;
+			return /blender-.+lin.+(x64|arm64|64).+tar+(?!.*sha256).*/i;
 		}
 	}
 
@@ -158,9 +182,7 @@ export class BlenderScraper extends EventEmitter {
 			this.emit('error', `Error scraping stable builds: ${error}`);
 			return [];
 		}
-	}
-
-	/**
+	}	/**
 	 * Scrape builds for a specific version
 	 */
 	private async scrapeVersionBuilds(versionPath: string, version: string, modifiedDate: Date): Promise<BlenderBuildInfo[]> {		try {
@@ -234,37 +256,19 @@ export class BlenderScraper extends EventEmitter {
 		const builds: BlenderBuildInfo[] = [];
 		const branches = ['daily', 'experimental', 'patch'];
 		
-		for (const branch of branches) {
-			try {
+		for (const branch of branches) {			try {
 				const url = `${BlenderScraper.DAILY_BUILDS_URL}${branch}/?format=json&v=1`;
-				console.log(`Scraping ${branch} builds from: ${url}`);
 				const response = await requestUrl({ url });
-				const data = JSON.parse(response.text);
-				console.log(`Found ${data.length} ${branch} builds in API response`);				const platformJson = this.platform.toLowerCase() === 'macos' ? 'darwin' : this.platform.toLowerCase();
-				const archLower = this.architecture.toLowerCase();
+				const data = JSON.parse(response.text);const platformJson = this.platform.toLowerCase() === 'macos' ? 'darwin' : this.platform.toLowerCase();
 				const regexFilter = this.getRegexFilter();
-				console.log(`Filtering for platform: ${platformJson}, architecture: ${archLower}`);
-				console.log(`Using regex filter: ${regexFilter}`);let filteredCount = 0;
+				
+				let filteredCount = 0;
 				for (const build of data) {
-					// Debug the first few builds to see what we're working with
-					if (filteredCount === 0 && data.indexOf(build) < 3) {
-						console.log(`Sample ${branch} build:`, {
-							platform: build.platform,
-							architecture: build.architecture,
-							file_name: build.file_name,
-							version: build.version
-						});
-					}
-							const platformMatch = build.platform === platformJson;
-					const normalizedBuildArch = this.normalizeArchitecture(build.architecture);
-					const archMatch = normalizedBuildArch === archLower;
+					const platformMatch = build.platform === platformJson;
 					const regexMatch = regexFilter.test(build.file_name);
 					
-					if (filteredCount === 0) {
-						console.log(`Filter checks for ${branch}: platform=${platformMatch} (${build.platform} === ${platformJson}), arch=${archMatch} (${normalizedBuildArch} === ${archLower}), regex=${regexMatch} for file: ${build.file_name}`);
-					}
-					
-					if (platformMatch && archMatch && regexMatch) {
+					// Remove architecture filtering - let the view handle it
+					if (platformMatch && regexMatch) {
 						filteredCount++;
 
 						const commitTime = new Date(build.file_mtime * 1000);
@@ -279,9 +283,8 @@ export class BlenderScraper extends EventEmitter {
 						}
 						if (build.branch && branch === 'experimental') {
 							buildVar = build.branch;
-						}
-
-						if (build.architecture && build.architecture !== archLower) {
+						}						// Always include architecture info for later filtering in the view
+						if (build.architecture) {
 							buildVar += ` | ${build.architecture}`;
 						}
 
@@ -293,16 +296,12 @@ export class BlenderScraper extends EventEmitter {
 							buildHash: build.hash,
 							commitTime,
 							branch
-						});
-					}
+						});					}
 				}
-				console.log(`Added ${filteredCount} ${branch} builds after filtering`);
 			} catch (error) {
 				console.error(`Error scraping ${branch} builds:`, error);
-			}
-		}
+			}		}
 
-		console.log(`Total automated builds found: ${builds.length}`);
 		this.emit('status', `Found ${builds.length} automated builds`);
 		return builds;
 	}
