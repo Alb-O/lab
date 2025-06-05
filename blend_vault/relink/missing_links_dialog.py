@@ -1,23 +1,36 @@
 """
 Missing links dialog for Blend Vault.
-Shows a modal dialog when items need to be relinked.
+
+Provides an automatic, user-friendly workflow for detecting and relinking missing assets and library files.
+Features automatic dialog re-showing, progress tracking, and safety mechanisms to prevent infinite loops.
+
+- Automatic detection of missing assets and library files
+- Modal dialog for user-guided relinking
+- Auto-retry mechanism for seamless batch processing
+- Informational panel showing current missing links status
+- Safety limits to prevent runaway dialog sequences
 """
 
 import bpy
 import os
-from typing import List, Dict, Any, Tuple
-from ..core import log_info, log_warning, log_error, log_success, log_debug, SIDECAR_EXTENSION
-from . import asset_relinker
+from ..core import log_info, log_warning, log_error, log_success, log_debug, ensure_saved_file
+from .asset_relinker import AssetRelinkProcessor
 from .library_relinker import LibraryRelinkProcessor
-from .resource_relinker import ResourceRelinkProcessor
-from .shared_utils import ensure_saved_file, get_sidecar_path, SidecarParser, PathResolver, get_blend_file_path_from_sidecar
+from .shared_utils import get_sidecar_path, SidecarParser
 
 
-# Global flag to track if dialog is currently shown
+# === Global State Management ===
+# These variables manage the dialog's lifecycle and auto-retry behavior
+
+# Flag to prevent multiple dialogs from being shown simultaneously
 _missing_links_dialog_shown = False
 
-# Store detected relink items for the dialog
+# Cache for detected relink items (used by the dialog and panel)
 _pending_relink_items = []
+
+# Counter to track consecutive automatic dialog showings (prevents infinite loops)
+_consecutive_dialog_count = 0
+_max_consecutive_dialogs = 5
 
 
 class RelinkItem:
@@ -33,244 +46,165 @@ def check_missing_links():
     Check what items need to be relinked.
     Returns a list of RelinkItem objects.
     """
-    global _pending_relink_items
-    _pending_relink_items.clear()
-    
     blend_path = ensure_saved_file()
     if not blend_path:
+        log_debug("No saved file, cannot check missing links", module_name='MissingLinks')
         return []
     
-    log_info("Checking for missing links...", module_name='MissingLinks')
+    log_debug("Checking for missing links...", module_name='MissingLinks')
     
-    # Check for asset relinks needed
-    _check_asset_relinks(blend_path)
+    # Create a fresh list for this check
+    all_items = []
     
-    # Check for library relinks needed
-    _check_library_relinks(blend_path)
+    # Check for missing asset datablocks via sidecars
+    asset_items = _check_asset_relinks(blend_path)
+    all_items.extend(asset_items)
+    log_debug(f"After asset check: {len(all_items)} items", module_name='MissingLinks')
     
-    # Check for resource relinks needed
-    _check_resource_relinks(blend_path)
+    # Check for missing library files via main sidecar
+    library_items = _check_library_relinks(blend_path)
+    all_items.extend(library_items)
+    log_debug(f"After library check: {len(all_items)} items", module_name='MissingLinks')
     
-    return _pending_relink_items
-
+    # Update global state for backward compatibility with other parts of the system
+    global _pending_relink_items
+    _pending_relink_items.clear()
+    _pending_relink_items.extend(all_items)
+    
+    # Debug: report number of missing items detected
+    if all_items:
+        log_debug(f"MissingLinks detected {len(all_items)} items:", module_name='MissingLinks')
+        for i, item in enumerate(all_items):
+            log_debug(f"  {i+1}. {item.item_type}: {item.description}", module_name='MissingLinks')
+    else:
+        log_debug("MissingLinks detected 0 items", module_name='MissingLinks')
+    
+    return all_items
 
 def _check_asset_relinks(blend_path: str):
-    """Check if any assets need to be relinked."""
+    """Detect asset datablocks present in library sidecars but missing in the current session."""
+    items = []
     try:
-        sidecar_path = get_sidecar_path(blend_path)
-        if not os.path.exists(sidecar_path):
-            return
-        
-        parser = SidecarParser(sidecar_path)
-        main_linked_data = parser.extract_json_blocks_with_links("Linked Libraries")
-        if not main_linked_data:
-            return
-        
-        # Check each library for potential asset mismatches
-        for lib_rel_path, lib_data in main_linked_data.items():
-            blend_dir = os.path.dirname(blend_path)
-            lib_abs_path = PathResolver.resolve_relative_to_absolute(lib_rel_path, blend_dir)
-            lib_sidecar_path = get_sidecar_path(lib_abs_path)
-            
-            if not os.path.exists(lib_sidecar_path):
+        # For each library, parse its sidecar and detect missing datablocks by name
+        for lib in bpy.data.libraries:
+            if not lib.filepath or lib.filepath.startswith('<builtin>'):
                 continue
-                
-            try:
-                lib_parser = SidecarParser(lib_sidecar_path)
-                _, assets_in_lib = lib_parser.extract_current_file_section()
-                
-                if not assets_in_lib:
+            lib_abs = bpy.path.abspath(lib.filepath)
+            sidecar_path = get_sidecar_path(lib_abs)
+            if not os.path.exists(sidecar_path):
+                continue
+            parser = SidecarParser(sidecar_path)
+            _, assets_in_lib = parser.extract_current_file_section()
+            for asset in assets_in_lib:
+                name = asset.get('name')
+                typ = asset.get('type')
+                if not name:
                     continue
-                
-                # Create a mapping of authoritative UUID -> asset info
-                authoritative_map = {
-                    asset["uuid"]: {"name": asset["name"], "type": asset["type"]}
-                    for asset in assets_in_lib if asset.get("uuid")
-                }
-                
-                # Check for mismatches
-                for asset_data in lib_data.get("assets", []):
-                    asset_uuid = asset_data.get("uuid")
-                    if not asset_uuid:
-                        continue
-                        
-                    if asset_uuid in authoritative_map:
-                        auth_info = authoritative_map[asset_uuid]
-                        current_name = asset_data.get("name", "")
-                        current_type = asset_data.get("type", "")
-                        
-                        if (auth_info["name"] != current_name or 
-                            auth_info["type"] != current_type):
-                            
-                            description = f"Asset datablock '{current_name}' renamed to '{auth_info['name']}'"
-                            details = f"In library: {os.path.basename(lib_rel_path)}"
-                            if auth_info["type"] != current_type:
-                                details += f" | Type changed: {current_type} → {auth_info['type']}"
-                            _pending_relink_items.append(RelinkItem("asset", description, details))                            
-            except Exception as e:
-                log_debug(f"Error checking library sidecar {lib_sidecar_path}: {e}", module_name='MissingLinks')
-                
+                missing = False
+                if typ == 'Collection':
+                    missing = (name not in bpy.data.collections)
+                elif typ == 'Scene':
+                    missing = (name not in bpy.data.scenes)
+                # TODO: handle other types as needed
+                if missing:
+                    description = f"Missing asset datablock '{name}' ({typ})"
+                    details = f"No longer exists in library: {os.path.basename(lib_abs)}"
+                    items.append(RelinkItem('asset', description, details))
     except Exception as e:
         log_debug(f"Error checking asset relinks: {e}", module_name='MissingLinks')
-
+    return items
 
 def _check_library_relinks(blend_path: str):
-    """Check if any library paths need to be relinked."""
-    try:
-        processor = LibraryRelinkProcessor(blend_file_path=blend_path)
-        sidecar_path = get_sidecar_path(blend_path)
-        
-        if not os.path.exists(sidecar_path):
-            return
-        parser = SidecarParser(sidecar_path)
-        library_data = parser.extract_json_blocks_with_links("Linked Libraries")
-        
-        if not library_data:
-            return
-        # Debug: Log what library data was found
-        log_debug(f"Found library data: {list(library_data.keys())}", module_name='MissingLinks')
-        
-        blend_dir = os.path.dirname(blend_path)
-        
-        # Also check for missing libraries in the current Blender file
-        missing_libraries = []
-        for lib in bpy.data.libraries:
-            if processor._is_library_missing(lib):
-                missing_libraries.append(lib)
-                log_debug(f"Found missing library in Blender: {lib.name} (filepath: {lib.filepath})", module_name='MissingLinks')
-        
-        for lib_rel_path, lib_info in library_data.items():
-            log_debug(f"Processing library path: {lib_rel_path}", module_name='MissingLinks')
+    """Detect missing library files referenced in the main sidecar."""
+    items = []
+    # Check for broken libraries currently linked in session
+    log_debug(f"Checking {len(bpy.data.libraries)} libraries for missing files", module_name='MissingLinks')
+    
+    for lib in bpy.data.libraries:
+        if lib.filepath and not lib.filepath.startswith('<builtin>'):
+            abs_path = bpy.path.abspath(lib.filepath)
+            log_debug(f"Checking library: {lib.filepath} -> {abs_path}", module_name='MissingLinks')
             
-            # Convert any sidecar path to its corresponding .blend path
-            # This handles cases where the sidecar stores .side or .side.md paths instead of .blend paths
-            converted_path = get_blend_file_path_from_sidecar(lib_rel_path)
-              # If the path was converted, it was a sidecar reference, not a library reference
-            if converted_path != lib_rel_path:
-                log_debug(f"Converted sidecar reference {lib_rel_path} to {converted_path}", module_name='MissingLinks')
-                lib_rel_path = converted_path
-                
-            lib_abs_path = PathResolver.resolve_relative_to_absolute(lib_rel_path, blend_dir)
-            
-            # Check if the library file exists at the expected path
-            if not os.path.exists(lib_abs_path):
-                # Try to find if the library exists elsewhere
-                lib_name = os.path.basename(lib_abs_path)
-                description = f"Missing library: {lib_name}"
-                details = f"Expected at: {lib_rel_path}"
-                _pending_relink_items.append(RelinkItem("library", description, details))
+            if not os.path.exists(abs_path):
+                lib_name = os.path.basename(abs_path)
+                desc = f"Missing library: {lib_name}"
+                det = f"Linked path broken: {lib.filepath}"
+                log_debug(f"Found missing library: {desc}", module_name='MissingLinks')
+                items.append(RelinkItem('library', desc, det))
             else:
-                # Even if the file exists, check if any Blender libraries are missing and could be relinked to this path
-                lib_name = os.path.basename(lib_abs_path)
-                for missing_lib in missing_libraries:
-                    missing_lib_name = os.path.basename(missing_lib.name) if missing_lib.name else os.path.basename(missing_lib.filepath)
-                    
-                    # Handle Blender's automatic .001, .002 etc. suffixes
-                    base_missing_name = missing_lib_name
-                    if '.' in missing_lib_name:
-                        # Remove potential numeric suffix (e.g., .001, .002)
-                        parts = missing_lib_name.split('.')
-                        if len(parts) > 1 and parts[-1].isdigit():
-                            base_missing_name = '.'.join(parts[:-1])
-                    
-                    if missing_lib_name == lib_name or base_missing_name == lib_name:
-                        description = f"Broken link: {missing_lib_name}"
-                        details = f"Corrected path: {lib_rel_path}"
-                        _pending_relink_items.append(RelinkItem("library", description, details))
-                        log_debug(f"Added broken library link to relink items: {missing_lib_name} -> {lib_name}", module_name='MissingLinks')
-                        break
-                _check_resource_relinks(blend_path)
-    except Exception as e:
-        log_debug(f"Error checking library relinks: {e}", module_name='MissingLinks')
-
-
-def _check_resource_relinks(blend_path: str):
-    """Check if any resources need to be relinked."""
-    try:
-        processor = ResourceRelinkProcessor(blend_file_path=blend_path)
-        sidecar_path = get_sidecar_path(blend_path)
-        
-        if not os.path.exists(sidecar_path):
-            return
-            
-        parser = SidecarParser(sidecar_path)
-        resource_data = parser.extract_json_blocks_with_links("Resources")
-        
-        if not resource_data:
-            return
-        
-        blend_dir = os.path.dirname(blend_path)
-        
-        for resource_rel_path, resource_info in resource_data.items():
-            resource_abs_path = PathResolver.resolve_relative_to_absolute(resource_rel_path, blend_dir)
-            
-            # Check if the resource file exists at the expected path
-            if not os.path.exists(resource_abs_path):
-                resource_name = os.path.basename(resource_abs_path)
-                description = f"Missing resource: {resource_name}"
-                details = f"Expected at: {resource_rel_path}"
-                _pending_relink_items.append(RelinkItem("resource", description, details))
-    except Exception as e:
-        log_debug(f"Error checking resource relinks: {e}", module_name='MissingLinks')
-
+                log_debug(f"Library exists: {abs_path}", module_name='MissingLinks')
+    
+    return items
 
 def perform_all_relinks():
-    """Perform all the relink operations."""
+    """Perform asset relinking operations and return counts."""
     blend_path = ensure_saved_file()
     if not blend_path:
-        return
+        return 0, 0
+        
+    # Gather initial missing links
+    initial_items = check_missing_links()
+    initial_count = len(initial_items)
     
-    log_info("Performing relink operations...", module_name='MissingLinks')
-    # Store the initial count before any processing
-    initial_count = len(_pending_relink_items)
+    # Count initial items by type for detailed logging
+    initial_asset_count = sum(1 for it in initial_items if it.item_type == 'asset')
+    initial_lib_count = sum(1 for it in initial_items if it.item_type == 'library')
     
-    try:
-        # Run asset relinking first (before library reloads)
-        log_info("Running asset datablock relinking...", module_name='MissingLinks')
-        from . import asset_relinker
-        asset_processor = asset_relinker.AssetRelinkProcessor(main_blend_path=blend_path)
-        asset_processor.process_relink()
-          # Run library path relinking
-        log_info("Running library path relinking...", module_name='MissingLinks')
-        from .library_relinker import LibraryRelinkProcessor
-        library_processor = LibraryRelinkProcessor(blend_file_path=blend_path)
-        library_processor.process_relink()
-          # Run resource relinking
-        log_info("Running resource relinking...", module_name='MissingLinks')
-        from .resource_relinker import ResourceRelinkProcessor
-        resource_processor = ResourceRelinkProcessor(blend_file_path=blend_path)
-        resource_processor.process_relink()
-        
-        # Force update the scene to refresh any dependencies
-        log_info("Refreshing Blender scene state...", module_name='MissingLinks')
-        try:
-            bpy.context.view_layer.update()
-            if hasattr(bpy.context.scene, 'update'):
-                bpy.context.scene.update()
-        except Exception as e:
-            log_debug(f"Scene refresh failed (this is usually ok): {e}", module_name='MissingLinks')
-          # Verify that relinks were successful by checking again
-        log_info("Verifying relink results...", module_name='MissingLinks')
-        remaining_items = check_missing_links()
-        success_count = initial_count - len(remaining_items)
-        
-        if success_count > 0:
-            log_success(f"Successfully relinked {success_count} out of {initial_count} items.", module_name='MissingLinks')
-        else:
-            log_warning(f"No items were successfully relinked out of {initial_count} items.", module_name='MissingLinks')
-        if remaining_items:
-            log_warning(f"{len(remaining_items)} items still require manual attention.", module_name='MissingLinks')
-            for item in remaining_items:
-                log_warning(f"  - {item.item_type}: {item.description}", module_name='MissingLinks')
-        
-        return success_count, initial_count
-    except Exception as e:
-        log_error(f"Error during relinking: {e}", module_name='MissingLinks')
+    log_debug(f"Initial counts: {initial_asset_count} assets, {initial_lib_count} libraries, {initial_count} total", module_name='MissingLinks')
+
+    # Track what we attempt to fix for accurate success counting
+    assets_attempted = initial_asset_count
+    libraries_attempted = initial_lib_count
+    
+    # Perform asset datablock relinking
+    log_info("Performing asset datablock relinking...", module_name='MissingLinks')
+    asset_processor = AssetRelinkProcessor(main_blend_path=blend_path)
+    asset_processor.process_relink()
+    
+    # Check asset progress after asset relinking (before library relinking)
+    after_assets = check_missing_links()
+    assets_remaining_after_asset_relink = sum(1 for it in after_assets if it.item_type == 'asset')
+    assets_fixed = max(0, initial_asset_count - assets_remaining_after_asset_relink)
+    
+    # Perform library file relinking
+    log_info("Performing library file relinking...", module_name='MissingLinks')
+    lib_processor = LibraryRelinkProcessor(blend_file_path=blend_path)
+    lib_processor.process_relink()
+    
+    # Re-check missing links after all relinking
+    pending_after = check_missing_links()
+    final_count = len(pending_after)
+    
+    # Count remaining items by type for detailed logging
+    remaining_asset = sum(1 for it in pending_after if it.item_type == 'asset')
+    remaining_lib = sum(1 for it in pending_after if it.item_type == 'library')
+    
+    # Calculate libraries fixed (this is straightforward)
+    libraries_fixed = max(0, initial_lib_count - remaining_lib)
+    
+    # Calculate total success based on what we actually attempted to fix
+    # Assets fixed is already calculated above
+    # Libraries fixed is calculated above
+    total_fixed = assets_fixed + libraries_fixed
+    
+    # Log detailed results
+    log_debug(f"Asset relink results: {assets_fixed}/{assets_attempted} fixed", module_name='MissingLinks')
+    log_debug(f"Library relink results: {libraries_fixed}/{libraries_attempted} fixed", module_name='MissingLinks')
+    log_debug(f"Final counts: {remaining_asset} assets, {remaining_lib} libraries, {final_count} total", module_name='MissingLinks')
+    
+    # If libraries were fixed but new assets appeared, provide informative logging
+    if libraries_fixed > 0 and remaining_asset > initial_asset_count:
+        new_assets_revealed = remaining_asset - initial_asset_count
+        log_info(f"Fixed {libraries_fixed} library files, but {new_assets_revealed} new missing assets were revealed", module_name='MissingLinks')
+    
+    log_debug(f"Total success: {total_fixed} items resolved (assets: {assets_fixed}, libraries: {libraries_fixed})", module_name='MissingLinks')
+    
+    return total_fixed, initial_count
 
 
 def show_missing_links_dialog():
     """Show the missing links dialog if items need relinking."""
-    global _missing_links_dialog_shown
+    global _missing_links_dialog_shown, _consecutive_dialog_count
     
     if _missing_links_dialog_shown:
         return
@@ -282,8 +216,9 @@ def show_missing_links_dialog():
         return
     
     try:
+        # Reset counter for manual invocations
+        _consecutive_dialog_count = 0
         _missing_links_dialog_shown = True
-        # Type: ignore to suppress Pylance warning about dynamic operator access
         bpy.ops.bv.missing_links_dialog('INVOKE_DEFAULT')  # type: ignore
     except Exception as e:
         _missing_links_dialog_shown = False
@@ -297,133 +232,282 @@ class BV_OT_MissingLinksDialog(bpy.types.Operator):
     bl_options = {'REGISTER', 'INTERNAL', 'BLOCKING'}
     
     def execute(self, context):
-        global _missing_links_dialog_shown
+        global _missing_links_dialog_shown, _consecutive_dialog_count
         _missing_links_dialog_shown = False
         
         try:
             success_count, total_count = perform_all_relinks()
+            
+            # Check current state after relinking to provide better feedback
+            remaining_items = check_missing_links()
+            remaining_count = len(remaining_items)
+            
+            # Determine if we should automatically show the dialog again
+            should_show_dialog_again = False
+            
             if success_count is not None and success_count > 0:
-                if success_count == total_count:
-                    # Use singular/plural appropriately
-                    if total_count == 1:
-                        self.report({'INFO'}, f"Successfully relinked 1 item")
+                if remaining_count == 0:
+                    # All resolved successfully
+                    if success_count == 1:
+                        self.report({'INFO'}, "Successfully relinked 1 item")
                     else:
                         self.report({'INFO'}, f"Successfully relinked all {success_count} items")
+                elif remaining_count > total_count:
+                    # Special case: new missing items appeared (library relinking revealed new assets)
+                    new_items = remaining_count - total_count
+                    should_show_dialog_again = True
+                    if success_count == 1:
+                        self.report({'INFO'}, f"Relinked 1 item, but {new_items} new missing assets were revealed. Showing dialog for next batch...")
+                    else:
+                        self.report({'INFO'}, f"Relinked {success_count} items, but {new_items} new missing assets were revealed. Showing dialog for next batch...")
                 else:
-                    # Use singular/plural appropriately
+                    # Some items successfully relinked, some still need attention
+                    should_show_dialog_again = True
                     item_word = "item" if total_count == 1 else "items"
                     if success_count == 1:
-                        self.report({'WARNING'}, f"Relinked 1 out of {total_count} {item_word}. Some items may need manual attention.")
+                        self.report({'INFO'}, f"Relinked 1 out of {total_count} {item_word}. Showing dialog for remaining {remaining_count}...")
                     else:
-                        self.report({'WARNING'}, f"Relinked {success_count} out of {total_count} {item_word}. Some items may need manual attention.")
+                        self.report({'INFO'}, f"Relinked {success_count} out of {total_count} {item_word}. Showing dialog for remaining {remaining_count}...")
             else:
-                self.report({'WARNING'}, f"No items were successfully relinked. Check console for details.")
+                if remaining_count == 0:
+                    self.report({'INFO'}, "All items were already properly linked")
+                elif remaining_count == total_count:
+                    # Nothing was fixed, don't auto-show dialog again to prevent infinite loop
+                    self.report({'WARNING'}, f"No items were successfully relinked. {remaining_count} items still need manual attention. Check console for details.")
+                else:
+                    # Some progress was made even though success_count is 0, show dialog again
+                    should_show_dialog_again = True
+                    self.report({'INFO'}, f"Some progress made. Showing dialog for remaining {remaining_count} items...")
+            
+            # Force immediate UI refresh to update the properties panel
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
+            
+            # Clear pending items after relinking attempt
+            global _pending_relink_items
+            _pending_relink_items.clear()
+              # Automatically show dialog again if there are remaining items and we made progress
+            if should_show_dialog_again and remaining_count > 0:
+                _consecutive_dialog_count += 1
+                if _consecutive_dialog_count <= _max_consecutive_dialogs:
+                    # Use a timer to show the dialog again after a brief delay to allow UI to update
+                    bpy.app.timers.register(lambda: self._show_dialog_again(), first_interval=0.1)
+                else:
+                    # Reset counter and warn user
+                    _consecutive_dialog_count = 0
+                    self.report({'WARNING'}, f"Reached maximum of {_max_consecutive_dialogs} consecutive relink attempts. Check the Blend Vault panel for remaining {remaining_count} items.")
                 
         except Exception as e:
             self.report({'ERROR'}, f"Error during relinking: {e}")
             log_error(f"Error during missing links relinking: {e}", module_name='MissingLinks')
+        
+        return {'FINISHED'}
+    
+    def _show_dialog_again(self):
+        """Helper method to show the dialog again after a brief delay."""
+        global _missing_links_dialog_shown, _consecutive_dialog_count
+        
+        try:
+            # Double-check that items still need relinking
+            remaining_items = check_missing_links()
+            if remaining_items:
+                if not _missing_links_dialog_shown:  # Prevent multiple dialogs
+                    _missing_links_dialog_shown = True
+                    bpy.ops.bv.missing_links_dialog('INVOKE_DEFAULT')  # type: ignore
+                else:
+                    # Reset counter if we couldn't show dialog
+                    _consecutive_dialog_count = max(0, _consecutive_dialog_count - 1)
+            else:
+                # No more items, reset counter
+                _consecutive_dialog_count = 0
+        except Exception as e:
+            # Reset counter on error
+            _consecutive_dialog_count = 0
+            log_error(f"Failed to show missing links dialog again: {e}", module_name='MissingLinks')
+        return None  # Don't repeat the timer
+    def cancel(self, context):
+        global _missing_links_dialog_shown, _pending_relink_items, _consecutive_dialog_count
+        _missing_links_dialog_shown = False
+        _pending_relink_items.clear()
+        _consecutive_dialog_count = 0  # Reset counter when user cancels
+        log_info("Missing links dialog dismissed. Items may need manual relinking.", module_name='MissingLinks')
         
         # Force immediate UI refresh to update the properties panel
         for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
                 area.tag_redraw()
         
-        return {'FINISHED'}
-    def cancel(self, context):
-        global _missing_links_dialog_shown
-        _missing_links_dialog_shown = False
-        log_info("Missing links dialog dismissed. Items may need manual relinking.", module_name='MissingLinks')
-        return {'CANCELLED'}
+        # No return value to satisfy Blender's cancel signature
+        return None
     
     def invoke(self, context, event):
+        # If this is a fresh invocation (not part of auto-sequence), reset counter
+        global _consecutive_dialog_count
+        if _consecutive_dialog_count == 0:
+            log_debug("Fresh dialog invocation, resetting consecutive counter", module_name='MissingLinks')
+        
+        # Get missing items and store them for this dialog instance
+        items = check_missing_links()
+        self._dialog_items = items.copy()
+        
+        # Don't show dialog if no items need relinking
+        if not self._dialog_items:
+            global _missing_links_dialog_shown
+            _missing_links_dialog_shown = False
+            log_debug("No missing links found during invoke, cancelling dialog", module_name='MissingLinks')
+            return {'CANCELLED'}
+        
+        log_debug(f"Dialog invoke storing {len(self._dialog_items)} items for display", module_name='MissingLinks')
         return context.window_manager.invoke_props_dialog(self, width=500)
     
     def draw(self, context):
         layout = self.layout
         
-        # Warning icon and title
-        row = layout.row()
-        row.alert = True
-        row.label(text="Items need to be relinked", icon='ERROR')
+        # Use the items stored during invoke to ensure consistency
+        items = getattr(self, '_dialog_items', [])
         
-        # Show the items that need relinking
-        if _pending_relink_items:
-            box = layout.box()
-            for item in _pending_relink_items[:10]:  # Limit to first 10 items
-                row = box.row()
-                
-                # Icon based on type
-                icon = 'ASSET_MANAGER' if item.item_type == 'asset' else \
-                       'LIBRARY_DATA_DIRECT' if item.item_type == 'library' else \
-                       'FILE_IMAGE'
-                
-                col = row.column()
-                col.label(text=item.description, icon=icon)
-                
-                # Show details if available
-                if item.details:
-                    sub_row = col.row()
-                    sub_row.scale_y = 0.8
-                    sub_row.label(text=item.details)
+        if not items:
+            layout.label(text="All links appear to be valid!")
+            log_debug("Dialog draw: no items to display", module_name='MissingLinks')
+            return
+        
+        log_debug(f"Dialog draw: displaying {len(items)} items", module_name='MissingLinks')
+        
+        # Informative header
+        layout.label(text="Some items need relinking:", icon='ERROR')
+        layout.separator()
+        
+        # Show summary and first few items
+        if len(items) == 1:
+            layout.label(text="1 item needs relinking:")
+        else:
+            layout.label(text=f"{len(items)} items need relinking:")
+        
+        # Show the first 10 items
+        for item in items[:10]:
+            row = layout.row()
+            # Show icon based on type
+            icon = 'ASSET_MANAGER' if item.item_type == 'asset' else \
+                   'LIBRARY_DATA_DIRECT' if item.item_type == 'library' else \
+                   'FILE_IMAGE'
             
-            if len(_pending_relink_items) > 10:
-                row = layout.row()
-                row.label(text=f"... and {len(_pending_relink_items) - 10} more items")
+            col = row.column()
+            col.label(text=item.description, icon=icon)
+              # Show details if available
+            if item.details:
+                sub_row = col.row()
+                sub_row.scale_y = 0.8
+                sub_row.label(text=item.details)
+        
+        if len(items) > 10:
+            row = layout.row()
+            row.label(text=f"... and {len(items) - 10} more items")
         
         layout.separator()
         layout.label(text="Continue with automatic relinking?")
 
 
+class BV_OT_ManualRelink(bpy.types.Operator):
+    """Manual relink operator that can be triggered from the panel."""
+    bl_idname = "bv.manual_relink"
+    bl_label = "Relink Missing Items"
+    bl_description = "Manually trigger relinking of missing assets and libraries"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        global _missing_links_dialog_shown
+        
+        # Check if there are items that need relinking
+        items = check_missing_links()
+        if not items:
+            self.report({'INFO'}, "No missing links detected")
+            return {'FINISHED'}
+        
+        # If dialog is already shown, don't do anything
+        if _missing_links_dialog_shown:
+            self.report({'WARNING'}, "Missing links dialog is already active")
+            return {'CANCELLED'}
+        
+        # Show the missing links dialog
+        try:
+            _missing_links_dialog_shown = True
+            bpy.ops.bv.missing_links_dialog('INVOKE_DEFAULT')  # type: ignore
+            return {'FINISHED'}
+        except Exception as e:
+            _missing_links_dialog_shown = False
+            self.report({'ERROR'}, f"Failed to show missing links dialog: {e}")
+            log_error(f"Failed to show missing links dialog from manual trigger: {e}", module_name='MissingLinks')
+            return {'CANCELLED'}
+
+
 class BV_PT_MissingLinksPanel(bpy.types.Panel):
-    """Panel to manually trigger missing links dialog for testing."""
+    """Panel to display missing links status."""
     bl_label = "Missing Links"
     bl_idname = "BV_PT_missing_links"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "Blend Vault"
+    
     def draw(self, context):
+        global _missing_links_dialog_shown
         layout = self.layout
+        # Refresh missing items on each draw
+        items = check_missing_links()
         
-        if _pending_relink_items:
+        if items:
             # Warning icon and title
             row = layout.row()
             row.alert = True
-            row.label(text="Relinks required", icon='ERROR')
+            row.label(text="Items need relinking", icon='ERROR')
             
             layout.separator()
             
+            # Summary
             row = layout.row()
-            row.label(text=f"{len(_pending_relink_items)} items need relinking.")
+            if len(items) == 1:
+                row.label(text="1 item needs relinking")
+            else:
+                row.label(text=f"{len(items)} items need relinking")
             
-            # Show first few items in a box
-            box = layout.box()
-            for item in _pending_relink_items[:3]:  # Show first 3 items
-                row = box.row()
-                # Icon based on type
-                icon = 'ASSET_MANAGER' if item.item_type == 'asset' else \
-                       'LIBRARY_DATA_DIRECT' if item.item_type == 'library' else \
-                       'FILE_IMAGE'
-                row.label(text=item.description, icon=icon)
+            # Show first few items for reference
+            if len(items) > 0:
+                box = layout.box()
+                box.label(text="Missing items:", icon='INFO')
+                
+                # Show up to 3 items
+                for item in items[:3]:
+                    row = box.row()
+                    # Icon based on type
+                    icon = 'ASSET_MANAGER' if item.item_type == 'asset' else \
+                           'LIBRARY_DATA_DIRECT' if item.item_type == 'library' else \
+                           'FILE_IMAGE'
+                    row.label(text=item.description, icon=icon)
+                
+                if len(items) > 3:
+                    row = box.row()
+                    row.label(text=f"... and {len(items) - 3} more")
             
-            if len(_pending_relink_items) > 3:
-                box.label(text=f"... and {len(_pending_relink_items) - 3} more")
-            
-            layout.separator()
-            
-            # Action button
-            col = layout.column(align=True)
-            col.scale_y = 1.2
-            col.operator("bv.missing_links_dialog", text="Fix Relinks", icon='FILE_TICK')
+            # Show manual relink button only if dialog is not active
+            if not _missing_links_dialog_shown:
+                layout.separator()
+                row = layout.row()
+                row.scale_y = 1.2
+                row.operator("bv.manual_relink", text="Relink Missing Items", icon='FILE_REFRESH')
+            else:
+                layout.separator()
+                row = layout.row()
+                row.enabled = False
+                row.label(text="Relink dialog is active", icon='INFO')
         else:
-            # No relinks needed
-            layout.label(text="No pending relinks", icon='CHECKMARK')
-            layout.separator()
-            layout.operator("bv.missing_links_dialog", text="Check for Relinks", icon='LINK_BLEND')
-
+            # No relinks needed - clean status
+            row = layout.row()
+            row.label(text="All links valid", icon='CHECKMARK')
 
 def register():
     """Register the missing links dialog."""
     bpy.utils.register_class(BV_OT_MissingLinksDialog)
+    bpy.utils.register_class(BV_OT_ManualRelink)
     bpy.utils.register_class(BV_PT_MissingLinksPanel)
     log_success("Missing links dialog registered.", module_name='MissingLinks')
 
@@ -431,5 +515,6 @@ def register():
 def unregister():
     """Unregister the missing links dialog."""
     bpy.utils.unregister_class(BV_OT_MissingLinksDialog)
+    bpy.utils.unregister_class(BV_OT_ManualRelink)
     bpy.utils.unregister_class(BV_PT_MissingLinksPanel)
     log_success("Missing links dialog unregistered.", module_name='MissingLinks')

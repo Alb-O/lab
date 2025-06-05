@@ -109,6 +109,29 @@ class AssetRelinkProcessor:
                 log_warning(f"Could not read library sidecar for '{lib_rel_path}': {e}", module_name='AssetRelink')
         
         return authoritative_data
+
+    def get_missing_assets(self) -> List[Dict[str, str]]:
+        """
+        Identify assets present in the main sidecar but missing in library sidecars.
+        Returns a list of dicts with keys: uuid, name, type, lib_rel_path.
+        """
+        missing = []
+        # Parse main sidecar
+        parser = SidecarParser(self.sidecar_path)
+        main_linked_data = parser.extract_json_blocks_with_links("Linked Libraries")
+        # Get authoritative data
+        authoritative_data = self._get_authoritative_library_data(main_linked_data)
+        for lib_rel_path, lib_data in main_linked_data.items():
+            for asset_info in lib_data.get("json_data", {}).get("assets", []):
+                uuid = asset_info.get("uuid")
+                if uuid and uuid not in authoritative_data.get(lib_rel_path, {}):
+                    missing.append({
+                        "uuid": uuid,
+                        "name": asset_info.get("name", "Unknown"),
+                        "type": asset_info.get("type", "Unknown"),
+                        "lib_rel_path": lib_rel_path,
+                    })
+        return missing
     
     def _identify_relink_operations(
         self,

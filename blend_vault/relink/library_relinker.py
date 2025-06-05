@@ -35,19 +35,26 @@ class LibraryRelinkProcessor(BaseRelinker):
         try:
             parser = self.get_parser()
             linked_libraries = parser.extract_json_blocks_with_links("Linked Libraries")
-            
             if not linked_libraries:
-                log_info("[LibraryRelinker] No linked library data found in sidecar.", module_name='LibraryRelinker')
-                return
-            
-            found_any_link = False
-            
-            for lib_path, lib_data in linked_libraries.items():
-                if self._process_library_entry(lib_data):
-                    found_any_link = True
-            
-            if not found_any_link:
-                log_info("[LibraryRelinker] No valid library entries were processed.", module_name='LibraryRelinker')
+                log_info("[LibraryRelinker] No linked library data found in sidecar. Skipping sidecar-based relinks.", module_name='LibraryRelinker')
+            else:
+                found_any_link = False
+                for lib_path, lib_data in linked_libraries.items():
+                    if self._process_library_entry(lib_data):
+                        found_any_link = True
+                if not found_any_link:
+                    log_info("[LibraryRelinker] No valid library entries were processed from sidecar.", module_name='LibraryRelinker')
+
+            # Fallback: attempt to fix any missing libraries in current session
+            for lib in bpy.data.libraries:
+                if lib.filepath and not lib.filepath.startswith('<builtin>'):
+                    abs_path = bpy.path.abspath(lib.filepath)
+                    if not os.path.exists(abs_path):
+                        # Try to fix this missing library
+                        link_name = lib.name
+                        relative_path = lib.filepath
+                        target_path = abs_path
+                        self._fix_missing_library(link_name, relative_path, target_path)
             
             # Make paths relative at the end
             make_paths_relative()
