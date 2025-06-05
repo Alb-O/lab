@@ -1,5 +1,6 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import { MINIMUM_BLENDER_VERSIONS, MinimumBlenderVersionType } from './constants';
+import { BuildType } from './types';
 import type FetchBlenderBuildsPlugin from './main';
 
 export interface BlenderPluginSettings {
@@ -10,6 +11,8 @@ export interface BlenderPluginSettings {
 	maxConcurrentDownloads: number;
 	minimumBlenderVersion: MinimumBlenderVersionType;
 	launchWithConsole: boolean;
+	showInstalledOnly: boolean;
+	preferredBuildType: BuildType | 'all';
 	// Blender environment variables
 	blenderEnvironmentVariables: {
 		BLENDER_USER_RESOURCES?: string;
@@ -38,6 +41,8 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	maxConcurrentDownloads: 2,
 	minimumBlenderVersion: '3.0',
 	launchWithConsole: false,
+	showInstalledOnly: false,
+	preferredBuildType: 'all',
 	blenderEnvironmentVariables: {}
 };
 
@@ -93,7 +98,6 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					this.plugin.settings.launchWithConsole = value;
 					await this.plugin.saveSettings();
 				}));
-
 		new Setting(containerEl)
 			.setName('Minimum Blender version')
 			.setDesc('Only show builds with this version or higher.')
@@ -107,6 +111,33 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.minimumBlenderVersion)
 					.onChange(async (value: MinimumBlenderVersionType) => {
 						this.plugin.settings.minimumBlenderVersion = value;
+						await this.plugin.saveSettings();
+					});
+			});
+		new Setting(containerEl)
+			.setName('Show installed builds only')
+			.setDesc('By default, show only builds that have been downloaded/installed.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showInstalledOnly)
+				.onChange(async (value) => {
+					this.plugin.settings.showInstalledOnly = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Preferred build type')
+			.setDesc('Default build type filter when opening the Blender builds view.')
+			.addDropdown(dropdown => {
+				dropdown.addOption('all', 'All Types');
+				dropdown.addOption(BuildType.Stable, 'Stable');
+				dropdown.addOption(BuildType.Daily, 'Daily');
+				dropdown.addOption(BuildType.LTS, 'LTS');
+				dropdown.addOption(BuildType.Experimental, 'Experimental');
+				
+				return dropdown
+					.setValue(this.plugin.settings.preferredBuildType)
+					.onChange(async (value: BuildType | 'all') => {
+						this.plugin.settings.preferredBuildType = value;
 						await this.plugin.saveSettings();
 					});
 			});

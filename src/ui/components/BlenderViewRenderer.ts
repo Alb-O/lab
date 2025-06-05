@@ -2,7 +2,7 @@ import { BlenderBuildInfo, BuildType } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
 import { BuildFilter } from '../../buildFilter';
 import type FetchBlenderBuildsPlugin from '../../main';
-import { SearchComponent } from 'obsidian';
+import { SearchComponent, ToggleComponent } from 'obsidian';
 import { 
 	BlenderToolbar, 
 	BlenderStatusDisplay, 
@@ -25,16 +25,15 @@ export class BlenderViewRenderer {
 	// Component instances
 	private toolbar: BlenderToolbar;
 	private statusDisplay: BlenderStatusDisplay;
-	private buildsRenderer: BlenderBuildsRenderer;
-		// State handling
+	private buildsRenderer: BlenderBuildsRenderer;	// State handling
 	private isInitialized = false;
 	private isRefreshing = false;
 	private cachedBuilds: BlenderBuildInfo[] = [];
 	private currentFilter: string = '';
 	private currentBranch: string = 'all';
 	private currentBuildType: BuildType | 'all' = 'all';
+	private showInstalledOnly = false;
 	private isTypeFilterVisible = false;
-
 	constructor(
 		plugin: FetchBlenderBuildsPlugin,
 		buildManager: FetchBlenderBuilds,
@@ -43,6 +42,9 @@ export class BlenderViewRenderer {
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.buildFilter = new BuildFilter(buildManager);
+				// Initialize state from settings
+		this.showInstalledOnly = plugin.settings.showInstalledOnly;
+		this.currentBuildType = plugin.settings.preferredBuildType;
 		
 		// Initialize layout manager
 		this.layoutManager = new BlenderViewLayoutManager(containerEl);
@@ -132,8 +134,7 @@ export class BlenderViewRenderer {
 	}
 		/**
 	 * Update builds content section only
-	 */
-	private async updateBuildsContent(): Promise<void> {
+	 */	private async updateBuildsContent(): Promise<void> {
 		const contentArea = this.layoutManager.getContentArea();
 		if (!contentArea) return;
 		
@@ -144,8 +145,10 @@ export class BlenderViewRenderer {
 		const filteredBuilds = this.buildFilter.filterBuilds(builds, {
 			searchFilter: this.currentFilter,
 			branch: this.currentBranch,
-			buildType: this.currentBuildType
+			buildType: this.currentBuildType,
+			installedOnly: this.showInstalledOnly
 		});
+		
 		// Render builds with highlighting
 		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds, this.currentFilter);
 	}
@@ -192,13 +195,34 @@ export class BlenderViewRenderer {
 				optionEl.selected = true;
 			}
 		});
-		
 		// Add change handler
-		select.addEventListener('change', (e) => {
+		select.addEventListener('change', async (e) => {
 			const target = e.target as HTMLSelectElement;
 			this.currentBuildType = target.value as BuildType | 'all';
+			// Save to settings
+			this.plugin.settings.preferredBuildType = this.currentBuildType;
+			await this.plugin.saveSettings();
 			this.updateBuildsContent();
-		});		// Add fuzzy search input using SearchComponent
+		});
+
+		// Add "Show installed only" toggle
+		const toggleContainer = dropdownContainer.createEl('div', { cls: 'blender-toggle-container' });
+		
+		const toggleLabel = toggleContainer.createEl('label', { 
+			text: 'Show installed only:', 
+			cls: 'blender-filter-label' 
+		});
+				const toggleComponent = new ToggleComponent(toggleContainer);
+		toggleComponent.setValue(this.showInstalledOnly);
+		toggleComponent.onChange(async (value) => {
+			this.showInstalledOnly = value;
+			// Save to settings
+			this.plugin.settings.showInstalledOnly = value;
+			await this.plugin.saveSettings();
+			this.updateBuildsContent();
+		});
+
+		// Add fuzzy search input using SearchComponent
 		const searchContainer = dropdownContainer.createEl('div', { cls: 'blender-search-container' });
 		
 		// Create SearchComponent instead of plain input
