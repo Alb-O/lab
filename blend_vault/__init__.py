@@ -13,14 +13,15 @@ from .core import (
     log_info, log_warning, log_error, log_success, log_debug,
     get_or_create_datablock_uuid, generate_filepath_hash,
     format_primary_link, parse_primary_link, get_asset_sources_map,
-    get_resource_warning_prefix, ensure_saved_file
+    get_resource_warning_prefix, ensure_saved_file,
+    LOG_COLORS, BV_UUID_PROP, BV_FILE_UUID_KEY, BV_UUID_KEY,
+    SIDECAR_EXTENSION, RESOURCE_WARNING_PREFIX,
+    MD_PRIMARY_FORMAT, PRIMARY_LINK_REGEX
 )
 
-# Import constants from utils
+# Import remaining constants from utils
 from .utils.constants import (
-    LOG_COLORS, BV_UUID_PROP, BV_FILE_UUID_KEY, BV_UUID_KEY,
-    SIDECAR_EXTENSION, REDIRECT_EXTENSION, FRONTMATTER_TAGS, POLL_INTERVAL,
-    MD_PRIMARY_FORMAT, PRIMARY_LINK_REGEX, RESOURCE_WARNING_PREFIX,
+    REDIRECT_EXTENSION, FRONTMATTER_TAGS, POLL_INTERVAL,
     MD_EMBED_WIKILINK
 )
 

@@ -17,12 +17,48 @@ import os
 import re
 from typing import Optional, Dict, Any
 
-# Import constants from utils
-from .utils.constants import (
-    LOG_COLORS, MD_PRIMARY_FORMAT, PRIMARY_LINK_REGEX, RESOURCE_WARNING_PREFIX, 
-    BV_UUID_PROP, MD_LINK_FORMATS
-)
-from .utils.templates import HEADING_LEVEL_2, HEADING_LEVEL_3
+# === CORE CONSTANTS ===
+# Log color codes (ANSI escape sequences)
+LOG_COLORS = {
+    'INFO': '\033[94m',    # Blue: Informational messages
+    'SUCCESS': '\033[92m', # Green: Success/confirmation
+    'WARN': '\033[93m',    # Yellow: Warnings
+    'ERROR': '\033[91m',   # Red: Errors
+    'DEBUG': '\033[95m',   # Magenta: Debug messages
+    'RESET': '\033[0m',    # Reset to default
+}
+
+# Markdown link formats and regex patterns
+MD_LINK_FORMATS = {
+    'MD_ANGLE_BRACKETS': {
+        'format': '[{name}](<{path}>)',
+        'regex': r'\[([^\]]+)\]\(<([^>]+)>\)'
+    },
+    'MD_WIKILINK': {
+        'format': '[[{path}|{name}]]',
+        'regex': r'\[\[([^\]|]+)\|([^\]]+)\]\]'
+    }
+}
+
+MD_PRIMARY_FORMAT = MD_LINK_FORMATS['MD_WIKILINK']  # Set Obsidian wikilink as primary format
+
+# Compile primary link regex
+PRIMARY_LINK_REGEX = re.compile(MD_PRIMARY_FORMAT['regex'])
+
+# Sidecar file extension
+SIDECAR_EXTENSION = ".side.md"
+
+# Warning prefix for resources outside the vault
+RESOURCE_WARNING_PREFIX = "⚠️ "
+
+# --- Blend Vault UUID/Hash Key Constants ---
+BV_UUID_PROP = "BV_UUID"
+BV_FILE_UUID_KEY = "blendfile_uuid"
+BV_UUID_KEY = "uuid"
+
+# --- Heading Level Constants ---
+HEADING_LEVEL_2 = "## "
+HEADING_LEVEL_3 = "### "
 
 
 # === LOGGING FUNCTIONS ===

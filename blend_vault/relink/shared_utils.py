@@ -16,15 +16,12 @@ from .. import (
     log_info,
     log_warning,
     log_error,
-    log_success,
-    log_debug,
+    log_success,    log_debug,
     parse_primary_link,
     ensure_saved_file
 )
-from ..utils.constants import MD_LINK_FORMATS
+from ..core import MD_LINK_FORMATS, HEADING_LEVEL_2, HEADING_LEVEL_3
 from ..utils.templates import (
-    HEADING_LEVEL_2, 
-    HEADING_LEVEL_3, 
     build_template_heading_regex,
     build_main_section_break_regex,
     get_main_section_heading_level

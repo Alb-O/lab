@@ -92,17 +92,13 @@ def detect_obsidian_vault_from_asset_libraries() -> Optional[str]:
         
         # Check if asset libraries exist
         if not hasattr(user_prefs, 'filepaths') or not hasattr(user_prefs.filepaths, 'asset_libraries'):
-            log_debug("No asset libraries found in user preferences", module_name='Preferences')
             return None
         
         asset_libraries = user_prefs.filepaths.asset_libraries
         
         if not asset_libraries:
-            log_debug("Asset libraries collection is empty", module_name='Preferences')
             return None
-        
-        log_debug(f"Checking {len(asset_libraries)} asset libraries for Obsidian vaults", module_name='Preferences')
-        
+                
         for library in asset_libraries:
             if hasattr(library, 'path') and library.path:
                 library_path = library.path.strip()
@@ -111,7 +107,6 @@ def detect_obsidian_vault_from_asset_libraries() -> Optional[str]:
                     obsidian_folder_path = os.path.join(library_path, '.obsidian')
                     
                     if os.path.exists(obsidian_folder_path) and os.path.isdir(obsidian_folder_path):
-                        log_success(f"Found Obsidian vault at: {library_path}", module_name='Preferences')
                         return library_path
                     
                     # Also check the parent directory
@@ -123,10 +118,8 @@ def detect_obsidian_vault_from_asset_libraries() -> Optional[str]:
                         parent_obsidian_folder = os.path.join(parent_path, '.obsidian')
                         
                         if os.path.exists(parent_obsidian_folder) and os.path.isdir(parent_obsidian_folder):
-                            log_success(f"Found Obsidian vault at parent directory: {parent_path}", module_name='Preferences')
                             return parent_path
         
-        log_info("No Obsidian vault detected in asset library paths", module_name='Preferences')
         return None
         
     except Exception as e:

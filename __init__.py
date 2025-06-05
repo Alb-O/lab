@@ -1,9 +1,12 @@
-import bpy
+# Import core functionality - use module-level imports
+import bpy 
+from .blend_vault import preferences as prefs_module
+from .blend_vault.core import log_info, log_warning, log_error, log_success, log_debug
 import importlib
 
 # Import core functionality - use module-level imports
 from .blend_vault import preferences as prefs_module
-from .blend_vault.utils import log_info, log_warning, log_error, log_success, log_debug
+from .blend_vault.core import log_info, log_warning, log_error, log_success, log_debug
 
 # Core modules to register (simplified - no complex handler management)
 CORE_MODULES = [

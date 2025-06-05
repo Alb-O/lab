@@ -11,8 +11,7 @@ from typing import Dict, List, Tuple
 from .. import (
 	generate_filepath_hash,  # Renamed from ensure_library_hash
 	get_resource_warning_prefix,
-	SIDECAR_EXTENSION,
-	BV_UUID_PROP,
+	SIDECAR_EXTENSION,	BV_UUID_PROP,
 	BV_FILE_UUID_KEY,
 	format_primary_link
 )
