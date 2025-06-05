@@ -9,6 +9,7 @@ export interface BlenderPluginSettings {
 	preferredArchitecture: 'auto' | 'x64' | 'arm64';
 	maxConcurrentDownloads: number;
 	minimumBlenderVersion: MinimumBlenderVersionType;
+	launchWithConsole: boolean;
 	// Blender environment variables
 	blenderEnvironmentVariables: {
 		BLENDER_USER_RESOURCES?: string;
@@ -36,6 +37,7 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	preferredArchitecture: 'auto',
 	maxConcurrentDownloads: 2,
 	minimumBlenderVersion: '3.0',
+	launchWithConsole: false,
 	blenderEnvironmentVariables: {}
 };
 
@@ -72,7 +74,6 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					this.plugin.settings.autoExtract = value;
 					await this.plugin.saveSettings();
 				}));
-
 		new Setting(containerEl)
 			.setName('Clean up after extraction')
 			.setDesc('Remove downloaded archives after extraction.')
@@ -80,6 +81,16 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.cleanUpAfterExtraction)
 				.onChange(async (value) => {
 					this.plugin.settings.cleanUpAfterExtraction = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Launch Blender with console attached')
+			.setDesc('Launch the blender.exe executable instead of blender-launcher.exe to keep a console window attached for debugging. This setting only affects Windows.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.launchWithConsole)
+				.onChange(async (value) => {
+					this.plugin.settings.launchWithConsole = value;
 					await this.plugin.saveSettings();
 				}));
 

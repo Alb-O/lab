@@ -20,7 +20,7 @@ export class BlenderLauncher extends EventEmitter {
 		const launcherPath = this.findBlenderLauncher(extractPath);
 		
 		if (!launcherPath) {
-			const expectedName = process.platform === 'win32' ? 'blender-launcher.exe' : 'blender executable';
+			const expectedName = this.getExpectedExecutableName();
 			throw new Error(`${expectedName} not found in build directory`);
 		}
 		
@@ -31,14 +31,27 @@ export class BlenderLauncher extends EventEmitter {
 			// Create environment with explicit Windows environment variable support
 			const env = this.getBlenderEnvironment();
 			
-			// Use detached: true and stdio: 'ignore' to make the process independent
-			// Include the enhanced environment so Blender respects all custom variables
-			const child = spawn(launcherPath, [], {
-				detached: true,
-				stdio: 'ignore',
-				cwd: path.dirname(launcherPath),
-				env: env  // Pass through all environment variables including explicitly retrieved ones
-			});
+			// Configure spawn based on platform and console preference
+			let child;
+			if (process.platform === 'win32' && this.settings.launchWithConsole) {
+				// On Windows, when launching with console, use cmd.exe to start the process
+				// This ensures a console window is created, mimicking Explorer behavior
+				child = spawn('cmd.exe', ['/c', 'start', '""', launcherPath], {
+					detached: true,
+					stdio: 'ignore',
+					cwd: path.dirname(launcherPath),
+					env: env,
+					shell: false
+				});
+			} else {
+				// For blender-launcher.exe or non-Windows platforms
+				child = spawn(launcherPath, [], {
+					detached: true,
+					stdio: 'ignore',
+					cwd: path.dirname(launcherPath),
+					env: env
+				});
+			}
 			
 			// Unreference the child process so Node.js can exit
 			child.unref();
@@ -65,6 +78,16 @@ export class BlenderLauncher extends EventEmitter {
 		
 		return env;
 	}
+
+	/**
+	 * Get the expected executable name based on platform and settings
+	 */
+	private getExpectedExecutableName(): string {
+		if (process.platform === 'win32') {
+			return this.settings.launchWithConsole ? 'blender.exe' : 'blender-launcher.exe';
+		}
+		return 'blender executable';
+	}
 	/**
 	 * Find blender launcher/executable in the extracted build directory
 	 */
@@ -83,9 +106,7 @@ export class BlenderLauncher extends EventEmitter {
 					
 					if (entry.isFile()) {
 						// Platform-specific executable detection
-						const isLauncher = process.platform === 'win32' 
-							? entry.name.toLowerCase() === 'blender-launcher.exe'
-							: entry.name === 'blender' || entry.name === 'Blender';
+						const isLauncher = this.isBlenderExecutable(entry.name);
 						
 						if (isLauncher) {
 							return fullPath;
@@ -104,6 +125,24 @@ export class BlenderLauncher extends EventEmitter {
 
 		return searchForLauncher(extractPath);
 	}
+
+	/**
+	 * Check if a filename is the correct Blender executable based on platform and settings
+	 */
+	private isBlenderExecutable(filename: string): boolean {
+		if (process.platform === 'win32') {
+			const lowerName = filename.toLowerCase();
+			if (this.settings.launchWithConsole) {
+				return lowerName === 'blender.exe';
+			} else {
+				return lowerName === 'blender-launcher.exe';
+			}
+		} else {
+			// On non-Windows platforms, look for 'blender' or 'Blender'
+			return filename === 'blender' || filename === 'Blender';
+		}
+	}
+
 	/**
 	 * Update settings
 	 */
