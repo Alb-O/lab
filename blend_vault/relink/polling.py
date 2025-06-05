@@ -1,10 +1,12 @@
 import bpy  # type: ignore
 import os
 import importlib
-from .. import SIDECAR_EXTENSION, POLL_INTERVAL, LOG_COLORS, log_success, log_error, log_warning, log_info
+from ..core import SIDECAR_EXTENSION, LOG_COLORS, log_success, log_error, log_warning, log_info
+from ..utils.constants import POLL_INTERVAL
 from . import asset_relinker, redirect_handler
 from .library_relinker import relink_library_info
 from .resource_relinker import relink_resources
+from .startup_dialog import show_startup_relink_dialog
 
 # Store last modification times for sidecar files
 t_last_sidecar_mtimes = {}
@@ -27,16 +29,11 @@ def sidecar_poll_timer():
 			if last_known_sidecar_mtime is None:                # Initialize
 				t_last_sidecar_mtimes[md_path] = sidecar_mtime
 			elif sidecar_mtime > last_known_sidecar_mtime:
-				# Sidecar file changed: update timestamp and trigger full relink logic
+				# Sidecar file changed: update timestamp and show startup dialog for user confirmation
 				t_last_sidecar_mtimes[md_path] = sidecar_mtime
-				log_success(f"Sidecar file '{md_path}' modified. Triggering relinking sequence.", module_name='Polling')
-				# Run asset relinking BEFORE library relinking to avoid session invalidation
-				log_success("Running asset datablock relinking first (before library reloads).", module_name='Polling')
-				asset_relinker.relink_renamed_assets()
-				log_success("Running library path relinking second.", module_name='Polling')
-				relink_library_info()
-				log_success("Running resource relinking third.", module_name='Polling')
-				relink_resources()
+				log_success(f"Sidecar file '{md_path}' modified. Showing relink dialog for user confirmation.", module_name='Polling')
+				# Show startup dialog instead of automatic relinking
+				show_startup_relink_dialog()
 				# Sync library file mtimes to prevent polling-triggered reload wiping out relink
 				try:
 					for lib in bpy.data.libraries:
@@ -64,20 +61,12 @@ def sidecar_poll_timer():
 			last_known_lib_mtime = t_last_library_mtimes.get(lib_abs_path)
 
 			if last_known_lib_mtime is None:
-				t_last_library_mtimes[lib_abs_path] = current_lib_mtime
+				t_last_library_mtimes[lib_abs_path] = current_lib_mtime	
 			elif current_lib_mtime > last_known_lib_mtime:
 				t_last_library_mtimes[lib_abs_path] = current_lib_mtime
-				log_warning(f"Library file '{lib.name}' ('{lib_abs_path}') modified. Triggering coordinated relinking sequence.", module_name='Polling')
-				try:
-					log_success("Running asset datablock relinking first (before library reload).", module_name='Polling')
-					asset_relinker.relink_renamed_assets()
-					log_success("Running library reload second.", module_name='Polling')
-					lib.reload()
-					log_success("Running resource relinking third.", module_name='Polling')
-					relink_resources()
-					log_success(f"Successfully completed coordinated relinking for library '{lib.name}'.", module_name='Polling')
-				except Exception as reload_e:
-					log_error(f"Error during coordinated relinking for library '{lib.name}': {reload_e}", module_name='Polling')
+				log_warning(f"Library file '{lib.name}' ('{lib_abs_path}') modified. Showing relink dialog for user confirmation.", module_name='Polling')
+				# Show startup dialog instead of automatic relinking
+				show_startup_relink_dialog()
 		except Exception as e:
 			log_error(f"Error checking library '{lib.name}' ('{lib.filepath}'): {e}", module_name='Polling')
 
@@ -102,12 +91,21 @@ def start_sidecar_poll_timer(*args, **kwargs):
 	except Exception as e: 
 		log_error(f"Failed to register sidecar polling timer: {e}", module_name='Polling')
 
+@bpy.app.handlers.persistent
+def check_startup_relinks(*args, **kwargs):
+	"""Handler to check for startup relink requirements after file load."""
+	# Use a timer to delay the check slightly after load to ensure everything is ready
+	def delayed_check():
+		show_startup_relink_dialog()
+		return None  # Don't repeat the timer
+	
+	# Register a one-time timer to check after a short delay
+	bpy.app.timers.register(delayed_check, first_interval=0.5)
+
 def register():
 	bpy.app.handlers.load_post.append(start_sidecar_poll_timer)
-	# Also run library and asset relinkers on file load
-	bpy.app.handlers.load_post.append(relink_library_info)
-	bpy.app.handlers.load_post.append(asset_relinker.relink_renamed_assets)
-	bpy.app.handlers.load_post.append(relink_resources)
+	# Show startup relink dialog instead of immediate relinking
+	bpy.app.handlers.load_post.append(check_startup_relinks)
 	# Reload and register redirect handler to ensure we get the latest version
 	importlib.reload(redirect_handler)
 	redirect_handler.register()
@@ -122,13 +120,9 @@ def register():
 def unregister():
 	if start_sidecar_poll_timer in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(start_sidecar_poll_timer)
-	# Remove library and asset relinker handlers
-	if relink_library_info in bpy.app.handlers.load_post:
-		bpy.app.handlers.load_post.remove(relink_library_info)
-	if asset_relinker.relink_renamed_assets in bpy.app.handlers.load_post:
-		bpy.app.handlers.load_post.remove(asset_relinker.relink_renamed_assets)
-	if relink_resources in bpy.app.handlers.load_post:
-		bpy.app.handlers.load_post.remove(relink_resources)
+	# Remove startup relink check handler
+	if check_startup_relinks in bpy.app.handlers.load_post:
+		bpy.app.handlers.load_post.remove(check_startup_relinks)
 	# Unregister redirect handler
 	redirect_handler.unregister()
 	if bpy.app.timers.is_registered(sidecar_poll_timer):

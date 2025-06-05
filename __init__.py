@@ -7,7 +7,7 @@ from .blend_vault.core import log_info, log_warning, log_error, log_success, log
 
 # Core modules to register (simplified - no complex handler management)
 CORE_MODULES = [
-    'blend_vault.relink.polling',
+    'blend_vault.relink',
     'blend_vault.obsidian_integration', 
     'blend_vault.paste_path',
     'blend_vault.sidecar_io',

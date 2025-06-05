@@ -8,7 +8,7 @@ import json
 import re
 from typing import Dict, List, Optional, Tuple, Any
 import bpy
-from .. import (
+from ..core import (
     SIDECAR_EXTENSION,
     BV_UUID_PROP,
     BV_FILE_UUID_KEY,
@@ -16,17 +16,21 @@ from .. import (
     log_info,
     log_warning,
     log_error,
-    log_success,    log_debug,
+    log_success,
+    log_debug,
     parse_primary_link,
-    ensure_saved_file
+    ensure_saved_file,
+    MD_LINK_FORMATS,
+    HEADING_LEVEL_2,
+    HEADING_LEVEL_3,
+    build_section_heading_regex,
+    build_heading_section_break_regex
 )
-from ..core import MD_LINK_FORMATS, HEADING_LEVEL_2, HEADING_LEVEL_3
 from ..utils.templates import (
     build_template_heading_regex,
     build_main_section_break_regex,
     get_main_section_heading_level
 )
-from ..core import build_section_heading_regex, build_heading_section_break_regex
 class SidecarParser:
     """Utility class for parsing sidecar markdown files and extracting JSON blocks."""
     

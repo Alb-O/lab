@@ -22,15 +22,11 @@ def write_library_info(*args, **kwargs):
     # Make blend_path relative to the current blend file directory
     blend_dir = os.path.dirname(bpy.data.filepath)
     rel_blend_path = os.path.relpath(blend_path, blend_dir)
-
+    
     log_info(f"Writing sidecar for: {rel_blend_path}", module_name="SidecarWriter")
 
-    # Optional relink step
-    try:
-        from ..relink.asset_relinker import relink_renamed_assets
-        relink_renamed_assets()
-    except Exception as e:
-        log_error(f"Asset relink failed: {e}", module_name="SidecarWriter")
+    # Note: Asset relinking is now handled by the startup dialog for user confirmation
+    # No automatic relinking during sidecar write operations
 
     # Collect data
     local_assets, linked_assets_by_library = collect_assets()
