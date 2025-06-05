@@ -1,7 +1,7 @@
 {
 	"id": "fetch-blender-builds",
 	"name": "Fetch Blender Builds",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"minAppVersion": "1.18.10",
 	"description": "Download and manage Blender builds (stable, daily, experimental) directly within your Obsidian vault.",
 	"author": "Albert O'Shea",
