@@ -74,7 +74,7 @@ def create_redirect_file(blend_path: str):
     filename = os.path.basename(blend_path)
     redirect_path = blend_path + REDIRECT_EXTENSION
 
-    redirect_content = f"""{MD_EMBED_WIKILINK['format'].format(name='BV_MSG_REDIR')}
+    redirect_content = f"""{MD_EMBED_WIKILINK['format'].format(name='bv-autogen#^bv-autogen-redirect')}
 {format_primary_link(f'./{filename}', filename)}
 """    
     try:
