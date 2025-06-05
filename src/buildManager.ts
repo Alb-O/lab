@@ -310,18 +310,13 @@ export class FetchBlenderBuilds extends EventEmitter {
 		}
 	}
 	/**
-	 * Clean up archive file and empty build_archives folder after extraction
+	 * Clean up archive file after extraction
 	 */
 	async cleanupAfterExtraction(archivePath: string): Promise<void> {
 		try {
 			const fs = require('fs');
-			const path = require('path');
-			
 			// Remove the archive file
 			fs.unlinkSync(archivePath);
-			// Clean up empty build_archives directory
-			const downloadsPath = path.dirname(archivePath);
-			await this.cleanupEmptyDirectory(downloadsPath);
 		} catch (error) {
 			console.warn('Failed to cleanup after extraction:', error);
 		}

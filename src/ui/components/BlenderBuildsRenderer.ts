@@ -105,7 +105,8 @@ export class BlenderBuildsRenderer {
 			cls: 'blender-build-filename'
 		});
 		filenameEl.innerHTML = filenameText;
-		setTooltip(filenameEl, `File: ${filename}`);		// Check if build is installed to determine clickable behavior
+		setTooltip(filenameEl, `File: ${filename}`);
+		// Check if build is installed to determine clickable behavior
 		const installStatus = this.buildManager.isBuildInstalled(build);
 		const isInstalled = installStatus.downloaded || installStatus.extracted;
 
@@ -114,24 +115,7 @@ export class BlenderBuildsRenderer {
 		this.addBuildActions(actionsEl, build, index, installStatus);
 
 		// Make the entire item clickable for download only if not installed
-		if (!isInstalled) {
-			listItem.addClass('blender-build-clickable');
-			listItem.addEventListener('click', async (evt) => {
-				// Don't trigger download if clicking on action buttons
-				if ((evt.target as HTMLElement).closest('.blender-build-actions')) {
-					return;
-				}
-				
-				evt.preventDefault();
-				evt.stopPropagation();
-				
-				try {
-					await this.downloadBuild(build);
-				} catch (error) {
-					console.error('Error downloading build:', error);
-				}
-			});
-		} else {
+		if (isInstalled) {
 			// For installed builds, add a different visual style
 			listItem.addClass('blender-build-installed');
 		}
@@ -245,24 +229,6 @@ export class BlenderBuildsRenderer {
 				}
 			});
 		}
-
-		// Copy link button - always shown (last position)
-		const copyBtn = new ButtonComponent(actionsEl)
-			.setIcon('copy')
-			.setTooltip('Copy download link')
-			.setClass('clickable-icon')
-			.setClass('blender-action-button');
-		copyBtn.buttonEl.addEventListener('click', async (evt) => {
-			evt.preventDefault();
-			evt.stopPropagation();
-			try {
-				await navigator.clipboard.writeText(build.link);
-				new Notice('Download link copied to clipboard');
-			} catch (error) {
-				console.error('Failed to copy to clipboard:', error);
-				new Notice('Failed to copy link to clipboard.');
-			}
-		});
 	}
 
 	/**

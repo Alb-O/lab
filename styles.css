@@ -1,8 +1,8 @@
 /* Blender Builds Plugin - Modern Obsidian UI Styles */
 
-/* Main container and smooth transitions */
+/* Main container */
 .blender-view-container {
-    min-height: 100px; /* Prevents layout shifts */
+    min-height: 100px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -98,7 +98,6 @@
 
 .blender-build-item {
     display: flex;
-    align-items: stretch;
     border-bottom: 1px solid var(--background-modifier-border-hover);
     padding: var(--size-4-2);
     gap: var(--size-4-2);
@@ -372,6 +371,11 @@
 .blender-build-filename {
     font-size: var(--font-ui-smaller);
     color: var(--text-muted);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display:inline-block;
 }
 
 .blender-info-item:last-child {
@@ -404,16 +408,63 @@
 }
 
 /* Delete button styling */
-.blender-delete-button {
+.blender-trash-button {
     color: var(--text-error) !important;
 }
 
-.blender-delete-button:hover {
+.blender-trash-button:hover {
     background-color: var(--background-modifier-error-hover) !important;
 }
 
-.blender-delete-button svg {
+.blender-trash-button svg {
     color: inherit;
+}
+
+/* Filter container */
+.blender-filter-container {
+    width: 100%;
+    height: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-3);
+    padding: var(--size-4-2) var(--size-4-4);
+    font-size: var(--font-ui-small);
+    flex-shrink: 0;
+}
+
+/* Horizontal flex for label and dropdown */
+.blender-type-filter-dropdown {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    width: 100%;
+    gap: var(--size-2-2);
+}
+.blender-type-filter-dropdown > .blender-filter-label {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.blender-type-filter-dropdown > .dropdown {
+    flex: 0 0 auto;
+    margin-left: auto;
+    min-width: 0;
+}
+/* Force search bar onto its own full-width row */
+.blender-type-filter-dropdown > .blender-search-container {
+    flex: 1 1 100%;
+    margin-top: var(--size-2-2);
+    min-width: 0;
+}
+
+
+.blender-search-container {
+    width: 100%;
+    min-width: 0;
 }
 
 /* Search highlighting */
@@ -422,37 +473,21 @@
     font-weight: var(--bold-weight);
     display: inline;
 }
-
-/* Responsive design */
-@media (max-width: 600px) {
-    .blender-build-item {
-        flex-direction: column;
-        gap: var(--size-2-2);
-    }
-    
-    .blender-build-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .blender-filters {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--size-2-2);
-    }
-    
-    .blender-builds-footer {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+/* Installed-only toggle styles */
+.blender-installed-toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--size-2-2);
 }
-
-/* Animation for refreshing state */
-@keyframes blender-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.blender-installed-toggle {
+    margin-right: var(--size-2-2);
 }
-
-.blender-refreshing .blender-status-icon {
-    animation: blender-spin 1s linear infinite;
+.blender-installed-toggle-label {
+    font-size: var(--font-ui-small);
+    color: var(--text-normal);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }

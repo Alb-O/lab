@@ -15,21 +15,30 @@ export class BuildFilter {
 	/**
 	 * Main filtering method that applies all filter criteria
 	 */
-	filterBuilds(
-		builds: BlenderBuildInfo[],
-		options: {
-			searchFilter?: string;
-			branch?: string;
-			buildType?: BuildType | 'all';
-		} = {}
-	): BlenderBuildInfo[] {
-		const {
-			searchFilter = '',
-			branch = 'all',
-			buildType = 'all'
-		} = options;
+   filterBuilds(
+	   builds: BlenderBuildInfo[],
+	   options: {
+		   searchFilter?: string;
+		   branch?: string;
+		   buildType?: BuildType | 'all';
+		   installedOnly?: boolean;
+	   } = {}
+   ): BlenderBuildInfo[] {
+	   const {
+		   searchFilter = '',
+		   branch = 'all',
+		   buildType = 'all',
+		   installedOnly = false
+	   } = options;
 
-		let filteredBuilds = builds.filter(build => {
+	   let filteredBuilds = builds.filter(build => {
+		   // If only showing installed, filter out uninstalled builds
+		   if (installedOnly) {
+			   const status = this.buildManager.isBuildInstalled(build);
+			   if (!status.downloaded && !status.extracted) {
+				   return false;
+			   }
+		   }
 			const matchesBranch = branch === 'all' || build.branch === branch;
 			const matchesBuildType = buildType === 'all' || this.getBuildType(build) === buildType;
 			
@@ -308,7 +317,7 @@ export class BuildFilter {
 		if (haystackLower.includes(needleLower)) {
 			const startIndex = haystackLower.indexOf(needleLower);
 			const endIndex = startIndex + needleLower.length;
-            return haystack.substring(0, startIndex) + 
+			return haystack.substring(0, startIndex) + 
 				   '<div class="blender-search-highlight">' + haystack.substring(startIndex, endIndex) + '</div>' + 
 				   haystack.substring(endIndex);
 		}
