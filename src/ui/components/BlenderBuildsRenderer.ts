@@ -17,15 +17,13 @@ export class BlenderBuildsRenderer {
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 	}
-
 	/**
 	 * Render builds list in container
 	 */
 	renderBuilds(
 		container: HTMLElement, 
 		builds: BlenderBuildInfo[], 
-		searchFilter?: string, 
-		highlightFunction?: (needle: string, haystack: string) => string
+		searchFilter?: string
 	): void {
 		container.empty();
 		
@@ -37,7 +35,7 @@ export class BlenderBuildsRenderer {
 		const buildsList = container.createEl('div', { cls: 'blender-builds-list' });
 		
 		builds.forEach((build, index) => {
-			this.createBuildItem(buildsList, build, index, searchFilter, highlightFunction);
+			this.createBuildItem(buildsList, build, index, searchFilter);
 		});
 	}
 	
@@ -49,7 +47,7 @@ export class BlenderBuildsRenderer {
 		build: BlenderBuildInfo, 
 		index: number,
 		searchFilter?: string,
-		highlightFunction?: (needle: string, haystack: string) => string
+		// Removed highlightFunction, will use internal helper
 	): void {
 		const listItem = buildsList.createEl('div', { cls: 'blender-build-item' });
 		
@@ -57,41 +55,38 @@ export class BlenderBuildsRenderer {
 		const contentEl = listItem.createEl('div', { cls: 'blender-build-content' });
 		// First line: Version, Branch, Date, Hash
 		const mainLineEl = contentEl.createEl('div', { cls: 'blender-build-main-line' });
+		
+		// Helper to apply highlighting
+		const highlight = (text: string) => searchFilter ? this.highlightText(searchFilter, text) : text;
+
 		// Version (more prominent) - with highlighting
-		const versionText = searchFilter && highlightFunction ? 
-			highlightFunction(searchFilter, build.subversion) : build.subversion;
 		const versionEl = mainLineEl.createEl('span', { 
 			cls: 'blender-build-version'
 		});
-		versionEl.innerHTML = versionText;
+		versionEl.innerHTML = highlight(build.subversion);
 		setTooltip(versionEl, `Version: ${build.subversion}`);
 
 		// Branch tag - with highlighting
-		const branchText = searchFilter && highlightFunction ? 
-			highlightFunction(searchFilter, build.branch.toUpperCase()) : build.branch.toUpperCase();
 		const branchEl = mainLineEl.createEl('span', { 
 			cls: `blender-branch-tag branch-${build.branch.toLowerCase()}`
 		});
-		branchEl.innerHTML = branchText;
+		branchEl.innerHTML = highlight(build.branch.toUpperCase());
 		setTooltip(branchEl, `Branch: ${build.branch}`);
+		
 		// Build hash - with highlighting
 		if (build.buildHash) {
-			const hashText = searchFilter && highlightFunction ? 
-				highlightFunction(searchFilter, build.buildHash.substring(0, 8)) : build.buildHash.substring(0, 8);
 			const hashEl = mainLineEl.createEl('span', { 
 				cls: 'blender-build-hash'
 			});
-			hashEl.innerHTML = hashText;
+			hashEl.innerHTML = highlight(build.buildHash.substring(0, 8));
 			setTooltip(hashEl, `Build hash: ${build.buildHash}`);
 		}
 
 		// Date - with highlighting
-		const dateText = searchFilter && highlightFunction ? 
-			highlightFunction(searchFilter, build.commitTime.toLocaleDateString()) : build.commitTime.toLocaleDateString();
 		const dateEl = mainLineEl.createEl('span', { 
 			cls: 'blender-build-date'
 		});
-		dateEl.innerHTML = dateText;
+		dateEl.innerHTML = highlight(build.commitTime.toLocaleDateString());
 		setTooltip(dateEl, `Committed: ${build.commitTime.toLocaleString()}`);
 
 		// Second line: Filename only
@@ -99,12 +94,10 @@ export class BlenderBuildsRenderer {
 		
 		// Filename - with highlighting
 		const filename = this.getFilenameFromUrl(build.link);
-		const filenameText = searchFilter && highlightFunction ? 
-			highlightFunction(searchFilter, filename) : filename;
 		const filenameEl = detailsLineEl.createEl('span', { 
 			cls: 'blender-build-filename'
 		});
-		filenameEl.innerHTML = filenameText;
+		filenameEl.innerHTML = highlight(filename);
 		setTooltip(filenameEl, `File: ${filename}`);
 		// Check if build is installed to determine clickable behavior
 		const installStatus = this.buildManager.isBuildInstalled(build);
@@ -354,5 +347,18 @@ export class BlenderBuildsRenderer {
 		} catch {
 			return 'unknown-file';
 		}
+	}
+	/**
+	 * Highlight text helper - wraps matches in <mark> tags for bold highlighting
+	 */
+	private highlightText(needle: string, haystack: string): string {
+		if (!needle || !haystack) {
+			return haystack;
+		}
+		
+		// Escape special regex characters in the search term
+		const escapedNeedle = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const regex = new RegExp(`(${escapedNeedle})`, 'gi');
+		return haystack.replace(regex, '<mark>$1</mark>');
 	}
 }

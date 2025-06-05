@@ -38,8 +38,10 @@ export class BlenderBuildsView extends ItemView {
 		// Initial render
 		await this.viewRenderer.render();
 	}
-
 	async onClose() {
+		// Clean up view renderer components
+		this.viewRenderer?.cleanup();
+		
 		// Clean up any event listeners or resources
 		this.isInitialized = false;
 	}

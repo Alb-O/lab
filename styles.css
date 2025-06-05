@@ -1,21 +1,5 @@
 /* Blender Builds Plugin - Modern Obsidian UI Styles */
 
-/* Main container */
-.blender-view-container {
-    min-height: 100px;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.blender-view-container.loading {
-    opacity: 0.7;
-}
-
-.blender-cached-content {
-    opacity: 0.9;
-}
-
 /* Status display styles */
 .blender-status-display {
     font-size: var(--font-ui-small);
@@ -92,37 +76,18 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    padding: 0 var(--size-4-3) var(--size-4-8);
 }
 
 .blender-builds-list {
     list-style: none;
-    padding: var(--size-4-4);
     margin-top: var(--size-4-2);
     overflow-y: auto;
     flex: 1;
     /* Performance optimizations for large lists */
-    contain: layout style;
+    contain: layout style paint; /* Simplified from strict */
     will-change: scroll-position;
-
-    /* ==========================================
-       DEVTOOLS PERFORMANCE OPTIMIZATIONS
-       ========================================== */
-
-    /* Aggressive optimizations for when DevTools are open */
-    backface-visibility: hidden;
-    transform: translateZ(0);
-    /* Limit reflows */
-    contain: strict;
-    /* Optimize for scrolling performance */
     overflow-anchor: none;
-}
-
-/* Reduce style recalculation overhead */
-.blender-build-item * {
-    /* Disable expensive text features during development */
-    text-rendering: optimizeSpeed;
-    font-feature-settings: normal;
-    font-variant-ligatures: none;
 }
 
 .blender-build-item {
@@ -141,6 +106,13 @@
 
 .blender-build-installed {
     border-left: 4px solid var(--background-modifier-success);
+}
+
+/* Styling for highlighted search matches (e.g., using <mark> tag) */
+.blender-build-item mark {
+    background-color: transparent; /* Remove default browser background */
+    color: inherit; /* Inherit text color from parent */
+    font-weight: bold;
 }
 
 .blender-build-item:hover {
@@ -522,6 +494,7 @@
     width: 100%;
     gap: var(--size-2-2);
 }
+
 .blender-type-filter-dropdown > .blender-filter-label {
     flex: 1 1 0;
     min-width: 0;
@@ -534,6 +507,7 @@
     margin-left: auto;
     min-width: 0;
 }
+
 /* Force search bar onto its own full-width row */
 .blender-type-filter-dropdown > .blender-search-container {
     flex: 1 1 100%;
@@ -548,22 +522,7 @@
 }
 
 /* Search highlighting - optimized for performance */
-.blender-search-highlight {
-    color: var(--text-normal);
-    font-weight: var(--bold-weight);
-    background-color: var(--text-selection);
-    border-radius: 2px;
-    padding: 0 1px;
-}
-
 /* Performance utilities */
-.blender-performance-mode .blender-search-highlight {
-    /* Disable highlighting in performance mode */
-    background-color: transparent;
-    font-weight: inherit;
-    padding: 0;
-}
-
 .blender-performance-mode .blender-builds-list {
     /* Additional optimizations for performance mode */
     contain: strict;
@@ -578,9 +537,11 @@
     justify-content: space-between;
     margin-bottom: var(--size-2-2);
 }
+
 .blender-installed-toggle {
     margin-right: var(--size-2-2);
 }
+
 .blender-installed-toggle-label {
     font-size: var(--font-ui-small);
     color: var(--text-normal);
@@ -588,13 +549,4 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-}
-
-/* DevTools performance mode - simplified highlighting */
-.blender-builds-list b {
-    color: var(--text-normal);
-    font-weight: var(--font-weight-bold);
-    background-color: var(--text-selection);
-    border-radius: 2px;
-    padding: 0 1px;
 }

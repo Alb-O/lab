@@ -2,6 +2,7 @@ import { BlenderBuildInfo, BuildType } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
 import { BuildFilter } from '../../buildFilter';
 import type FetchBlenderBuildsPlugin from '../../main';
+import { SearchComponent } from 'obsidian';
 import { 
 	BlenderToolbar, 
 	BlenderStatusDisplay, 
@@ -15,11 +16,11 @@ import {
  */
 export class BlenderViewRenderer {
 	private plugin: FetchBlenderBuildsPlugin;
-	private buildManager: FetchBlenderBuilds;
-	private buildFilter: BuildFilter;
+	private buildManager: FetchBlenderBuilds;	private buildFilter: BuildFilter;
 	
 	// Component managers
 	private layoutManager: BlenderViewLayoutManager;
+	private searchComponent: SearchComponent | null = null;
 	
 	// Component instances
 	private toolbar: BlenderToolbar;
@@ -54,7 +55,8 @@ export class BlenderViewRenderer {
 			() => this.toggleTypeFilter()
 		);
 		
-		this.statusDisplay = new BlenderStatusDisplay(buildManager);		this.buildsRenderer = new BlenderBuildsRenderer(
+		this.statusDisplay = new BlenderStatusDisplay(buildManager);
+		this.buildsRenderer = new BlenderBuildsRenderer(
 			this.plugin,
 			buildManager,
 			() => this.refreshUI()
@@ -144,9 +146,8 @@ export class BlenderViewRenderer {
 			branch: this.currentBranch,
 			buildType: this.currentBuildType
 		});
-		
 		// Render builds with highlighting
-		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds, this.currentFilter, this.buildFilter.highlightMatches.bind(this.buildFilter));
+		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds, this.currentFilter);
 	}
 	
 
@@ -197,30 +198,21 @@ export class BlenderViewRenderer {
 			const target = e.target as HTMLSelectElement;
 			this.currentBuildType = target.value as BuildType | 'all';
 			this.updateBuildsContent();
-		});
-
-		// Add fuzzy search input
+		});		// Add fuzzy search input using SearchComponent
 		const searchContainer = dropdownContainer.createEl('div', { cls: 'blender-search-container' });
 		
-		searchContainer.createEl('label', { 
-			text: 'Search builds:', 
-			cls: 'blender-filter-label' 
-		});
-		
-		const searchInput = searchContainer.createEl('input', { 
-			type: 'text',
-			placeholder: 'Search by version, filename, hash, etc...',
-			cls: 'blender-search-input'
-		});
+		// Create SearchComponent instead of plain input
+		this.searchComponent = new SearchComponent(searchContainer);
+		this.searchComponent.setPlaceholder('Type to filter...');
+		this.searchComponent.inputEl.addClass('blender-search-input');
 		
 		// Set current filter value
-		searchInput.value = this.currentFilter;
+		this.searchComponent.setValue(this.currentFilter);
 		
 		// Add input handler with debouncing
 		let searchTimeout: NodeJS.Timeout;
-		searchInput.addEventListener('input', (e) => {
-			const target = e.target as HTMLInputElement;
-			
+				// Override the onChanged method
+		this.searchComponent.onChanged = () => {
 			// Clear previous timeout
 			if (searchTimeout) {
 				clearTimeout(searchTimeout);
@@ -228,18 +220,33 @@ export class BlenderViewRenderer {
 			
 			// Debounce search for better performance
 			searchTimeout = setTimeout(() => {
-				this.currentFilter = target.value;
+				this.currentFilter = this.searchComponent?.getValue() || '';
+				console.log('Search filter updated (onChanged):', this.currentFilter);
+				this.updateBuildsContent();
+			}, 300);
+		};
+				// Also listen to input events directly as a fallback
+		this.searchComponent.inputEl.addEventListener('input', () => {
+			// Clear previous timeout
+			if (searchTimeout) {
+				clearTimeout(searchTimeout);
+			}
+			
+			// Debounce search for better performance
+			searchTimeout = setTimeout(() => {
+				this.currentFilter = this.searchComponent?.getValue() || '';
+				console.log('Search filter updated (input event):', this.currentFilter);
 				this.updateBuildsContent();
 			}, 300);
 		});
 		
 		// Handle immediate search on Enter key
-		searchInput.addEventListener('keydown', (e) => {
+		this.searchComponent.inputEl.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter') {
 				if (searchTimeout) {
 					clearTimeout(searchTimeout);
 				}
-				this.currentFilter = (e.target as HTMLInputElement).value;
+				this.currentFilter = this.searchComponent?.getValue() || '';
 				this.updateBuildsContent();
 			}
 		});
@@ -428,9 +435,17 @@ export class BlenderViewRenderer {
 	
 	getStatusDisplay(): BlenderStatusDisplay { 
 		return this.statusDisplay; 
-	}
-	getBuildsRenderer(): BlenderBuildsRenderer { 
+	}	getBuildsRenderer(): BlenderBuildsRenderer { 
 		return this.buildsRenderer; 
+	}
+	/**
+	 * Cleanup method to properly dispose of components
+	 */
+	cleanup(): void {
+		// Reset search component
+		if (this.searchComponent) {
+			this.searchComponent = null;
+		}
 	}
 
 }
