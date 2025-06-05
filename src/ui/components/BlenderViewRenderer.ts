@@ -3,13 +3,11 @@ import { FetchBlenderBuilds } from '../../buildManager';
 import { BuildFilter } from '../../buildFilter';
 import type FetchBlenderBuildsPlugin from '../../main';
 import { 
-   BlenderToolbar, 
-   BlenderStatusDisplay, 
-   BlenderBuildsRenderer, 
-   BlenderViewLayoutManager 
+	BlenderToolbar, 
+	BlenderStatusDisplay, 
+	BlenderBuildsRenderer, 
+	BlenderViewLayoutManager 
 } from '.';
-// Native Obsidian toggle component for installed-only filter
-import { ToggleComponent } from 'obsidian';
 
 /**
  * Main renderer component that coordinates all rendering logic for the BlenderBuildsView
@@ -27,35 +25,14 @@ export class BlenderViewRenderer {
 	private toolbar: BlenderToolbar;
 	private statusDisplay: BlenderStatusDisplay;
 	private buildsRenderer: BlenderBuildsRenderer;
-	// State handling
+		// State handling
 	private isInitialized = false;
 	private isRefreshing = false;
 	private cachedBuilds: BlenderBuildInfo[] = [];
 	private currentFilter: string = '';
 	private currentBranch: string = 'all';
 	private currentBuildType: BuildType | 'all' = 'all';
-   private isTypeFilterVisible = false;
-   private showInstalledOnly: boolean = false;
-	/**
-	 * Render installed-only toggle switch above filters
-	 */
-	private renderInstalledToggle(container: HTMLElement): void {
-		// Use Obsidian ToggleComponent for native toggle
-		const toggleContainer = container.createEl('div', { cls: 'blender-installed-toggle-container' });
-		// Label on the left
-		toggleContainer.createEl('span', {
-			text: 'Show installed only',
-			cls: 'blender-installed-toggle-label'
-		});
-		// Toggle on the right
-		const toggleComp = new ToggleComponent(toggleContainer)
-			.setValue(this.showInstalledOnly)
-			.onChange((value) => {
-				this.showInstalledOnly = value;
-				this.updateBuildsContent();
-			});
-		toggleComp.toggleEl.addClass('blender-installed-toggle');
-	}
+	private isTypeFilterVisible = false;
 
 	constructor(
 		plugin: FetchBlenderBuildsPlugin,
@@ -133,16 +110,12 @@ export class BlenderViewRenderer {
 	}
 
 	/**
-	 * Update filter section only: show installed-only toggle and filter dropdown
+	 * Update filter section only
 	 */
 	private updateFilterSection(): void {
 		const filterContainer = this.layoutManager.getFilterContainer();
 		if (filterContainer) {
-			filterContainer.empty();
-			if (this.isTypeFilterVisible) {
-				this.renderInstalledToggle(filterContainer);
-				this.renderTypeFilterDropdown(filterContainer);
-			}
+			this.renderTypeFilterDropdown(filterContainer);
 		}
 	}
 
@@ -155,8 +128,7 @@ export class BlenderViewRenderer {
 			this.statusDisplay.render(statusContainer);
 		}
 	}
-
-	/**
+		/**
 	 * Update builds content section only
 	 */
 	private async updateBuildsContent(): Promise<void> {
@@ -167,12 +139,11 @@ export class BlenderViewRenderer {
 		const builds = this.buildManager.getCachedBuilds();
 		
 		// Apply filters
-	   const filteredBuilds = this.buildFilter.filterBuilds(builds, {
-		   searchFilter: this.currentFilter,
-		   branch: this.currentBranch,
-		   buildType: this.currentBuildType,
-		   installedOnly: this.showInstalledOnly
-	   });
+		const filteredBuilds = this.buildFilter.filterBuilds(builds, {
+			searchFilter: this.currentFilter,
+			branch: this.currentBranch,
+			buildType: this.currentBuildType
+		});
 		
 		// Render builds with highlighting
 		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds, this.currentFilter, this.buildFilter.highlightMatches.bind(this.buildFilter));
@@ -183,7 +154,8 @@ export class BlenderViewRenderer {
 	 * Render the type filter dropdown
 	 */
 	private renderTypeFilterDropdown(filterContainer: HTMLElement): void {
-		// (Container already cleared by updateFilterSection)
+		// Clear existing content
+		filterContainer.empty();
 		
 		if (!this.isTypeFilterVisible) {
 			return;
@@ -194,7 +166,7 @@ export class BlenderViewRenderer {
 		
 		// Create label
 		dropdownContainer.createEl('label', { 
-			text: 'Build type', 
+			text: 'Filter by build type:', 
 			cls: 'blender-filter-label' 
 		});
 		
@@ -226,50 +198,28 @@ export class BlenderViewRenderer {
 			this.currentBuildType = target.value as BuildType | 'all';
 			this.updateBuildsContent();
 		});
-		// Add fuzzy search input with improved UI
+
+		// Add fuzzy search input
 		const searchContainer = dropdownContainer.createEl('div', { cls: 'blender-search-container' });
 		
-		// Create search input container with clear button
-		const searchInputContainer = searchContainer.createEl('div', { cls: 'search-input-container' });
+		searchContainer.createEl('label', { 
+			text: 'Search builds:', 
+			cls: 'blender-filter-label' 
+		});
 		
-		const searchInput = searchInputContainer.createEl('input', { 
+		const searchInput = searchContainer.createEl('input', { 
 			type: 'text',
-			placeholder: 'Type to filter...',
+			placeholder: 'Search by version, filename, hash, etc...',
+			cls: 'blender-search-input'
 		});
 		
 		// Set current filter value
 		searchInput.value = this.currentFilter;
 		
-		// Create clear button
-		const clearButtonEl = searchInputContainer.createEl('div', { 
-			cls: 'search-input-clear-button' 
-		});
-		
-		// Initially hide clear button if no filter
-		if (!this.currentFilter.length) {
-			clearButtonEl.hide();
-		}
-		
-		// Clear button click handler
-		clearButtonEl.addEventListener('click', () => {
-			searchInput.value = '';
-			clearButtonEl.hide();
-			searchInput.focus();
-			this.currentFilter = '';
-			this.updateBuildsContent();
-		});
-		
 		// Add input handler with debouncing
 		let searchTimeout: NodeJS.Timeout;
 		searchInput.addEventListener('input', (e) => {
 			const target = e.target as HTMLInputElement;
-			
-			// Show/hide clear button based on input value
-			if (target.value.length) {
-				clearButtonEl.show();
-			} else {
-				clearButtonEl.hide();
-			}
 			
 			// Clear previous timeout
 			if (searchTimeout) {
@@ -295,6 +245,8 @@ export class BlenderViewRenderer {
 		});
 	}
 	
+
+
 	/**
 	 * Refresh builds data
 	 */
@@ -348,7 +300,6 @@ export class BlenderViewRenderer {
 		this.updateToolbar();
 		this.updateFilterSection();
 	}
-	
 	/**
 	 * Set up event listeners for build manager events
 	 */	private setupEventListeners(): void {
@@ -361,8 +312,6 @@ export class BlenderViewRenderer {
 		// Listen for download events
 		this.buildManager.on('downloadStarted', this.onDownloadStarted.bind(this));
 		this.buildManager.on('downloadCompleted', this.onDownloadCompleted.bind(this));
-		// Listen for extraction events
-		this.buildManager.on('buildExtracted', this.onBuildExtracted.bind(this));
 		
 		// Listen for build deletion events
 		this.buildManager.on('buildDeleted', this.onBuildDeleted.bind(this));
@@ -405,15 +354,6 @@ export class BlenderViewRenderer {
 	private onDownloadCompleted(build: BlenderBuildInfo, filePath: string): void {
 		console.log(`Download completed: ${build.subversion}`);
 		// Could update UI to show completion
-	}
-	
-	/**
-	 * Handle build extracted event
-	 */
-	private async onBuildExtracted(build: BlenderBuildInfo, extractedPath: string, executable?: string): Promise<void> {
-		console.log(`Build extracted: ${build.subversion} to ${extractedPath}`);
-		// Refresh the builds content to update installation status and show Launch button
-		await this.updateBuildsContent();
 	}
 
 	/**
@@ -475,6 +415,7 @@ export class BlenderViewRenderer {
 	dispose(): void {
 		this.buildManager.removeAllListeners();
 	}
+
 
 	// Expose managers for external access if needed
 	getLayoutManager(): BlenderViewLayoutManager { 

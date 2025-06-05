@@ -23,6 +23,12 @@
     padding-right: var(--size-4-4);
 }
 
+.blender-status-display * {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .blender-status-line {
     font-family: var(--font-monospace);
     font-size: var(--font-ui-smaller);
@@ -94,6 +100,29 @@
     margin-top: var(--size-4-2);
     overflow-y: auto;
     flex: 1;
+    /* Performance optimizations for large lists */
+    contain: layout style;
+    will-change: scroll-position;
+
+    /* ==========================================
+       DEVTOOLS PERFORMANCE OPTIMIZATIONS
+       ========================================== */
+
+    /* Aggressive optimizations for when DevTools are open */
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    /* Limit reflows */
+    contain: strict;
+    /* Optimize for scrolling performance */
+    overflow-anchor: none;
+}
+
+/* Reduce style recalculation overhead */
+.blender-build-item * {
+    /* Disable expensive text features during development */
+    text-rendering: optimizeSpeed;
+    font-feature-settings: normal;
+    font-variant-ligatures: none;
 }
 
 .blender-build-item {
@@ -102,6 +131,12 @@
     padding: var(--size-4-2);
     gap: var(--size-4-2);
     position: relative;
+
+    /* Virtual scrolling hints for large lists */
+    @supports (content-visibility: auto) {
+        content-visibility: auto;
+        contain-intrinsic-size: 0 60px; /* Approximate height of build item */
+    }
 }
 
 .blender-build-installed {
@@ -139,6 +174,12 @@
     padding: 1px var(--size-2-2);
     margin: 1px var(--size-2-2);
     border-radius: var(--radius-s);
+    /* Performance optimization for hash display */
+    flex-shrink: 0;
+    max-width: 100px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .blender-build-branch {
@@ -180,6 +221,11 @@
     color: var(--text-muted);
     white-space: nowrap;
     margin: 1px var(--size-2-2);
+    /* Performance optimization for date display */
+    flex-shrink: 0;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .blender-date-text {
@@ -211,6 +257,29 @@
 .blender-build-item:hover .blender-build-actions {
     opacity: 1;
     visibility: visible;
+}
+
+/* Main line and filename styling with performance optimizations */
+.blender-build-main-line {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+    overflow: hidden;
+    min-width: 0;
+    /* Performance optimization */
+    contain: layout style;
+}
+
+.blender-build-filename {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    /* Performance optimizations for long filenames */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    contain: layout style;
 }
 
 /* Toolbar styles */
@@ -368,14 +437,25 @@
     gap: var(--size-2-1);
 }
 
-.blender-build-filename {
+.blender-build-content {
+    overflow: hidden;
+    white-space: nowrap;
+    /* Performance optimization for text overflow */
+    contain: layout style;
+    min-width: 0;
+    flex: 1;
+}
+
+.blender-build-details-line {
     font-size: var(--font-ui-smaller);
     color: var(--text-muted);
+    max-width: 100%;
+    display: block;
+    /* Performance optimizations for long text */
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    max-width: 100%;
-    display:inline-block;
+    contain: layout style;
 }
 
 .blender-info-item:last-child {
@@ -467,12 +547,30 @@
     min-width: 0;
 }
 
-/* Search highlighting */
+/* Search highlighting - optimized for performance */
 .blender-search-highlight {
     color: var(--text-normal);
     font-weight: var(--bold-weight);
-    display: inline;
+    background-color: var(--text-selection);
+    border-radius: 2px;
+    padding: 0 1px;
 }
+
+/* Performance utilities */
+.blender-performance-mode .blender-search-highlight {
+    /* Disable highlighting in performance mode */
+    background-color: transparent;
+    font-weight: inherit;
+    padding: 0;
+}
+
+.blender-performance-mode .blender-builds-list {
+    /* Additional optimizations for performance mode */
+    contain: strict;
+    content-visibility: auto;
+    contain-intrinsic-size: 0 500px;
+}
+
 /* Installed-only toggle styles */
 .blender-installed-toggle-container {
     display: flex;
@@ -490,4 +588,13 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+}
+
+/* DevTools performance mode - simplified highlighting */
+.blender-builds-list b {
+    color: var(--text-normal);
+    font-weight: var(--font-weight-bold);
+    background-color: var(--text-selection);
+    border-radius: 2px;
+    padding: 0 1px;
 }
