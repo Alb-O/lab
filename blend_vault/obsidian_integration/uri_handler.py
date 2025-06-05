@@ -11,6 +11,7 @@ import webbrowser
 from urllib.parse import quote
 from .. import LOG_COLORS, SIDECAR_EXTENSION
 from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from ..preferences import get_obsidian_vault_root, detect_obsidian_vault_from_asset_libraries
 
 
 def build_obsidian_uri(action: str, **params) -> str:
@@ -94,6 +95,25 @@ def open_current_sidecar_in_obsidian() -> bool:
 	return open_file_in_obsidian(sidecar_path)
 
 
+class BV_OT_RefreshVaultDetection(bpy.types.Operator):
+	"""Refresh Obsidian vault detection from asset libraries"""
+	bl_idname = "blend_vault.refresh_vault_detection"
+	bl_label = "Refresh Vault Detection"
+	bl_description = "Re-check asset libraries for Obsidian vaults"
+	bl_options = {'REGISTER'}
+
+	def execute(self, context):
+		from ..preferences import refresh_vault_detection
+		detected_vault = refresh_vault_detection()
+		
+		if detected_vault:
+			self.report({'INFO'}, f"Found vault at: {detected_vault}")
+		else:
+			self.report({'WARNING'}, "No vault found in asset libraries")
+		
+		return {'FINISHED'}
+
+
 class BV_OT_OpenSidecarInObsidian(bpy.types.Operator):
 	"""Open the current blend file's sidecar in Obsidian"""
 	bl_idname = "blend_vault.open_sidecar_in_obsidian"
@@ -129,10 +149,42 @@ class BV_PT_ObsidianIntegrationPanel(bpy.types.Panel):
 	bl_space_type = 'VIEW_3D'
 	bl_region_type = 'UI'
 	bl_category = "Blend Vault"
-
 	def draw(self, context):
 		layout = self.layout
+				# Vault Status Section
+		vault_box = layout.box()
+		header_row = vault_box.row()
+		header_row.label(text="Vault Status:", icon='FILE_FOLDER')
+		header_row.operator("blend_vault.refresh_vault_detection", text="", icon='FILE_REFRESH')
 		
+		vault_root = get_obsidian_vault_root(context)
+		detected_vault = detect_obsidian_vault_from_asset_libraries()
+		
+		if detected_vault:
+			if vault_root == detected_vault:
+				# Auto-detected vault is being used
+				status_row = vault_box.row()
+				status_row.label(text="Auto-detected", icon='CHECKMARK')
+				vault_box.label(text=f"Path: {detected_vault}")
+			else:
+				# Manual override is being used
+				status_row = vault_box.row()
+				status_row.label(text="Manual override", icon='SETTINGS')
+				vault_box.label(text=f"Path: {vault_root}")
+		elif vault_root:
+			# Only manual vault set
+			status_row = vault_box.row()
+			status_row.label(text="Manual", icon='SETTINGS')
+			vault_box.label(text=f"Path: {vault_root}")
+		else:
+			# No vault configured
+			status_row = vault_box.row()
+			status_row.label(text="Not configured", icon='ERROR')
+			vault_box.label(text="Set vault in preferences or add as asset library")
+		
+		layout.separator()
+		
+		# Sidecar Section
 		# Check if sidecar exists for current file
 		if bpy.data.is_saved:
 			blend_path = bpy.data.filepath
@@ -163,6 +215,7 @@ def _safe_unregister_class(cls):
 
 def register():
 	# Register classes
+	bpy.utils.register_class(BV_OT_RefreshVaultDetection)
 	bpy.utils.register_class(BV_OT_OpenSidecarInObsidian)
 	bpy.utils.register_class(BV_PT_ObsidianIntegrationPanel)
 	log_success("URI handler module registered.", module_name='ObsidianIntegration')
@@ -205,4 +258,5 @@ def unregister():
 
     _safe_unregister_class(BV_PT_ObsidianIntegrationPanel)
     _safe_unregister_class(BV_OT_OpenSidecarInObsidian)
+    _safe_unregister_class(BV_OT_RefreshVaultDetection)
     log_warning("URI handler module unregistered.", module_name='ObsidianIntegration')
