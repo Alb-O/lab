@@ -2,7 +2,7 @@ import bpy
 import os
 import atexit
 import re  # For check_file_relocation
-from .. import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK, get_obsidian_vault_root
+from .. import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK, get_obsidian_vault_root, PRIMARY_LINK_REGEX
 from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
 
 # Store last known working directory per .blend file
@@ -76,14 +76,16 @@ def create_redirect_file(blend_path: str):
 
     redirect_content = f"""{MD_EMBED_WIKILINK['format'].format(name='BV_MSG_REDIR')}
 {format_primary_link(f'./{filename}', filename)}
-"""
-
+"""    
     try:
         with open(redirect_path, 'w', encoding='utf-8') as f:
             f.write(redirect_content)
 
+        log_success(f"Created redirect file: {redirect_path}", module_name='RedirectHandler')
+
         # Store the current working directory
-        t_last_working_dirs[blend_path] = os.path.dirname(blend_path)        # Update the global variable for cleanup on quit
+        t_last_working_dirs[blend_path] = os.path.dirname(blend_path)
+        # Update the global variable for cleanup on quit
         global _current_blend_file_for_cleanup
         _current_blend_file_for_cleanup = blend_path
 
@@ -131,12 +133,17 @@ def check_file_relocation():
         with open(redirect_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Extract the markdown link path
-        link_match = re.search(r'\[([^\]]+)\]\(<([^>]+)>\)', content)
+        # Extract the markdown link path using the correct PRIMARY_LINK_REGEX
+        # PRIMARY_LINK_REGEX for wikilink: r'\\[\\[([^\\]|]+)\\|([^\\]]+)\\]\\]'
+        # Group 1 is the path, Group 2 is the alias/name
+        link_match = PRIMARY_LINK_REGEX.search(content)
+        
         if not link_match:
+            log_debug(f"No primary link match found in redirect file content: {content}", module_name='RedirectHandler')
             return
 
-        linked_path = link_match.group(2)
+        # For wikilink [[path|name]], path is group 1
+        linked_path = link_match.group(1) 
 
         current_filename = os.path.basename(blend_path)
         # If path is still relative (./ prefix), file hasn't been moved
@@ -216,8 +223,11 @@ def _prompt_file_relocation(current_path: str, new_path: str):
 def create_redirect_on_save(*args, **kwargs):
     """Handler to create redirect file when blend file is saved."""
     blend_path = bpy.data.filepath
+    log_debug(f"create_redirect_on_save called, blend_path: {blend_path}", module_name='RedirectHandler')
     if blend_path:
         create_redirect_file(blend_path)
+    else:
+        log_debug("No blend_path - skipping redirect file creation", module_name='RedirectHandler')
 
 
 @bpy.app.handlers.persistent
@@ -275,6 +285,7 @@ class BV_PT_FileRelocationPanel(bpy.types.Panel):
         layout = self.layout
         
         current_blend = bpy.data.filepath
+        
         if current_blend in _pending_relocations:
             # Always read the current path from the redirect file instead of memory
             redirect_path = current_blend + REDIRECT_EXTENSION
@@ -285,9 +296,13 @@ class BV_PT_FileRelocationPanel(bpy.types.Panel):
                     with open(redirect_path, 'r', encoding='utf-8') as f:
                         content = f.read()
                     
-                    link_match = re.search(r'\[([^\]]+)\]\(<([^>]+)>\)', content)
+                    # Extract the markdown link path using the correct PRIMARY_LINK_REGEX
+                    # PRIMARY_LINK_REGEX for wikilink: r'\\[\\[([^\\]|]+)\\|([^\\]]+)\\]\\]'
+                    # Group 1 is the path, Group 2 is the alias/name
+                    link_match = PRIMARY_LINK_REGEX.search(content)
+                    
                     if link_match:
-                        linked_path = link_match.group(2)
+                        linked_path = link_match.group(1)
                         current_filename_for_check = os.path.basename(current_blend)
                         
                         if not linked_path.startswith(f'./{current_filename_for_check}'):

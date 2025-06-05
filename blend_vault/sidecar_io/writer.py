@@ -18,28 +18,32 @@ def write_library_info(*args, **kwargs):
     if not blend_path:
         log_warning("No blend file path found, skipping write", module_name="SidecarWriter")
         return
-    
-    log_info(f"Writing sidecar for: {blend_path}", module_name="SidecarWriter")
-    
-    # Optional relink step\
+
+    # Make blend_path relative to the current blend file directory
+    blend_dir = os.path.dirname(bpy.data.filepath)
+    rel_blend_path = os.path.relpath(blend_path, blend_dir)
+
+    log_info(f"Writing sidecar for: {rel_blend_path}", module_name="SidecarWriter")
+
+    # Optional relink step
     try:
         from ..relink.asset_relinker import relink_renamed_assets
         relink_renamed_assets()
     except Exception as e:
         log_error(f"Asset relink failed: {e}", module_name="SidecarWriter")
-    
+
     # Collect data
     local_assets, linked_assets_by_library = collect_assets()
     resources = collect_resources()
-    
+
     # Build content
     sidecar_content, uuid_pushes = build_sidecar_content(
-        blend_path, 
-        local_assets, 
+        rel_blend_path,
+        local_assets,
         linked_assets_by_library,
         resources
     )
-    
+
     # Write main sidecar
     md_path = blend_path + SIDECAR_EXTENSION
     try:
@@ -56,13 +60,13 @@ def write_library_info(*args, **kwargs):
             push_uuid_to_sidecar(lib_sidecar_path, file_uuid, asset_updates)
         elif not os.path.exists(linked_blend_path):
             log_warning(f"Skipping push to {lib_sidecar_path} - linked blend file missing", module_name="SidecarWriter")
-    
+
     # Now that library sidecars exist, resolve UUIDs for linked assets and update main sidecar
     from .collectors import _resolve_linked_asset_uuids
-    
+
     # Re-resolve UUIDs now that library sidecars exist
-    _resolve_linked_asset_uuids(linked_assets_by_library, blend_path)
-    
+    _resolve_linked_asset_uuids(linked_assets_by_library, rel_blend_path)
+
     # Check if any UUIDs were resolved
     uuids_resolved = False
     for lib, assets in linked_assets_by_library.items():
@@ -75,12 +79,12 @@ def write_library_info(*args, **kwargs):
     # If UUIDs were resolved, rebuild and rewrite the main sidecar
     if uuids_resolved:
         updated_sidecar_content, _ = build_sidecar_content(
-            blend_path, 
-            local_assets, 
+            rel_blend_path,
+            local_assets,
             linked_assets_by_library,
             resources
         )
-        
+
         try:
             write_sidecar_with_content_preservation(md_path, updated_sidecar_content)
             log_success(f"Main sidecar updated with resolved UUIDs", module_name="SidecarWriter")

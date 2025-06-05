@@ -17,7 +17,8 @@ from .shared_utils import (
     LibraryManager,
     ensure_saved_file,
     make_paths_relative,
-    create_blender_operator_class
+    create_blender_operator_class,
+    get_blend_file_path_from_sidecar
 )
 
 
@@ -74,11 +75,8 @@ class LibraryRelinkProcessor(BaseRelinker):
             return False
 
         # Convert sidecar path (e.g., 'mylib.blend.side.md') to blend path (e.g., 'mylib.blend')
-        # Check if link_path ends with SIDECAR_EXTENSION and remove it
-        if link_path and link_path.endswith(SIDECAR_EXTENSION):
-            blend_file_link_path = link_path[:-len(SIDECAR_EXTENSION)]
-        else:
-            blend_file_link_path = link_path
+        # Use the new utility function for robust conversion
+        blend_file_link_path = get_blend_file_path_from_sidecar(link_path)
 
         log_info(f"[LibraryRelinker] Processing: '{link_name}' -> '{stored_path}' (UUID: {stored_uuid}). Link path from MD: '{link_path}' -> Blend path: '{blend_file_link_path}'", module_name='LibraryRelinker')
 
@@ -103,11 +101,23 @@ class LibraryRelinkProcessor(BaseRelinker):
     
     def _relink_existing_library(self, library: bpy.types.Library, relative_path: str, target_path: str) -> bool:
         """Relink an existing library if its path differs."""
-        current_path_normalized = library.filepath.replace('\\', '/').lstrip('//')
+        # Normalize both the current library filepath and the new target relative_path for comparison.
+        # library.filepath is usually already relative (e.g., //../libs/lib.blend or ../libs/lib.blend)
+        # relative_path is the calculated desired relative path.
+        current_lib_path_normalized = PathResolver.normalize_path(library.filepath)
+        new_relative_path_normalized = PathResolver.normalize_path(relative_path)
+
+        # Debugging paths
+        log_debug(f"[LibraryRelinker] Relinking Check for '{library.name}':", module_name='LibraryRelinker')
+        log_debug(f"    Current Library.filepath (raw): '{library.filepath}'", module_name='LibraryRelinker')
+        log_debug(f"    Current Library.filepath (normalized): '{current_lib_path_normalized}'", module_name='LibraryRelinker')
+        log_debug(f"    Target Relative Path (calculated): '{relative_path}'", module_name='LibraryRelinker')
+        log_debug(f"    Target Relative Path (normalized): '{new_relative_path_normalized}'", module_name='LibraryRelinker')
+        log_debug(f"    Target Absolute Path (from sidecar): '{target_path}'", module_name='LibraryRelinker')
         
-        if current_path_normalized != target_path:
+        if current_lib_path_normalized != new_relative_path_normalized:
             log_info(f"[LibraryRelinker] Relinking '{library.name}' from '{library.filepath}' to '{relative_path}'", module_name='LibraryRelinker')
-            library.filepath = relative_path
+            library.filepath = relative_path  # Assign the non-normalized relative_path
             
             try:
                 library.reload()
@@ -182,8 +192,14 @@ class LibraryRelinkProcessor(BaseRelinker):
     
     def _load_new_library(self, relative_path: str, target_path: str) -> bool:
         """Load a new library if the file exists."""
-        abs_path = PathResolver.resolve_relative_to_absolute(target_path, self.blend_dir)
+        # target_path is already the absolute path to the .blend file,
+        # derived from the sidecar data (either markdown link or JSON 'path').
+        abs_path = PathResolver.normalize_path(target_path)
         
+        log_debug(f"[LibraryRelinker] Attempting to load new library:", module_name='LibraryRelinker')
+        log_debug(f"    Absolute path for loading: '{abs_path}'", module_name='LibraryRelinker')
+        log_debug(f"    Relative path for Blender: '{relative_path}'", module_name='LibraryRelinker')
+
         if os.path.exists(abs_path):
             log_info(f"[LibraryRelinker] Loading new library: {relative_path}", module_name='LibraryRelinker')
             try:
@@ -232,7 +248,12 @@ def execute_relink_operator(self, context: bpy.types.Context):
     
     try:
         # Extract blend file path from sidecar path
-        blend_path = self.sidecar_file_path.replace(SIDECAR_EXTENSION, '')
+        # Use the robust utility function
+        blend_path = get_blend_file_path_from_sidecar(self.sidecar_file_path)
+        if not blend_path:
+            self.report({'ERROR'}, f"Could not determine .blend file path from sidecar: {self.sidecar_file_path}")
+            return {'CANCELLED'}
+            
         processor = LibraryRelinkProcessor(blend_path)
         processor.process_relink()
         self.report({'INFO'}, "Library relinking process completed.")
