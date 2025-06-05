@@ -3,7 +3,7 @@ import os
 import atexit
 import re  # For check_file_relocation
 from .. import LOG_COLORS, REDIRECT_EXTENSION, format_primary_link, MD_EMBED_WIKILINK, get_obsidian_vault_root, PRIMARY_LINK_REGEX
-from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from ..core import log_info, log_warning, log_error, log_success, log_debug
 
 # Store last known working directory per .blend file
 t_last_working_dirs = {}

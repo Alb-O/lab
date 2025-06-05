@@ -10,7 +10,7 @@ from typing import Dict, Optional, Any, Set  # Ensure Set is imported
 from bpy.types import Context, Event, Operator  # Import specific bpy types for hinting
 
 from .. import SIDECAR_EXTENSION
-from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from ..core import log_info, log_warning, log_error, log_success, log_debug
 from .shared_utils import (
     BaseRelinker,
     PathResolver,

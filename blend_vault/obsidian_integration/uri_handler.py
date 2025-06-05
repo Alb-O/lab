@@ -10,7 +10,7 @@ import os
 import webbrowser
 from urllib.parse import quote
 from .. import LOG_COLORS, SIDECAR_EXTENSION
-from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from ..core import log_info, log_warning, log_error, log_success, log_debug
 from ..preferences import get_obsidian_vault_root, detect_obsidian_vault_from_asset_libraries
 
 

@@ -1,7 +1,7 @@
 import bpy
 import os
 from typing import Optional, cast # Added cast
-from .utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from .core import log_info, log_warning, log_error, log_success, log_debug
 
 # Global variable to store the addon package name
 # This will be set by the main addon module during registration

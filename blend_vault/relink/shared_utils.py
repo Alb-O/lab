@@ -16,8 +16,10 @@ from .. import (
     log_info,
     log_warning,
     log_error,
-    log_success,    log_debug,
-    parse_primary_link
+    log_success,
+    log_debug,
+    parse_primary_link,
+    ensure_saved_file
 )
 from ..utils.constants import MD_LINK_FORMATS
 from ..utils.templates import (
@@ -27,7 +29,7 @@ from ..utils.templates import (
     build_main_section_break_regex,
     get_main_section_heading_level
 )
-from ..utils.helpers import build_section_heading_regex, build_heading_section_break_regex
+from ..core import build_section_heading_regex, build_heading_section_break_regex
 class SidecarParser:
     """Utility class for parsing sidecar markdown files and extracting JSON blocks."""
     
@@ -372,13 +374,6 @@ def get_blend_file_path_from_sidecar(sidecar_path: str) -> str:
     
     return sidecar_path
 
-
-def ensure_saved_file() -> Optional[str]:
-    """Ensure the current file is saved and return its path. Returns None if not saved."""
-    if not bpy.data.is_saved:
-        log_warning("Current .blend file is not saved. Cannot process sidecar.")
-        return None
-    return bpy.data.filepath
 
 
 class BaseRelinker:

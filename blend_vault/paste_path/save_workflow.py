@@ -6,7 +6,7 @@ Provides save-and-open functionality with proper timer-based file opening.
 import bpy
 import os
 import functools
-from ..utils.helpers import log_info, log_error
+from ..core import log_info, log_error
 
 
 class BV_OT_SaveAndOpenFile(bpy.types.Operator):

@@ -9,7 +9,7 @@ import re
 import traceback
 from typing import Dict, Optional, Any
 from .shared_utils import BaseRelinker, SidecarParser, PathResolver, ResourceManager, ensure_saved_file
-from ..utils.helpers import log_info, log_warning, log_error, log_success, log_debug
+from ..core import log_info, log_warning, log_error, log_success, log_debug
 from .. import parse_primary_link, RESOURCE_WARNING_PREFIX
 
 
