@@ -16,11 +16,17 @@ from .. import (
     log_info,
     log_warning,
     log_error,
-    log_success,
-    log_debug,
+    log_success,    log_debug,
     parse_primary_link
 )
-from ..utils.constants import HEADING_LEVEL_2, HEADING_LEVEL_3, MD_LINK_FORMATS
+from ..utils.constants import MD_LINK_FORMATS
+from ..utils.templates import (
+    HEADING_LEVEL_2, 
+    HEADING_LEVEL_3, 
+    build_template_heading_regex,
+    build_main_section_break_regex,
+    get_main_section_heading_level
+)
 from ..utils.helpers import build_section_heading_regex, build_heading_section_break_regex
 class SidecarParser:
     """Utility class for parsing sidecar markdown files and extracting JSON blocks."""
@@ -40,18 +46,56 @@ class SidecarParser:
                 self.lines = f.readlines()
         except Exception as e:
             raise IOError(f"Failed to read sidecar file {self.sidecar_path}: {e}")
-    
     def find_section_start(self, section_name: str) -> int:
         """Find the line index where a section starts. Returns -1 if not found.
         Handles both plain headings and markdown link headings."""
-        pattern = build_section_heading_regex(section_name)
+        # Map common section names to template keys
+        section_name_to_key = {
+            "Linked Libraries": "linked_libraries",
+            "Current File": "current_file", 
+            "Resources": "resources"
+        }
         
+        # Try to use template system first
+        template_key = section_name_to_key.get(section_name)
+        if template_key:
+            try:
+                pattern = build_template_heading_regex(template_key)
+                log_debug(f"[SidecarParser] Looking for section '{section_name}' with pattern: {pattern}")
+                
+                # Debug: also test what this pattern actually is
+                import re as re_test
+                test_line = "## Linked Libraries"
+                matches = re_test.match(pattern, test_line)
+                log_debug(f"[SidecarParser] Testing pattern '{pattern}' against '{test_line}': {matches is not None}")
+                
+                # Debug: show first few lines of the file
+                log_debug(f"[SidecarParser] File has {len(self.lines)} lines. First 30 lines:")
+                for i, line in enumerate(self.lines[:30]):
+                    log_debug(f"[SidecarParser] Line {i}: '{line.strip()}'")
+                
+                for i, line in enumerate(self.lines):
+                    line_stripped = line.strip()
+                    if re.match(pattern, line_stripped):
+                        log_debug(f"[SidecarParser] Found section '{section_name}' at line {i}: {line_stripped}")
+                        return i
+                log_debug(f"[SidecarParser] Template pattern did not match any lines for '{section_name}'")
+            except (ValueError, KeyError) as e:
+                log_debug(f"[SidecarParser] Template pattern error for '{section_name}': {e}")
+                # Fall back to old method if template key not found
+                pass
+        
+        # Fallback to old regex method for unknown sections
+        pattern = build_section_heading_regex(section_name)
+        log_debug(f"[SidecarParser] Trying fallback pattern for '{section_name}': {pattern}")
         for i, line in enumerate(self.lines):
-            if re.match(pattern, line.strip()):
+            line_stripped = line.strip()
+            if re.match(pattern, line_stripped):
+                log_debug(f"[SidecarParser] Found section '{section_name}' with fallback at line {i}: {line_stripped}")
                 return i
         
+        log_debug(f"[SidecarParser] Section '{section_name}' not found in sidecar")
         return -1
-    
     def extract_json_blocks_with_links(self, section_name: str) -> Dict[str, Dict[str, Any]]:
         """
         Extract JSON blocks associated with markdown links in a section.
@@ -68,7 +112,10 @@ class SidecarParser:
         """
         section_start = self.find_section_start(section_name)
         if section_start == -1:
+            log_debug(f"[SidecarParser] extract_json_blocks_with_links: Section '{section_name}' not found")
             return {}
+        
+        log_debug(f"[SidecarParser] extract_json_blocks_with_links: Starting at line {section_start} for section '{section_name}'")
         
         results = {}
         parsing_json_block = False
@@ -80,6 +127,8 @@ class SidecarParser:
         while current_line_idx < len(self.lines):
             line_raw = self.lines[current_line_idx]
             line_stripped = line_raw.strip()
+            
+            log_debug(f"[SidecarParser] Line {current_line_idx}: '{line_stripped}' | parsing_json={parsing_json_block} | active_link='{active_link_name}'")
             
             if parsing_json_block:
                 if line_stripped == "```":  # End of JSON block
@@ -109,18 +158,32 @@ class SidecarParser:
                 else:
                     # Skip this JSON block as no link precedes it
                     self._skip_to_end_of_json_block(current_line_idx)
-            
             elif re.match(build_heading_section_break_regex(), line_stripped):
-                # Hit another section
-                break
-            
-            else:
-                # Look for markdown links
-                line_no_heading = line_stripped.lstrip('#').strip() if line_stripped.startswith('#') else line_stripped
+                # Check if this is a main section break or just a subsection
+                main_section_break_pattern = build_main_section_break_regex()
+                if re.match(main_section_break_pattern, line_stripped):
+                    # Hit another main section, stop processing
+                    break
+                # Otherwise it's a subsection, check for links in the heading
+                line_no_heading = line_stripped.lstrip('#').strip()
+                log_debug(f"[SidecarParser] Processing subsection heading for links: '{line_no_heading}'")
                 md_link_match = parse_primary_link(line_no_heading)
+                log_debug(f"[SidecarParser] parse_primary_link result: {md_link_match}")
                 if md_link_match:
                     active_link_path = md_link_match.group(1)
                     active_link_name = md_link_match.group(2) or active_link_path
+                    log_debug(f"[SidecarParser] Set active_link_path='{active_link_path}', active_link_name='{active_link_name}'")
+            
+            else:
+                # Look for markdown links in regular lines
+                line_no_heading = line_stripped.lstrip('#').strip() if line_stripped.startswith('#') else line_stripped
+                log_debug(f"[SidecarParser] Processing line for links: '{line_no_heading}'")
+                md_link_match = parse_primary_link(line_no_heading)
+                log_debug(f"[SidecarParser] parse_primary_link result: {md_link_match}")
+                if md_link_match:
+                    active_link_path = md_link_match.group(1)
+                    active_link_name = md_link_match.group(2) or active_link_path
+                    log_debug(f"[SidecarParser] Set active_link_path='{active_link_path}', active_link_name='{active_link_name}'")
             
             current_line_idx += 1
         

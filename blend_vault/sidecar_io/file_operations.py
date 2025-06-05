@@ -15,28 +15,17 @@ from .. import (
 	format_primary_link,
 	log_info, log_warning, log_error, log_success, log_debug
 )
-from ..utils.constants import SIDECAR_MAIN_HEADING, SIDECAR_CURRENT_FILE_HEADING, HEADING_LEVEL_3
+from ..utils.templates import build_template_heading, build_template_heading_regex, HEADING_LEVEL_3
 from .frontmatter import generate_frontmatter_string
 from .content_builder import build_simple_current_file_content
 
 
 def _build_current_file_section_regex() -> str:
 	"""Build a regex pattern to match the Current File section in both plain and markdown link formats."""
-	# Build a pattern that matches either:
-	# 1. Plain heading: "### Current File"
-	# 2. Markdown link heading: "### [Current File](<path>)"
-	# We need to specifically check that the link name is "Current File"
-	escaped_name = re.escape(SIDECAR_CURRENT_FILE_HEADING)
-	heading_prefix = re.escape(HEADING_LEVEL_3.strip())
-	
-	# Create a more specific pattern for markdown links that contain "Current File"
-	# This extracts the name part and checks it specifically
-	current_file_link_pattern = rf"\[{escaped_name}\]<[^>]*>"
-	
-	pattern = rf"{heading_prefix}\s+(?:{escaped_name}|{current_file_link_pattern})\s*\n```json\s*\n(.*?)\n```"
-	
-	return pattern
-
+	# Use the template system to build the regex pattern for the current_file section
+	pattern = build_template_heading_regex("current_file")
+	# Add the JSON block pattern
+	return rf"{pattern}\s*\n```json\s*\n(.*?)\n```"
 
 def _log(level: str, message: str) -> None:
     if level == 'INFO':
@@ -52,7 +41,6 @@ def _log(level: str, message: str) -> None:
     else:
         print(f"{message}")
 
-
 def write_sidecar_with_content_preservation(md_path: str, new_data_content: str) -> None:
 	"""Write sidecar while preserving user content."""
 	original_lines = []
@@ -66,8 +54,8 @@ def write_sidecar_with_content_preservation(md_path: str, new_data_content: str)
 	
 	if original_lines:
 		user_lines = original_lines[fm_end_idx + 1:] if fm_end_idx != -1 else original_lines
-				# Find and remove existing Blend Vault Data section
-		blend_vault_heading = SIDECAR_MAIN_HEADING
+		# Find and remove existing BV Data section
+		blend_vault_heading = build_template_heading("main_heading")
 		for i, line in enumerate(user_lines):
 			if line.strip() == blend_vault_heading:
 				user_lines = user_lines[:i]
@@ -87,7 +75,6 @@ def write_sidecar_with_content_preservation(md_path: str, new_data_content: str)
 	with open(md_path, 'w', encoding='utf-8') as f:
 		f.write("".join(content_parts))
 
-
 def push_uuid_to_sidecar(sidecar_path: str, file_uuid: str, asset_updates: Dict) -> None:
 	"""Push UUID and asset updates to a sidecar file."""
 	try:
@@ -95,9 +82,10 @@ def push_uuid_to_sidecar(sidecar_path: str, file_uuid: str, asset_updates: Dict)
 		original_lines = []
 		if os.path.exists(sidecar_path):
 			with open(sidecar_path, 'r', encoding='utf-8') as f:
-				original_lines = f.readlines()		# Extract existing assets
+				original_lines = f.readlines()		
+		# Extract existing assets
 		existing_assets = []
-		blend_vault_heading = SIDECAR_MAIN_HEADING
+		blend_vault_heading = build_template_heading("main_heading")
 		
 		for i, line in enumerate(original_lines):
 			if line.strip() == blend_vault_heading:

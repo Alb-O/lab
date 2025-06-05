@@ -54,18 +54,6 @@ BV_FILE_UUID_KEY = "blendfile_uuid"
 BV_UUID_KEY = "uuid"
 
 # --- Sidecar Content Constants ---
-# Markdown heading levels
-HEADING_LEVEL_2 = "## "
-HEADING_LEVEL_3 = "### "
-HEADING_LEVEL_4 = "#### "
-
-# Section headings
-SIDECAR_MAIN_HEADING = HEADING_LEVEL_2 + "%% Blend Vault Data"
-SIDECAR_MESSAGE_EMBED = "![[BV_MSG#^bv-msg-sidecar]]"
-SIDECAR_CURRENT_FILE_HEADING = "Current File"
-SIDECAR_LINKED_LIBRARIES_HEADING = HEADING_LEVEL_3 + "Linked Libraries"
-SIDECAR_RESOURCES_HEADING = HEADING_LEVEL_3 + "Resources"
-
 # Default content
 SIDECAR_NO_ITEMS = "- None"
 SIDECAR_JSON_BLOCK_START = "```json"

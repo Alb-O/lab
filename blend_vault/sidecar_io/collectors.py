@@ -8,29 +8,16 @@ import os
 import re
 from typing import Dict, List, Tuple
 from .. import get_asset_sources_map, get_or_create_datablock_uuid, BV_UUID_PROP, SIDECAR_EXTENSION, format_primary_link, log_error, log_warning, log_info
-from ..utils.constants import SIDECAR_CURRENT_FILE_HEADING, HEADING_LEVEL_3, MD_LINK_FORMATS
+from ..utils.constants import MD_LINK_FORMATS
+from ..utils.templates import build_template_heading_regex, HEADING_LEVEL_3
 from .uuid_manager import read_sidecar_uuid
 
 
 def _matches_current_file_heading(line: str) -> bool:
 	"""Check if a line matches the Current File section heading in any format."""
-	line_stripped = line.strip()
-	# Check plain format
-	if line_stripped == f"{HEADING_LEVEL_3.strip()}{SIDECAR_CURRENT_FILE_HEADING}":
-		return True
-	
-	# Check markdown link format using the current MD_PRIMARY_FORMAT
-	if line_stripped.startswith(HEADING_LEVEL_3):
-		# Use the wikilink regex pattern from constants
-		wikilink_pattern = MD_LINK_FORMATS['MD_WIKILINK']['regex']
-		link_match = re.search(wikilink_pattern, line_stripped[4:])
-		if link_match and link_match.group(2) == SIDECAR_CURRENT_FILE_HEADING:
-			return True
-		# Also check for the reverse format: [[Current File|path]]
-		if link_match and link_match.group(1) == SIDECAR_CURRENT_FILE_HEADING:
-			return True
-	
-	return False
+	# Use the template system to build regex and check for match
+	pattern = build_template_heading_regex("current_file")
+	return re.match(pattern, line.strip()) is not None
 
 
 def _resolve_linked_asset_uuids(

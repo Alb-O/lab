@@ -12,8 +12,9 @@ import re
 from typing import Optional
 from .constants import (
     LOG_COLORS, MD_PRIMARY_FORMAT, PRIMARY_LINK_REGEX, RESOURCE_WARNING_PREFIX, BV_UUID_PROP,
-    MD_LINK_FORMATS, HEADING_LEVEL_2, HEADING_LEVEL_3
+    MD_LINK_FORMATS
 )
+from .templates import HEADING_LEVEL_2, HEADING_LEVEL_3
 
 
 def get_asset_sources_map():

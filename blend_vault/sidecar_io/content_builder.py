@@ -17,18 +17,18 @@ from .. import (
 	format_primary_link
 )
 from ..utils.constants import (
-	SIDECAR_MAIN_HEADING,
-	SIDECAR_MESSAGE_EMBED,
-	SIDECAR_CURRENT_FILE_HEADING,
-	SIDECAR_LINKED_LIBRARIES_HEADING,
-	SIDECAR_RESOURCES_HEADING,
 	SIDECAR_NO_ITEMS,
 	SIDECAR_JSON_BLOCK_START,
 	SIDECAR_JSON_BLOCK_END,
-	HEADING_LEVEL_3,
-	HEADING_LEVEL_4,
 	RESOURCE_TYPE_ORDER,
 	RESOURCE_TYPE_DISPLAY_NAMES
+)
+from ..utils.templates import (
+	build_template_heading,
+	SIDECAR_MESSAGE_EMBED,
+	HEADING_LEVEL_3,
+	HEADING_LEVEL_4,
+	get_heading_prefix
 )
 from .. import get_obsidian_vault_root
 from .uuid_manager import read_sidecar_uuid
@@ -42,13 +42,12 @@ def build_sidecar_content(
 ) -> Tuple[str, Dict]:
 	"""Build sidecar content and track UUID pushes."""
 	file_uuid = read_sidecar_uuid(blend_path + SIDECAR_EXTENSION) or generate_filepath_hash(blend_path)
-	
-	# Build content sections
+		# Build content sections
 	blend_filename = os.path.basename(blend_path)
 	sections = [
-		SIDECAR_MAIN_HEADING,
+		build_template_heading("main_heading"),
 		SIDECAR_MESSAGE_EMBED,
-		HEADING_LEVEL_3 + format_primary_link("./" + blend_filename, SIDECAR_CURRENT_FILE_HEADING),
+		build_template_heading("current_file", "./" + blend_filename),
 		SIDECAR_JSON_BLOCK_START,
 		json.dumps({
 			"path": os.path.basename(blend_path),
@@ -56,7 +55,7 @@ def build_sidecar_content(
 			"assets": list(local_assets.values())
 		}, indent=2, ensure_ascii=False),
 		SIDECAR_JSON_BLOCK_END,
-		SIDECAR_LINKED_LIBRARIES_HEADING
+		build_template_heading("linked_libraries")
 	]
 	
 	# Add linked libraries section
@@ -82,10 +81,10 @@ def build_simple_current_file_content(
 	"""Build simple sidecar content with just current file section for UUID pushing."""
 	blend_filename = os.path.basename(blend_path)
 	sections = [
-		SIDECAR_MAIN_HEADING,
+		build_template_heading("main_heading"),
 		SIDECAR_MESSAGE_EMBED,
 		"",
-		HEADING_LEVEL_3 + format_primary_link("./" + blend_filename, SIDECAR_CURRENT_FILE_HEADING),
+		build_template_heading("current_file", "./" + blend_filename),
 		SIDECAR_JSON_BLOCK_START,
 		json.dumps({
 			"path": blend_filename,
@@ -94,7 +93,7 @@ def build_simple_current_file_content(
 		}, indent=2, ensure_ascii=False),
 		SIDECAR_JSON_BLOCK_END,
 		"",
-		SIDECAR_LINKED_LIBRARIES_HEADING,
+		build_template_heading("linked_libraries"),
 		SIDECAR_NO_ITEMS,
 		""
 	]
@@ -132,7 +131,8 @@ def _build_linked_libraries_section(
 			uuid_was_generated = True
 		
 		# Store UUID on library datablock
-		lib.id_properties_ensure()[BV_UUID_PROP] = lib_uuid		# Only push UUIDs to libraries that don't have sidecars yet
+		lib.id_properties_ensure()[BV_UUID_PROP] = lib_uuid
+		# Only push UUIDs to libraries that don't have sidecars yet
 		# If a library already has a sidecar, it should manage its own UUIDs
 		linked_assets = linked_assets_by_library.get(lib, [])
 		new_assets = {}
@@ -153,10 +153,10 @@ def _build_linked_libraries_section(
 				
 				new_assets[asset["uuid"]] = asset
 		# If library already has a sidecar, don't push any UUIDs - let library manage its own
-		
 		# Schedule UUID push only for new libraries without sidecars
 		if not os.path.exists(lib_sidecar_path) and (uuid_was_generated or new_assets):
 			uuid_pushes[lib_sidecar_path] = (lib_uuid, new_assets)
+		
 		# Add to sidecar content
 		vault_root = None
 		# The get_obsidian_vault_root is imported at the top of the file.
@@ -167,8 +167,9 @@ def _build_linked_libraries_section(
 		# If get_obsidian_vault_root was None (e.g. import issue), vault_root remains None.
 		# get_resource_warning_prefix is expected to handle vault_root being None.
 		warning_prefix = get_resource_warning_prefix(lib_path, blend_path, vault_root)
+		library_display_name = warning_prefix + os.path.basename(lib_path)
 		sections.extend([
-			HEADING_LEVEL_4 + warning_prefix + format_primary_link(lib_path + SIDECAR_EXTENSION, os.path.basename(lib_path)),
+			build_template_heading("library_entry", lib_path + SIDECAR_EXTENSION, library_display_name),
 			SIDECAR_JSON_BLOCK_START,
 			json.dumps({
 				"path": lib_path,
@@ -185,7 +186,7 @@ def _build_linked_libraries_section(
 def _build_resources_section(sections: List[str], resources: List[dict], blend_path: str) -> None:
 	"""Build the resources section with categorized subheadings."""
 	sections.extend([
-		SIDECAR_RESOURCES_HEADING
+		build_template_heading("resources")
 	])
 	
 	if not resources:
@@ -209,7 +210,7 @@ def _build_resources_section(sections: List[str], resources: List[dict], blend_p
 	for resource_type in RESOURCE_TYPE_ORDER:
 		if resource_type in resources_by_type:
 			sections.extend([
-				f"{HEADING_LEVEL_4}{RESOURCE_TYPE_DISPLAY_NAMES[resource_type]}"
+				f"{get_heading_prefix(3)}{RESOURCE_TYPE_DISPLAY_NAMES[resource_type]}"
 			])
 			
 			for resource in resources_by_type[resource_type]:
