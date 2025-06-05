@@ -9,13 +9,13 @@ from . import resource_relinker
 from . import polling
 from . import redirect_handler
 from . import shared_utils
-from . import startup_dialog
+from . import missing_links_dialog
 from ..core import log_info, log_warning, log_success
 
 
 def register():
     """Register all relinker modules."""
-    modules = [asset_relinker, library_relinker, resource_relinker, startup_dialog, polling]
+    modules = [asset_relinker, library_relinker, resource_relinker, missing_links_dialog, polling]
     for module in modules:
         if hasattr(module, 'register'):
             module.register()
@@ -25,7 +25,7 @@ def register():
 
 def unregister():
     """Unregister all relinker modules."""
-    modules = [polling, startup_dialog, resource_relinker, library_relinker, asset_relinker]
+    modules = [polling, missing_links_dialog, resource_relinker, library_relinker, asset_relinker]
     for module in modules:
         if hasattr(module, 'unregister'):
             module.unregister()
@@ -41,7 +41,7 @@ __all__ = [
     'shared_utils',
     'polling',
     'redirect_handler',
-    'startup_dialog'
+    'missing_links_dialog'
 ]
 
 # Convenience access to shared utilities

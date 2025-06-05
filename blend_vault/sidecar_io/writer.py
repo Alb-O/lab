@@ -25,7 +25,7 @@ def write_library_info(*args, **kwargs):
     
     log_info(f"Writing sidecar for: {rel_blend_path}", module_name="SidecarWriter")
 
-    # Note: Asset relinking is now handled by the startup dialog for user confirmation
+    # Note: Asset relinking is now handled by the missing links dialog for user confirmation
     # No automatic relinking during sidecar write operations
 
     # Collect data

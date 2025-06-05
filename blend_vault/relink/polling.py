@@ -6,7 +6,7 @@ from ..utils.constants import POLL_INTERVAL
 from . import asset_relinker, redirect_handler
 from .library_relinker import relink_library_info
 from .resource_relinker import relink_resources
-from .startup_dialog import show_startup_relink_dialog
+from .missing_links_dialog import show_missing_links_dialog
 
 # Store last modification times for sidecar files
 t_last_sidecar_mtimes = {}
@@ -28,12 +28,11 @@ def sidecar_poll_timer():
 			last_known_sidecar_mtime = t_last_sidecar_mtimes.get(md_path)
 			if last_known_sidecar_mtime is None:                # Initialize
 				t_last_sidecar_mtimes[md_path] = sidecar_mtime
-			elif sidecar_mtime > last_known_sidecar_mtime:
-				# Sidecar file changed: update timestamp and show startup dialog for user confirmation
+			elif sidecar_mtime > last_known_sidecar_mtime:				# Sidecar file changed: update timestamp and show missing links dialog for user confirmation
 				t_last_sidecar_mtimes[md_path] = sidecar_mtime
 				log_success(f"Sidecar file '{md_path}' modified. Showing relink dialog for user confirmation.", module_name='Polling')
-				# Show startup dialog instead of automatic relinking
-				show_startup_relink_dialog()
+				# Show missing links dialog instead of automatic relinking
+				show_missing_links_dialog()
 				# Sync library file mtimes to prevent polling-triggered reload wiping out relink
 				try:
 					for lib in bpy.data.libraries:
@@ -65,8 +64,8 @@ def sidecar_poll_timer():
 			elif current_lib_mtime > last_known_lib_mtime:
 				t_last_library_mtimes[lib_abs_path] = current_lib_mtime
 				log_warning(f"Library file '{lib.name}' ('{lib_abs_path}') modified. Showing relink dialog for user confirmation.", module_name='Polling')
-				# Show startup dialog instead of automatic relinking
-				show_startup_relink_dialog()
+				# Show missing links dialog instead of automatic relinking
+				show_missing_links_dialog()
 		except Exception as e:
 			log_error(f"Error checking library '{lib.name}' ('{lib.filepath}'): {e}", module_name='Polling')
 
@@ -92,11 +91,11 @@ def start_sidecar_poll_timer(*args, **kwargs):
 		log_error(f"Failed to register sidecar polling timer: {e}", module_name='Polling')
 
 @bpy.app.handlers.persistent
-def check_startup_relinks(*args, **kwargs):
-	"""Handler to check for startup relink requirements after file load."""
+def check_missing_links(*args, **kwargs):
+	"""Handler to check for missing links after file load."""
 	# Use a timer to delay the check slightly after load to ensure everything is ready
 	def delayed_check():
-		show_startup_relink_dialog()
+		show_missing_links_dialog()
 		return None  # Don't repeat the timer
 	
 	# Register a one-time timer to check after a short delay
@@ -104,8 +103,8 @@ def check_startup_relinks(*args, **kwargs):
 
 def register():
 	bpy.app.handlers.load_post.append(start_sidecar_poll_timer)
-	# Show startup relink dialog instead of immediate relinking
-	bpy.app.handlers.load_post.append(check_startup_relinks)
+	# Show missing links dialog instead of immediate relinking
+	bpy.app.handlers.load_post.append(check_missing_links)
 	# Reload and register redirect handler to ensure we get the latest version
 	importlib.reload(redirect_handler)
 	redirect_handler.register()
@@ -119,10 +118,9 @@ def register():
 
 def unregister():
 	if start_sidecar_poll_timer in bpy.app.handlers.load_post:
-		bpy.app.handlers.load_post.remove(start_sidecar_poll_timer)
-	# Remove startup relink check handler
-	if check_startup_relinks in bpy.app.handlers.load_post:
-		bpy.app.handlers.load_post.remove(check_startup_relinks)
+		bpy.app.handlers.load_post.remove(start_sidecar_poll_timer)	# Remove missing links check handler
+	if check_missing_links in bpy.app.handlers.load_post:
+		bpy.app.handlers.load_post.remove(check_missing_links)
 	# Unregister redirect handler
 	redirect_handler.unregister()
 	if bpy.app.timers.is_registered(sidecar_poll_timer):
