@@ -20,41 +20,8 @@ from .. import (
     log_debug,
     parse_primary_link
 )
-from ..utils.constants import HEADING_LEVEL_2, HEADING_LEVEL_3
-
-
-def _build_heading_section_break_regex() -> str:
-    """Build a regex pattern to match heading section breaks (## or ###)."""
-    h2_pattern = f"^{re.escape(HEADING_LEVEL_2.strip())}[^#]"
-    h3_pattern = f"^{re.escape(HEADING_LEVEL_3.strip())}[^#]"
-    return f"({h2_pattern}|{h3_pattern})"
-
-
-def _build_section_heading_regex(section_name: str) -> str:
-    """
-    Build a regex pattern that can match section headings in both plain and markdown link formats.
-    
-    Args:
-        section_name: The name of the section to match (e.g., "Current File")
-    
-    Returns:
-        A regex pattern that matches both "### Section Name" and "### [Section Name](<path>)"
-    """
-    escaped_name = re.escape(section_name)
-    heading_prefix = re.escape(HEADING_LEVEL_3.strip())
-    
-    # Build a specific pattern for markdown links that contain the exact section name
-    # This ensures we match [Section Name](<path>) specifically, not just any markdown link
-    section_link_pattern = rf"\[{escaped_name}\]<[^>]*>"
-    
-    # Build a pattern that matches either:
-    # 1. Plain heading: "### Section Name"
-    # 2. Markdown link heading: "### [Section Name](<path>)"
-    pattern = rf"{heading_prefix}\s+(?:{escaped_name}|{section_link_pattern})"
-    
-    return pattern
-
-
+from ..utils.constants import HEADING_LEVEL_2, HEADING_LEVEL_3, MD_LINK_FORMATS
+from ..utils.helpers import build_section_heading_regex, build_heading_section_break_regex
 class SidecarParser:
     """Utility class for parsing sidecar markdown files and extracting JSON blocks."""
     
@@ -77,7 +44,7 @@ class SidecarParser:
     def find_section_start(self, section_name: str) -> int:
         """Find the line index where a section starts. Returns -1 if not found.
         Handles both plain headings and markdown link headings."""
-        pattern = _build_section_heading_regex(section_name)
+        pattern = build_section_heading_regex(section_name)
         
         for i, line in enumerate(self.lines):
             if re.match(pattern, line.strip()):
@@ -143,7 +110,7 @@ class SidecarParser:
                     # Skip this JSON block as no link precedes it
                     self._skip_to_end_of_json_block(current_line_idx)
             
-            elif re.match(_build_heading_section_break_regex(), line_stripped):
+            elif re.match(build_heading_section_break_regex(), line_stripped):
                 # Hit another section
                 break
             
@@ -165,7 +132,7 @@ class SidecarParser:
         while current_idx < len(self.lines):
             if self.lines[current_idx].strip() == "```":
                 return current_idx
-            if re.match(_build_heading_section_break_regex(), self.lines[current_idx].strip()):
+            if re.match(build_heading_section_break_regex(), self.lines[current_idx].strip()):
                 return current_idx - 1
             current_idx += 1
         return current_idx
@@ -217,7 +184,7 @@ class SidecarParser:
                 parsing_json_block = True
                 json_accumulator = []
             
-            elif re.match(_build_heading_section_break_regex(), line_stripped):
+            elif re.match(build_heading_section_break_regex(), line_stripped):
                 break
             
             current_line_idx += 1
@@ -307,6 +274,8 @@ class LibraryManager:
 
 def get_sidecar_path(blend_file_path: str) -> str:
     """Get the sidecar file path for a given blend file."""
+    if blend_file_path.endswith(SIDECAR_EXTENSION):
+        return blend_file_path
     return blend_file_path + SIDECAR_EXTENSION
 
 

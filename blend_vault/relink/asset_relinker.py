@@ -9,7 +9,8 @@ import traceback
 from typing import Dict, List, Optional, Any
 from .. import (
     get_asset_sources_map,
-    BV_UUID_PROP
+    BV_UUID_PROP,
+    SIDECAR_EXTENSION
 )
 from .shared_utils import (
     SidecarParser,
@@ -153,8 +154,13 @@ class AssetRelinkProcessor:
                             "old_name": old_name,
                             "uuid": asset_uuid
                         })
-        
         return relink_operations
+    
+    def _sidecar_path_to_blend_path(self, sidecar_path: str) -> str:
+        """Convert a sidecar file path to the corresponding blend file path."""
+        if sidecar_path.endswith(SIDECAR_EXTENSION):
+            return sidecar_path[:-len(SIDECAR_EXTENSION)]  # Remove sidecar extension suffix
+        return sidecar_path
     
     def _find_and_prepare_session_item(self, lib_rel_path: str, asset_uuid: str, asset_type: str):
         """Find the session item for an asset and ensure it has the correct UUID."""
@@ -163,22 +169,31 @@ class AssetRelinkProcessor:
             log_warning(f"Unknown asset type '{asset_type}'", module_name='AssetRelink')
             return None
         
+        # Convert sidecar path to blend file path for comparison with session items
+        lib_blend_rel_path = self._sidecar_path_to_blend_path(lib_rel_path)
         expected_lib_path = PathResolver.normalize_path(
-            PathResolver.resolve_relative_to_absolute(lib_rel_path, self.main_blend_dir)
+            PathResolver.resolve_relative_to_absolute(lib_blend_rel_path, self.main_blend_dir)
         )
+        
+        log_debug(f"Looking for session item with UUID {asset_uuid} from library: {expected_lib_path}", module_name='AssetRelink')
+        log_debug(f"Searching in {len(list(bpy_collection))} {asset_type} items", module_name='AssetRelink')
         
         for item in bpy_collection:
             item_lib_path = self._get_item_library_path(item)
+            log_debug(f"Checking item '{item.name}': library_path='{item_lib_path}'", module_name='AssetRelink')
+            
             if item_lib_path and PathResolver.normalize_path(item_lib_path) == expected_lib_path:
+                log_debug(f"Found matching library path for item '{item.name}'", module_name='AssetRelink')
                 # Assign the correct UUID to the session item
                 try:
                     item.id_properties_ensure()[BV_UUID_PROP] = asset_uuid
                     log_debug(f"Assigned UUID '{asset_uuid}' to session item '{item.name}'", module_name='AssetRelink')
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_warning(f"Failed to assign UUID to item '{item.name}': {e}", module_name='AssetRelink')
                 return item
         
         log_warning(f"Could not find session item for UUID {asset_uuid}", module_name='AssetRelink')
+        log_warning(f"Expected library path: {expected_lib_path}", module_name='AssetRelink')
         return None
     
     def _get_item_library_path(self, item) -> Optional[str]:

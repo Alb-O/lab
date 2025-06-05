@@ -1,4 +1,3 @@
-
 # Conditional bpy import - only import if we're running in Blender
 try:
     import bpy
@@ -9,9 +8,11 @@ except ImportError:
 import uuid
 import hashlib
 import os
+import re
 from typing import Optional
 from .constants import (
-    LOG_COLORS, MD_PRIMARY_FORMAT, PRIMARY_LINK_REGEX, RESOURCE_WARNING_PREFIX, BV_UUID_PROP
+    LOG_COLORS, MD_PRIMARY_FORMAT, PRIMARY_LINK_REGEX, RESOURCE_WARNING_PREFIX, BV_UUID_PROP,
+    MD_LINK_FORMATS, HEADING_LEVEL_2, HEADING_LEVEL_3
 )
 
 
@@ -171,3 +172,44 @@ def log_debug(message: str, extension_name: str = "Blend Vault", module_name: Op
     if module_name:
         prefix += f" [{module_name}]"
     print(f"{LOG_COLORS['DEBUG']}{prefix} {message}{LOG_COLORS['RESET']}")
+
+
+def build_section_heading_regex(section_name: str, heading_level: str = HEADING_LEVEL_3) -> str:
+    """
+    Build a regex pattern that can match section headings in both plain and markdown link formats.
+    
+    Args:
+        section_name: The name of the section to match (e.g., "Current File")
+        heading_level: The markdown heading level (default: HEADING_LEVEL_3)
+    
+    Returns:
+        A regex pattern that matches:
+        - "### Section Name" (plain)
+        - "### [Section Name](<path>)" (markdown reference link)
+        - "### [[path|Section Name]]" (wikilink)
+    """
+    escaped_name = re.escape(section_name)
+    heading_prefix = re.escape(heading_level)
+    
+    # Build patterns for each supported link format using constants
+    patterns = [escaped_name]  # Plain section name
+    
+    # Add patterns for each link format
+    for format_name, format_info in MD_LINK_FORMATS.items():
+        if format_name == 'MD_ANGLE_BRACKETS':
+            # For angle brackets: [Section Name](<path>)
+            patterns.append(rf"\[{escaped_name}\]\(<[^>]*>\)")
+        elif format_name == 'MD_WIKILINK':
+            # For wikilinks: [[path|Section Name]]
+            patterns.append(rf"\[\[[^\]|]*\|{escaped_name}\]\]")
+    
+    # Combine all patterns
+    combined_pattern = "|".join(patterns)
+    return rf"{heading_prefix}(?:{combined_pattern})"
+
+
+def build_heading_section_break_regex() -> str:
+    """Build a regex pattern to match heading section breaks (## or ###)."""
+    h2_pattern = f"^{re.escape(HEADING_LEVEL_2.strip())}[^#]"
+    h3_pattern = f"^{re.escape(HEADING_LEVEL_3.strip())}[^#]"
+    return f"({h2_pattern}|{h3_pattern})"
