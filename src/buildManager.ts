@@ -326,14 +326,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			console.warn('Failed to cleanup after extraction:', error);
 		}
 	}
-
 	/**
-	 * Sanitize build name for use as directory name
-	 */
-	private sanitizeBuildName(build: BlenderBuildInfo): string {
-		const name = `${build.subversion}-${build.branch}`;
-		return name.replace(/[^a-zA-Z0-9.-]/g, '_');
-	}	/**
 	 * Find a build by matching patterns in the directory name
 	 * This helps detect manually installed builds that don't follow the exact naming convention
 	 */
@@ -525,19 +518,9 @@ export class FetchBlenderBuilds extends EventEmitter {
 			for (const dir of dirs) {
 				const extractPath = path.join(typeDir, dir);
 				const stats = fs.statSync(extractPath);				
-				
-				if (stats.isDirectory()) {
-					// Try to match with cached builds based on directory name
-					let matchingBuild = this.buildCache.find(build => {
-						const expectedDirName = this.sanitizeBuildName(build);
-						const matches = dir === expectedDirName && this.buildFilter.getBuildType(build) === buildType;
-						return matches;
-					});
-
-					// If exact match fails, try pattern matching for manually installed builds
-					if (!matchingBuild) {
-						matchingBuild = this.findBuildByPattern(dir, buildType);
-					}
+						if (stats.isDirectory()) {
+					// Try to match with cached builds using pattern matching
+					let matchingBuild = this.findBuildByPattern(dir, buildType);
 
 					if (matchingBuild) {
 						const executable = this.downloader.findBlenderExecutable(extractPath);
@@ -814,19 +797,20 @@ export class FetchBlenderBuilds extends EventEmitter {
 			if (fs.existsSync(downloadPath)) {
 				fs.unlinkSync(downloadPath);
 				deletedDownload = true;
-							}
-
-			// Delete extracted build from segregated extracts path
-			const extractsPath = this.getExtractsPathForBuild(build);
-			const expectedDirName = this.sanitizeBuildName(build);
-			const extractPath = path.join(extractsPath, expectedDirName);
+							}			// Delete extracted build - find the actual directory using pattern matching
+			const extractedBuilds = this.getExtractedBuilds();
+			const extractedBuild = extractedBuilds.find(eb => eb.build === build);
 			
-			if (fs.existsSync(extractPath)) {
-				await this.deleteDirectory(extractPath);
+			if (extractedBuild && fs.existsSync(extractedBuild.extractPath)) {
+				await this.deleteDirectory(extractedBuild.extractPath);
 				deletedExtract = true;
-							}			// Clean up empty type directories if needed
+						// Clean up empty type directory if needed
+				const extractsPath = path.dirname(extractedBuild.extractPath);
+				await this.cleanupEmptyDirectory(extractsPath);
+			}
+			
+			// Clean up empty downloads directory if needed
 			await this.cleanupEmptyDirectory(downloadsPath);
-			await this.cleanupEmptyDirectory(extractsPath);
 
 			// Invalidate extracted builds cache if we deleted an extracted build
 			if (deletedExtract) {
@@ -869,8 +853,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		
 		return { downloaded, extracted };
 	}
-	
-	/**
+		/**
 	 * Launch a Blender build
 	 */
 	async launchBuild(build: BlenderBuildInfo): Promise<void> {
@@ -880,12 +863,17 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw new Error('Build must be extracted to launch');
 		}
 
-		const extractsPath = this.getExtractsPathForBuild(build);
-		const expectedDirName = this.sanitizeBuildName(build);
-		const extractPath = path.join(extractsPath, expectedDirName);
+		// Get the actual extracted build path from detected builds instead of reconstructing it
+		const extractedBuilds = this.getExtractedBuilds();
+		const extractedBuild = extractedBuilds.find(extracted => extracted.build === build);
+				if (!extractedBuild) {
+			throw new Error('Extracted build directory not found');
+		}
+
+		const extractPath = extractedBuild.extractPath;
 		
 		if (!fs.existsSync(extractPath)) {
-			throw new Error('Extracted build directory not found');
+			throw new Error('Extracted build directory not found on filesystem');
 		}
 
 		// Use the launcher to launch the build
@@ -958,36 +946,5 @@ export class FetchBlenderBuilds extends EventEmitter {
 		}
 		
 		fs.rmdirSync(dirPath);
-	}
-
-	/**
-	 * Test specific folder detection
-	 */
-	testSpecificFolderDetection(): void {
-		const testDir = "blender-4.5.0-alpha+main.6fab30a767df-windows.amd64-release";
-				new Notice(`Testing detection for: ${testDir}`, 5000);
-		
-		// Try exact match first
-		const exactMatch = this.buildCache.find(build => {
-			const expectedDirName = this.sanitizeBuildName(build);
-			const matches = testDir === expectedDirName && this.buildFilter.getBuildType(build) === BuildType.Daily;
-			if (matches) {
-							}
-			return matches;
-		});
-		
-		if (exactMatch) {
-			new Notice(`EXACT MATCH: ${exactMatch.subversion}-${exactMatch.branch}`, 6000);
-		} else {
-			new Notice("No exact match found, trying pattern match...", 4000);
-			
-			// Try pattern match
-			const patternMatch = this.findBuildByPattern(testDir, BuildType.Daily);
-			if (patternMatch) {
-				new Notice(`PATTERN MATCH: ${patternMatch.subversion}-${patternMatch.branch}`, 6000);
-			} else {
-				new Notice("No pattern match found either!", 6000);
-			}
-		}
 	}
 }

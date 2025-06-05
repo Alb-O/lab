@@ -87,16 +87,6 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 				this.buildManager.debugShowCacheContents();
 			}
 		});
-
-		// Add command to test specific folder detection
-		this.addCommand({
-			id: 'test-folder-detection',
-			name: 'Test Specific Folder Detection',
-			callback: () => {
-				this.buildManager.testSpecificFolderDetection();
-			}
-		});
-
 		// Add command to open builds directory
 		this.addCommand({
 			id: 'open-blender-directory',
