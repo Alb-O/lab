@@ -22,6 +22,7 @@ from .shared_utils import (
     log_success,
     log_debug,
     get_sidecar_path,
+    get_blend_file_path_from_sidecar,
     ensure_saved_file
 )
 
@@ -155,13 +156,7 @@ class AssetRelinkProcessor:
                             "uuid": asset_uuid
                         })
         return relink_operations
-    
-    def _sidecar_path_to_blend_path(self, sidecar_path: str) -> str:
-        """Convert a sidecar file path to the corresponding blend file path."""
-        if sidecar_path.endswith(SIDECAR_EXTENSION):
-            return sidecar_path[:-len(SIDECAR_EXTENSION)]  # Remove sidecar extension suffix
-        return sidecar_path
-    
+
     def _find_and_prepare_session_item(self, lib_rel_path: str, asset_uuid: str, asset_type: str):
         """Find the session item for an asset and ensure it has the correct UUID."""
         bpy_collection = self.asset_sources_map.get(asset_type)
@@ -169,11 +164,10 @@ class AssetRelinkProcessor:
             log_warning(f"Unknown asset type '{asset_type}'", module_name='AssetRelink')
             return None
         
-        # Convert sidecar path to blend file path for comparison with session items
-        lib_blend_rel_path = self._sidecar_path_to_blend_path(lib_rel_path)
-        expected_lib_path = PathResolver.normalize_path(
-            PathResolver.resolve_relative_to_absolute(lib_blend_rel_path, self.main_blend_dir)
-        )
+        # Convert any sidecar-related path to the actual blend file path for comparison
+        lib_abs_path = PathResolver.resolve_relative_to_absolute(lib_rel_path, self.main_blend_dir)
+        lib_blend_abs_path = get_blend_file_path_from_sidecar(lib_abs_path)
+        expected_lib_path = PathResolver.normalize_path(lib_blend_abs_path)
         
         log_debug(f"Looking for session item with UUID {asset_uuid} from library: {expected_lib_path}", module_name='AssetRelink')
         log_debug(f"Searching in {len(list(bpy_collection))} {asset_type} items", module_name='AssetRelink')
@@ -191,17 +185,25 @@ class AssetRelinkProcessor:
                 except Exception as e:
                     log_warning(f"Failed to assign UUID to item '{item.name}': {e}", module_name='AssetRelink')
                 return item
-        
         log_warning(f"Could not find session item for UUID {asset_uuid}", module_name='AssetRelink')
-        log_warning(f"Expected library path: {expected_lib_path}", module_name='AssetRelink')
         return None
     
     def _get_item_library_path(self, item) -> Optional[str]:
-        """Get the library path for a session item."""
+        """Get the library path for a session item, ensuring it points to the actual .blend file."""
+        raw_path = None
+        
         if getattr(item, 'library', None) and item.library.filepath:
-            return PathResolver.resolve_blender_path(item.library.filepath)
+            raw_path = PathResolver.resolve_blender_path(item.library.filepath)
         elif hasattr(item, 'library_weak_reference') and item.library_weak_reference and item.library_weak_reference.filepath:
-            return PathResolver.resolve_blender_path(item.library_weak_reference.filepath)
+            raw_path = PathResolver.resolve_blender_path(item.library_weak_reference.filepath)
+        
+        if raw_path:
+            # Ensure we return the actual .blend file path, not any sidecar path
+            cleaned_path = get_blend_file_path_from_sidecar(raw_path)
+            if cleaned_path != raw_path:
+                log_debug(f"Converted sidecar path '{raw_path}' to blend path '{cleaned_path}'", module_name='AssetRelink')
+            return cleaned_path
+        
         return None
     
     def _execute_relink_operations(self, relink_operations: List[Dict[str, Any]]) -> None:
@@ -240,6 +242,8 @@ class AssetRelinkProcessor:
         if not lib_filepath:
             log_warning(f"Session item {session_item.name} has no library filepath", module_name='AssetRelink')
             return
+        
+        log_debug(f"Using library filepath for relink: '{lib_filepath}'", module_name='AssetRelink')
         
         # Prepare relink parameters
         try:

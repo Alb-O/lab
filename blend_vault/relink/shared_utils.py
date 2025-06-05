@@ -61,40 +61,23 @@ class SidecarParser:
         if template_key:
             try:
                 pattern = build_template_heading_regex(template_key)
-                log_debug(f"[SidecarParser] Looking for section '{section_name}' with pattern: {pattern}")
-                
-                # Debug: also test what this pattern actually is
-                import re as re_test
-                test_line = "## Linked Libraries"
-                matches = re_test.match(pattern, test_line)
-                log_debug(f"[SidecarParser] Testing pattern '{pattern}' against '{test_line}': {matches is not None}")
-                
-                # Debug: show first few lines of the file
-                log_debug(f"[SidecarParser] File has {len(self.lines)} lines. First 30 lines:")
-                for i, line in enumerate(self.lines[:30]):
-                    log_debug(f"[SidecarParser] Line {i}: '{line.strip()}'")
-                
                 for i, line in enumerate(self.lines):
                     line_stripped = line.strip()
                     if re.match(pattern, line_stripped):
-                        log_debug(f"[SidecarParser] Found section '{section_name}' at line {i}: {line_stripped}")
                         return i
-                log_debug(f"[SidecarParser] Template pattern did not match any lines for '{section_name}'")
             except (ValueError, KeyError) as e:
-                log_debug(f"[SidecarParser] Template pattern error for '{section_name}': {e}")
+                log_error(f"[SidecarParser] Template pattern error for '{section_name}': {e}")
                 # Fall back to old method if template key not found
                 pass
         
         # Fallback to old regex method for unknown sections
         pattern = build_section_heading_regex(section_name)
-        log_debug(f"[SidecarParser] Trying fallback pattern for '{section_name}': {pattern}")
         for i, line in enumerate(self.lines):
             line_stripped = line.strip()
             if re.match(pattern, line_stripped):
-                log_debug(f"[SidecarParser] Found section '{section_name}' with fallback at line {i}: {line_stripped}")
                 return i
         
-        log_debug(f"[SidecarParser] Section '{section_name}' not found in sidecar")
+        log_warning(f"[SidecarParser] Section '{section_name}' not found in sidecar")
         return -1
     def extract_json_blocks_with_links(self, section_name: str) -> Dict[str, Dict[str, Any]]:
         """
@@ -111,11 +94,6 @@ class SidecarParser:
             }
         """
         section_start = self.find_section_start(section_name)
-        if section_start == -1:
-            log_debug(f"[SidecarParser] extract_json_blocks_with_links: Section '{section_name}' not found")
-            return {}
-        
-        log_debug(f"[SidecarParser] extract_json_blocks_with_links: Starting at line {section_start} for section '{section_name}'")
         
         results = {}
         parsing_json_block = False
@@ -127,9 +105,7 @@ class SidecarParser:
         while current_line_idx < len(self.lines):
             line_raw = self.lines[current_line_idx]
             line_stripped = line_raw.strip()
-            
-            log_debug(f"[SidecarParser] Line {current_line_idx}: '{line_stripped}' | parsing_json={parsing_json_block} | active_link='{active_link_name}'")
-            
+
             if parsing_json_block:
                 if line_stripped == "```":  # End of JSON block
                     parsing_json_block = False
@@ -166,24 +142,18 @@ class SidecarParser:
                     break
                 # Otherwise it's a subsection, check for links in the heading
                 line_no_heading = line_stripped.lstrip('#').strip()
-                log_debug(f"[SidecarParser] Processing subsection heading for links: '{line_no_heading}'")
                 md_link_match = parse_primary_link(line_no_heading)
-                log_debug(f"[SidecarParser] parse_primary_link result: {md_link_match}")
                 if md_link_match:
                     active_link_path = md_link_match.group(1)
                     active_link_name = md_link_match.group(2) or active_link_path
-                    log_debug(f"[SidecarParser] Set active_link_path='{active_link_path}', active_link_name='{active_link_name}'")
             
             else:
                 # Look for markdown links in regular lines
                 line_no_heading = line_stripped.lstrip('#').strip() if line_stripped.startswith('#') else line_stripped
-                log_debug(f"[SidecarParser] Processing line for links: '{line_no_heading}'")
                 md_link_match = parse_primary_link(line_no_heading)
-                log_debug(f"[SidecarParser] parse_primary_link result: {md_link_match}")
                 if md_link_match:
                     active_link_path = md_link_match.group(1)
                     active_link_name = md_link_match.group(2) or active_link_path
-                    log_debug(f"[SidecarParser] Set active_link_path='{active_link_path}', active_link_name='{active_link_name}'")
             
             current_line_idx += 1
         
@@ -293,7 +263,7 @@ class LibraryManager:
             log_info(f"Reloaded library: {abs_path}")
             return True
         except Exception as e:
-            log_warning(f"Could not reload library '{library_path}': {e}")
+            log_error(f"Could not reload library '{library_path}': {e}")
             return False
     
     @staticmethod
@@ -336,10 +306,71 @@ class LibraryManager:
 
 
 def get_sidecar_path(blend_file_path: str) -> str:
-    """Get the sidecar file path for a given blend file."""
+    """
+    Get the sidecar file path for a given blend file.
+    Handles various input formats flexibly without hardcoded extensions.
+    
+    Examples:
+        "file.blend" -> "file.blend.side.md"
+        "file.blend.side" -> "file.blend.side.md" 
+        "file.blend.side.md" -> "file.blend.side.md" (unchanged)
+    """
+    # If already ends with full sidecar extension, return as-is
     if blend_file_path.endswith(SIDECAR_EXTENSION):
         return blend_file_path
+    
+    # Parse the sidecar extension dynamically
+    # Remove leading dot and split by dots to get extension components
+    sidecar_clean = SIDECAR_EXTENSION.lstrip('.')  # "side.md"
+    extension_parts = sidecar_clean.split('.')     # ["side", "md"]
+    
+    if len(extension_parts) >= 2:
+        # Build partial extensions: [".side", ".side.md"]
+        partial_extensions = []
+        for i in range(1, len(extension_parts) + 1):
+            partial_ext = '.' + '.'.join(extension_parts[:i])
+            partial_extensions.append(partial_ext)
+        
+        # Check if the path ends with any partial extension (but not the full one)
+        for partial_ext in partial_extensions[:-1]:  # Exclude the full extension
+            if blend_file_path.endswith(partial_ext):
+                # Calculate what needs to be added
+                remaining_parts = extension_parts[len(partial_ext.lstrip('.').split('.')):]
+                remaining_extension = '.' + '.'.join(remaining_parts)
+                return blend_file_path + remaining_extension
+    
+    # Default case: add the full sidecar extension
     return blend_file_path + SIDECAR_EXTENSION
+
+def get_blend_file_path_from_sidecar(sidecar_path: str) -> str:
+    """
+    Convert a sidecar file path back to its corresponding blend file path.
+    Handles various sidecar formats dynamically.
+    
+    Examples:
+        "file.blend.side.md" -> "file.blend"
+        "file.blend.side" -> "file.blend"
+        "file.blend" -> "file.blend" (unchanged)
+    """
+    # If it doesn't contain sidecar-related extensions, return as-is
+    if not any(ext in sidecar_path for ext in ['.side', SIDECAR_EXTENSION]):
+        return sidecar_path
+    
+    # If it ends with the full sidecar extension, remove it
+    if sidecar_path.endswith(SIDECAR_EXTENSION):
+        return sidecar_path[:-len(SIDECAR_EXTENSION)]
+    
+    # Parse the sidecar extension to handle partial matches
+    sidecar_clean = SIDECAR_EXTENSION.lstrip('.')  # "side.md"
+    extension_parts = sidecar_clean.split('.')     # ["side", "md"]
+    
+    # Try to remove partial sidecar extensions
+    for i in range(len(extension_parts), 0, -1):
+        partial_ext = '.' + '.'.join(extension_parts[:i])
+        if sidecar_path.endswith(partial_ext):
+            return sidecar_path[:-len(partial_ext)]
+    
+    return sidecar_path
 
 
 def ensure_saved_file() -> Optional[str]:
