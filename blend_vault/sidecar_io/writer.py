@@ -5,7 +5,7 @@ Coordinates asset collection, content building, and file operations.
 
 import bpy
 import os
-from .. import SIDECAR_EXTENSION, LOG_COLORS, log_info, log_warning, log_error, log_success, log_debug
+from ..core import SIDECAR_EXTENSION, LOG_COLORS, log_info, log_warning, log_error, log_success, log_debug
 from .collectors import collect_assets, collect_resources
 from .content_builder import build_sidecar_content
 from .file_operations import write_sidecar_with_content_preservation, push_uuid_to_sidecar

@@ -8,13 +8,14 @@ import os
 import json
 import re
 from typing import Dict, List, Tuple
-from .. import (
+from ..core import (
 	generate_filepath_hash,  # Renamed from ensure_library_hash
 	get_resource_warning_prefix,
 	SIDECAR_EXTENSION,	BV_UUID_PROP,
 	BV_FILE_UUID_KEY,
 	format_primary_link
 )
+from ..preferences import get_obsidian_vault_root
 from ..utils.constants import (
 	SIDECAR_NO_ITEMS,
 	SIDECAR_JSON_BLOCK_START,
@@ -29,7 +30,6 @@ from ..utils.templates import (
 	HEADING_LEVEL_4,
 	get_heading_prefix
 )
-from .. import get_obsidian_vault_root
 from .uuid_manager import read_sidecar_uuid
 
 

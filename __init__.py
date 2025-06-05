@@ -1,7 +1,4 @@
-# Import core functionality - use module-level imports
-import bpy 
-from .blend_vault import preferences as prefs_module
-from .blend_vault.core import log_info, log_warning, log_error, log_success, log_debug
+import bpy
 import importlib
 
 # Import core functionality - use module-level imports
@@ -13,6 +10,7 @@ CORE_MODULES = [
     'blend_vault.relink.polling',
     'blend_vault.obsidian_integration', 
     'blend_vault.paste_path',
+    'blend_vault.sidecar_io',
 ]
 
 def register():

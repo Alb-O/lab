@@ -7,14 +7,14 @@ import os
 import json
 import re
 from typing import Dict
-from .. import (
+from ..core import (
 	LOG_COLORS,
 	SIDECAR_EXTENSION,
-	FRONTMATTER_TAGS,
 	BV_FILE_UUID_KEY,
 	format_primary_link,
 	log_info, log_warning, log_error, log_success, log_debug
 )
+from ..utils.constants import FRONTMATTER_TAGS
 from ..utils.templates import build_template_heading, build_template_heading_regex, HEADING_LEVEL_3
 from .frontmatter import generate_frontmatter_string
 from .content_builder import build_simple_current_file_content
