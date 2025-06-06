@@ -78,4 +78,13 @@ export class BlenderBuildsView extends ItemView {
 	getViewRenderer(): BlenderViewRenderer {
 		return this.viewRenderer;
 	}
+
+	/**
+	 * Update settings and refresh view
+	 */
+	updateSettings(): void {
+		if (this.viewRenderer) {
+			this.viewRenderer.updateSettings();
+		}
+	}
 }

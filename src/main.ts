@@ -96,6 +96,16 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			}
 		});
 
+		// Add command to migrate existing builds
+		this.addCommand({
+			id: 'migrate-existing-builds',
+			name: 'Migrate Existing Builds to Metadata Cache',
+			callback: async () => {
+				await this.buildManager.scanAndMigrateExistingBuilds();
+				new Notice('Migration scan completed - check console for details');
+			}
+		});
+
 		// Add settings tab
 		this.addSettingTab(new FetchBlenderBuildsSettingTab(this.app, this));
 	}
@@ -103,14 +113,21 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
-
 	async saveSettings() {
 		await this.saveData(this.settings);
 		// Update build manager settings
 		if (this.buildManager) {
 			this.buildManager.updateSettings(this.settings);
 		}
-	}	async openBuildsView(): Promise<void> {
+		
+		// Notify all open Blender builds views to update settings
+		const leaves = this.app.workspace.getLeavesOfType(BLENDER_BUILDS_VIEW_TYPE);
+		leaves.forEach(leaf => {
+			if (leaf.view instanceof BlenderBuildsView) {
+				leaf.view.updateSettings();
+			}
+		});
+	}async openBuildsView(): Promise<void> {
 		const { workspace } = this.app;
 
 		let leaf: WorkspaceLeaf | null = null;

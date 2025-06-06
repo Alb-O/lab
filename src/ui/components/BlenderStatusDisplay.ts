@@ -108,11 +108,16 @@ export class BlenderStatusDisplay {
 			// Clear activity after 5 seconds for errors
 			setTimeout(() => this.clearActivity(), 5000);
 		});
-
 		// Extraction events
 		this.buildManager.on('extractionStarted', (archivePath: string) => {
 			const fileName = archivePath.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || 'build';
 			this.setActivity(`Extracting ${fileName}...`, 'extraction');
+		});
+
+		this.buildManager.on('extractionProgress', (progress: any) => {
+			if (progress.status) {
+				this.setActivity(progress.status, 'extraction');
+			}
 		});
 
 		this.buildManager.on('extractionCompleted', (archivePath: string) => {
@@ -128,12 +133,11 @@ export class BlenderStatusDisplay {
 			// Clear activity after 5 seconds for errors
 			setTimeout(() => this.clearActivity(), 5000);
 		});
-
 		// Build extraction events (for manual extraction)
 		this.buildManager.on('buildExtracted', (build: BlenderBuildInfo, extractedPath: string) => {
-			this.setActivity(`Extracted ${build.subversion} successfully`, 'extraction');
-			// Clear activity after 3 seconds
-			setTimeout(() => this.clearActivity(), 3000);
+			this.setActivity(`Successfully extracted ${build.subversion}`, 'extraction');
+			// Clear activity after 5 seconds for successful extractions
+			setTimeout(() => this.clearActivity(), 5000);
 		});
 
 		// Scraping events

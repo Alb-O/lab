@@ -104,8 +104,32 @@
     }
 }
 
+.blender-build-item.blender-build-pinned {
+    border-top: 1px solid var(--background-modifier-border-hover);
+    border-right: 1px solid var(--background-modifier-border-hover);
+    border-radius: var(--radius-s);
+}
+
 .blender-build-installed {
     border-left: 4px solid var(--background-modifier-success);
+}
+
+/* Orphaned build styles */
+.blender-build-item.orphaned {
+    opacity: 0.8;
+    border-left: 3px solid var(--text-warning);
+    padding-left: var(--size-4-2);
+}
+
+.blender-build-item.orphaned .blender-build-info {
+    position: relative;
+}
+
+.blender-build-item.orphaned .blender-build-info::after {
+    content: " (local only)";
+    font-size: var(--font-ui-smaller);
+    color: var(--text-warning);
+    font-style: italic;
 }
 
 /* Styling for highlighted search matches (e.g., using <mark> tag) */
@@ -278,6 +302,23 @@
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Pin button specific styles */
+.blender-toolbar-buttons .clickable-icon[aria-label*="Pin"] {
+	position: relative;
+}
+
+.blender-toolbar-buttons .clickable-icon[aria-label*="Pin"].is-active::after {
+	content: "";
+	position: absolute;
+	bottom: 2px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 6px;
+	height: 2px;
+	background: var(--color-accent);
+	border-radius: 1px;
 }
 
 /* Filters section */
@@ -567,4 +608,36 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Pinned build container styles */
+.blender-pinned-builds-container {
+	padding: var(--size-4-2);
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-m);
+}
+
+.blender-pinned-header {
+	display: flex;
+	align-items: center;
+	padding-bottom: var(--size-2-2);
+}
+
+.blender-pinned-title {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-weight-medium);
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.blender-pinned-builds-list {
+	/* Remove default margins for pinned container */
+	margin: 0;
+}
+
+.blender-pinned-empty-message {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	padding: var(--size-4-2);
 }

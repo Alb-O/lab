@@ -13,6 +13,7 @@ export interface BlenderPluginSettings {
 	launchWithConsole: boolean;
 	showInstalledOnly: boolean;
 	preferredBuildType: BuildType | 'all';
+	pinSymlinkedBuild: boolean;
 	// Blender environment variables
 	blenderEnvironmentVariables: {
 		BLENDER_USER_RESOURCES?: string;
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	launchWithConsole: false,
 	showInstalledOnly: false,
 	preferredBuildType: 'all',
+	pinSymlinkedBuild: false,
 	blenderEnvironmentVariables: {}
 };
 
@@ -123,7 +125,6 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 					this.plugin.settings.showInstalledOnly = value;
 					await this.plugin.saveSettings();
 				}));
-
 		new Setting(containerEl)
 			.setName('Preferred build type')
 			.setDesc('Default build type filter when opening the Blender builds view.')
@@ -141,6 +142,16 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			});
+
+		new Setting(containerEl)
+			.setName('Pin symlinked build')
+			.setDesc('Show the currently symlinked build in a separate pinned container at the top.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.pinSymlinkedBuild)
+				.onChange(async (value) => {
+					this.plugin.settings.pinSymlinkedBuild = value;
+					await this.plugin.saveSettings();
+				}));
 
 		new Setting(containerEl).setName('Downloads').setHeading();
 

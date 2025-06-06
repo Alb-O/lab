@@ -35,6 +35,17 @@ export const BLENDER_ICON_SVG = `
 </svg>`;
 
 /**
+ * Pin icon SVG for pinned build header
+ */
+export const PIN_ICON_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M9 9v10a1 1 0 01-2 0V9"/>
+  <path d="M15 9v10a1 1 0 01-2 0V9"/>
+  <path d="M12 9V5"/>
+  <path d="M7 9h10l-1-6H8z"/>
+</svg>`;
+
+/**
  * Available minimum Blender version options for filtering builds
  */
 export const MINIMUM_BLENDER_VERSIONS = [

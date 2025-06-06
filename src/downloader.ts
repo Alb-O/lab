@@ -2,17 +2,36 @@ import { BlenderBuildInfo, DownloadProgress, ExtractionProgress } from './types'
 import { requestUrl } from 'obsidian';
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as yauzl from 'yauzl';
 import { EventEmitter } from 'events';
+import { BlenderExtractor } from './extractor';
 
 export class BlenderDownloader extends EventEmitter {
 	private downloadQueue: Map<string, AbortController> = new Map();
 	private progressCallbacks: Map<string, (progress: DownloadProgress) => void> = new Map();
+	private extractor: BlenderExtractor;
 
 	constructor() {
 		super();
+		this.extractor = new BlenderExtractor();
+		
+		// Forward extraction events
+		this.extractor.on('extractionStarted', (archivePath: string, extractPath: string) => {
+			this.emit('extractionStarted', archivePath, extractPath);
+		});
+		
+		this.extractor.on('extractionCompleted', (archivePath: string, extractPath: string) => {
+			this.emit('extractionCompleted', archivePath, extractPath);
+		});
+		
+		this.extractor.on('extractionError', (archivePath: string, error: Error) => {
+			this.emit('extractionError', archivePath, error);
+		});
+		
+		this.extractor.on('extractionProgress', (progress: ExtractionProgress) => {
+			this.emit('extractionProgress', progress);
+		});
 	}
 
 	/**
@@ -148,108 +167,11 @@ export class BlenderDownloader extends EventEmitter {
 		if (callback) {
 			callback(progress);
 		}
-	}
-	/**
-	 * Extract downloaded archive
+	}	/**
+	 * Extract downloaded archive using the BlenderExtractor
 	 */
 	async extractBuild(archivePath: string, extractPath: string): Promise<string> {
-		const path = require('path');
-		const fs = require('fs');
-		
-		// Emit extraction started event
-		this.emit('extractionStarted', archivePath, extractPath);
-		
-		try {
-			// Create extraction directory
-			if (!fs.existsSync(extractPath)) {
-				fs.mkdirSync(extractPath, { recursive: true });
-			}
-
-			const fileName = path.basename(archivePath);
-			const isZip = fileName.endsWith('.zip');
-			const isTarGz = fileName.endsWith('.tar.gz');
-			const isDmg = fileName.endsWith('.dmg');
-
-			let result: string;
-			if (isZip) {
-				result = await this.extractZip(archivePath, extractPath);
-			} else if (isTarGz) {
-				result = await this.extractTarGz(archivePath, extractPath);
-			} else if (isDmg) {
-				result = await this.extractDmg(archivePath, extractPath);
-			} else {
-				throw new Error(`Unsupported archive format: ${fileName}`);
-			}
-			
-			// Emit extraction completed event
-			this.emit('extractionCompleted', archivePath, extractPath);
-			
-			return result;
-		} catch (error) {
-			// Emit extraction error event
-			this.emit('extractionError', archivePath, error);
-			throw error;
-		}
-	}
-
-	/**
-	 * Extract ZIP archive (Windows)
-	 */
-	private async extractZip(archivePath: string, extractPath: string): Promise<string> {
-		const { exec } = require('child_process');
-		const { promisify } = require('util');
-		const execAsync = promisify(exec);
-
-		try {
-			// Use PowerShell's Expand-Archive on Windows
-			const command = `powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractPath}' -Force"`;
-			await execAsync(command);
-			return extractPath;
-		} catch (error) {
-			throw new Error(`Failed to extract ZIP: ${error}`);
-		}
-	}
-
-	/**
-	 * Extract TAR.GZ archive (Linux/macOS)
-	 */
-	private async extractTarGz(archivePath: string, extractPath: string): Promise<string> {
-		const { exec } = require('child_process');
-		const { promisify } = require('util');
-		const execAsync = promisify(exec);
-
-		try {
-			const command = `tar -xzf "${archivePath}" -C "${extractPath}"`;
-			await execAsync(command);
-			return extractPath;
-		} catch (error) {
-			throw new Error(`Failed to extract TAR.GZ: ${error}`);
-		}
-	}
-
-	/**
-	 * Extract DMG archive (macOS)
-	 */
-	private async extractDmg(archivePath: string, extractPath: string): Promise<string> {
-		const { exec } = require('child_process');
-		const { promisify } = require('util');
-		const execAsync = promisify(exec);
-
-		try {
-			// Mount the DMG
-			const mountResult = await execAsync(`hdiutil attach "${archivePath}"`);
-			const mountPoint = mountResult.stdout.trim().split('\t').pop();
-			
-			// Copy contents
-			await execAsync(`cp -R "${mountPoint}"/* "${extractPath}"/`);
-			
-			// Unmount
-			await execAsync(`hdiutil detach "${mountPoint}"`);
-			
-			return extractPath;
-		} catch (error) {
-			throw new Error(`Failed to extract DMG: ${error}`);
-		}
+		return this.extractor.extractBuild(archivePath, extractPath);
 	}
 
 	/**
@@ -318,40 +240,10 @@ export class BlenderDownloader extends EventEmitter {
 		
 		await rmdir(dirPath);
 	}
-
 	/**
-	 * Get extracted build directory
+	 * Get extracted build directory using the BlenderExtractor
 	 */
 	findBlenderExecutable(extractedPath: string): string | null {
-		const findExecutable = (dir: string): string | null => {
-			try {
-				const items = fs.readdirSync(dir);
-				
-				for (const item of items) {
-					const itemPath = path.join(dir, item);
-					const stats = fs.statSync(itemPath);
-					
-					if (stats.isDirectory()) {
-						const result = findExecutable(itemPath);
-						if (result) return result;
-					} else if (stats.isFile()) {
-						// Look for blender executable
-						const isExecutable = process.platform === 'win32' 
-							? item.toLowerCase() === 'blender.exe'
-							: item === 'blender' || item === 'Blender';
-						
-						if (isExecutable) {
-							return itemPath;
-						}
-					}
-				}
-			} catch (error) {
-				console.error('Error searching for executable:', error);
-			}
-			
-			return null;
-		};
-
-		return findExecutable(extractedPath);
+		return this.extractor.findBlenderExecutable(extractedPath);
 	}
 }

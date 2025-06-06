@@ -30,9 +30,9 @@ export class BlenderViewRenderer {
 	private isRefreshing = false;
 	private cachedBuilds: BlenderBuildInfo[] = [];
 	private currentFilter: string = '';
-	private currentBranch: string = 'all';
-	private currentBuildType: BuildType | 'all' = 'all';
+	private currentBranch: string = 'all';	private currentBuildType: BuildType | 'all' = 'all';
 	private showInstalledOnly = false;
+	private pinSymlinkedBuild = false;
 	private isTypeFilterVisible = false;
 	constructor(
 		plugin: FetchBlenderBuildsPlugin,
@@ -42,19 +42,20 @@ export class BlenderViewRenderer {
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.buildFilter = new BuildFilter(buildManager);
-				// Initialize state from settings
+		// Initialize state from settings
 		this.showInstalledOnly = plugin.settings.showInstalledOnly;
 		this.currentBuildType = plugin.settings.preferredBuildType;
+		this.pinSymlinkedBuild = plugin.settings.pinSymlinkedBuild;
 		
 		// Initialize layout manager
-		this.layoutManager = new BlenderViewLayoutManager(containerEl);
-		// Initialize component instances
+		this.layoutManager = new BlenderViewLayoutManager(containerEl);		// Initialize component instances
 		this.toolbar = new BlenderToolbar(
 			this.plugin,
 			buildManager,
 			() => this.refreshBuilds(),
 			() => this.showSettings(),
-			() => this.toggleTypeFilter()
+			() => this.toggleTypeFilter(),
+			() => this.togglePin()
 		);
 		
 		this.statusDisplay = new BlenderStatusDisplay(buildManager);
@@ -100,9 +101,7 @@ export class BlenderViewRenderer {
 		
 		// Update builds content
 		await this.updateBuildsContent();
-	}
-
-	/**
+	}	/**
 	 * Update toolbar section only
 	 */
 	private updateToolbar(): void {
@@ -110,6 +109,8 @@ export class BlenderViewRenderer {
 		if (toolbarContainer) {
 			this.toolbar.render(toolbarContainer);
 			this.toolbar.setButtonActive('filter', this.isTypeFilterVisible);
+			this.toolbar.setButtonActive('pin', this.pinSymlinkedBuild);
+			this.toolbar.updatePinButtonTooltip(this.pinSymlinkedBuild);
 		}
 	}
 
@@ -137,8 +138,7 @@ export class BlenderViewRenderer {
 	 */	private async updateBuildsContent(): Promise<void> {
 		const contentArea = this.layoutManager.getContentArea();
 		if (!contentArea) return;
-		
-		// Get current builds
+				// Get current builds
 		const builds = this.buildManager.getCachedBuilds();
 		
 		// Apply filters
@@ -149,8 +149,9 @@ export class BlenderViewRenderer {
 			installedOnly: this.showInstalledOnly
 		});
 		
-		// Render builds with highlighting
-		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds, this.currentFilter);
+		// Render builds with highlighting and pin state
+		// Pass both filtered builds and all builds so pinned build can be found from unfiltered list
+		this.buildsRenderer.renderBuilds(contentArea, filteredBuilds, this.currentFilter, this.pinSymlinkedBuild, builds);
 	}
 	
 
@@ -277,6 +278,17 @@ export class BlenderViewRenderer {
 	}
 	
 
+	/**
+	 * Toggle pin symlinked build functionality
+	 */
+	private async togglePin(): Promise<void> {
+		this.pinSymlinkedBuild = !this.pinSymlinkedBuild;
+		// Save to settings
+		this.plugin.settings.pinSymlinkedBuild = this.pinSymlinkedBuild;
+		await this.plugin.saveSettings();
+		this.updateToolbar();
+		this.updateBuildsContent();
+	}
 
 	/**
 	 * Refresh builds data
@@ -331,9 +343,11 @@ export class BlenderViewRenderer {
 		this.updateToolbar();
 		this.updateFilterSection();
 	}
+	
 	/**
 	 * Set up event listeners for build manager events
-	 */	private setupEventListeners(): void {
+	 */
+	private setupEventListeners(): void {
 		// Listen for builds updated event
 		this.buildManager.on('buildsUpdated', this.onBuildsUpdated.bind(this));
 		
@@ -346,6 +360,10 @@ export class BlenderViewRenderer {
 		
 		// Listen for build deletion events
 		this.buildManager.on('buildDeleted', this.onBuildDeleted.bind(this));
+		
+		// Listen for symlink events
+		this.buildManager.on('buildSymlinked', this.onBuildSymlinked.bind(this));
+		this.buildManager.on('buildUnsymlinked', this.onBuildUnsymlinked.bind(this));
 		
 		// Listen for settings updates (to refresh view when architecture changes)
 		this.buildManager.on('settingsUpdated', this.onSettingsUpdated.bind(this));
@@ -403,6 +421,53 @@ export class BlenderViewRenderer {
 		console.log(`Build deleted: ${build.subversion}`, deletionResult);
 		// Refresh the builds content to update button visibility
 		await this.updateBuildsContent();
+	}
+
+	/**
+	 * Handle build symlinked event
+	 */
+	private async onBuildSymlinked(build: BlenderBuildInfo, symlinkPath: string): Promise<void> {
+		console.log(`Build symlinked: ${build.subversion} -> ${symlinkPath}`);
+		// Refresh the builds content to update symlink button states and pinned container
+		await this.updateBuildsContent();
+	}
+
+	/**
+	 * Handle build unsymlinked event
+	 */
+	private async onBuildUnsymlinked(build: BlenderBuildInfo, symlinkPath: string): Promise<void> {
+		console.log(`Build unsymlinked: ${build.subversion} from ${symlinkPath}`);
+		// Refresh the builds content to update symlink button states and pinned container
+		await this.updateBuildsContent();
+	}
+
+	/**
+	 * Update settings and refresh the view
+	 */
+	updateSettings(): void {
+		// Update internal state from plugin settings
+		const oldShowInstalledOnly = this.showInstalledOnly;
+		const oldBuildType = this.currentBuildType;
+		const oldPinSymlinked = this.pinSymlinkedBuild;
+		
+		this.showInstalledOnly = this.plugin.settings.showInstalledOnly;
+		this.currentBuildType = this.plugin.settings.preferredBuildType;
+		this.pinSymlinkedBuild = this.plugin.settings.pinSymlinkedBuild;
+		
+		// Check if any relevant settings changed
+		const settingsChanged = (
+			oldShowInstalledOnly !== this.showInstalledOnly ||
+			oldBuildType !== this.currentBuildType ||
+			oldPinSymlinked !== this.pinSymlinkedBuild
+		);
+		
+		if (settingsChanged) {
+			// Update toolbar components to reflect new settings
+			this.toolbar.updateFromSettings(this.plugin.settings);
+			
+			// Re-render the view with new settings
+			this.render();
+		}
 	}
 
 	/**

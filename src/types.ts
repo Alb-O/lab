@@ -5,6 +5,12 @@ export interface BlenderBuildInfo {
 	commitTime: Date;
 	branch: string;
 	customExecutable?: string;
+	// Flag to indicate this build is locally installed but not in official cache
+	isOrphanedInstall?: boolean;
+	// Path to the extracted build directory (for orphaned installs)
+	extractedPath?: string;
+	// Path to the archive file (for orphaned installs)
+	archivePath?: string;
 }
 
 export interface BlenderVersion {
@@ -72,4 +78,29 @@ export interface BuildCache {
 	builds: BlenderBuildInfo[];
 	lastUpdated: string; // ISO string
 	version: string; // Cache format version for future compatibility
+}
+
+export interface InstalledBuildMetadata {
+	// Build information
+	link: string;
+	subversion: string;
+	buildHash: string | null;
+	commitTime: string; // ISO string
+	branch: string;
+	
+	// Local paths
+	extractedPath?: string;
+	archivePath?: string;
+	customExecutable?: string;
+	
+	// Installation metadata
+	installedAt: string; // ISO string
+	lastLaunched?: string; // ISO string
+	buildType: BuildType;
+}
+
+export interface InstalledBuildsCache {
+	builds: InstalledBuildMetadata[];
+	lastUpdated: string; // ISO string
+	version: string; // Cache format version
 }
