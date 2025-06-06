@@ -40,16 +40,27 @@ def build_sidecar_content(
 	resources: List[dict]
 ) -> Tuple[str, Dict]:
 	"""Build sidecar content and track UUID pushes."""
+	# Get vault root and compute vault-relative path
+	vault_root = get_obsidian_vault_root()
+	if not vault_root:
+		raise ValueError("Obsidian vault root is required for sidecar generation")
+	
+	# Convert absolute blend path to vault-relative
+	if not os.path.isabs(blend_path):
+		# If blend_path is relative, make it absolute first
+		blend_path = os.path.abspath(blend_path)
+	
+	vault_rel_blend_path = os.path.relpath(blend_path, vault_root).replace(os.sep, '/')
+	
 	file_uuid = read_sidecar_uuid(blend_path + SIDECAR_EXTENSION) or generate_filepath_hash(blend_path)
-		# Build content sections
-	blend_filename = os.path.basename(blend_path)
+	# Build content sections - use vault-relative path for all links
 	sections = [
 		build_template_heading("main_heading"),
 		SIDECAR_MESSAGE_EMBED,
-		build_template_heading("current_file", "./" + blend_filename),
+		build_template_heading("current_file", vault_rel_blend_path),
 		SIDECAR_JSON_BLOCK_START,
 		json.dumps({
-			"path": os.path.basename(blend_path),
+			"path": vault_rel_blend_path,
 			BV_FILE_UUID_KEY: file_uuid,
 			"assets": list(local_assets.values())
 		}, indent=2, ensure_ascii=False),
@@ -78,15 +89,25 @@ def build_simple_current_file_content(
 	assets: List[dict]
 ) -> str:
 	"""Build simple sidecar content with just current file section for UUID pushing."""
-	blend_filename = os.path.basename(blend_path)
+	# Get vault root and compute vault-relative path
+	vault_root = get_obsidian_vault_root()
+	if not vault_root:
+		raise ValueError("Obsidian vault root is required for sidecar generation")
+	
+	# Convert to vault-relative path
+	if not os.path.isabs(blend_path):
+		blend_path = os.path.abspath(blend_path)
+	
+	vault_rel_blend_path = os.path.relpath(blend_path, vault_root).replace(os.sep, '/')
+	
 	sections = [
 		build_template_heading("main_heading"),
 		SIDECAR_MESSAGE_EMBED,
 		"",
-		build_template_heading("current_file", "./" + blend_filename),
+		build_template_heading("current_file", vault_rel_blend_path),
 		SIDECAR_JSON_BLOCK_START,
 		json.dumps({
-			"path": blend_filename,
+			"path": vault_rel_blend_path,
 			BV_FILE_UUID_KEY: file_uuid,
 			"assets": assets
 		}, indent=2, ensure_ascii=False),
@@ -108,18 +129,18 @@ def _build_linked_libraries_section(
 ) -> Dict:
 	"""Build the linked libraries section and return UUID pushes."""
 	uuid_pushes = {}
+	
+	# Vault root is now required
+	vault_root = get_obsidian_vault_root()
+	if not vault_root:
+		raise ValueError("Obsidian vault root is required for sidecar link generation")
+	
 	for lib in libraries:
-		# Process library path
-		lib_path = lib.filepath.lstrip('//').replace('\\', '/')
-		# Ensure lib_path doesn't already have sidecar extension
-		if lib_path.endswith(SIDECAR_EXTENSION):
-			lib_path = lib_path[:-len(SIDECAR_EXTENSION)]
-		
-		# Keep the library sidecar path relative for local path resolution
-		# but use absolute path for file existence checking
-		lib_sidecar_path = os.path.normpath(
-			os.path.join(os.path.dirname(blend_path), lib_path)
-		) + SIDECAR_EXTENSION
+		# Absolute library path and vault-relative path (without sidecar ext)
+		abs_lib_path = bpy.path.abspath(lib.filepath)
+		vault_rel = os.path.relpath(abs_lib_path, vault_root).replace(os.sep, '/')
+		# Sidecar absolute path: vault_root/vault_rel.side.md
+		lib_sidecar_path = os.path.normpath(os.path.join(vault_root, vault_rel + SIDECAR_EXTENSION))
 		
 		# Get or generate library UUID
 		lib_uuid = read_sidecar_uuid(lib_sidecar_path)
@@ -155,23 +176,14 @@ def _build_linked_libraries_section(
 		# Schedule UUID push only for new libraries without sidecars
 		if not os.path.exists(lib_sidecar_path) and (uuid_was_generated or new_assets):
 			uuid_pushes[lib_sidecar_path] = (lib_uuid, new_assets)
-		
-		# Add to sidecar content
-		vault_root = None
-		# The get_obsidian_vault_root is imported at the top of the file.
-		# We need to ensure it's not None before calling.
-		if get_obsidian_vault_root is not None:
-			vault_root = get_obsidian_vault_root() # Call the function
-		
-		# If get_obsidian_vault_root was None (e.g. import issue), vault_root remains None.
-		# get_resource_warning_prefix is expected to handle vault_root being None.
-		warning_prefix = get_resource_warning_prefix(lib_path, blend_path, vault_root)
-		library_display_name = warning_prefix + os.path.basename(lib_path)
+				# Add to sidecar content (use vault-relative paths)
+		warning_prefix = get_resource_warning_prefix(abs_lib_path, blend_path, vault_root)
+		library_display_name = warning_prefix + os.path.basename(abs_lib_path)
 		sections.extend([
-			build_template_heading("library_entry", lib_path + SIDECAR_EXTENSION, library_display_name),
+			build_template_heading("library_entry", vault_rel + SIDECAR_EXTENSION, library_display_name),
 			SIDECAR_JSON_BLOCK_START,
 			json.dumps({
-				"path": lib_path,
+				"path": vault_rel,
 				"uuid": lib_uuid,
 				"assets": linked_assets
 			}, indent=2, ensure_ascii=False),

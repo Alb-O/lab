@@ -28,18 +28,18 @@ def _build_current_file_section_regex() -> str:
 	return rf"{pattern}\s*\n```json\s*\n(.*?)\n```"
 
 def _log(level: str, message: str) -> None:
-    if level == 'INFO':
-        log_info(message, module_name='SidecarFileOps')
-    elif level == 'WARN':
-        log_warning(message, module_name='SidecarFileOps')
-    elif level == 'ERROR':
-        log_error(message, module_name='SidecarFileOps')
-    elif level == 'SUCCESS':
-        log_success(message, module_name='SidecarFileOps')
-    elif level == 'DEBUG':
-        log_debug(message, module_name='SidecarFileOps')
-    else:
-        print(f"{message}")
+	if level == 'INFO':
+		log_info(message, module_name='SidecarFileOps')
+	elif level == 'WARN':
+		log_warning(message, module_name='SidecarFileOps')
+	elif level == 'ERROR':
+		log_error(message, module_name='SidecarFileOps')
+	elif level == 'SUCCESS':
+		log_success(message, module_name='SidecarFileOps')
+	elif level == 'DEBUG':
+		log_debug(message, module_name='SidecarFileOps')
+	else:
+		print(f"{message}")
 
 def write_sidecar_with_content_preservation(md_path: str, new_data_content: str) -> None:
 	"""Write sidecar while preserving user content."""

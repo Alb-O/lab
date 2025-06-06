@@ -1,444 +1,328 @@
 """
 Library relinking module for Blend Vault.
-Handles relinking libraries based on information in the sidecar Markdown file.
+Handles relinking libraries based on vault-root-relative paths from sidecar files.
 """
 
 import bpy
 import os
 import traceback
-from typing import Dict, Optional, Any, Set  # Ensure Set is imported
-from bpy.types import Context, Event, Operator  # Import specific bpy types for hinting
+from typing import Dict, Optional, Any, Set
+from bpy.types import Context, Event, Operator
 
 from .. import SIDECAR_EXTENSION
+from ..preferences import get_obsidian_vault_root
 from ..core import log_info, log_warning, log_error, log_success, log_debug
 from .shared_utils import (
-    BaseRelinker,
-    PathResolver,
-    LibraryManager,
-    ensure_saved_file,
-    make_paths_relative,
-    create_blender_operator_class,
-    get_blend_file_path_from_sidecar
+	SidecarParser,
+	PathResolver,
+	LibraryManager,
+	ensure_saved_file,
+	make_paths_relative,
+	create_blender_operator_class,
+	get_blend_file_path_from_sidecar
 )
 
 
-class LibraryRelinkProcessor(BaseRelinker):
-    """Handles the library relinking logic."""
-    
-    def process_relink(self) -> None:
-        """Main entry point for library relinking process."""
-        if not self.ensure_sidecar_exists():
-            return
-        
-        self.log_start("LibraryRelink")
-        
-        try:
-            parser = self.get_parser()
-            linked_libraries = parser.extract_json_blocks_with_links("Linked Libraries")
-            if not linked_libraries:
-                log_info("[LibraryRelinker] No linked library data found in sidecar. Skipping sidecar-based relinks.", module_name='LibraryRelinker')
-            else:
-                found_any_link = False
-                for lib_path, lib_data in linked_libraries.items():
-                    if self._process_library_entry(lib_data):
-                        found_any_link = True
-                if not found_any_link:
-                    log_info("[LibraryRelinker] No valid library entries were processed from sidecar.", module_name='LibraryRelinker')
+class LibraryRelinkProcessor:
+	"""Handles library relinking using vault-root-relative paths."""
+	
+	def __init__(self, main_blend_path: str):
+		# Get vault root and fail fast if not available
+		vault_root = get_obsidian_vault_root()
+		if not vault_root:
+			raise ValueError("Obsidian vault root is not configured. Library relinking requires a configured vault root.")
+		self.vault_root = vault_root
+		
+		# Store original main blend path for Blender relative path computation
+		self.original_main_blend_path = main_blend_path
+		
+		# Check if this is a relocated file using redirect handler
+		from .redirect_handler import _pending_relocations
+		for old_path, new_path in _pending_relocations.items():
+			if new_path == main_blend_path:
+				self.original_main_blend_path = old_path
+				log_info(f"Detected relocation: using original path {old_path} for relative computations", module_name='LibraryRelink')
+				break
+		
+		# All paths computed relative to vault root
+		self.main_blend_path = main_blend_path
+		self.main_vault_rel = os.path.relpath(self.main_blend_path, self.vault_root).replace(os.sep, '/')
+		self.sidecar_path = os.path.normpath(os.path.join(self.vault_root, self.main_vault_rel + SIDECAR_EXTENSION))
+		
+		log_debug(f"LibraryRelinkProcessor initialized with vault_root={self.vault_root}, main_vault_rel={self.main_vault_rel}", module_name='LibraryRelink')
+	
+	def process_relink(self) -> None:
+		"""Main entry point for library relinking process."""		# Skip if sidecar doesn't exist
+		if not os.path.exists(self.sidecar_path):
+			log_warning(f"Main sidecar file not found: {self.sidecar_path}", module_name='LibraryRelink')
+			return
+		
+		log_info(f"Processing main sidecar for library relinking: {self.sidecar_path}", module_name='LibraryRelink')
+		
+		try:
+			parser = SidecarParser(self.sidecar_path)
+			
+			# Parse linked libraries from main sidecar
+			linked_libraries = parser.extract_json_blocks_with_links("Linked Libraries")
+			if not linked_libraries:
+				log_info("No linked library data found in main sidecar.", module_name='LibraryRelink')
+				return
+			
+			# Process each library entry using vault-root-relative paths
+			relink_count = 0
+			for lib_vault_rel, lib_data in linked_libraries.items():
+				if self._process_library_entry(lib_vault_rel, lib_data):
+					relink_count += 1
+			
+			log_success(f"Successfully processed {relink_count}/{len(linked_libraries)} library entries", module_name='LibraryRelink')
+			
+			# Make paths relative at the end for Blender compatibility
+			make_paths_relative()
+			
+		except Exception as e:
+			log_error(f"Error during library relinking process: {e}", module_name='LibraryRelink')
+			traceback.print_exc()
+		
+	def _process_library_entry(self, lib_vault_rel: str, lib_data: Dict[str, Any]) -> bool:
+		"""
+		Process a single library entry using vault-root-relative paths.
+		
+		Args:
+			lib_vault_rel: Vault-relative path from sidecar link (may include .side.md extension)
+			lib_data: Library data dictionary from sidecar parser
+		
+		Returns:
+			True if the library was successfully processed, False otherwise
+		"""
+		json_data = lib_data["json_data"]
+		stored_uuid = json_data.get("uuid")
+		
+		if not stored_uuid or stored_uuid == "MISSING_HASH":
+			if stored_uuid == "MISSING_HASH":
+				log_info(f"Library '{lib_vault_rel}' has 'MISSING_HASH'. Skipping.", module_name='LibraryRelink')
+			else:
+				log_warning(f"Library '{lib_vault_rel}': Missing or invalid UUID", module_name='LibraryRelink')
+			return False
+		
+		# Handle link path: if it ends with .side.md, extract the actual blend path
+		if lib_vault_rel.endswith(SIDECAR_EXTENSION):
+			# This is a link to the sidecar file, extract the blend path
+			lib_blend_vault_rel = lib_vault_rel[:-len(SIDECAR_EXTENSION)]
+			lib_sidecar_vault_rel = lib_vault_rel
+		else:
+			# This is a direct blend file path (legacy format)
+			lib_blend_vault_rel = lib_vault_rel
+			lib_sidecar_vault_rel = lib_vault_rel + SIDECAR_EXTENSION
+		
+		# Convert vault-relative blend path to absolute
+		lib_abs_path = os.path.normpath(os.path.join(self.vault_root, lib_blend_vault_rel))
+		lib_sidecar_abs_path = os.path.normpath(os.path.join(self.vault_root, lib_sidecar_vault_rel))
+		
+		# Verify the library file exists
+		if not os.path.exists(lib_abs_path):
+			log_warning(f"Library file does not exist: {lib_abs_path}", module_name='LibraryRelink')
+			return False
+		
+		# Compute Blender-relative path from original main blend location
+		original_main_dir = os.path.dirname(self.original_main_blend_path)
+		blender_rel_path = os.path.relpath(lib_abs_path, original_main_dir).replace(os.sep, '/')
+		blender_lib_path = PathResolver.blender_relative_path(blender_rel_path)
+		
+		log_debug(f"Processing library '{lib_vault_rel}' (UUID: {stored_uuid})", module_name='LibraryRelink')
+		log_debug(f"  Absolute path: {lib_abs_path}", module_name='LibraryRelink')
+		log_debug(f"  Blender path: {blender_lib_path}", module_name='LibraryRelink')
+		
+		# Try to find existing library by UUID
+		existing_lib = LibraryManager.find_library_by_uuid(stored_uuid)
+		if existing_lib:
+			return self._relink_existing_library(existing_lib, blender_lib_path, lib_abs_path, lib_vault_rel)
+		
+		# Try to find by filename
+		filename = os.path.basename(lib_vault_rel)
+		existing_lib = LibraryManager.find_library_by_filename(filename)
+		if existing_lib:
+			log_info(f"Found library by filename: {filename}", module_name='LibraryRelink')
+			return self._relink_existing_library(existing_lib, blender_lib_path, lib_abs_path, lib_vault_rel)
+		
+		# Library not found in Blender session - try to load it
+		return self._load_new_library(blender_lib_path, lib_abs_path, lib_vault_rel)
 
-            # Fallback: attempt to fix any missing libraries in current session
-            for lib in bpy.data.libraries:
-                if lib.filepath and not lib.filepath.startswith('<builtin>'):
-                    abs_path = bpy.path.abspath(lib.filepath)
-                    if not os.path.exists(abs_path):
-                        # Try to fix this missing library
-                        link_name = lib.name
-                        relative_path = lib.filepath
-                        target_path = abs_path
-                        self._fix_missing_library(link_name, relative_path, target_path)
-            
-            # Make paths relative at the end
-            make_paths_relative()
-            
-        except Exception as e:
-            log_error(f"[LibraryRelinker] Error during relinking process: {e}", module_name='LibraryRelinker')
-            traceback.print_exc()
-        
-        self.log_finish("LibraryRelink")
-    
-    def _process_library_entry(self, lib_data: Dict[str, Any]) -> bool:
-        """Process a single library entry from the sidecar."""
-        link_name = lib_data["link_name"]
-        link_path = lib_data["link_path"]  # This will be like 'mylib.blend.side.md'
-        json_data = lib_data["json_data"]
+	def _relink_existing_library(
+		self, 
+		library: bpy.types.Library, 
+		blender_lib_path: str, 
+		lib_abs_path: str,
+		lib_vault_rel: str
+	) -> bool:
+		"""Relink an existing library to the correct vault-root-relative path."""
+		# Normalize paths for comparison
+		current_lib_path_normalized = PathResolver.normalize_path(library.filepath)
+		new_lib_path_normalized = PathResolver.normalize_path(blender_lib_path)
+		
+		log_debug(f"Relinking check for '{library.name}':", module_name='LibraryRelink')
+		log_debug(f"  Current: '{library.filepath}' -> '{current_lib_path_normalized}'", module_name='LibraryRelink')
+		log_debug(f"  Target: '{blender_lib_path}' -> '{new_lib_path_normalized}'", module_name='LibraryRelink')
+		
+		if current_lib_path_normalized != new_lib_path_normalized:
+			log_info(f"Relinking '{library.name}' from '{library.filepath}' to '{blender_lib_path}'", module_name='LibraryRelink')
+			library.filepath = blender_lib_path
+			
+			try:
+				library.reload()
+				log_success(f"Successfully reloaded library '{library.name}' from {lib_vault_rel}", module_name='LibraryRelink')
+				return True
+			except Exception as e:
+				log_error(f"Failed to reload '{library.name}': {e}", module_name='LibraryRelink')
+				return False
+		else:
+			# Paths match, but check if library is still missing/broken
+			is_missing = self._is_library_missing(library)
+			if is_missing:
+				log_info(f"Library '{library.name}' path matches but is missing - forcing reload", module_name='LibraryRelink')
+				try:
+					library.reload()
+					log_success(f"Successfully reloaded missing library '{library.name}'", module_name='LibraryRelink')
+					return True
+				except Exception as e:
+					log_error(f"Failed to reload missing library '{library.name}': {e}", module_name='LibraryRelink')
+					return False
+			else:
+				log_info(f"Library '{library.name}' is already correctly linked", module_name='LibraryRelink')
+				return True
 
-        stored_path = json_data.get("path")
-        stored_uuid = json_data.get("uuid")
+	def _load_new_library(self, blender_lib_path: str, lib_abs_path: str, lib_vault_rel: str) -> bool:
+		"""
+		Load a new library that isn't currently in the Blender session.
+		
+		Note: This method attempts to load the library but doesn't automatically link all assets.
+		The library will be available for manual linking or will be picked up by asset relinking.
+		"""
+		log_info(f"Loading new library: {lib_vault_rel}", module_name='LibraryRelink')
+		log_debug(f"  Blender path: {blender_lib_path}", module_name='LibraryRelink')
+		log_debug(f"  Absolute path: {lib_abs_path}", module_name='LibraryRelink')
+		
+		try:
+			# Load the library without linking specific assets
+			# This makes the library available in Blender's library list
+			with bpy.data.libraries.load(lib_abs_path, link=False, relative=True) as (data_from, data_to):
+				# Don't link any specific assets - just load the library reference
+				pass
+			
+			log_success(f"Successfully loaded new library: {lib_vault_rel}", module_name='LibraryRelink')
+			return True
+			
+		except Exception as e:
+			log_error(f"Failed to load new library '{lib_vault_rel}': {e}", module_name='LibraryRelink')
+			return False
 
-        if not stored_path or not stored_uuid or stored_uuid == "MISSING_HASH":
-            if stored_uuid == "MISSING_HASH":
-                log_info(f"[LibraryRelinker] Entry for '{link_name}' has 'MISSING_HASH'. Skipping.", module_name='LibraryRelinker')
-            else:
-                log_warning(f"[LibraryRelinker] Invalid data for '{link_name}': Missing path or UUID", module_name='LibraryRelinker')
-            return False
-
-        # Convert sidecar path (e.g., 'mylib.blend.side.md') to blend path (e.g., 'mylib.blend')
-        # Use the new utility function for robust conversion
-        blend_file_link_path = get_blend_file_path_from_sidecar(link_path)
-
-        log_info(f"[LibraryRelinker] Processing: '{link_name}' -> '{stored_path}' (UUID: {stored_uuid}). Link path from MD: '{link_path}' -> Blend path: '{blend_file_link_path}'", module_name='LibraryRelinker')        # Use the markdown link path (converted to .blend) preferentially
-        target_path = blend_file_link_path or stored_path
-        relative_path = PathResolver.blender_relative_path(target_path)
-        
-        # Convert target_path to absolute path for file operations
-        blend_dir = os.path.dirname(self.blend_file_path)
-        target_abs_path = PathResolver.resolve_relative_to_absolute(target_path, blend_dir)
-        
-        # Try to find existing library by UUID
-        existing_lib = LibraryManager.find_library_by_uuid(stored_uuid)
-        if existing_lib:
-            return self._relink_existing_library(existing_lib, relative_path, target_abs_path)
-        
-        # Try to find by filename
-        filename = os.path.basename(target_path)
-        existing_lib = LibraryManager.find_library_by_filename(filename)
-        if existing_lib:
-            log_info(f"[LibraryRelinker] Found library by filename: {filename}", module_name='LibraryRelinker')
-            return self._relink_existing_library(existing_lib, relative_path, target_abs_path)
-        
-        # Try to fix missing libraries
-        return self._fix_missing_library(link_name, relative_path, target_abs_path)
-    
-    def _relink_existing_library(self, library: bpy.types.Library, relative_path: str, target_path: str) -> bool:
-        """Relink an existing library if its path differs."""
-        # Normalize both the current library filepath and the new target relative_path for comparison.
-        # library.filepath is usually already relative (e.g., //../libs/lib.blend or ../libs/lib.blend)
-        # relative_path is the calculated desired relative path.
-        current_lib_path_normalized = PathResolver.normalize_path(library.filepath)
-        new_relative_path_normalized = PathResolver.normalize_path(relative_path)
-
-        # Debugging paths
-        log_debug(f"[LibraryRelinker] Relinking Check for '{library.name}':", module_name='LibraryRelinker')
-        log_debug(f"    Current Library.filepath (raw): '{library.filepath}'", module_name='LibraryRelinker')
-        log_debug(f"    Current Library.filepath (normalized): '{current_lib_path_normalized}'", module_name='LibraryRelinker')
-        log_debug(f"    Target Relative Path (calculated): '{relative_path}'", module_name='LibraryRelinker')
-        log_debug(f"    Target Relative Path (normalized): '{new_relative_path_normalized}'", module_name='LibraryRelinker')
-        log_debug(f"    Target Absolute Path (from sidecar): '{target_path}'", module_name='LibraryRelinker')
-        
-        if current_lib_path_normalized != new_relative_path_normalized:
-            log_info(f"[LibraryRelinker] Relinking '{library.name}' from '{library.filepath}' to '{relative_path}'", module_name='LibraryRelinker')
-            library.filepath = relative_path  # Assign the non-normalized relative_path
-            
-            try:
-                library.reload()
-                log_success(f"[LibraryRelinker] Successfully reloaded library '{library.name}'", module_name='LibraryRelinker')
-                return True
-            except Exception as e:
-                log_error(f"[LibraryRelinker] Failed to reload '{library.name}': {e}", module_name='LibraryRelinker')
-                return False
-        else:
-            # Even if paths match, check if the library is missing/broken
-            # AND check if the target file actually exists where it should
-            target_file_exists = os.path.exists(target_path)
-            is_missing = self._is_library_missing(library)
-            
-            log_debug(f"[LibraryRelinker] Paths match check - target exists: {target_file_exists}, library missing: {is_missing}", module_name='LibraryRelinker')
-            
-            if is_missing or not target_file_exists:
-                reason = "library is missing" if is_missing else "target file doesn't exist"
-                log_info(f"[LibraryRelinker] Library '{library.name}' path matches but {reason} - forcing reload", module_name='LibraryRelinker')
-                try:
-                    library.reload()
-                    log_success(f"[LibraryRelinker] Successfully reloaded missing library '{library.name}'", module_name='LibraryRelinker')
-                    return True
-                except Exception as e:
-                    log_error(f"[LibraryRelinker] Failed to reload missing library '{library.name}': {e}", module_name='LibraryRelinker')
-                    # Try with absolute path
-                    try:
-                        original_path = library.filepath
-                        library.filepath = target_path
-                        library.reload()
-                        log_success(f"[LibraryRelinker] Successfully reloaded library '{library.name}' with absolute path", module_name='LibraryRelinker')
-                        return True
-                    except Exception as e2:
-                        log_error(f"[LibraryRelinker] Absolute path fallback also failed: {e2}", module_name='LibraryRelinker')
-                        library.filepath = original_path  # Restore original path
-                        return False
-            else:
-                log_info(f"[LibraryRelinker] Path for '{library.name}' already matches stored path and target exists", module_name='LibraryRelinker')
-            return True
-
-    def _fix_missing_library(self, link_name: str, relative_path: str, target_path: str) -> bool:
-        """Try to fix missing libraries by relinking or loading new ones."""
-        log_info(f"[LibraryRelinker] Library with name '{link_name}' not found. Attempting to fix missing library.", module_name='LibraryRelinker')
-        log_debug(f"[LibraryRelinker] Target paths - relative: '{relative_path}', absolute: '{target_path}'", module_name='LibraryRelinker')
-        
-        # Verify the target file exists before attempting relink
-        if not os.path.exists(target_path):
-            log_warning(f"[LibraryRelinker] Target library file does not exist: {target_path}", module_name='LibraryRelinker')
-            return False
-          # Try to find a missing library that matches the link name
-        missing_lib = self._find_missing_library_by_name(link_name)
-        if missing_lib:
-            log_info(f"[LibraryRelinker] Found missing library '{missing_lib.name}' matching link name", module_name='LibraryRelinker')
-            log_debug(f"[LibraryRelinker] Old filepath: '{missing_lib.filepath}'", module_name='LibraryRelinker')
-            # Convert absolute path to relative path for Blender
-            blend_dir = os.path.dirname(self.blend_file_path)
-            # Attempt to reload using a Blender-compatible relative path
-            rel = os.path.relpath(target_path, blend_dir)
-            rel = rel.replace('\\', '/')
-            if not rel.startswith('./'):
-                rel = './' + rel
-            lib_name = missing_lib.name
-            missing_lib.filepath = rel
-            log_debug(f"[LibraryRelinker] Attempting relative reload for '{lib_name}' with path '{rel}'", module_name='LibraryRelinker')
-            try:
-                missing_lib.reload()
-                log_success(f"[LibraryRelinker] Successfully reloaded missing library '{lib_name}' via relative path", module_name='LibraryRelinker')
-                return True
-            except Exception as e:
-                # Relative reload failure is expected; fallback to absolute path next
-                log_debug(f"[LibraryRelinker] Relative reload failed for '{lib_name}': {e}", module_name='LibraryRelinker')
-            # Fallback: try absolute path
-            missing_lib.filepath = target_path
-            log_debug(f"[LibraryRelinker] Attempting absolute reload for '{lib_name}' with path '{target_path}'", module_name='LibraryRelinker')
-            try:
-                missing_lib.reload()
-                log_success(f"[LibraryRelinker] Successfully reloaded missing library '{lib_name}' via absolute path", module_name='LibraryRelinker')
-                return True
-            except Exception as e2:
-                log_error(f"[LibraryRelinker] Absolute reload failed for '{lib_name}': {e2}", module_name='LibraryRelinker')
-                return False
-          # Try to use any missing library
-        any_missing_lib = self._find_any_missing_library()
-        if any_missing_lib:
-            log_info(f"[LibraryRelinker] Using any available missing library '{any_missing_lib.name}'", module_name='LibraryRelinker')
-            log_debug(f"[LibraryRelinker] Old filepath: '{any_missing_lib.filepath}'", module_name='LibraryRelinker')
-            
-            # Convert absolute path to relative path for Blender
-            blend_dir = os.path.dirname(self.blend_file_path)
-            try:
-                rel_path = os.path.relpath(target_path, blend_dir)
-                # Ensure forward slashes for Blender compatibility
-                rel_path = rel_path.replace('\\', '/')
-                if not rel_path.startswith('./'):
-                    rel_path = './' + rel_path
-                
-                any_missing_lib.filepath = rel_path
-                log_debug(f"[LibraryRelinker] New relative filepath: '{any_missing_lib.filepath}'", module_name='LibraryRelinker')
-                
-                any_missing_lib.reload()
-                log_success(f"[LibraryRelinker] Successfully reloaded library '{any_missing_lib.name}' at new path", module_name='LibraryRelinker')
-                return True
-            except Exception as e:
-                log_error(f"[LibraryRelinker] Failed to reload library '{any_missing_lib.name}': {e}", module_name='LibraryRelinker')
-                # Fallback: try with absolute path
-                try:
-                    any_missing_lib.filepath = target_path
-                    any_missing_lib.reload()
-                    log_success(f"[LibraryRelinker] Successfully reloaded library '{any_missing_lib.name}' with absolute path", module_name='LibraryRelinker')
-                    return True
-                except Exception as e2:
-                    log_error(f"[LibraryRelinker] Absolute path fallback also failed: {e2}", module_name='LibraryRelinker')
-        # Try to load a new library
-        return self._load_new_library(relative_path, target_path)
-    
-    def _find_missing_library_by_name(self, link_name: str) -> Optional[bpy.types.Library]:
-        """Find a missing library that matches the given name."""
-        link_name_no_ext = os.path.splitext(link_name)[0]
-        
-        for lib in bpy.data.libraries:
-            if self._is_library_missing(lib):
-                lib_name_no_ext = os.path.splitext(lib.name)[0]
-                
-                # Handle Blender's automatic .001, .002 etc. suffixes
-                # Remove numeric suffix from library name for comparison
-                base_lib_name = lib_name_no_ext
-                if '.' in lib_name_no_ext:
-                    parts = lib_name_no_ext.split('.')
-                    if len(parts) > 1 and parts[-1].isdigit():
-                        base_lib_name = '.'.join(parts[:-1])
-                
-                log_debug(f"[LibraryRelinker] Comparing '{link_name_no_ext}' with library '{lib.name}' (base: '{base_lib_name}')", module_name='LibraryRelinker')
-                
-                if lib_name_no_ext == link_name_no_ext or base_lib_name == link_name_no_ext:
-                    log_debug(f"[LibraryRelinker] Found matching library: '{lib.name}'", module_name='LibraryRelinker')
-                    return lib
-        return None
-    
-    def _find_any_missing_library(self) -> Optional[bpy.types.Library]:
-        """Find any missing library."""
-        for lib in bpy.data.libraries:
-            if self._is_library_missing(lib):
-                return lib
-        return None
-
-    def _is_library_missing(self, library: bpy.types.Library) -> bool:
-        """Check if a library is missing."""
-        log_debug(f"[LibraryRelinker] Checking if library '{library.name}' is missing:", module_name='LibraryRelinker')
-        log_debug(f"    Library.filepath: '{library.filepath}'", module_name='LibraryRelinker')
-        
-        if hasattr(library, 'is_missing'):
-            log_debug(f"    Library.is_missing property: {library.is_missing}", module_name='LibraryRelinker')
-            if library.is_missing:
-                return True
-        
-        # Fallback: check if file exists
-        abs_path = PathResolver.resolve_blender_path(library.filepath)
-        log_debug(f"    Resolved absolute path: '{abs_path}'", module_name='LibraryRelinker')
-        file_exists = os.path.exists(abs_path)
-        log_debug(f"    File exists: {file_exists}", module_name='LibraryRelinker')
-        
-        is_missing = not file_exists
-        log_debug(f"    Final is_missing result: {is_missing}", module_name='LibraryRelinker')
-        return is_missing
-    def _load_new_library(self, relative_path: str, target_path: str) -> bool:
-        """Load a new library if the file exists."""
-        # target_path is already the absolute path to the .blend file,
-        # derived from the sidecar data (either markdown link or JSON 'path').
-        abs_path = PathResolver.normalize_path(target_path)
-        
-        log_debug(f"[LibraryRelinker] Attempting to load new library:", module_name='LibraryRelinker')
-        log_debug(f"    Absolute path for loading: '{abs_path}'", module_name='LibraryRelinker')
-        log_debug(f"    Relative path for Blender: '{relative_path}'", module_name='LibraryRelinker')
-
-        if not os.path.exists(abs_path):
-            log_warning(f"[LibraryRelinker] Library file does not exist: {abs_path}", module_name='LibraryRelinker')
-            return False
-
-        log_info(f"[LibraryRelinker] Loading new library: {relative_path}", module_name='LibraryRelinker')
-        
-        # Try to load the library and link all available items
-        try:
-            # First, try to load with relative path for better portability
-            blend_dir = os.path.dirname(self.blend_file_path)
-            rel_path = os.path.relpath(abs_path, blend_dir)
-            rel_path = rel_path.replace('\\', '/')
-            if not rel_path.startswith('./'):
-                rel_path = './' + rel_path
-            
-            log_debug(f"[LibraryRelinker] Using relative path for linking: '{rel_path}'", module_name='LibraryRelinker')
-            
-            with bpy.data.libraries.load(abs_path, link=True, relative=True) as (data_from, data_to):
-                # Get all available collections from the library
-                if hasattr(data_from, 'collections') and data_from.collections:
-                    data_to.collections = data_from.collections
-                    log_debug(f"[LibraryRelinker] Linked {len(data_from.collections)} collections", module_name='LibraryRelinker')
-                
-                # Also try to link other common data types
-                for attr_name in ['objects', 'meshes', 'materials', 'node_groups']:
-                    if hasattr(data_from, attr_name):
-                        attr_data = getattr(data_from, attr_name)
-                        if attr_data:
-                            setattr(data_to, attr_name, attr_data)
-                            log_debug(f"[LibraryRelinker] Linked {len(attr_data)} {attr_name}", module_name='LibraryRelinker')
-            
-            log_success(f"[LibraryRelinker] Successfully linked new library from {relative_path}", module_name='LibraryRelinker')
-            return True
-            
-        except Exception as e:
-            log_error(f"[LibraryRelinker] Failed to link new library from {relative_path}: {e}", module_name='LibraryRelinker')
-            
-            # Fallback: try with absolute path
-            try:
-                log_debug(f"[LibraryRelinker] Trying fallback with absolute path", module_name='LibraryRelinker')
-                with bpy.data.libraries.load(abs_path, link=True) as (data_from, data_to):
-                    pass  # Just load the library, don't link specific items
-                log_success(f"[LibraryRelinker] Successfully linked new library (absolute path fallback)", module_name='LibraryRelinker')
-                return True
-            except Exception as e2:
-                log_error(f"[LibraryRelinker] Absolute path fallback also failed: {e2}", module_name='LibraryRelinker')
-            
-        return False
-
-
+	def _is_library_missing(self, library: bpy.types.Library) -> bool:
+		"""Check if a library is missing or broken."""
+		# Check Blender's built-in missing flag
+		if hasattr(library, 'is_missing') and library.is_missing:
+			return True
+		
+		# Fallback: check if file exists
+		abs_path = PathResolver.resolve_blender_path(library.filepath)
+		return not os.path.exists(abs_path)
+	
 @bpy.app.handlers.persistent
 def relink_library_info(*args, **kwargs):
-    """Main entry point for library relinking. Called by Blender handlers."""
-    blend_path = ensure_saved_file()
-    if not blend_path:
-        return
-    
-    try:
-        processor = LibraryRelinkProcessor(blend_path)
-        processor.process_relink()
-    except Exception as e:
-        log_error(f"[LibraryRelinker] Unexpected error: {e}", module_name='LibraryRelinker')
-        traceback.print_exc()
+	"""Main entry point for library relinking. Called by Blender handlers."""
+	blend_path = ensure_saved_file()
+	if not blend_path:
+		return
+	
+	try:
+		processor = LibraryRelinkProcessor(blend_path)
+		processor.process_relink()
+	except Exception as e:
+		log_error(f"Library relinking failed: {e}", module_name='LibraryRelink')
+		traceback.print_exc()
 
 
 # Make the handler persistent
 relink_library_info.persistent = True
 
 
+def relink_libraries(main_blend_path: str) -> None:
+	"""
+	Main entry point for library relinking.
+	
+	Args:
+		main_blend_path: Absolute path to the main blend file
+	"""
+	try:
+		processor = LibraryRelinkProcessor(main_blend_path)
+		processor.process_relink()
+	except Exception as e:
+		log_error(f"Library relinking failed: {e}", module_name='LibraryRelink')
+
+
 def execute_relink_operator(self, context: bpy.types.Context):
-    """Execute function for the relink operator."""
-    if not self.sidecar_file_path:
-        self.report({'ERROR'}, "Sidecar file path not provided.")
-        return {'CANCELLED'}
-    
-    if not os.path.exists(self.sidecar_file_path):
-        self.report({'ERROR'}, f"Sidecar file not found: {self.sidecar_file_path}")
-        return {'CANCELLED'}
-    
-    log_info(f"Attempting to relink libraries from: {self.sidecar_file_path}", module_name='LibraryRelinker')
-    
-    try:
-        # Extract blend file path from sidecar path
-        # Use the robust utility function
-        blend_path = get_blend_file_path_from_sidecar(self.sidecar_file_path)
-        if not blend_path:
-            self.report({'ERROR'}, f"Could not determine .blend file path from sidecar: {self.sidecar_file_path}")
-            return {'CANCELLED'}
-            
-        processor = LibraryRelinkProcessor(blend_path)
-        processor.process_relink()
-        self.report({'INFO'}, "Library relinking process completed.")
-        return {'FINISHED'}
-    except Exception as e:
-        log_error(f"Error during operator execution: {e}", module_name='LibraryRelinker')
-        self.report({'ERROR'}, f"Relinking failed: {e}")
-        return {'CANCELLED'}
+	"""Execute function for the relink operator."""
+	if not self.sidecar_file_path:
+		self.report({'ERROR'}, "Sidecar file path not provided.")
+		return {'CANCELLED'}
+	
+	if not os.path.exists(self.sidecar_file_path):
+		self.report({'ERROR'}, f"Sidecar file not found: {self.sidecar_file_path}")
+		return {'CANCELLED'}
+	
+	log_info(f"Attempting to relink libraries from: {self.sidecar_file_path}", module_name='LibraryRelink')
+	
+	try:
+		# Extract blend file path from sidecar path
+		blend_path = get_blend_file_path_from_sidecar(self.sidecar_file_path)
+		if not blend_path:
+			self.report({'ERROR'}, f"Could not determine .blend file path from sidecar: {self.sidecar_file_path}")
+			return {'CANCELLED'}
+			
+		processor = LibraryRelinkProcessor(blend_path)
+		processor.process_relink()
+		self.report({'INFO'}, "Library relinking process completed.")
+		return {'FINISHED'}
+	except Exception as e:
+		log_error(f"Error during operator execution: {e}", module_name='LibraryRelink')
+		self.report({'ERROR'}, f"Relinking failed: {e}")
+		return {'CANCELLED'}
 
 
 # Create the operator class using the factory function
-# We assume create_blender_operator_class returns a type that is a subclass of bpy.types.Operator
-# and that it correctly sets up bl_idname, bl_label, and the execute method.
 BV_OT_RelinkLibraries: Any = create_blender_operator_class(
-    'BV_OT_RelinkLibraries',  # class_name
-    'blend_vault.relink_libraries',  # bl_idname
-    'Relink Libraries from Sidecar',  # bl_label
-    execute_relink_operator  # execute_method (assuming this is how your factory takes it)
+	'BV_OT_RelinkLibraries',
+	'blend_vault.relink_libraries',
+	'Relink Libraries from Sidecar',
+	execute_relink_operator
 )
 
 # Add the sidecar_file_path property to the operator
-# We cast BV_OT_RelinkLibraries to Operator to help Pylance
-if hasattr(BV_OT_RelinkLibraries, 'bl_rna'):  # A check to see if it's a Blender type
-    setattr(BV_OT_RelinkLibraries, 'sidecar_file_path', bpy.props.StringProperty(
-        name="Sidecar File Path",
-        description="Path to the sidecar file containing library information",
-        default="",
-        subtype='FILE_PATH',
-    ))
+if hasattr(BV_OT_RelinkLibraries, 'bl_rna'):
+	setattr(BV_OT_RelinkLibraries, 'sidecar_file_path', bpy.props.StringProperty(
+		name="Sidecar File Path",
+		description="Path to the sidecar file containing library information",
+		default="",
+		subtype='FILE_PATH',
+	))
 
 
 # Define and assign invoke method for file selection with correct type hints
 def invoke_file_select(self: Operator, context: Context, event: Event) -> Set[str]:
-    context.window_manager.fileselect_add(self)
-    return {'RUNNING_MODAL'}
+	context.window_manager.fileselect_add(self)
+	return {'RUNNING_MODAL'}
 
-if hasattr(BV_OT_RelinkLibraries, 'bl_rna'):  # A check to see if it's a Blender type
-    BV_OT_RelinkLibraries.invoke = invoke_file_select
+if hasattr(BV_OT_RelinkLibraries, 'bl_rna'):
+	BV_OT_RelinkLibraries.invoke = invoke_file_select
 
 
 def register():
-    bpy.utils.register_class(BV_OT_RelinkLibraries)
-    log_success("[LibraryRelinker] Library relinking operator registered.", module_name='LibraryRelinker')
+	bpy.utils.register_class(BV_OT_RelinkLibraries)
+	log_success("Library relinking operator registered.", module_name='LibraryRelink')
 
 
 def unregister():
-    bpy.utils.unregister_class(BV_OT_RelinkLibraries)
-    log_warning("[LibraryRelinker] Library relinking operator unregistered.", module_name='LibraryRelinker')
+	bpy.utils.unregister_class(BV_OT_RelinkLibraries)
+	log_warning("Library relinking operator unregistered.", module_name='LibraryRelink')
 
 
 if __name__ == "__main__":
-    register()
+	register()

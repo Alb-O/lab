@@ -9,12 +9,12 @@ from . import uri_handler
 
 
 def register():
-    """Register Obsidian integration components."""
-    if hasattr(uri_handler, 'register'):
-        uri_handler.register()
+	"""Register Obsidian integration components."""
+	if hasattr(uri_handler, 'register'):
+		uri_handler.register()
 
 
 def unregister():
-    """Unregister Obsidian integration components."""
-    if hasattr(uri_handler, 'unregister'):
-        uri_handler.unregister()
+	"""Unregister Obsidian integration components."""
+	if hasattr(uri_handler, 'unregister'):
+		uri_handler.unregister()
