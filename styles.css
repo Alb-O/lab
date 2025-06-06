@@ -278,16 +278,6 @@
     contain: layout style;
 }
 
-/* Toolbar styles */
-.blender-toolbar {
-    padding: var(--size-4-2);
-}
-
-.blender-toolbar-buttons {
-    display: flex;
-    gap: var(--size-2-1);
-}
-
 .blender-toolbar .clickable-icon:disabled {
     color: var(--text-faint);
     pointer-events: none;

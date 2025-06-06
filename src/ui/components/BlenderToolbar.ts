@@ -28,7 +28,7 @@ export class BlenderToolbar {	private plugin: FetchBlenderBuildsPlugin;
 		this.buttons.clear();
 		
 		// Create toolbar with updated CSS classes
-		const toolbarEl = container.createEl('div', { cls: 'blender-toolbar-buttons' });
+		const toolbarEl = container.createEl('div', { cls: 'nav-buttons-container' });
 
 		// Refresh button
 		this.buttons.set('refresh', new ButtonComponent(toolbarEl)
