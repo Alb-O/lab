@@ -2,6 +2,7 @@ import { ButtonComponent, setTooltip, Notice, setIcon } from 'obsidian';
 import { BlenderBuildInfo } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
 import type FetchBlenderBuildsPlugin from '../../main';
+import { ConfirmDeleteBuildModal } from './ConfirmDeleteBuildModal';
 import * as path from 'path';
 
 export class BlenderBuildsRenderer {
@@ -257,16 +258,24 @@ export class BlenderBuildsRenderer {
 				.setTooltip('Delete this build')
 				.setClass('clickable-icon')
 				.setClass('blender-action-button')
-				.setClass('blender-trash-button');
-			trashBtn.buttonEl.addEventListener('click', async (evt) => {
+				.setClass('blender-trash-button');			trashBtn.buttonEl.addEventListener('click', async (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
-				try {
-					await this.deleteBuild(build);
-				} catch (error) {
-					console.error('Failed to delete build:', error);
-					new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
-				}
+				
+				// Show confirmation modal before deleting
+				const modal = new ConfirmDeleteBuildModal(
+					this.plugin.app,
+					build,
+					async () => {
+						try {
+							await this.deleteBuild(build);
+						} catch (error) {
+							console.error('Failed to delete build:', error);
+							new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
+						}
+					}
+				);
+				modal.open();
 			});
 		} else {
 			// For non-installed builds: Download button (first position)

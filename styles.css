@@ -304,23 +304,6 @@
     to { transform: rotate(360deg); }
 }
 
-/* Pin button specific styles */
-.blender-toolbar-buttons .clickable-icon[aria-label*="Pin"] {
-	position: relative;
-}
-
-.blender-toolbar-buttons .clickable-icon[aria-label*="Pin"].is-active::after {
-	content: "";
-	position: absolute;
-	bottom: 2px;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 6px;
-	height: 2px;
-	background: var(--color-accent);
-	border-radius: 1px;
-}
-
 /* Filters section */
 .blender-filters {
     padding: var(--size-4-2);
@@ -503,10 +486,6 @@
 /* Delete button styling */
 .blender-trash-button {
     color: var(--text-error) !important;
-}
-
-.blender-trash-button:hover {
-    background-color: var(--background-modifier-error-hover) !important;
 }
 
 .blender-trash-button svg {

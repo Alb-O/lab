@@ -53,7 +53,6 @@ export class BlenderViewRenderer {
 			this.plugin,
 			buildManager,
 			() => this.refreshBuilds(),
-			() => this.showSettings(),
 			() => this.toggleTypeFilter(),
 			() => this.togglePin()
 		);
@@ -323,19 +322,7 @@ export class BlenderViewRenderer {
 	async refreshUI(): Promise<void> {
 		await this.updateBuildsContent();
 		this.updateStatusDisplay();
-	}
-
-	/**
-	 * Show settings (placeholder for future implementation)
-	 */
-	private showSettings(): void {
-		// This would open the plugin settings
-		// For now, we'll just trigger the existing command
-		// @ts-ignore - Using app's internal command system
-		this.plugin.app.commands.executeCommandById('app:open-settings');
-	}
-
-	/**
+	}	/**
 	 * Toggle type filter dropdown visibility
 	 */
 	private toggleTypeFilter(): void {

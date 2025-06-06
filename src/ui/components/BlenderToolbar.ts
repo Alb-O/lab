@@ -3,27 +3,22 @@ import { FetchBlenderBuilds } from '../../buildManager';
 import type FetchBlenderBuildsPlugin from '../../main';
 import type { BlenderPluginSettings } from '../../settings';
 
-export class BlenderToolbar {
-	private plugin: FetchBlenderBuildsPlugin;
+export class BlenderToolbar {	private plugin: FetchBlenderBuildsPlugin;
 	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
-	private onShowSettings: () => void;
 	private onToggleFilter: () => void;
 	private onTogglePin: () => void;
 	private containerEl: HTMLElement | null = null;
-	private buttons: Map<string, ButtonComponent> = new Map();
-	constructor(
+	private buttons: Map<string, ButtonComponent> = new Map();	constructor(
 		plugin: FetchBlenderBuildsPlugin, 
 		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void,
-		onShowSettings: () => void,
 		onToggleFilter: () => void,
 		onTogglePin: () => void
 	) {
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
-		this.onShowSettings = onShowSettings;
 		this.onToggleFilter = onToggleFilter;
 		this.onTogglePin = onTogglePin;
 	}
@@ -53,20 +48,12 @@ export class BlenderToolbar {
 			.setTooltip('Pin symlinked build to top')
 			.setClass('clickable-icon')
 			.onClick(() => this.onTogglePin()));
-
 		// Download folder button
 		this.buttons.set('folder', new ButtonComponent(toolbarEl)
 			.setIcon('folder')
 			.setTooltip('Open builds folder')
 			.setClass('clickable-icon')
 			.onClick(() => this.openBuildsFolder()));
-
-		// Settings button
-		this.buttons.set('settings', new ButtonComponent(toolbarEl)
-			.setIcon('settings')
-			.setTooltip('Plugin settings')
-			.setClass('clickable-icon')
-			.onClick(() => this.onShowSettings()));
 	}
 	/**
 	 * Set a button's active state by its key
@@ -169,10 +156,7 @@ export class BlenderToolbar {
 				? 'Unpin symlinked build from top' 
 				: 'Pin symlinked build to top';
 			pinButton.setTooltip(tooltip);
-			
-			// Update icon based on state
-			const icon = isActive ? 'pin-off' : 'pin';
-			pinButton.setIcon(icon);
+			pinButton.setIcon('pin');
 		}
 	}
 	/**
