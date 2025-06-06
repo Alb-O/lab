@@ -345,6 +345,11 @@ export class BlenderViewRenderer {
 		this.buildManager.on('downloadStarted', this.onDownloadStarted.bind(this));
 		this.buildManager.on('downloadCompleted', this.onDownloadCompleted.bind(this));
 		
+		// Listen for extraction events
+		this.buildManager.on('extractionStarted', this.onExtractionStarted.bind(this));
+		this.buildManager.on('extractionCompleted', this.onExtractionCompleted.bind(this));
+		this.buildManager.on('extractionError', this.onExtractionError.bind(this));
+		
 		// Listen for build deletion events
 		this.buildManager.on('buildDeleted', this.onBuildDeleted.bind(this));
 		
@@ -390,6 +395,31 @@ export class BlenderViewRenderer {
 	private onDownloadCompleted(build: BlenderBuildInfo, filePath: string): void {
 		console.log(`Download completed: ${build.subversion}`);
 		// Could update UI to show completion
+	}
+
+	/**
+	 * Handle extraction started event
+	 */
+	private onExtractionStarted(archivePath: string, extractPath: string): void {
+		console.log(`Extraction started: ${archivePath}`);
+		// Could update UI to show extraction in progress
+	}
+
+	/**
+	 * Handle extraction completed event
+	 */
+	private onExtractionCompleted(archivePath: string, extractPath: string): void {
+		console.log(`Extraction completed: ${archivePath}`);
+		// UI refresh is handled by the buildsUpdated event that is emitted after extraction
+		// This handler is mainly for logging and potential status updates
+	}
+
+	/**
+	 * Handle extraction error event
+	 */
+	private onExtractionError(archivePath: string, error: any): void {
+		console.log(`Extraction error: ${archivePath}`, error);
+		// Could update UI to show error state
 	}
 
 	/**

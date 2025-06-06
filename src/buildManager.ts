@@ -101,10 +101,16 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.downloader.on('extractionProgress', (progress: any) => {
 			this.emit('extractionProgress', progress);
 		});
-
+		
 		this.downloader.on('extractionCompleted', (archivePath: string, extractPath: string) => {
 			this.emit('extractionCompleted', archivePath, extractPath);
 			new Notice(`Extraction completed: ${path.basename(archivePath)}`);
+			
+			// Invalidate extracted builds cache and refresh UI so the newly extracted build shows up as installed
+			this.invalidateExtractedBuildsCache();
+			
+			// Emit buildsUpdated event to trigger UI refresh
+			this.emit('buildsUpdated', this.getCachedBuilds());
 		});
 		this.downloader.on('extractionError', (archivePath: string, error: any) => {
 			this.emit('extractionError', archivePath, error);
