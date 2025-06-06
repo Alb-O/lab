@@ -83,11 +83,9 @@ class AssetRelinkProcessor:
         authoritative_data = {}
         
         for lib_rel_path, lib_data in main_linked_data.items():
-            # Reload the library to ensure it's up to date
+            # Determine absolute library path; skip reloading during drawing/render state
             lib_abs_path = PathResolver.resolve_relative_to_absolute(lib_rel_path, self.main_blend_dir)
-            LibraryManager.reload_library(lib_abs_path)
-            
-            # Parse the library's own sidecar
+            # Parse the library's own sidecar (sidecar file is authoritative without needing to reload)
             lib_sidecar_path = get_sidecar_path(lib_abs_path)
             try:
                 lib_parser = SidecarParser(lib_sidecar_path)
@@ -109,30 +107,47 @@ class AssetRelinkProcessor:
                 log_warning(f"Could not read library sidecar for '{lib_rel_path}': {e}", module_name='AssetRelink')
         
         return authoritative_data
-
+    
     def get_missing_assets(self) -> List[Dict[str, str]]:
         """
-        Identify assets present in the main sidecar but missing in library sidecars.
+        Identify missing linked assets by checking Blender session data for broken library references.
         Returns a list of dicts with keys: uuid, name, type, lib_rel_path.
         """
         missing = []
-        # Parse main sidecar
-        parser = SidecarParser(self.sidecar_path)
-        main_linked_data = parser.extract_json_blocks_with_links("Linked Libraries")
-        # Get authoritative data
-        authoritative_data = self._get_authoritative_library_data(main_linked_data)
-        for lib_rel_path, lib_data in main_linked_data.items():
-            for asset_info in lib_data.get("json_data", {}).get("assets", []):
-                uuid = asset_info.get("uuid")
-                if uuid and uuid not in authoritative_data.get(lib_rel_path, {}):
-                    missing.append({
-                        "uuid": uuid,
-                        "name": asset_info.get("name", "Unknown"),
-                        "type": asset_info.get("type", "Unknown"),
-                        "lib_rel_path": lib_rel_path,
-                    })
+        
+        # Check all linked assets in the current Blender session
+        for asset_type, bpy_collection in self.asset_sources_map.items():
+            for item in bpy_collection:
+                # Skip non-linked items
+                if not item.library or not item.library.filepath:
+                    continue
+                # Resolve absolute library path
+                abs_path = PathResolver.resolve_blender_path(item.library.filepath)
+                # If library file is missing, skip asset items (library-level missing handled separately)
+                if (hasattr(item.library, 'is_missing') and item.library.is_missing) or not os.path.exists(abs_path):
+                    continue
+                # Only report items Blender marks as missing
+                if not hasattr(item, 'is_missing') or not item.is_missing:
+                    continue
+                # Asset is missing: report it
+                try:
+                    lib_rel_path = os.path.relpath(abs_path, self.main_blend_dir).replace('\\', '/')
+                except ValueError:
+                    lib_rel_path = item.library.filepath
+                # Get UUID if available
+                uuid = getattr(item, BV_UUID_PROP, None) if hasattr(item, BV_UUID_PROP) else None
+                if not uuid and hasattr(item, 'id_properties') and item.id_properties:
+                    uuid = item.id_properties.get(BV_UUID_PROP)
+                missing.append({
+                    "uuid": uuid or "unknown",
+                    "name": item.name,
+                    "type": asset_type,
+                    "lib_rel_path": lib_rel_path,
+                })
+                log_debug(f"Found missing linked asset: {item.name} ({asset_type}) from library {lib_rel_path}", module_name='AssetRelink')
+        
+        log_debug(f"Total missing linked assets detected: {len(missing)}", module_name='AssetRelink')
         return missing
-    
     def _identify_relink_operations(
         self,
         main_linked_data: Dict[str, Dict[str, Any]],
@@ -141,9 +156,15 @@ class AssetRelinkProcessor:
         """Identify assets that need relinking by comparing names."""
         relink_operations = []
         
+        log_debug(f"Starting relink identification with {len(main_linked_data)} libraries", module_name='AssetRelink')
+        log_debug(f"Main linked data keys: {list(main_linked_data.keys())}", module_name='AssetRelink')
+        log_debug(f"Authoritative data keys: {list(authoritative_data.keys())}", module_name='AssetRelink')
+        
         for lib_rel_path, lib_link_info in main_linked_data.items():
             assets_in_main = lib_link_info["json_data"].get("assets", [])
             authoritative_assets = authoritative_data.get(lib_rel_path, {})
+            
+            log_debug(f"Processing library '{lib_rel_path}': {len(assets_in_main)} assets in main, {len(authoritative_assets)} in authoritative", module_name='AssetRelink')
             
             if not authoritative_assets:
                 log_debug(f"Skipping library '{lib_rel_path}' - no authoritative data", module_name='AssetRelink')
@@ -168,7 +189,7 @@ class AssetRelinkProcessor:
                     log_info(f"Name change detected: '{old_name}' -> '{current_name}' (UUID: {asset_uuid})", module_name='AssetRelink')
                     
                     # Find the session item and prepare relink operation
-                    session_item = self._find_and_prepare_session_item(lib_rel_path, asset_uuid, asset_type)
+                    session_item = self._find_and_prepare_session_item(lib_rel_path, asset_uuid, asset_type, old_name)
                     if session_item:
                         relink_operations.append({
                             "session_uid": getattr(session_item, 'session_uid', None),
@@ -179,28 +200,31 @@ class AssetRelinkProcessor:
                             "uuid": asset_uuid
                         })
         return relink_operations
-
-    def _find_and_prepare_session_item(self, lib_rel_path: str, asset_uuid: str, asset_type: str):
+    def _find_and_prepare_session_item(self, lib_rel_path: str, asset_uuid: str, asset_type: str, old_name: str):
         """Find the session item for an asset and ensure it has the correct UUID."""
         bpy_collection = self.asset_sources_map.get(asset_type)
         if not bpy_collection:
             log_warning(f"Unknown asset type '{asset_type}'", module_name='AssetRelink')
             return None
         
-        # Convert any sidecar-related path to the actual blend file path for comparison
-        lib_abs_path = PathResolver.resolve_relative_to_absolute(lib_rel_path, self.main_blend_dir)
-        lib_blend_abs_path = get_blend_file_path_from_sidecar(lib_abs_path)
+        # Convert sidecar link path (may include .side) to actual blend file path
+        raw_abs = PathResolver.resolve_relative_to_absolute(lib_rel_path, self.main_blend_dir)
+        # Strip sidecar extension (e.g. .side) to get actual .blend file path
+        lib_blend_abs_path = get_blend_file_path_from_sidecar(raw_abs)
         expected_lib_path = PathResolver.normalize_path(lib_blend_abs_path)
         
-        log_debug(f"Looking for session item with UUID {asset_uuid} from library: {expected_lib_path}", module_name='AssetRelink')
+        log_debug(f"Looking for session item '{old_name}' (UUID: {asset_uuid}) from library: {expected_lib_path}", module_name='AssetRelink')
         log_debug(f"Searching in {len(list(bpy_collection))} {asset_type} items", module_name='AssetRelink')
         
         for item in bpy_collection:
             item_lib_path = self._get_item_library_path(item)
             log_debug(f"Checking item '{item.name}': library_path='{item_lib_path}'", module_name='AssetRelink')
             
-            if item_lib_path and PathResolver.normalize_path(item_lib_path) == expected_lib_path:
-                log_debug(f"Found matching library path for item '{item.name}'", module_name='AssetRelink')
+            # Match by library path AND original name
+            if (item_lib_path and 
+                PathResolver.normalize_path(item_lib_path) == expected_lib_path and 
+                item.name == old_name):
+                log_debug(f"Found matching library path and name for item '{item.name}'", module_name='AssetRelink')
                 # Assign the correct UUID to the session item
                 try:
                     item.id_properties_ensure()[BV_UUID_PROP] = asset_uuid
@@ -208,7 +232,19 @@ class AssetRelinkProcessor:
                 except Exception as e:
                     log_warning(f"Failed to assign UUID to item '{item.name}': {e}", module_name='AssetRelink')
                 return item
-        log_warning(f"Could not find session item for UUID {asset_uuid}", module_name='AssetRelink')
+        # Fallback: try matching by library path only (no name check)
+        log_debug(f"Fallback: matching session items by library path only for UUID {asset_uuid}", module_name='AssetRelink')
+        for item in bpy_collection:
+            item_lib_path = self._get_item_library_path(item)
+            if item_lib_path and PathResolver.normalize_path(item_lib_path) == expected_lib_path:
+                log_debug(f"Fallback matched library path for item '{item.name}'", module_name='AssetRelink')
+                try:
+                    item.id_properties_ensure()[BV_UUID_PROP] = asset_uuid
+                    log_debug(f"Assigned UUID '{asset_uuid}' to session item '{item.name}' via fallback", module_name='AssetRelink')
+                except Exception as e:
+                    log_warning(f"Fallback failed to assign UUID to item '{item.name}': {e}", module_name='AssetRelink')
+                return item
+        log_warning(f"Could not find session item '{old_name}' (UUID: {asset_uuid}) from library {expected_lib_path}", module_name='AssetRelink')
         return None
     
     def _get_item_library_path(self, item) -> Optional[str]:
@@ -226,7 +262,6 @@ class AssetRelinkProcessor:
             if cleaned_path != raw_path:
                 log_debug(f"Converted sidecar path '{raw_path}' to blend path '{cleaned_path}'", module_name='AssetRelink')
             return cleaned_path
-        
         return None
     
     def _execute_relink_operations(self, relink_operations: List[Dict[str, Any]]) -> None:
@@ -238,6 +273,7 @@ class AssetRelinkProcessor:
         log_info(f"Found {len(relink_operations)} operations. Attempting to relocate...", module_name='AssetRelink')
         
         for op in relink_operations:
+            log_debug(f"Executing relink operation: {op}", module_name='AssetRelink')
             self._execute_single_relink(op)
     
     def _execute_single_relink(self, op_data: Dict[str, Any]) -> None:
@@ -282,20 +318,20 @@ class AssetRelinkProcessor:
         
         # Determine if path is relative
         is_relative = lib_filepath.startswith("//")
-        
         # Construct file paths
         if is_relative:
             abs_lib_path = PathResolver.resolve_blender_path(lib_filepath)
-            filepath_arg = f"{lib_filepath}\\{asset_type}\\{new_name}"
+            filepath_arg = f"{lib_filepath}/{asset_type}/{new_name}"
         else:
             abs_lib_path = PathResolver.normalize_path(lib_filepath)
-            filepath_arg = f"{abs_lib_path}\\{asset_type}\\{new_name}"
-        
-        directory_arg = f"{abs_lib_path}\\{asset_type}\\"
+            filepath_arg = f"{abs_lib_path}/{asset_type}/{new_name}"
+            directory_arg = f"{abs_lib_path}/{asset_type}/"
         
         # Store references for post-relink verification
         original_session_uid = op_data["session_uid"]
         backup_uuid = getattr(session_item, BV_UUID_PROP, None)
+        
+        log_debug(f"Relink parameters: session_uid={original_session_uid}, filepath={filepath_arg}, directory={directory_arg}, filename={new_name}, relative_path={is_relative}", module_name='AssetRelink')
         
         try:
             result = bpy.ops.wm.id_linked_relocate(
@@ -363,7 +399,6 @@ class AssetRelinkProcessor:
             log_warning(f"Could not verify relink success for UUID {op_data['uuid']}", module_name='AssetRelink')
 
 
-@bpy.app.handlers.persistent
 def relink_renamed_assets(*args, **kwargs):
     """Main entry point for asset relinking. Called by Blender handlers."""
     blend_path = ensure_saved_file()
@@ -382,8 +417,13 @@ def relink_renamed_assets(*args, **kwargs):
     log_info("Finished asset relinking attempt", module_name='AssetRelink')
 
 
-# Make the handler persistent
-relink_renamed_assets.persistent = True
+# After relink_renamed_assets definition, remove lingering persistent handler
+import bpy as _bpy
+# Ensure automatic asset relink is not called at startup
+to_remove = relink_renamed_assets
+for _list in (_bpy.app.handlers.load_post, _bpy.app.handlers.save_post):
+    if to_remove in _list:
+        _list.remove(to_remove)
 
 
 def register():

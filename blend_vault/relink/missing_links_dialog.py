@@ -58,13 +58,15 @@ def check_missing_links():
     
     # Check for missing asset datablocks via sidecars
     asset_items = _check_asset_relinks(blend_path)
-    all_items.extend(asset_items)
-    log_debug(f"After asset check: {len(all_items)} items", module_name='MissingLinks')
-    
     # Check for missing library files via main sidecar
     library_items = _check_library_relinks(blend_path)
-    all_items.extend(library_items)
-    log_debug(f"After library check: {len(all_items)} items", module_name='MissingLinks')
+    # If any libraries are missing, report only libraries (skip asset datablocks)
+    if library_items:
+        all_items.extend(library_items)
+        log_debug(f"After library check (libraries missing): {len(all_items)} items", module_name='MissingLinks')
+    else:
+        all_items.extend(asset_items)
+        log_debug(f"After asset check: {len(all_items)} items", module_name='MissingLinks')
     
     # Update global state for backward compatibility with other parts of the system
     global _pending_relink_items
@@ -82,36 +84,22 @@ def check_missing_links():
     return all_items
 
 def _check_asset_relinks(blend_path: str):
-    """Detect asset datablocks present in library sidecars but missing in the current session."""
+    """Detect missing asset datablocks via AssetRelinkProcessor."""
     items = []
     try:
-        # For each library, parse its sidecar and detect missing datablocks by name
-        for lib in bpy.data.libraries:
-            if not lib.filepath or lib.filepath.startswith('<builtin>'):
-                continue
-            lib_abs = bpy.path.abspath(lib.filepath)
-            sidecar_path = get_sidecar_path(lib_abs)
-            if not os.path.exists(sidecar_path):
-                continue
-            parser = SidecarParser(sidecar_path)
-            _, assets_in_lib = parser.extract_current_file_section()
-            for asset in assets_in_lib:
-                name = asset.get('name')
-                typ = asset.get('type')
-                if not name:
-                    continue
-                missing = False
-                if typ == 'Collection':
-                    missing = (name not in bpy.data.collections)
-                elif typ == 'Scene':
-                    missing = (name not in bpy.data.scenes)
-                # TODO: handle other types as needed
-                if missing:
-                    description = f"Missing asset datablock '{name}' ({typ})"
-                    details = f"No longer exists in library: {os.path.basename(lib_abs)}"
-                    items.append(RelinkItem('asset', description, details))
+        # Use AssetRelinkProcessor to detect missing assets without relinking
+        processor = AssetRelinkProcessor(main_blend_path=blend_path)
+        missing_assets = processor.get_missing_assets()
+        for asset in missing_assets:
+            name = asset.get('name', 'Unknown')
+            typ = asset.get('type', 'Unknown')
+            lib_rel = asset.get('lib_rel_path')
+            lib_name = os.path.basename(lib_rel) if lib_rel else 'unknown'
+            description = f"Missing asset datablock '{name}' ({typ})"
+            details = f"From library: {lib_name}"
+            items.append(RelinkItem('asset', description, details))
     except Exception as e:
-        log_debug(f"Error checking asset relinks: {e}", module_name='MissingLinks')
+        log_debug(f"Error checking asset relinks via AssetRelinkProcessor: {e}", module_name='MissingLinks')
     return items
 
 def _check_library_relinks(blend_path: str):
@@ -122,7 +110,9 @@ def _check_library_relinks(blend_path: str):
     
     for lib in bpy.data.libraries:
         if lib.filepath and not lib.filepath.startswith('<builtin>'):
-            abs_path = bpy.path.abspath(lib.filepath)
+            # Resolve and normalize library path
+            raw_path = bpy.path.abspath(lib.filepath)
+            abs_path = os.path.normpath(raw_path)
             log_debug(f"Checking library: {lib.filepath} -> {abs_path}", module_name='MissingLinks')
             
             if not os.path.exists(abs_path):
@@ -170,6 +160,9 @@ def perform_all_relinks():
     log_info("Performing library file relinking...", module_name='MissingLinks')
     lib_processor = LibraryRelinkProcessor(blend_file_path=blend_path)
     lib_processor.process_relink()
+    # After fixing libraries, try asset relinking again in case new assets can now be relinked
+    log_info("Re-attempting asset datablock relinking after library fixes...", module_name='MissingLinks')
+    asset_processor.process_relink()
     
     # Re-check missing links after all relinking
     pending_after = check_missing_links()

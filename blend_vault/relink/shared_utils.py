@@ -262,11 +262,17 @@ class LibraryManager:
         """Reload a library by path. Returns True if successful."""
         try:
             abs_path = PathResolver.resolve_blender_path(library_path)
-            bpy.ops.wm.lib_reload(filepath=abs_path)
-            log_info(f"Reloaded library: {abs_path}")
+            # Only reload actual .blend files, skip sidecar or other paths
+            if not abs_path.lower().endswith('.blend'):
+                log_debug(f"Skipping reload for non-blend path: {abs_path}", module_name='LibraryManager')
+                return True
+            # Use data.libraries.load to avoid operator context errors
+            with bpy.data.libraries.load(abs_path, link=True) as (data_from, data_to):
+                pass
+            log_info(f"Reloaded library via API: {abs_path}", module_name='LibraryManager')
             return True
         except Exception as e:
-            log_error(f"Could not reload library '{library_path}': {e}")
+            log_error(f"Could not reload library '{library_path}': {e}", module_name='LibraryManager')
             return False
     
     @staticmethod

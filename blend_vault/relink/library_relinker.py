@@ -183,29 +183,31 @@ class LibraryRelinkProcessor(BaseRelinker):
             log_debug(f"[LibraryRelinker] Old filepath: '{missing_lib.filepath}'", module_name='LibraryRelinker')
             # Convert absolute path to relative path for Blender
             blend_dir = os.path.dirname(self.blend_file_path)
+            # Attempt to reload using a Blender-compatible relative path
+            rel = os.path.relpath(target_path, blend_dir)
+            rel = rel.replace('\\', '/')
+            if not rel.startswith('./'):
+                rel = './' + rel
+            lib_name = missing_lib.name
+            missing_lib.filepath = rel
+            log_debug(f"[LibraryRelinker] Attempting relative reload for '{lib_name}' with path '{rel}'", module_name='LibraryRelinker')
             try:
-                rel_path = os.path.relpath(target_path, blend_dir)
-                # Ensure forward slashes for Blender compatibility
-                rel_path = rel_path.replace('\\', '/')
-                if not rel_path.startswith('./'):
-                    rel_path = './' + rel_path
-                
-                missing_lib.filepath = rel_path
-                log_debug(f"[LibraryRelinker] New relative filepath: '{missing_lib.filepath}'", module_name='LibraryRelinker')
-                
                 missing_lib.reload()
-                log_success(f"[LibraryRelinker] Successfully reloaded missing library '{missing_lib.name}'", module_name='LibraryRelinker')
+                log_success(f"[LibraryRelinker] Successfully reloaded missing library '{lib_name}' via relative path", module_name='LibraryRelinker')
                 return True
             except Exception as e:
-                log_error(f"[LibraryRelinker] Failed to reload missing library '{missing_lib.name}': {e}", module_name='LibraryRelinker')
-        # Fallback: try with absolute path
-                try:
-                    missing_lib.filepath = target_path
-                    missing_lib.reload()
-                    log_success(f"[LibraryRelinker] Successfully reloaded missing library '{missing_lib.name}' with absolute path", module_name='LibraryRelinker')
-                    return True
-                except Exception as e2:
-                    log_error(f"[LibraryRelinker] Absolute path fallback also failed: {e2}", module_name='LibraryRelinker')
+                # Relative reload failure is expected; fallback to absolute path next
+                log_debug(f"[LibraryRelinker] Relative reload failed for '{lib_name}': {e}", module_name='LibraryRelinker')
+            # Fallback: try absolute path
+            missing_lib.filepath = target_path
+            log_debug(f"[LibraryRelinker] Attempting absolute reload for '{lib_name}' with path '{target_path}'", module_name='LibraryRelinker')
+            try:
+                missing_lib.reload()
+                log_success(f"[LibraryRelinker] Successfully reloaded missing library '{lib_name}' via absolute path", module_name='LibraryRelinker')
+                return True
+            except Exception as e2:
+                log_error(f"[LibraryRelinker] Absolute reload failed for '{lib_name}': {e2}", module_name='LibraryRelinker')
+                return False
           # Try to use any missing library
         any_missing_lib = self._find_any_missing_library()
         if any_missing_lib:
@@ -316,7 +318,7 @@ class LibraryRelinkProcessor(BaseRelinker):
             
             log_debug(f"[LibraryRelinker] Using relative path for linking: '{rel_path}'", module_name='LibraryRelinker')
             
-            with bpy.data.libraries.load(abs_path, link=True, relative_path=True) as (data_from, data_to):
+            with bpy.data.libraries.load(abs_path, link=True, relative=True) as (data_from, data_to):
                 # Get all available collections from the library
                 if hasattr(data_from, 'collections') and data_from.collections:
                     data_to.collections = data_from.collections
