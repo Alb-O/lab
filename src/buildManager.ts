@@ -719,7 +719,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		return extractedBuilds;
 	}
-
 	/**
 	 * Clean up empty directories
 	 */
@@ -731,7 +730,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				fs.rmdirSync(dirPath);
 			}
 		} catch (error) {
-			// Directory might not exist or we don't have permission - ignore
+			// Directory might not exist, we don't have permission, or it's in use - ignore
+			// This is a cleanup operation and shouldn't fail the main operation
 		}
 	}
 
@@ -956,13 +956,19 @@ export class FetchBlenderBuilds extends EventEmitter {
 	async deleteBuild(build: BlenderBuildInfo): Promise<{ deletedDownload: boolean; deletedExtract: boolean }> {
 		let deletedDownload = false;
 		let deletedExtract = false;
-		try {
-			// Handle orphaned builds differently  
+		try {			// Handle orphaned builds differently  
 			if (build.isOrphanedInstall) {
 				// Delete archived file if it exists
 				if (build.archivePath && fs.existsSync(build.archivePath)) {
-					fs.unlinkSync(build.archivePath);
-					deletedDownload = true;
+					try {
+						fs.unlinkSync(build.archivePath);
+						deletedDownload = true;
+					} catch (error) {
+						if (error.code === 'EPERM' || error.code === 'EBUSY') {
+							throw new Error(`Cannot delete archive file - it may be in use by Blender or another application. Please close Blender and try again.`);
+						}
+						throw error;
+					}
 				}
 
 				// Delete extracted build if it exists
@@ -980,8 +986,15 @@ export class FetchBlenderBuilds extends EventEmitter {
 				const downloadPath = path.join(downloadsPath, expectedFileName);
 
 				if (fs.existsSync(downloadPath)) {
-					fs.unlinkSync(downloadPath);
-					deletedDownload = true;
+					try {
+						fs.unlinkSync(downloadPath);
+						deletedDownload = true;
+					} catch (error) {
+						if (error.code === 'EPERM' || error.code === 'EBUSY') {
+							throw new Error(`Cannot delete archive file - it may be in use by Blender or another application. Please close Blender and try again.`);
+						}
+						throw error;
+					}
 				}
 
 				// Delete extracted build - find the actual directory using pattern matching
@@ -1020,11 +1033,17 @@ export class FetchBlenderBuilds extends EventEmitter {
 				new Notice(`No installed files found for ${build.subversion}`);
 			}
 
-			return { deletedDownload, deletedExtract };
-		} catch (error) {
+			return { deletedDownload, deletedExtract };		} catch (error) {
 			this.emit('deletionError', build, error);
-			new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
-			throw error;
+			
+			// Provide specific error message for permission issues
+			if (error.message.includes('Please close Blender')) {
+				throw new Error(`Cannot delete ${build.subversion} - ${error.message}`);
+			} else if (error.code === 'EPERM' || error.code === 'EBUSY') {
+				throw new Error(`Cannot delete ${build.subversion} - files may be in use by Blender or another application. Please close Blender and try again.`);
+			} else {
+				throw new Error(`Failed to delete ${build.subversion}: ${error.message}`);
+			}
 		}
 	}
 
@@ -1154,7 +1173,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw new Error(`Failed to create symlink: ${error.message}`);
 		}
 	}
-
 	/**
 	 * Recursively delete a directory and all its contents
 	 */
@@ -1163,19 +1181,43 @@ export class FetchBlenderBuilds extends EventEmitter {
 			return;
 		}
 
-		const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+		try {
+			const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 
-		for (const entry of entries) {
-			const fullPath = path.join(dirPath, entry.name);
+			for (const entry of entries) {
+				const fullPath = path.join(dirPath, entry.name);
 
-			if (entry.isDirectory()) {
-				await this.deleteDirectory(fullPath);
-			} else {
-				fs.unlinkSync(fullPath);
+				if (entry.isDirectory()) {
+					await this.deleteDirectory(fullPath);
+				} else {
+					try {
+						fs.unlinkSync(fullPath);
+					} catch (error) {
+						// Handle permission errors specifically
+						if (error.code === 'EPERM' || error.code === 'EBUSY') {
+							throw new Error(`Cannot delete file "${fullPath}" - it may be in use by Blender or another application. Please close Blender and try again.`);
+						}
+						throw error;
+					}
+				}
 			}
-		}
 
-		fs.rmdirSync(dirPath);
+			try {
+				fs.rmdirSync(dirPath);
+			} catch (error) {
+				// Handle permission errors for directories
+				if (error.code === 'EPERM' || error.code === 'EBUSY') {
+					throw new Error(`Cannot delete directory "${dirPath}" - it may contain files in use by Blender or another application. Please close Blender and try again.`);
+				}
+				throw error;
+			}
+		} catch (error) {
+			// Re-throw with context if it's not already our custom error
+			if (!error.message.includes('Please close Blender')) {
+				throw new Error(`Failed to delete directory "${dirPath}": ${error.message}`);
+			}
+			throw error;
+		}
 	}
 
 	/**
