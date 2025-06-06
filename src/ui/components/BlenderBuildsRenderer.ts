@@ -38,14 +38,19 @@ export class BlenderBuildsRenderer {
 		// Check if we need to show pinned build
 		let pinnedBuild: BlenderBuildInfo | null = null;
 		let remainingBuilds = builds;
-		
-		if (pinSymlinkedBuild) {
+				if (pinSymlinkedBuild) {
 			// Find the currently symlinked build from ALL builds (not just filtered ones)
 			const buildsToSearchIn = allBuilds || builds;
 			pinnedBuild = this.findSymlinkedBuild(buildsToSearchIn);
 			if (pinnedBuild) {
 				// Remove the pinned build from the main list if it exists there
-				remainingBuilds = builds.filter(build => build.subversion !== pinnedBuild!.subversion);
+				// Use multiple fields for more accurate matching to avoid confusion between builds
+				remainingBuilds = builds.filter(build => 
+					!(build.link === pinnedBuild!.link && 
+					  build.subversion === pinnedBuild!.subversion &&
+					  build.buildHash === pinnedBuild!.buildHash &&
+					  build.commitTime.getTime() === pinnedBuild!.commitTime.getTime())
+				);
 			}
 		}
 		// Render pinned build container if needed
