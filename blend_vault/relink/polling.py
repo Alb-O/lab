@@ -58,13 +58,20 @@ def sidecar_poll_timer():
 
 			current_lib_mtime = os.path.getmtime(lib_abs_path)
 			last_known_lib_mtime = t_last_library_mtimes.get(lib_abs_path)
-
 			if last_known_lib_mtime is None:
-				t_last_library_mtimes[lib_abs_path] = current_lib_mtime	
+				t_last_library_mtimes[lib_abs_path] = current_lib_mtime
 			elif current_lib_mtime > last_known_lib_mtime:
 				t_last_library_mtimes[lib_abs_path] = current_lib_mtime
-				log_warning(f"Library file '{lib.name}' ('{lib_abs_path}') modified. Showing relink dialog for user confirmation.", module_name='Polling')
-				# Show missing links dialog instead of automatic relinking
+				log_warning(f"Library file '{lib.name}' ('{lib_abs_path}') modified. Reloading library and checking for missing links.", module_name='Polling')
+				
+				# Force reload the library to update Blender's internal state
+				try:
+					lib.reload()
+					log_info(f"Successfully reloaded library '{lib.name}'", module_name='Polling')
+				except Exception as reload_error:
+					log_error(f"Failed to reload library '{lib.name}': {reload_error}", module_name='Polling')
+				
+				# Show missing links dialog to check for any newly broken links
 				show_missing_links_dialog()
 		except Exception as e:
 			log_error(f"Error checking library '{lib.name}' ('{lib.filepath}'): {e}", module_name='Polling')

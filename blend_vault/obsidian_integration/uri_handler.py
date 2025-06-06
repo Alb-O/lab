@@ -149,13 +149,12 @@ class BV_PT_ObsidianIntegrationPanel(bpy.types.Panel):
 	bl_space_type = 'VIEW_3D'
 	bl_region_type = 'UI'
 	bl_category = "Blend Vault"
+	
 	def draw(self, context):
 		layout = self.layout
-				# Vault Status Section
+		# Vault Status Section
 		vault_box = layout.box()
 		header_row = vault_box.row()
-		header_row.label(text="Vault Status:", icon='FILE_FOLDER')
-		header_row.operator("blend_vault.refresh_vault_detection", text="", icon='FILE_REFRESH')
 		
 		vault_root = get_obsidian_vault_root(context)
 		detected_vault = detect_obsidian_vault_from_asset_libraries()
@@ -163,27 +162,24 @@ class BV_PT_ObsidianIntegrationPanel(bpy.types.Panel):
 		if detected_vault:
 			if vault_root == detected_vault:
 				# Auto-detected vault is being used
-				status_row = vault_box.row()
-				status_row.label(text="Auto-detected", icon='CHECKMARK')
+				header_row.label(text="Vault Status: Auto-detected", icon='CHECKMARK')
 				vault_box.label(text=f"Path: {detected_vault}")
 			else:
 				# Manual override is being used
-				status_row = vault_box.row()
-				status_row.label(text="Manual override", icon='SETTINGS')
+				header_row.label(text="Vault Status: Manual override", icon='SETTINGS')
 				vault_box.label(text=f"Path: {vault_root}")
 		elif vault_root:
 			# Only manual vault set
-			status_row = vault_box.row()
-			status_row.label(text="Manual", icon='SETTINGS')
+			header_row.label(text="Vault Status: Manual", icon='SETTINGS')
 			vault_box.label(text=f"Path: {vault_root}")
 		else:
 			# No vault configured
-			status_row = vault_box.row()
-			status_row.label(text="Not configured", icon='ERROR')
+			header_row.label(text="Vault Status: Not configured", icon='ERROR')
 			vault_box.label(text="Set vault in preferences or add as asset library")
 		
-		layout.separator()
+		header_row.operator("blend_vault.refresh_vault_detection", text="", icon='FILE_REFRESH')
 		
+		layout.separator()
 		# Sidecar Section
 		# Check if sidecar exists for current file
 		if bpy.data.is_saved:
@@ -191,7 +187,9 @@ class BV_PT_ObsidianIntegrationPanel(bpy.types.Panel):
 			sidecar_path = blend_path + SIDECAR_EXTENSION
 			
 			if os.path.exists(sidecar_path):
-				layout.operator("blend_vault.open_sidecar_in_obsidian", icon='CURRENT_FILE')
+				row = layout.row()
+				row.scale_y = 1.2
+				row.operator("blend_vault.open_sidecar_in_obsidian", icon='CURRENT_FILE')
 			else:
 				row = layout.row()
 				row.enabled = False
