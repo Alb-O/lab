@@ -95,9 +95,8 @@ def _check_asset_relinks(blend_path: str):
             typ = asset.get('type', 'Unknown')
             lib_rel = asset.get('lib_rel_path')
             lib_name = os.path.basename(lib_rel) if lib_rel else 'unknown'
-            description = f"Missing asset datablock '{name}' ({typ})"
-            details = f"From library: {lib_name}"
-            items.append(RelinkItem('asset', description, details))
+            description = f"'{name}' ({typ}) from library: {lib_name}"
+            items.append(RelinkItem('asset', description))
     except Exception as e:
         log_debug(f"Error checking asset relinks via AssetRelinkProcessor: {e}", module_name='MissingLinks')
     return items
@@ -221,7 +220,7 @@ def show_missing_links_dialog():
 class BV_OT_MissingLinksDialog(bpy.types.Operator):
     """Modal dialog to show missing links that require relinking."""
     bl_idname = "bv.missing_links_dialog"
-    bl_label = "Relink Required"
+    bl_label = "Missing Links"
     bl_options = {'REGISTER', 'INTERNAL', 'BLOCKING'}
     
     def execute(self, context):
@@ -367,16 +366,12 @@ class BV_OT_MissingLinksDialog(bpy.types.Operator):
         
         log_debug(f"Dialog draw: displaying {len(items)} items", module_name='MissingLinks')
         
-        # Informative header
-        layout.label(text="Some items need relinking:", icon='ERROR')
-        layout.separator()
-        
         # Show summary and first few items
         if len(items) == 1:
-            layout.label(text="1 item needs relinking:")
+            layout.label(text="1 item needs relinking:", icon='ERROR')
         else:
-            layout.label(text=f"{len(items)} items need relinking:")
-        
+            layout.label(text=f"{len(items)} items need relinking:", icon='ERROR')
+        layout.separator()
         # Show the first 10 items
         for item in items[:10]:
             row = layout.row()
@@ -452,22 +447,14 @@ class BV_PT_MissingLinksPanel(bpy.types.Panel):
             # Warning icon and title
             row = layout.row()
             row.alert = True
-            row.label(text="Items need relinking", icon='ERROR')
-            
-            layout.separator()
-            
-            # Summary
-            row = layout.row()
             if len(items) == 1:
-                row.label(text="1 item needs relinking")
+                row.label(text="1 item needs relinking:", icon='ERROR')
             else:
-                row.label(text=f"{len(items)} items need relinking")
-            
+                row.label(text=f"{len(items)} items need relinking:", icon='ERROR')
+
             # Show first few items for reference
             if len(items) > 0:
-                box = layout.box()
-                box.label(text="Missing items:", icon='INFO')
-                
+                box = layout.box()             
                 # Show up to 3 items
                 for item in items[:3]:
                     row = box.row()
@@ -488,10 +475,7 @@ class BV_PT_MissingLinksPanel(bpy.types.Panel):
                 row.scale_y = 1.2
                 row.operator("bv.manual_relink", text="Relink Missing Items", icon='FILE_REFRESH')
             else:
-                layout.separator()
                 row = layout.row()
-                row.enabled = False
-                row.label(text="Relink dialog is active", icon='INFO')
         else:
             # No relinks needed - clean status
             row = layout.row()
