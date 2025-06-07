@@ -1,6 +1,6 @@
 import { MarkdownView } from 'obsidian';
 import { markdownExtractor, VideoWithFragment } from '@markdown';
-import { fragmentsDebug } from '@utils';
+import { debug } from '@utils';
 
 /**
  * Class that handles detecting videos in Markdown views
@@ -15,23 +15,23 @@ export class VideoDetector {
      */
     public getVideosFromActiveView(activeView: MarkdownView | null): VideoWithFragment[] {
         if (!activeView?.file) {
-            fragmentsDebug('No active view or file, returning empty videos array');
+            debug(this, 'No active view or file, returning empty videos array');
             return [];
         }
         
         // Return cached results if view hasn't changed
         if (this.lastProcessedView === activeView) {
-            fragmentsDebug(`Returning cached videos for view: ${activeView.file.path} (${this.lastVideos.length} videos)`);
+            debug(this, `Returning cached videos for view: ${activeView.file.path} (${this.lastVideos.length} videos)`);
             return this.lastVideos;
         }
         
-        fragmentsDebug(`Processing new view: ${activeView.file.path}`);
+        debug(this, `Processing new view: ${activeView.file.path}`);
         // Extract and cache results via shared markdownExtractor
         const videos = markdownExtractor.extract(activeView);
         this.lastProcessedView = activeView;
         this.lastVideos = videos;
         
-        fragmentsDebug(`Found ${videos.length} videos in view: ${activeView.file.path}`);
+        debug(this, `Found ${videos.length} videos in view: ${activeView.file.path}`);
         return videos;
     }
     
@@ -53,24 +53,24 @@ export class VideoDetector {
         }
         
         if (videos.length === 0) {
-            console.debug('No videos detected in current view');
+            debug(this, 'No videos detected in current view');
             return;
         }
         
-        console.debug(`Detected ${videos.length} videos:`);
+        debug(this, `Detected ${videos.length} videos:`);
         
         videos.forEach((video, index) => {
-            console.debug(`Video ${index + 1}:`);
-            console.debug(`  Path: ${video.path}`);
-            console.debug(`  Embedded: ${video.isEmbedded}`);
+            debug(this, `Video ${index + 1}:`);
+            debug(this, `  Path: ${video.path}`);
+            debug(this, `  Embedded: ${video.isEmbedded}`);
             
             if (video.fragment) {
-                console.debug(`  Fragment: ${this.formatFragmentForDebug(video.fragment)}`);
+                debug(this, `  Fragment: ${this.formatFragmentForDebug(video.fragment)}`);
             } else {
-                console.debug('  No fragment');
+                debug(this, '  No fragment');
             }
             
-            console.debug(`  Position: line ${video.position.start.line}`);
+            debug(this, `  Position: line ${video.position.start.line}`);
         });
     }
     

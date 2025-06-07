@@ -1,5 +1,5 @@
 import { Menu, Notice, App, Modal, Plugin, setIcon } from 'obsidian';
-import { getCurrentTimeRounded, setAndSaveVideoFragment, parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag, fragmentsDebug, fragmentsWarn, fragmentsError } from '@utils';
+import { getCurrentTimeRounded, setAndSaveVideoFragment, parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag, debug, warn, error } from '@utils';
 import { FragmentsSettings } from '@settings';
 
 export function addSetCommands(menu: Menu, plugin: Plugin, settings: FragmentsSettings, video: HTMLVideoElement) {
@@ -80,7 +80,7 @@ class FragmentInputModal extends Modal {
                     return parseTempFrag(currentHash);
                 }            } catch (e) {
                 if (process.env.NODE_ENV !== 'production') {
-                    fragmentsWarn("FragmentInputModal: Could not parse video.currentSrc to get hash", e);
+                    warn(this, "FragmentInputModal: Could not parse video.currentSrc to get hash", e);
                 }
             }
         }
@@ -297,28 +297,28 @@ class FragmentInputModal extends Modal {
         const rawStartTime = this.startTimeInputEl.value.trim();
         const rawEndTime = this.endTimeInputEl.value.trim();
         const videoDuration = this.video.duration;        // Add debug logging to help track the issue with chrono parsing
-        fragmentsDebug(`Modal attempting to save with start="${rawStartTime}", end="${rawEndTime}"`);
+        debug(this, `Modal attempting to save with start="${rawStartTime}", end="${rawEndTime}"`);
 
         // Parse both times first - parseFragmentToSeconds now handles all time formats including chrono parsing
         const parsedStart = rawStartTime === "" ? null : parseFragmentToSeconds(rawStartTime);
-        fragmentsDebug(`Parsed start time: ${JSON.stringify(parsedStart)}`);
+        debug(this, `Parsed start time: ${JSON.stringify(parsedStart)}`);
 
         let parsedEnd: number | { percent: number } | null;
         if (rawEndTime.toLowerCase() === 'end' || rawEndTime.toLowerCase() === 'e') {
             parsedEnd = videoDuration;
-            fragmentsDebug(`End time set to video duration: ${videoDuration}`);
+            debug(this, `End time set to video duration: ${videoDuration}`);
         } else {
             parsedEnd = rawEndTime === "" ? null : parseFragmentToSeconds(rawEndTime);
-            fragmentsDebug(`Parsed end time: ${JSON.stringify(parsedEnd)}`);
+            debug(this, `Parsed end time: ${JSON.stringify(parsedEnd)}`);
         }        // Validation: check for invalid formats - rely on parseFragmentToSeconds to interpret time formats
         if (rawStartTime !== "" && parsedStart === null) {
-            fragmentsWarn(`Validation failed: Start time could not be parsed: "${rawStartTime}"`);
+            warn(this, `Validation failed: Start time could not be parsed: "${rawStartTime}"`);
             new Notice('Unable to parse start time. Try a different format like seconds, HH:MM:SS, percentage, or a duration expression like "10 minutes".');
             this.populateInputs();
             return;
         }
         if (rawEndTime !== "" && parsedEnd === null) {
-            fragmentsWarn(`Validation failed: End time could not be parsed: "${rawEndTime}"`);
+            warn(this, `Validation failed: End time could not be parsed: "${rawEndTime}"`);
             new Notice('Unable to parse end time. Try a different format like seconds, HH:MM:SS, percentage, or a duration expression like "10 minutes".');
             this.populateInputs();
             return;
@@ -346,7 +346,7 @@ class FragmentInputModal extends Modal {
                 endSecs = Infinity; // Fallback
             }            // Now compare the numeric values
             if (startSecs >= endSecs) {
-                fragmentsWarn(`Validation failed: Start time ${startSecs}s is after or equal to end time ${endSecs}s`);
+                warn(this, `Validation failed: Start time ${startSecs}s is after or equal to end time ${endSecs}s`);
                 new Notice('Start time cannot be after or equal to the end time.');
                 this.populateInputs();
                 return;

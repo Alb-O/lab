@@ -1,4 +1,11 @@
 // Barrel file for utils
 export * from './utils';
 export * from '../context-menu/utils';
-export * from './debug';
+export { 
+	debug, info, warn, error, 
+	initDebug, registerLoggerClass,
+	setNamespaceOverride, setColors, setDefaultLogLevel,
+	setFormatTemplate, setCallbackFormatTemplate, setMessageColor,
+	getColors, getDefaultLogLevel, getCurrentNamespace,
+	getFormatTemplate, getCallbackFormatTemplate, getMessageColor
+} from './obsidian-logger';

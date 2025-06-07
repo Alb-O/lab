@@ -1,7 +1,7 @@
 import { VideoWithFragment } from '@markdown';
 import { FragmentsSettings } from '@settings';
 import { FragmentHandler } from '../types/types';
-import { parseFragmentToSeconds, fragmentsDebug } from '@utils';
+import { parseFragmentToSeconds, debug } from '@utils';
 import { VideoRestrictionHandler } from '@observer';
 
 /**
@@ -20,13 +20,13 @@ export class FragmentManager {
      * Apply fragment restrictions to videos in the current view across specified documents
      */
     public applyFragmentRestrictions(videosFromMarkdown: VideoWithFragment[], targetDocuments: Document[]): void {
-        fragmentsDebug(`Applying fragment restrictions to ${videosFromMarkdown.length} videos across ${targetDocuments.length} documents`);
+        debug(this, `Applying fragment restrictions to ${videosFromMarkdown.length} videos across ${targetDocuments.length} documents`);
         const processedDomVideoElements = new Set<HTMLVideoElement>();
 
         // 1. First cleanup handlers from all video elements
         for (const doc of targetDocuments) {
             const allVideoElementsInDom = Array.from(doc.querySelectorAll('video'));
-            fragmentsDebug(`Found ${allVideoElementsInDom.length} video elements in DOM`);
+            debug(this, `Found ${allVideoElementsInDom.length} video elements in DOM`);
             allVideoElementsInDom.forEach(videoEl => this.videoHandler.cleanup(videoEl));
 
             // 2. Process videos defined in Markdown
@@ -36,7 +36,7 @@ export class FragmentManager {
             this.processUnmanagedVideos(allVideoElementsInDom, processedDomVideoElements);
         }
         
-        fragmentsDebug(`Fragment restriction application completed`);
+        debug(this, `Fragment restriction application completed`);
     }
 
     /**
@@ -215,15 +215,15 @@ export class FragmentManager {
             if (parentSrcAttr) {
                 const currentSrcPathPart = parentSrcAttr.split('#t=')[0];                const srcTimeMatch = parentSrcAttr.match(/#t=([^,]+)(?:,([^,]+))?/);                if (srcTimeMatch && srcTimeMatch[1] && srcTimeMatch[1] !== '0.001') {
                     // Parse start time using enhanced parseFragmentToSeconds which now handles chrono-node parsing
-                    fragmentsDebug(`Extracting fragment from embed: start="${srcTimeMatch[1]}", end="${srcTimeMatch[2] || ''}"`);
+                    debug(this, `Extracting fragment from embed: start="${srcTimeMatch[1]}", end="${srcTimeMatch[2] || ''}"`);
                     const parsedStart = parseFragmentToSeconds(srcTimeMatch[1]);
-                    fragmentsDebug(`  Parsed start: ${JSON.stringify(parsedStart)}`);
+                    debug(this, `  Parsed start: ${JSON.stringify(parsedStart)}`);
                     const start = parsedStart !== null ? parsedStart : undefined;
                     // Parse end time if present
                     let end: number | { percent: number } | undefined;
                     if (srcTimeMatch[2] && srcTimeMatch[2] !== '0.001') {
                         const parsedEnd = parseFragmentToSeconds(srcTimeMatch[2]);
-                        fragmentsDebug(`  Parsed end: ${JSON.stringify(parsedEnd)}`);
+                        debug(this, `  Parsed end: ${JSON.stringify(parsedEnd)}`);
                         if (parsedEnd !== null) end = parsedEnd;
                     }
                     return { startTime: start, endTime: end, path: currentSrcPathPart };

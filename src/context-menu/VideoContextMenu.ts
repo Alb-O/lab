@@ -2,7 +2,7 @@ import { Menu, Plugin } from 'obsidian';
 import { FragmentsSettings } from '@settings';
 import { observeElements } from '@observer';
 import { addOpenCommands, addEmbedActionsCommands, addSetCommands, addSystemCommands } from '@context-menu/items';
-import { fragmentsDebug } from '@utils';
+import { debug } from '@utils';
 
 export class VideoContextMenu {
   private plugin: Plugin;
@@ -20,18 +20,17 @@ export class VideoContextMenu {
   /**
    * Set up the context menu for all video elements.
    * Returns a cleanup function.
-   */
-  public setup(): () => void {
-    fragmentsDebug('Setting up video context menu');
+   */public setup(): () => void {
+    debug(this, 'Setting up video context menu');
     this.cleanup();
     const initContext = (video: HTMLVideoElement) => {
       if (this.initializedElements.has(video) && video._videoContextMenuHandler) {
         return;
       }
-      fragmentsDebug('Initializing context menu for video element');
+      debug(this, 'Initializing context menu for video element');
       const contextMenuHandler = (event: MouseEvent) => {
         event.preventDefault();
-        fragmentsDebug('Context menu opened for video');
+        debug(this, 'Context menu opened for video');
         const menu = new Menu();
         addOpenCommands(menu, this.plugin, video);
         addEmbedActionsCommands(menu, this.plugin, this.settings, video);
@@ -52,7 +51,7 @@ export class VideoContextMenu {
    * Clean up all context menu handlers from all videos.
    */
   public cleanup(): void {
-    fragmentsDebug('Cleaning up video context menu');
+    debug(this, 'Cleaning up video context menu');
     this.getAllRelevantDocuments().forEach(doc => {
       doc.querySelectorAll('video').forEach((video: HTMLVideoElement) => {
         if (video._videoContextMenuHandler) {
@@ -62,10 +61,9 @@ export class VideoContextMenu {
         }
       });
     });
-    if (this.cleanupFn) {
-      this.cleanupFn();
+    if (this.cleanupFn) {      this.cleanupFn();
       this.cleanupFn = null;
     }
-    fragmentsDebug('Video context menu cleanup completed');
+    debug(this, 'Video context menu cleanup completed');
   }
 }
