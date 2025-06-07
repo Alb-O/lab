@@ -8,6 +8,12 @@ import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
+import { 
+	blenderBuildManagerDebug as debug, 
+	blenderBuildManagerInfo as info, 
+	blenderBuildManagerWarn as warn, 
+	blenderBuildManagerError as error 
+} from './debug';
 
 export class FetchBlenderBuilds extends EventEmitter {
 	private scraper: BlenderScraper;
@@ -31,9 +37,10 @@ export class FetchBlenderBuilds extends EventEmitter {
 	private extractedBuildsCache: Array<{ build: BlenderBuildInfo; extractPath: string; executable?: string }> | null = null;
 	private extractedBuildsCacheTime: number = 0;
 	private static readonly EXTRACTED_BUILDS_CACHE_TTL = 30000; // 30 seconds
-
 	constructor(vaultPath: string, settings: BlenderPluginSettings = DEFAULT_SETTINGS) {
 		super();
+		debug('buildManager', 'constructor:start', { vaultPath, settings });
+		
 		this.vaultPath = vaultPath;
 		this.settings = settings;
 		this.scraper = new BlenderScraper(settings.minimumBlenderVersion);
@@ -42,16 +49,25 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.cacheFilePath = path.join(this.getDownloadsPath(), 'build-cache.json');
 		this.installedBuildsCacheFilePath = path.join(this.getDownloadsPath(), 'installed-builds-cache.json');
 
+		debug('buildManager', 'constructor:cache-paths', { 
+			cacheFilePath: this.cacheFilePath, 
+			installedBuildsCacheFilePath: this.installedBuildsCacheFilePath 
+		});
+
 		this.setupEventListeners();
 		this.cacheLoadingPromise = this.loadCachedBuildsAsync();
+		
+		info('buildManager', 'constructor:complete');
 	}
-
 	/**
 	 * Set up event listeners for scraper and downloader
 	 */
 	private setupEventListeners(): void {
+		debug('buildManager', 'setupEventListeners:start');
+		
 		// Scraper events - we'll ignore detailed status messages and show simple user-friendly messages
 		this.scraper.on('status', (status: string) => {
+			debug('scraper', 'status', { status, isActive: this.scrapingStatus.isActive });
 			// Don't update the status with detailed scraper messages during active scraping
 			// Let the refreshBuilds method handle the user-facing status messages
 			if (!this.scrapingStatus.isActive) {
@@ -60,28 +76,34 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 		});
 
-		this.scraper.on('error', (error: string) => {
-			this.scrapingStatus.error = error;
+		this.scraper.on('error', (errorMsg: string) => {
+			error('scraper', 'error', errorMsg);
+			this.scrapingStatus.error = errorMsg;
 			this.scrapingStatus.isActive = false;
-			this.emit('scrapingError', error);
-			new Notice(`Scraping error: ${error}`);
+			this.emit('scrapingError', errorMsg);
+			new Notice(`Scraping error: ${errorMsg}`);
 		});
 
 		// Downloader events
 		this.downloader.on('downloadStarted', (build: BlenderBuildInfo, filePath: string) => {
+			info('downloader', 'downloadStarted', { buildSubversion: build.subversion, filePath });
 			this.emit('downloadStarted', build, filePath);
 			new Notice(`Started downloading ${build.subversion}`);
 		});
 
 		this.downloader.on('downloadCompleted', (build: BlenderBuildInfo, filePath: string) => {
+			info('downloader', 'downloadCompleted', { buildSubversion: build.subversion, filePath });
 			this.emit('downloadCompleted', build, filePath);
 			new Notice(`Download completed: ${build.subversion}`);
 			// Auto-extract if enabled
 			if (this.settings.autoExtract) {
+				debug('downloader', 'auto-extract-starting', { autoExtract: this.settings.autoExtract });
 				this.extractBuild(filePath, build)
 					.then(() => {
+						info('downloader', 'auto-extract-completed');
 						// Clean up archive after successful auto-extraction if enabled
 						if (this.settings.cleanUpAfterExtraction) {
+							debug('downloader', 'cleanup-after-extraction-starting');
 							this.cleanupAfterExtraction(filePath).catch(console.error);
 						}
 					})
@@ -89,11 +111,13 @@ export class FetchBlenderBuilds extends EventEmitter {
 			}
 		});
 
-		this.downloader.on('downloadError', (build: BlenderBuildInfo, error: any) => {
-			this.emit('downloadError', build, error);
-			new Notice(`Download failed: ${build.subversion} - ${error.message}`);
+		this.downloader.on('downloadError', (build: BlenderBuildInfo, errorData: any) => {
+			error('downloader', 'downloadError', { buildSubversion: build.subversion, error: errorData });
+			this.emit('downloadError', build, errorData);
+			new Notice(`Download failed: ${build.subversion} - ${errorData.message}`);
 		});
 		this.downloader.on('extractionStarted', (archivePath: string, extractPath: string) => {
+			info('downloader', 'extractionStarted', { archivePath, extractPath });
 			this.emit('extractionStarted', archivePath, extractPath);
 			new Notice(`Extracting ${path.basename(archivePath)}...`);
 		});

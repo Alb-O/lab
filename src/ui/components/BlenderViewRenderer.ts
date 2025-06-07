@@ -9,6 +9,12 @@ import {
 	BlenderBuildsRenderer, 
 	BlenderViewLayoutManager 
 } from '.';
+import { 
+	blenderBuildManagerDebug as debug, 
+	blenderBuildManagerInfo as info, 
+	blenderBuildManagerWarn as warn, 
+	blenderBuildManagerError as error 
+} from '../../debug';
 
 /**
  * Main renderer component that coordinates all rendering logic for the BlenderBuildsView
@@ -33,12 +39,13 @@ export class BlenderViewRenderer {
 	private currentBranch: string = 'all';	private currentBuildType: BuildType | 'all' = 'all';
 	private showInstalledOnly = false;
 	private pinSymlinkedBuild = false;
-	private isTypeFilterVisible = false;
-	constructor(
+	private isTypeFilterVisible = false;	constructor(
 		plugin: FetchBlenderBuildsPlugin,
 		buildManager: FetchBlenderBuilds,
 		containerEl: HTMLElement
 	) {
+		debug('renderer', 'constructor:start');
+		
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.buildFilter = new BuildFilter(buildManager);
@@ -47,8 +54,15 @@ export class BlenderViewRenderer {
 		this.currentBuildType = plugin.settings.preferredBuildType;
 		this.pinSymlinkedBuild = plugin.settings.pinSymlinkedBuild;
 		
+		debug('renderer', 'constructor:settings-initialized', {
+			showInstalledOnly: this.showInstalledOnly,
+			currentBuildType: this.currentBuildType,
+			pinSymlinkedBuild: this.pinSymlinkedBuild
+		});
+		
 		// Initialize layout manager
 		this.layoutManager = new BlenderViewLayoutManager(containerEl);		// Initialize component instances
+		debug('renderer', 'constructor:creating-components');
 		this.toolbar = new BlenderToolbar(
 			this.plugin,
 			buildManager,
@@ -65,37 +79,51 @@ export class BlenderViewRenderer {
 		);
 		
 		// Set up event listeners
+		debug('renderer', 'constructor:setting-up-event-listeners');
 		this.setupEventListeners();
+		
+		info('renderer', 'constructor:complete');
 	}
-
 	/**
 	 * Initialize the layout once
 	 */
 	initializeLayout(): void {
-		if (this.isInitialized) return;
+		debug('renderer', 'initializeLayout:start', { isInitialized: this.isInitialized });
+		if (this.isInitialized) {
+			debug('renderer', 'initializeLayout:already-initialized');
+			return;
+		}
 		
 		this.layoutManager.initializeLayout();
 		this.isInitialized = true;
 		
 		// Initial render
+		debug('renderer', 'initializeLayout:calling-initial-render');
 		this.render();
+		info('renderer', 'initializeLayout:complete');
 	}
 
 	/**
 	 * Main render method - coordinates all components
 	 */
 	async render(): Promise<void> {
+		debug('renderer', 'render:start', { isInitialized: this.isInitialized });
+		
 		if (!this.isInitialized) {
+			debug('renderer', 'render:not-initialized-calling-initializeLayout');
 			this.initializeLayout();
 		}
 		
 		// Update toolbar
+		debug('renderer', 'render:updating-toolbar');
 		this.updateToolbar();
 		
 		// Update filter section
+		debug('renderer', 'render:updating-filter-section');
 		this.updateFilterSection();
 		
 		// Update status display
+		debug('renderer', 'render:updating-status-display');
 		this.updateStatusDisplay();
 		
 		// Update builds content

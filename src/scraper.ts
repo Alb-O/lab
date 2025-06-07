@@ -3,6 +3,12 @@ import { requestUrl } from 'obsidian';
 import * as cheerio from 'cheerio';
 import { valid, coerce, compare } from 'semver';
 import { EventEmitter } from 'events';
+import { 
+	blenderBuildManagerDebug as debug, 
+	blenderBuildManagerInfo as info, 
+	blenderBuildManagerWarn as warn, 
+	blenderBuildManagerError as error 
+} from './debug';
 
 export class BlenderScraper extends EventEmitter {
 	private static readonly DOWNLOAD_BASE_URL = 'https://download.blender.org/release/';
@@ -13,27 +19,40 @@ export class BlenderScraper extends EventEmitter {
 	private architecture: Architecture;
 	private cache: ScraperCache;
 	private minimumVersion: string;
-		constructor(minimumVersion: string = '3.0') {
+	constructor(minimumVersion: string = '3.0') {
 		super();
+		debug('scraper', 'constructor:start', { minimumVersion });
+		
 		this.platform = this.getCurrentPlatform();
 		this.architecture = this.getCurrentArchitecture();
 		this.minimumVersion = minimumVersion;
 		this.cache = { folders: {} };
+		
+		debug('scraper', 'constructor:platform-detection', { 
+			platform: this.platform, 
+			architecture: this.architecture 
+		});
+		
+		info('scraper', 'constructor:complete');
 	}
-
 	/**
 	 * Get the current platform
 	 */
 	private getCurrentPlatform(): Platform {
+		debug('scraper', 'getCurrentPlatform:start');
 		const platform = process.platform;
 		switch (platform) {
 			case 'win32':
+				debug('scraper', 'getCurrentPlatform:detected-windows');
 				return Platform.Windows;
 			case 'darwin':
+				debug('scraper', 'getCurrentPlatform:detected-macos');
 				return Platform.macOS;
 			case 'linux':
+				debug('scraper', 'getCurrentPlatform:detected-linux');
 				return Platform.Linux;
 			default:
+				warn('scraper', 'getCurrentPlatform:unknown-platform-defaulting-to-windows', { platform });
 				return Platform.Windows;
 		}
 	}
@@ -42,8 +61,11 @@ export class BlenderScraper extends EventEmitter {
 	 * Get the current architecture
 	 */
 	private getCurrentArchitecture(): Architecture {
+		debug('scraper', 'getCurrentArchitecture:start');
 		const arch = process.arch;
-		return arch === 'arm64' ? Architecture.arm64 : Architecture.x64;
+		const result = arch === 'arm64' ? Architecture.arm64 : Architecture.x64;
+		debug('scraper', 'getCurrentArchitecture:detected', { arch, result });
+		return result;
 	}
 
 	/**

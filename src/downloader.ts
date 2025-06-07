@@ -6,32 +6,46 @@ import { promisify } from 'util';
 import * as yauzl from 'yauzl';
 import { EventEmitter } from 'events';
 import { BlenderExtractor } from './extractor';
+import { 
+	blenderBuildManagerDebug as debug, 
+	blenderBuildManagerInfo as info, 
+	blenderBuildManagerWarn as warn, 
+	blenderBuildManagerError as error 
+} from './debug';
 
 export class BlenderDownloader extends EventEmitter {
 	private downloadQueue: Map<string, AbortController> = new Map();
 	private progressCallbacks: Map<string, (progress: DownloadProgress) => void> = new Map();
 	private extractor: BlenderExtractor;
-
 	constructor() {
 		super();
+		debug('downloader', 'constructor:start');
+		
 		this.extractor = new BlenderExtractor();
 		
 		// Forward extraction events
+		debug('downloader', 'constructor:setting-up-extractor-events');
 		this.extractor.on('extractionStarted', (archivePath: string, extractPath: string) => {
+			debug('downloader', 'extraction:started', { archivePath, extractPath });
 			this.emit('extractionStarted', archivePath, extractPath);
 		});
 		
 		this.extractor.on('extractionCompleted', (archivePath: string, extractPath: string) => {
+			info('downloader', 'extraction:completed', { archivePath, extractPath });
 			this.emit('extractionCompleted', archivePath, extractPath);
 		});
 		
-		this.extractor.on('extractionError', (archivePath: string, error: Error) => {
-			this.emit('extractionError', archivePath, error);
+		this.extractor.on('extractionError', (archivePath: string, errorData: Error) => {
+			error('downloader', 'extraction:error', { archivePath, error: errorData });
+			this.emit('extractionError', archivePath, errorData);
 		});
 		
 		this.extractor.on('extractionProgress', (progress: ExtractionProgress) => {
+			debug('downloader', 'extraction:progress', progress);
 			this.emit('extractionProgress', progress);
 		});
+		
+		info('downloader', 'constructor:complete');
 	}
 
 	/**
