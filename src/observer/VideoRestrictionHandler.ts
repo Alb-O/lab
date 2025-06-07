@@ -1,6 +1,6 @@
 import { FragmentHandler, VideoState } from '../types/types';
 import { updateTimelineStyles } from '@observer';
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 
 /**
  * Handles video events and enforces fragment restrictions
@@ -9,7 +9,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
     /**
      * Apply fragment restrictions to a video element
      */
-    public apply(videoEl: HTMLVideoElement, startTime: number | { percent: number }, endTime: number | { percent: number }, path: string, settings: VideoFragmentsSettings, skipInitialSeek = false, startRaw?: string, endRaw?: string): void {
+    public apply(videoEl: HTMLVideoElement, startTime: number | { percent: number }, endTime: number | { percent: number }, path: string, settings: FragmentsSettings, skipInitialSeek = false, startRaw?: string, endRaw?: string): void {
         this.cleanup(videoEl);
 
         // Helper for percent object
@@ -449,7 +449,7 @@ export class VideoRestrictionHandler implements FragmentHandler {
 /**
  * Reapply fragment restriction handlers without full plugin reload
  */
-export function reinitializeRestrictionHandlers(settings: VideoFragmentsSettings): void {
+export function reinitializeRestrictionHandlers(settings: FragmentsSettings): void {
     const handler = new VideoRestrictionHandler();
     const videos = Array.from(document.querySelectorAll('video')) as HTMLVideoElement[];
     videos.forEach(videoEl => {

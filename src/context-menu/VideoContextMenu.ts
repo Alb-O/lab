@@ -1,16 +1,16 @@
 import { Menu, Plugin } from 'obsidian';
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 import { observeElements } from '@observer';
 import { addOpenCommands, addEmbedActionsCommands, addSetCommands, addSystemCommands } from '@context-menu/items';
 
 export class VideoContextMenu {
   private plugin: Plugin;
-  private settings: VideoFragmentsSettings;
+  private settings: FragmentsSettings;
   private getAllRelevantDocuments: () => Document[];
   private initializedElements = new WeakSet<HTMLVideoElement>();
   private cleanupFn: (() => void) | null = null;
 
-  constructor(plugin: Plugin, settings: VideoFragmentsSettings, getAllRelevantDocuments: () => Document[]) {
+  constructor(plugin: Plugin, settings: FragmentsSettings, getAllRelevantDocuments: () => Document[]) {
     this.plugin = plugin;
     this.settings = settings;
     this.getAllRelevantDocuments = getAllRelevantDocuments;

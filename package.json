@@ -1,7 +1,7 @@
 {
-	"name": "video-fragments",
+	"name": "fragments",
 	"version": "0.2.0",
-	"description": "Trim and timestamp videos non-destructively.",
+	"description": "Trim and timestamp media non-destructively.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

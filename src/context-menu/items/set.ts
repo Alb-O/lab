@@ -1,8 +1,8 @@
 import { Menu, Notice, App, Modal, Plugin, setIcon } from 'obsidian';
 import { getCurrentTimeRounded, setAndSaveVideoFragment, parseFragmentToSeconds, formatFragment, TempFragment, parseTempFrag } from '@utils';
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 
-export function addSetCommands(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
+export function addSetCommands(menu: Menu, plugin: Plugin, settings: FragmentsSettings, video: HTMLVideoElement) {
     menu.addItem(item => item
         .setIcon('clock')
         .setTitle('Set video fragment...')
@@ -15,7 +15,7 @@ export function addSetCommands(menu: Menu, plugin: Plugin, settings: VideoFragme
 
 class FragmentInputModal extends Modal {
     video: HTMLVideoElement;
-    settings: VideoFragmentsSettings;
+    settings: FragmentsSettings;
 
     private startTimeInputEl!: HTMLTextAreaElement;
     private endTimeInputEl!: HTMLTextAreaElement;
@@ -32,7 +32,7 @@ class FragmentInputModal extends Modal {
     private readonly videoPauseListener = () => this.stopCurrentTimeUpdates();
     private readonly videoSeekingListener = () => this.updateCurrentTimeDisplay();
 
-    constructor(app: App, video: HTMLVideoElement, settings: VideoFragmentsSettings) {
+    constructor(app: App, video: HTMLVideoElement, settings: FragmentsSettings) {
         super(app);
         this.video = video;
         this.settings = settings;

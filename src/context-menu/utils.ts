@@ -2,7 +2,7 @@ import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView, N
 import { markdownExtractor, VideoWithFragment } from '@markdown';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
 import { generateFragmentString, TempFragment, parseFragmentToSeconds } from '@utils';
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 
 export interface VideoLinkDetails {
     targetFile: TFile | null;
@@ -224,7 +224,7 @@ function compareFragmentTimes(
 export async function setAndSaveVideoFragment(
     app: App,
     video: HTMLVideoElement,
-    settings: VideoFragmentsSettings, // Kept for potential future settings-dependent logic
+    settings: FragmentsSettings, // Kept for potential future settings-dependent logic
     newFragment: TempFragment | null
 ): Promise<boolean> {
     // 1. Apply to video element (dataset and src)

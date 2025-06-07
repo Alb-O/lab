@@ -1,15 +1,15 @@
 import { MarkdownView, WorkspaceLeaf, TFile, App } from 'obsidian';
-import VideoFragments from './main';
+import Fragments from './main';
 import { updateTimelineStyles } from '@observer';
 
 /**
  * Handles plugin events for VideoFragments plugin
  */
 export class PluginEventHandler {
-    private plugin: VideoFragments;
+    private plugin: Fragments;
     private app: App;
 
-    constructor(plugin: VideoFragments, app: App) {
+    constructor(plugin: Fragments, app: App) {
         this.plugin = plugin;
         this.app = app;
     }

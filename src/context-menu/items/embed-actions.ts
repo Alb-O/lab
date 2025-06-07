@@ -1,8 +1,8 @@
 import { Menu, Notice, Plugin, MarkdownView } from 'obsidian';
 import { formatFragment, getCurrentTimeRounded, removeVideoEmbedByIndex, copyGeneric } from '@utils';
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 
-export function addEmbedActionsCommands(menu: Menu, plugin: Plugin, settings: VideoFragmentsSettings, video: HTMLVideoElement) {
+export function addEmbedActionsCommands(menu: Menu, plugin: Plugin, settings: FragmentsSettings, video: HTMLVideoElement) {
     menu.addItem(item => item
         .setIcon('copy')
         .setTitle('Copy embed link')

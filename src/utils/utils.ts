@@ -1,4 +1,4 @@
-import { VideoFragmentsSettings } from "@settings";
+import { FragmentsSettings } from "@settings";
 import parse from 'parse-duration';
 
 /**
@@ -111,7 +111,7 @@ function getTimeSpan(
 export function formatFragment(
     totalSeconds: number,
     rawFormat?: string,
-    settings?: VideoFragmentsSettings
+    settings?: FragmentsSettings
 ): string {
     if (rawFormat) {
         // Basic validation for rawFormat to ensure it's a plausible fragment

@@ -1,5 +1,5 @@
 import { MarkdownView, Plugin } from 'obsidian';
-import { DEFAULT_SETTINGS, IVideoFragmentsPlugin, VideoFragmentsSettings, VideoFragmentsSettingTab } from '@settings';
+import { DEFAULT_SETTINGS, IFragmentsPlugin, FragmentsSettings, VideoFragmentsSettingTab } from '@settings';
 import { VideoDetector, setupVideoControls } from '@observer';
 import { VideoContextMenu } from '@context-menu';
 import { FragmentManager } from '@fragments';
@@ -7,8 +7,8 @@ import { PluginEventHandler } from './plugin-event-handler';
 import { initPluginContext } from 'obsidian-dev-utils/obsidian/Plugin/PluginContext';
 import type { VideoWithFragment } from '@markdown';
 
-export default class VideoFragments extends Plugin implements IVideoFragmentsPlugin {
-	settings: VideoFragmentsSettings;
+export default class Fragments extends Plugin implements IFragmentsPlugin {
+	settings: FragmentsSettings;
 	videoDetector: VideoDetector;
 	fragmentController: FragmentManager;
 	pluginEventHandler: PluginEventHandler;

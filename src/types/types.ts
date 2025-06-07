@@ -1,4 +1,4 @@
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 
 /**
  * Represents the state of a video with fragment restrictions
@@ -27,7 +27,7 @@ export interface FragmentHandler {
         startTime: number | { percent: number },
         endTime: number | { percent: number },
         path: string,
-        settings: VideoFragmentsSettings,
+        settings: FragmentsSettings,
         skipInitialSeek?: boolean,
         startRaw?: string,
         endRaw?: string

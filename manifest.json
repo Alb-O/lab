@@ -1,9 +1,9 @@
 {
-	"id": "video-fragments",
-	"name": "Video Fragments",
+	"id": "fragments",
+	"name": "Fragments",
 	"version": "0.2.0",
 	"minAppVersion": "1.8.10",
-	"description": "Trim and timestamp videos non-destructively.",
+	"description": "Trim and timestamp media non-destructively.",
 	"author": "Albert O'Shea",
 	"authorUrl": "https://github.com/AMC-Albert",
 	"fundingUrl": "https://github.com/sponsors/AMC-Albert",

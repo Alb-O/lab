@@ -1,5 +1,5 @@
 import { VideoWithFragment } from '@markdown';
-import { VideoFragmentsSettings } from '@settings';
+import { FragmentsSettings } from '@settings';
 import { FragmentHandler } from '../types/types';
 import { parseFragmentToSeconds } from '@utils';
 import { VideoRestrictionHandler } from '@observer';
@@ -8,10 +8,10 @@ import { VideoRestrictionHandler } from '@observer';
  * Manages fragment restrictions for videos in Obsidian
  */
 export class FragmentManager {
-    private settings: VideoFragmentsSettings;
+    private settings: FragmentsSettings;
     private videoHandler: FragmentHandler;
 
-    constructor(settings: VideoFragmentsSettings) {
+    constructor(settings: FragmentsSettings) {
         this.settings = settings;
         this.videoHandler = new VideoRestrictionHandler();
     }

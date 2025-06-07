@@ -4,8 +4,8 @@ import { FragmentManager } from '@fragments';
 import { PluginEventHandler } from './plugin-event-handler';
 import type { VideoWithFragment } from '@markdown';
 
-export interface IVideoFragmentsPlugin extends Plugin {
-    settings: VideoFragmentsSettings;
+export interface IFragmentsPlugin extends Plugin {
+    settings: FragmentsSettings;
     videoDetector: VideoDetector;
     fragmentController: FragmentManager;
     pluginEventHandler: PluginEventHandler;
@@ -14,7 +14,7 @@ export interface IVideoFragmentsPlugin extends Plugin {
     getAllRelevantDocuments(): Document[];
 }
 
-export interface VideoFragmentsSettings {
+export interface FragmentsSettings {
     loopMaxFragment: boolean;
     trimZeroHours: boolean;
     trimZeroMinutes: boolean;
@@ -22,7 +22,7 @@ export interface VideoFragmentsSettings {
     useRawSeconds: boolean;
 }
 
-export const DEFAULT_SETTINGS: VideoFragmentsSettings = {
+export const DEFAULT_SETTINGS: FragmentsSettings = {
     loopMaxFragment: false,
     trimZeroHours: true,
     trimZeroMinutes: true,
@@ -34,9 +34,9 @@ export const DEFAULT_SETTINGS: VideoFragmentsSettings = {
  * Settings tab for the Video Fragments plugin
  */
 export class VideoFragmentsSettingTab extends PluginSettingTab {
-    plugin: IVideoFragmentsPlugin;
+    plugin: IFragmentsPlugin;
     
-    constructor(app: App, plugin: IVideoFragmentsPlugin) {
+    constructor(app: App, plugin: IFragmentsPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
