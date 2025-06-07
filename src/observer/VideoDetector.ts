@@ -1,5 +1,6 @@
 import { MarkdownView } from 'obsidian';
 import { markdownExtractor, VideoWithFragment } from '@markdown';
+import { fragmentsDebug } from '@utils';
 
 /**
  * Class that handles detecting videos in Markdown views
@@ -14,19 +15,23 @@ export class VideoDetector {
      */
     public getVideosFromActiveView(activeView: MarkdownView | null): VideoWithFragment[] {
         if (!activeView?.file) {
+            fragmentsDebug('No active view or file, returning empty videos array');
             return [];
         }
         
         // Return cached results if view hasn't changed
         if (this.lastProcessedView === activeView) {
+            fragmentsDebug(`Returning cached videos for view: ${activeView.file.path} (${this.lastVideos.length} videos)`);
             return this.lastVideos;
         }
         
+        fragmentsDebug(`Processing new view: ${activeView.file.path}`);
         // Extract and cache results via shared markdownExtractor
         const videos = markdownExtractor.extract(activeView);
         this.lastProcessedView = activeView;
         this.lastVideos = videos;
         
+        fragmentsDebug(`Found ${videos.length} videos in view: ${activeView.file.path}`);
         return videos;
     }
     

@@ -1,7 +1,7 @@
 import { TFile, MarkdownView, normalizePath, App, FileSystemAdapter, FileView, Notice } from 'obsidian';
 import { markdownExtractor, VideoWithFragment } from '@markdown';
 import { generateMarkdownLink } from 'obsidian-dev-utils/obsidian/Link';
-import { generateFragmentString, TempFragment, parseFragmentToSeconds } from '@utils';
+import { generateFragmentString, TempFragment, parseFragmentToSeconds, fragmentsDebug } from '@utils';
 import { FragmentsSettings } from '@settings';
 
 export interface VideoLinkDetails {
@@ -192,7 +192,7 @@ function compareFragmentTimes(
     video: HTMLVideoElement
 ): number | null {
     // Returns -1 if start < end, 0 if equal, 1 if start > end, null if cannot compare
-    console.log(`compareFragmentTimes called with start=${JSON.stringify(start)}, end=${JSON.stringify(end)}`);
+    fragmentsDebug(`compareFragmentTimes called with start=${JSON.stringify(start)}, end=${JSON.stringify(end)}`);
 
     if (start === undefined || end === undefined) return null;
 

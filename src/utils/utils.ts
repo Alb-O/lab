@@ -1,5 +1,6 @@
 import { FragmentsSettings } from "@settings";
 import parse from 'parse-duration';
+import { fragmentsDebug, fragmentsWarn, fragmentsError } from './debug';
 
 /**
  * Interface representing a temporal fragment in a media file
@@ -65,9 +66,8 @@ function getTimeSpan(
         if (startRaw.toLowerCase() === 'start') {
             startTime = 0;
         } else {
-            startTime = parseFragmentToSeconds(startRaw);
-            if (startTime === null) {
-                console.warn("Unable to parse start time:", startRaw);
+            startTime = parseFragmentToSeconds(startRaw);            if (startTime === null) {
+                fragmentsWarn("Unable to parse start time:", startRaw);
                 return null; // Invalid start time format
             }
         }
@@ -77,9 +77,8 @@ function getTimeSpan(
         if (endRaw.toLowerCase() === 'e' || endRaw.toLowerCase() === 'end') {
             endTime = Infinity;
         } else {
-            endTime = parseFragmentToSeconds(endRaw);
-            if (endTime === null) {
-                console.warn("Unable to parse end time:", endRaw);
+            endTime = parseFragmentToSeconds(endRaw);            if (endTime === null) {
+                fragmentsWarn("Unable to parse end time:", endRaw);
                 return null; // Invalid end time format
             }
         }
@@ -189,9 +188,8 @@ export function formatFragment(
 export function parseFragmentToSeconds(fragment: string): number | { percent: number } | null {
     if (!fragment || typeof fragment !== 'string') return null;
     const trimmed = fragment.trim().toLowerCase();
-    
     // Debug logging to help troubleshoot
-    console.log(`Attempting to parse time: '${trimmed}'`);
+    fragmentsDebug(`Attempting to parse time: '${trimmed}'`);
     
     // Handle special keywords
     if (trimmed === 'start') return 0;
@@ -209,7 +207,7 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
     // First check if it's raw seconds (just a number) for efficiency
     if (timePatterns.npt_sec.test(trimmed)) {
         const s = parseFloat(trimmed);
-        console.log(`  Parsed as raw seconds: ${s}`);
+        fragmentsDebug(`  Parsed as raw seconds: ${s}`);
         return s >= 0 ? s : null;
     }
     
@@ -222,7 +220,7 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
         const s = parseFloat(match[3]);
         if (h < 0 || m < 0 || m >= 60 || s < 0 || s >= 60) return null;
         const result = h * 3600 + m * 60 + s;
-        console.log(`  Parsed as hh:mm:ss: ${h}:${m}:${s} = ${result}s`);
+        fragmentsDebug(`  Parsed as hh:mm:ss: ${h}:${m}:${s} = ${result}s`);
         return result;
     }
     
@@ -231,17 +229,14 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
         const m = parseInt(match[1], 10);
         const s = parseFloat(match[2]);
         if (m < 0 || s < 0 || s >= 60) return null;
-        if (m >= 60 && trimmed.includes(':') && !trimmed.match(/^\d+:\d+:\d+/)) {
-            // if it has a colon, and minutes is >=60, but it's not hh:mm:ss, it's invalid
-            console.log(`  Invalid mm:ss format (m>=60): ${m}:${s}`);
-            return null;
-        } else if (m >= 60) {
+        if (m >= 60 && trimmed.includes(':') && !trimmed.match(/^\d+:\d+:\d+/)) {            // if it has a colon, and minutes is >=60, but it's not hh:mm:ss, it's invalid
+            fragmentsWarn(`  Invalid mm:ss format (m>=60): ${m}:${s}`);
+            return null;        } else if (m >= 60) {
             const result = m * 60 + s;
-            console.log(`  Parsed as mm:ss (m>=60): ${m}:${s} = ${result}s`);
+            fragmentsDebug(`  Parsed as mm:ss (m>=60): ${m}:${s} = ${result}s`);
             return result;
-        }
-        const result = m * 60 + s;
-        console.log(`  Parsed as mm:ss: ${m}:${s} = ${result}s`);
+        }        const result = m * 60 + s;
+        fragmentsDebug(`  Parsed as mm:ss: ${m}:${s} = ${result}s`);
         return result;
     }
     
@@ -253,21 +248,18 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
         
         if (durationMs !== null && durationMs !== undefined) {
             const seconds = durationMs / 1000;
-            
-            // Verify the result is reasonable for a video time (less than 24 hours)
+              // Verify the result is reasonable for a video time (less than 24 hours)
             if (seconds < 0 || seconds > 86400) {
-                console.log(`  Parsed value ${seconds}s is outside reasonable range for a video time`);
+                fragmentsWarn(`  Parsed value ${seconds}s is outside reasonable range for a video time`);
                 return null;
-            }
-            
-            console.log(`  Parsed with parse-duration: ${seconds}s`);
+            }            
+            fragmentsDebug(`  Parsed with parse-duration: ${seconds}s`);
             return seconds;
-        }
-    } catch (err) {
-        console.error("Error parsing time with parse-duration:", err);
+        }    } catch (err) {
+        fragmentsError("Error parsing time with parse-duration:", err);
     }
     
-    console.log(`  Failed to parse time: '${trimmed}'`);
+    fragmentsDebug(`  Failed to parse time: '${trimmed}'`);
     return null;
 }
 

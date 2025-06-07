@@ -6,6 +6,7 @@ import { FragmentManager } from '@fragments';
 import { PluginEventHandler } from './plugin-event-handler';
 import { initPluginContext } from 'obsidian-dev-utils/obsidian/Plugin/PluginContext';
 import type { VideoWithFragment } from '@markdown';
+import { fragmentsDebug, fragmentsInfo } from '@utils';
 
 export default class Fragments extends Plugin implements IFragmentsPlugin {
 	settings: FragmentsSettings;
@@ -19,15 +20,18 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 	private origLeafOnResize: ((...args: any[]) => any) | null = null;
 
 	async onload() {
+		fragmentsInfo('Plugin onload started');
 		initPluginContext(this.app, this.manifest.id);
 
 		// Load settings
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		fragmentsDebug('Settings loaded:', this.settings);
 
 		// Initialize components
 		this.videoDetector = new VideoDetector();
 		this.fragmentController = new FragmentManager(this.settings);
 		this.pluginEventHandler = new PluginEventHandler(this, this.app);
+		fragmentsDebug('Components initialized');
 
 		// Register event handlers
 		this.registerEvents();
@@ -43,18 +47,23 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 
 		// Initial detection on load, deferred until layout is ready
 		this.app.workspace.onLayoutReady(() => {
+			fragmentsDebug('Layout ready, starting initial video detection');
 			setTimeout(() => {
 				this.detectVideosInAllDocuments();
 				this.resizeHandler?.(); 
                 this.setupObserversForAllDocuments();
 			}, 500); 
 		});
+		
+		fragmentsInfo('Plugin onload completed');
 	}
 
 	private registerEvents() {
+		fragmentsDebug('Registering plugin events');
 		// Register for file changes to update video detection
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', (leaf) => {
+				fragmentsDebug('Active leaf changed');
 				this.pluginEventHandler.handleActiveLeafChange(leaf);
                 this.detectVideosInAllDocuments(); 
 			})
@@ -63,6 +72,7 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 		// Register for file content changes
 		this.registerEvent(
 			this.app.metadataCache.on('changed', (file) => {
+				fragmentsDebug('Metadata changed for file:', file?.path);
 				this.pluginEventHandler.handleMetadataChange(file);
                 this.detectVideosInAllDocuments(); 
 			})
@@ -70,11 +80,13 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 		
 		// Listen for layout changes
         this.registerEvent(this.app.workspace.on('layout-change', () => {
+            fragmentsDebug('Layout changed');
             this.handleLayoutChange();
         }));
 	}
 	
 	private setupUIComponents() {
+		fragmentsDebug('Setting up UI components');
 		// Setup video hover controls
 		setupVideoControls(this.getAllRelevantDocuments.bind(this)); 
 
@@ -136,6 +148,7 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 	}
 
 	public onunload() {
+		fragmentsInfo('Plugin unloading');
 		// Clean up context menu handlers
 		if (this.contextMenu) {
 			this.contextMenu.cleanup();
@@ -163,6 +176,8 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 		// Restore original WorkspaceLeaf.onResize if patched
 		this.pluginEventHandler.unpatchWorkspaceLeafOnResize(this.origLeafOnResize);
 		this.origLeafOnResize = null;
+
+		fragmentsInfo('Plugin unload completed');
 	}
 
     public getAllRelevantDocuments(): Document[] {
@@ -196,24 +211,18 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 	/**
 	 * Detect videos in all open markdown views across all documents
 	 * @returns Array of detected videos with fragments across all views
-	 */
-	public detectVideosInAllDocuments(): VideoWithFragment[] {
-		const markdownViews: MarkdownView[] = [];
+	 */	public detectVideosInAllDocuments(): VideoWithFragment[] {
+		fragmentsDebug('Starting video detection in all documents');
         const allDocuments = this.getAllRelevantDocuments();
-
+		
+		// Get all markdown views from workspace
+		const markdownViews: MarkdownView[] = [];
 		this.app.workspace.iterateAllLeaves(leaf => {
 			if (leaf.view instanceof MarkdownView) {
 				markdownViews.push(leaf.view);
 			}
 		});
-
-		// If no markdown views and no videos in any document, clean up and return empty array
-		if (markdownViews.length === 0 && allDocuments.every(doc => doc.querySelectorAll('video').length === 0)) {
-            allDocuments.forEach(doc => {
-                doc.querySelectorAll('video').forEach(videoEl => this.fragmentController.cleanupHandlers(videoEl));
-            });
-			return [];
-		}
+		fragmentsDebug(`Found ${markdownViews.length} markdown views to scan`);
 
 		// Collect videos from all markdown views
 		const allVideos: VideoWithFragment[] = [];
@@ -221,6 +230,8 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 			const videos = this.videoDetector.getVideosFromActiveView(view);
 			allVideos.push(...videos);
 		});
+		
+		fragmentsDebug(`Detected ${allVideos.length} videos total`);
 
 		// Apply fragment restrictions to all detected videos
 		this.fragmentController.applyFragmentRestrictions(allVideos, allDocuments);
@@ -234,6 +245,7 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 	}
 	
 	async saveSettings() {
+		fragmentsDebug('Saving settings');
 		await this.saveData(this.settings);
 	}
 }
