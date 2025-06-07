@@ -5,7 +5,7 @@ import { VideoContextMenu } from '@context-menu';
 import { FragmentManager } from '@fragments';
 import { PluginEventHandler } from './plugin-event-handler';
 import type { VideoWithFragment } from '@markdown';
-import { debug, info, warn, error, initDebug, registerLoggerClass } from '@utils';
+import { debug, info, warn, error, initLogger, registerLoggerClass } from '@utils';
 
 export default class Fragments extends Plugin implements IFragmentsPlugin {
 	settings: FragmentsSettings;
@@ -18,7 +18,7 @@ export default class Fragments extends Plugin implements IFragmentsPlugin {
 	private resizeHandler: (() => void) | null = null;	private origLeafOnResize: ((...args: any[]) => any) | null = null;
 	async onload() {
 		// Initialize debug system with plugin instance
-		initDebug(this);
+		initLogger(this);
 		
 		// Register this plugin instance for better debug context
 		registerLoggerClass(this, 'FragmentsPlugin');
