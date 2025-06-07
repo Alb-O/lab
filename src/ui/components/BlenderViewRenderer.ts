@@ -1,7 +1,7 @@
 import { BlenderBuildInfo, BuildType } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
 import { BuildFilter } from '../../buildFilter';
-import type FetchBlenderBuildsPlugin from '../../main';
+import type BlenderBuildManagerPlugin from '../../main';
 import { SearchComponent, ToggleComponent } from 'obsidian';
 import { 
 	BlenderToolbar, 
@@ -9,19 +9,14 @@ import {
 	BlenderBuildsRenderer, 
 	BlenderViewLayoutManager 
 } from '.';
-import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from '../../debug';
+import { debug, info, warn, error, registerLoggerClass } from '../../utils/obsidian-logger';
 
 /**
  * Main renderer component that coordinates all rendering logic for the BlenderBuildsView
  * Inspired by SVNViewRenderer from obsidian-subversion
  */
 export class BlenderViewRenderer {
-	private plugin: FetchBlenderBuildsPlugin;
+	private plugin: BlenderBuildManagerPlugin;
 	private buildManager: FetchBlenderBuilds;	private buildFilter: BuildFilter;
 	
 	// Component managers
@@ -40,11 +35,12 @@ export class BlenderViewRenderer {
 	private showInstalledOnly = false;
 	private pinSymlinkedBuild = false;
 	private isTypeFilterVisible = false;	constructor(
-		plugin: FetchBlenderBuildsPlugin,
+		plugin: BlenderBuildManagerPlugin,
 		buildManager: FetchBlenderBuilds,
 		containerEl: HTMLElement
 	) {
-		debug('renderer', 'constructor:start');
+		registerLoggerClass(this, 'BlenderViewRenderer');
+		debug(this, 'BlenderViewRenderer constructor started');
 		
 		this.plugin = plugin;
 		this.buildManager = buildManager;
@@ -54,15 +50,12 @@ export class BlenderViewRenderer {
 		this.currentBuildType = plugin.settings.preferredBuildType;
 		this.pinSymlinkedBuild = plugin.settings.pinSymlinkedBuild;
 		
-		debug('renderer', 'constructor:settings-initialized', {
-			showInstalledOnly: this.showInstalledOnly,
-			currentBuildType: this.currentBuildType,
-			pinSymlinkedBuild: this.pinSymlinkedBuild
-		});
+		debug(this, 'Settings initialized from plugin configuration');
 		
 		// Initialize layout manager
-		this.layoutManager = new BlenderViewLayoutManager(containerEl);		// Initialize component instances
-		debug('renderer', 'constructor:creating-components');
+		this.layoutManager = new BlenderViewLayoutManager(containerEl);
+		// Initialize component instances
+		debug(this, 'Creating UI component instances');
 		this.toolbar = new BlenderToolbar(
 			this.plugin,
 			buildManager,
@@ -79,18 +72,18 @@ export class BlenderViewRenderer {
 		);
 		
 		// Set up event listeners
-		debug('renderer', 'constructor:setting-up-event-listeners');
+		debug(this, 'Setting up event listeners for build manager');
 		this.setupEventListeners();
 		
-		info('renderer', 'constructor:complete');
+		info(this, 'BlenderViewRenderer constructor completed successfully');
 	}
 	/**
 	 * Initialize the layout once
 	 */
 	initializeLayout(): void {
-		debug('renderer', 'initializeLayout:start', { isInitialized: this.isInitialized });
+		debug(this, `Layout initialization started (already initialized: ${this.isInitialized})`);
 		if (this.isInitialized) {
-			debug('renderer', 'initializeLayout:already-initialized');
+			debug(this, 'Layout already initialized, skipping');
 			return;
 		}
 		
@@ -98,32 +91,32 @@ export class BlenderViewRenderer {
 		this.isInitialized = true;
 		
 		// Initial render
-		debug('renderer', 'initializeLayout:calling-initial-render');
+		debug(this, 'Calling initial render after layout initialization');
 		this.render();
-		info('renderer', 'initializeLayout:complete');
+		info(this, 'Layout initialization completed successfully');
 	}
 
 	/**
 	 * Main render method - coordinates all components
 	 */
 	async render(): Promise<void> {
-		debug('renderer', 'render:start', { isInitialized: this.isInitialized });
+		debug(this, `Main render started (initialized: ${this.isInitialized})`);
 		
 		if (!this.isInitialized) {
-			debug('renderer', 'render:not-initialized-calling-initializeLayout');
+			debug(this, 'Renderer not initialized, calling initializeLayout first');
 			this.initializeLayout();
 		}
 		
 		// Update toolbar
-		debug('renderer', 'render:updating-toolbar');
+		debug(this, 'Updating toolbar section');
 		this.updateToolbar();
 		
 		// Update filter section
-		debug('renderer', 'render:updating-filter-section');
+		debug(this, 'Updating filter section');
 		this.updateFilterSection();
 		
 		// Update status display
-		debug('renderer', 'render:updating-status-display');
+		debug(this, 'Updating status display section');
 		this.updateStatusDisplay();
 		
 		// Update builds content
@@ -273,7 +266,7 @@ export class BlenderViewRenderer {
 			// Debounce search for better performance
 			searchTimeout = setTimeout(() => {
 				this.currentFilter = this.searchComponent?.getValue() || '';
-				console.log('Search filter updated (onChanged):', this.currentFilter);
+				debug(this, 'Search filter updated (onChanged):', this.currentFilter);
 				this.updateBuildsContent();
 			}, 300);
 		};
@@ -287,7 +280,7 @@ export class BlenderViewRenderer {
 			// Debounce search for better performance
 			searchTimeout = setTimeout(() => {
 				this.currentFilter = this.searchComponent?.getValue() || '';
-				console.log('Search filter updated (input event):', this.currentFilter);
+				debug(this, 'Search filter updated (input event):', this.currentFilter);
 				this.updateBuildsContent();
 			}, 300);
 		});
@@ -312,7 +305,7 @@ export class BlenderViewRenderer {
 		this.pinSymlinkedBuild = !this.pinSymlinkedBuild;
 		// Save to settings
 		this.plugin.settings.pinSymlinkedBuild = this.pinSymlinkedBuild;
-		await this.plugin.saveSettings();
+		this.plugin.saveSettings();
 		this.updateToolbar();
 		this.updateBuildsContent();
 	}
@@ -336,7 +329,7 @@ export class BlenderViewRenderer {
 			await this.updateBuildsContent();
 			
 		} catch (error) {
-			console.error('Failed to refresh builds:', error);
+			error(this, 'Failed to refresh builds:', error);
 		} finally {
 			this.isRefreshing = false;
 			this.toolbar.setRefreshingState(false);
@@ -393,7 +386,7 @@ export class BlenderViewRenderer {
 	 * Handle builds updated event
 	 */
 	private async onBuildsUpdated(builds: BlenderBuildInfo[]): Promise<void> {
-		console.log('[BlenderViewRenderer] onBuildsUpdated called with', builds.length, 'builds');
+		debug(this, '[BlenderViewRenderer] onBuildsUpdated called with', builds.length, 'builds');
 		this.cachedBuilds = builds;
 		await this.updateBuildsContent();
 	}
@@ -413,7 +406,7 @@ export class BlenderViewRenderer {
 	 * Handle download started event
 	 */
 	private onDownloadStarted(build: BlenderBuildInfo, filePath: string): void {
-		console.log(`Download started: ${build.subversion}`);
+		debug(this, `Download started: ${build.subversion}`);
 		// Could update UI to show download in progress
 	}
 
@@ -421,7 +414,7 @@ export class BlenderViewRenderer {
 	 * Handle download completed event
 	 */
 	private onDownloadCompleted(build: BlenderBuildInfo, filePath: string): void {
-		console.log(`Download completed: ${build.subversion}`);
+		debug(this, `Download completed: ${build.subversion}`);
 		// Could update UI to show completion
 	}
 
@@ -429,7 +422,7 @@ export class BlenderViewRenderer {
 	 * Handle extraction started event
 	 */
 	private onExtractionStarted(archivePath: string, extractPath: string): void {
-		console.log(`Extraction started: ${archivePath}`);
+		debug(this, `Extraction started: ${archivePath}`);
 		// Could update UI to show extraction in progress
 	}
 
@@ -437,7 +430,7 @@ export class BlenderViewRenderer {
 	 * Handle extraction completed event
 	 */
 	private onExtractionCompleted(archivePath: string, extractPath: string): void {
-		console.log(`Extraction completed: ${archivePath}`);
+		debug(this, `Extraction completed: ${archivePath}`);
 		// UI refresh is handled by the buildsUpdated event that is emitted after extraction
 		// This handler is mainly for logging and potential status updates
 	}
@@ -446,7 +439,7 @@ export class BlenderViewRenderer {
 	 * Handle extraction error event
 	 */
 	private onExtractionError(archivePath: string, error: any): void {
-		console.log(`Extraction error: ${archivePath}`, error);
+		debug(this, `Extraction error: ${archivePath}`, error);
 		// Could update UI to show error state
 	}
 
@@ -463,7 +456,7 @@ export class BlenderViewRenderer {
 	 * Handle build deleted event
 	 */
 	private async onBuildDeleted(build: BlenderBuildInfo, deletionResult: { deletedDownload: boolean; deletedExtract: boolean }): Promise<void> {
-		console.log(`Build deleted: ${build.subversion}`, deletionResult);
+		debug(this, `Build deleted: ${build.subversion}`, deletionResult);
 		// Refresh the builds content to update button visibility
 		await this.updateBuildsContent();
 	}
@@ -472,7 +465,7 @@ export class BlenderViewRenderer {
 	 * Handle build symlinked event
 	 */
 	private async onBuildSymlinked(build: BlenderBuildInfo, symlinkPath: string): Promise<void> {
-		console.log(`Build symlinked: ${build.subversion} -> ${symlinkPath}`);
+		debug(this, `Build symlinked: ${build.subversion} -> ${symlinkPath}`);
 		// Refresh the builds content to update symlink button states and pinned container
 		await this.updateBuildsContent();
 	}
@@ -481,7 +474,7 @@ export class BlenderViewRenderer {
 	 * Handle build unsymlinked event
 	 */
 	private async onBuildUnsymlinked(build: BlenderBuildInfo, symlinkPath: string): Promise<void> {
-		console.log(`Build unsymlinked: ${build.subversion} from ${symlinkPath}`);
+		debug(this, `Build unsymlinked: ${build.subversion} from ${symlinkPath}`);
 		// Refresh the builds content to update symlink button states and pinned container
 		await this.updateBuildsContent();
 	}

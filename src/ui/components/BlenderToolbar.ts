@@ -1,16 +1,16 @@
 import { ButtonComponent } from 'obsidian';
 import { FetchBlenderBuilds } from '../../buildManager';
-import type FetchBlenderBuildsPlugin from '../../main';
+import type BlenderBuildManagerPlugin from '../../main';
 import type { BlenderPluginSettings } from '../../settings';
 
-export class BlenderToolbar {	private plugin: FetchBlenderBuildsPlugin;
+export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
 	private onToggleFilter: () => void;
 	private onTogglePin: () => void;
 	private containerEl: HTMLElement | null = null;
 	private buttons: Map<string, ButtonComponent> = new Map();	constructor(
-		plugin: FetchBlenderBuildsPlugin, 
+		plugin: BlenderBuildManagerPlugin, 
 		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void,
 		onToggleFilter: () => void,

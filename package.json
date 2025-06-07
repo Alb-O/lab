@@ -1,5 +1,5 @@
 {
-	"name": "fetch-blender-builds",
+	"name": "blender-build-manager",
 	"version": "0.3.2",
 	"description": "Download and manage Blender builds (stable, daily, experimental) directly within your Obsidian vault.",
 	"main": "main.js",

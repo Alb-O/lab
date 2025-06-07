@@ -1,17 +1,17 @@
 import { ButtonComponent, setTooltip, Notice, setIcon } from 'obsidian';
 import { BlenderBuildInfo } from '../../types';
 import { FetchBlenderBuilds } from '../../buildManager';
-import type FetchBlenderBuildsPlugin from '../../main';
+import type BlenderBuildManagerPlugin from '../../main';
 import { ConfirmDeleteBuildModal } from './ConfirmDeleteBuildModal';
 import * as path from 'path';
 
 export class BlenderBuildsRenderer {
-	private plugin: FetchBlenderBuildsPlugin;
+	private plugin: BlenderBuildManagerPlugin;
 	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
 
 	constructor(
-		plugin: FetchBlenderBuildsPlugin,
+		plugin: BlenderBuildManagerPlugin,
 		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void
 	) {

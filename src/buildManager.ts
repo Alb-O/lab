@@ -9,11 +9,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from './debug';
+	debug, 
+	info, 
+	warn, 
+	error,
+	registerLoggerClass 
+} from './utils/obsidian-logger';
 
 export class FetchBlenderBuilds extends EventEmitter {
 	private scraper: BlenderScraper;
@@ -37,9 +38,11 @@ export class FetchBlenderBuilds extends EventEmitter {
 	private extractedBuildsCache: Array<{ build: BlenderBuildInfo; extractPath: string; executable?: string }> | null = null;
 	private extractedBuildsCacheTime: number = 0;
 	private static readonly EXTRACTED_BUILDS_CACHE_TTL = 30000; // 30 seconds
+	
 	constructor(vaultPath: string, settings: BlenderPluginSettings = DEFAULT_SETTINGS) {
 		super();
-		debug('buildManager', 'constructor:start', { vaultPath, settings });
+		registerLoggerClass(this, 'FetchBlenderBuilds');
+		debug(this, 'FetchBlenderBuilds constructor started');
 		
 		this.vaultPath = vaultPath;
 		this.settings = settings;
@@ -49,25 +52,22 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.cacheFilePath = path.join(this.getDownloadsPath(), 'build-cache.json');
 		this.installedBuildsCacheFilePath = path.join(this.getDownloadsPath(), 'installed-builds-cache.json');
 
-		debug('buildManager', 'constructor:cache-paths', { 
-			cacheFilePath: this.cacheFilePath, 
-			installedBuildsCacheFilePath: this.installedBuildsCacheFilePath 
-		});
+		debug(this, `Cache paths configured: ${this.cacheFilePath} and ${this.installedBuildsCacheFilePath}`);
 
 		this.setupEventListeners();
 		this.cacheLoadingPromise = this.loadCachedBuildsAsync();
 		
-		info('buildManager', 'constructor:complete');
+		info(this, 'FetchBlenderBuilds constructor completed successfully');
 	}
+
 	/**
 	 * Set up event listeners for scraper and downloader
 	 */
 	private setupEventListeners(): void {
-		debug('buildManager', 'setupEventListeners:start');
-		
+		debug(this, 'Setting up event listeners');
 		// Scraper events - we'll ignore detailed status messages and show simple user-friendly messages
 		this.scraper.on('status', (status: string) => {
-			debug('scraper', 'status', { status, isActive: this.scrapingStatus.isActive });
+			debug(this, `Scraper status: ${status} (active: ${this.scrapingStatus.isActive})`);
 			// Don't update the status with detailed scraper messages during active scraping
 			// Let the refreshBuilds method handle the user-facing status messages
 			if (!this.scrapingStatus.isActive) {
@@ -75,9 +75,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				this.emit('scrapingStatus', this.scrapingStatus);
 			}
 		});
-
 		this.scraper.on('error', (errorMsg: string) => {
-			error('scraper', 'error', errorMsg);
+			error(this, `Scraper error: ${errorMsg}`);
 			this.scrapingStatus.error = errorMsg;
 			this.scrapingStatus.isActive = false;
 			this.emit('scrapingError', errorMsg);
@@ -86,24 +85,24 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		// Downloader events
 		this.downloader.on('downloadStarted', (build: BlenderBuildInfo, filePath: string) => {
-			info('downloader', 'downloadStarted', { buildSubversion: build.subversion, filePath });
+			info(this, `Started downloading ${build.subversion} to ${filePath}`);
 			this.emit('downloadStarted', build, filePath);
 			new Notice(`Started downloading ${build.subversion}`);
 		});
 
 		this.downloader.on('downloadCompleted', (build: BlenderBuildInfo, filePath: string) => {
-			info('downloader', 'downloadCompleted', { buildSubversion: build.subversion, filePath });
+			info(this, `Download completed: ${build.subversion} saved to ${filePath}`);
 			this.emit('downloadCompleted', build, filePath);
 			new Notice(`Download completed: ${build.subversion}`);
 			// Auto-extract if enabled
 			if (this.settings.autoExtract) {
-				debug('downloader', 'auto-extract-starting', { autoExtract: this.settings.autoExtract });
+				debug(this, `Auto-extraction enabled, starting extraction`);
 				this.extractBuild(filePath, build)
 					.then(() => {
-						info('downloader', 'auto-extract-completed');
+						info(this, 'Auto-extraction completed successfully');
 						// Clean up archive after successful auto-extraction if enabled
 						if (this.settings.cleanUpAfterExtraction) {
-							debug('downloader', 'cleanup-after-extraction-starting');
+							debug(this, 'Cleanup after extraction enabled, starting cleanup');
 							this.cleanupAfterExtraction(filePath).catch(console.error);
 						}
 					})
@@ -112,12 +111,12 @@ export class FetchBlenderBuilds extends EventEmitter {
 		});
 
 		this.downloader.on('downloadError', (build: BlenderBuildInfo, errorData: any) => {
-			error('downloader', 'downloadError', { buildSubversion: build.subversion, error: errorData });
+			error(this, `Download failed for ${build.subversion}: ${errorData.message || errorData}`);
 			this.emit('downloadError', build, errorData);
 			new Notice(`Download failed: ${build.subversion} - ${errorData.message}`);
 		});
 		this.downloader.on('extractionStarted', (archivePath: string, extractPath: string) => {
-			info('downloader', 'extractionStarted', { archivePath, extractPath });
+			info(this, `Started extracting ${path.basename(archivePath)} to ${extractPath}`);
 			this.emit('extractionStarted', archivePath, extractPath);
 			new Notice(`Extracting ${path.basename(archivePath)}...`);
 		});
@@ -289,7 +288,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Get cached builds merged with locally installed builds
-	 */	getCachedBuilds(): BlenderBuildInfo[] {
+	 */
+	getCachedBuilds(): BlenderBuildInfo[] {
 		const officialBuilds = [...this.buildCache];
 		const orphanedBuilds: BlenderBuildInfo[] = [];
 
@@ -389,9 +389,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			fs.unlinkSync(archivePath);
 			// Clean up empty build_archives directory
 			const downloadsPath = path.dirname(archivePath);
-			await this.cleanupEmptyDirectory(downloadsPath);
-		} catch (error) {
-			console.warn('Failed to cleanup after extraction:', error);
+			await this.cleanupEmptyDirectory(downloadsPath);		} catch (error) {
+			warn(this, `Failed to cleanup after extraction: ${error}`);
 		}
 	}
 	
@@ -910,9 +909,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				this.emit('buildsUpdated', builds);
 			}
 
-			return builds;
-		} catch (error) {
-			console.error('Failed to load cached builds:', error);
+			return builds;		} catch (error) {
+			error(this, `Failed to load cached builds: ${error}`);
 			// Remove invalid cache file
 			if (fs.existsSync(this.cacheFilePath)) {
 				fs.unlinkSync(this.cacheFilePath);
@@ -935,9 +933,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			};
 
 			const cacheData = JSON.stringify(cache, null, 2);
-			fs.writeFileSync(this.cacheFilePath, cacheData, 'utf8');
-		} catch (error) {
-			console.error('Failed to save builds cache:', error);
+			fs.writeFileSync(this.cacheFilePath, cacheData, 'utf8');		} catch (error) {
+			error(this, `Failed to save builds cache: ${error}`);
 		}
 	}
 
@@ -950,9 +947,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				fs.unlinkSync(this.cacheFilePath);
 			}
 			this.buildCache = [];
-			this.emit('buildsUpdated', []);
-		} catch (error) {
-			console.error('Failed to clear cache:', error);
+			this.emit('buildsUpdated', []);		} catch (error) {
+			error(this, `Failed to clear cache: ${error}`);
 		}
 	}
 
@@ -1272,9 +1268,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			// Clean up any orphaned duplicates after loading
 			this.cleanupOrphanedDuplicates();
 
-			return this.installedBuildsCache;
-		} catch (error) {
-			console.error('Failed to load installed builds cache:', error);
+			return this.installedBuildsCache;		} catch (error) {
+			error(this, `Failed to load installed builds cache: ${error}`);
 			// Remove invalid cache file
 			if (fs.existsSync(this.installedBuildsCacheFilePath)) {
 				fs.unlinkSync(this.installedBuildsCacheFilePath);
@@ -1297,9 +1292,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			};
 
 			const cacheData = JSON.stringify(cache, null, 2);
-			fs.writeFileSync(this.installedBuildsCacheFilePath, cacheData, 'utf8');
-		} catch (error) {
-			console.error('Failed to save installed builds cache:', error);
+			fs.writeFileSync(this.installedBuildsCacheFilePath, cacheData, 'utf8');		} catch (error) {
+			error(this, `Failed to save installed builds cache: ${error}`);
 		}
 	}
 
@@ -1459,9 +1453,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 				// Emit event to update UI
 				this.emit('buildsUpdated', this.getCachedBuilds());
-			}
-		} catch (error) {
-			console.error('Failed to migrate existing builds:', error);
+			}		} catch (error) {
+			error(this, `Failed to migrate existing builds: ${error}`);
 		}
 	}
 }

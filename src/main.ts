@@ -1,53 +1,58 @@
 import { Notice, Plugin, WorkspaceLeaf, addIcon } from 'obsidian';
 import { BLENDER_ICON_SVG } from './constants';
-import { BlenderPluginSettings, DEFAULT_SETTINGS, FetchBlenderBuildsSettingTab } from './settings';
+import { BlenderPluginSettings, DEFAULT_SETTINGS, BlenderBuildManagerSettingsTab } from './settings';
 import { FetchBlenderBuilds } from './buildManager';
 import { BlenderBuildsView, BLENDER_BUILDS_VIEW_TYPE } from './views/BlenderBuildsView';
 import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from './debug';
+	initLogger, 
+	registerLoggerClass, 
+	debug, 
+	info, 
+	warn, 
+	error 
+} from './utils/obsidian-logger';
 
-export default class FetchBlenderBuildsPlugin extends Plugin {
+export default class BlenderBuildManagerPlugin extends Plugin {
 	settings: BlenderPluginSettings;
 	buildManager: FetchBlenderBuilds;	async onload() {
-		debug('plugin', 'onload:start');
+		// Initialize the logger system
+		initLogger(this);
+		registerLoggerClass(this, 'BlenderBuildManagerPlugin');
+				debug(this, 'Plugin is starting to load');
 		
 		await this.loadSettings();
-		debug('plugin', 'onload:settings-loaded', this.settings);
-
+		debug(this, 'Settings have been loaded successfully');
 		// Initialize build manager
-		debug('plugin', 'onload:initializing-build-manager');
+		debug(this, 'Initializing build manager with vault path');
 		// @ts-ignore - Using Obsidian's internal API
 		const vaultPath = this.app.vault.adapter.basePath || this.app.vault.adapter.path || '';
 		this.buildManager = new FetchBlenderBuilds(vaultPath, this.settings);
-		debug('plugin', 'onload:build-manager-created', { vaultPath });
+		debug(this, 'Build manager created successfully');
 
 		// Register the view type
-		debug('plugin', 'onload:registering-view');
+		debug(this, 'Registering Blender builds view type');
 		this.registerView(
 			BLENDER_BUILDS_VIEW_TYPE,
 			(leaf: WorkspaceLeaf) => new BlenderBuildsView(leaf, this, this.buildManager)
-		);		// Register custom Blender icon
-		debug('plugin', 'onload:registering-icon');
+		);
+		// Register custom Blender icon
+		debug(this, 'Registering custom Blender icon');
 		addIcon('blender-logo', BLENDER_ICON_SVG);
 
 		// Add ribbon icon with custom Blender logo
-		debug('plugin', 'onload:adding-ribbon-icon');
+		debug(this, 'Adding ribbon icon for Blender builds');
 		this.addRibbonIcon('blender-logo', 'Open Blender build manager', () => {
-			debug('ribbon', 'click');
+			debug(this, 'Ribbon icon clicked - opening builds view');
 			this.openBuildsView();
 		});
 
 		// Add command to palette
-		debug('plugin', 'onload:registering-commands');
+		debug(this, 'Registering command palette commands');
 		this.addCommand({
 			id: 'open-blender-builds',
 			name: 'Open Blender Builds',
 			callback: () => {
-				debug('command', 'open-blender-builds');
+				debug(this, 'Opening Blender builds view from command');
 				this.openBuildsView();
 			}
 		});
@@ -56,14 +61,14 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			id: 'refresh-blender-builds',
 			name: 'Refresh Blender Builds',
 			callback: async () => {
-				debug('command', 'refresh-blender-builds:start');
+				debug(this, 'Starting refresh of Blender builds');
 				new Notice('Refreshing Blender builds...');
 				try {
 					await this.buildManager.refreshBuilds();
-					info('command', 'refresh-blender-builds:success');
+					info(this, 'Blender builds refreshed successfully');
 					new Notice('Blender builds refreshed successfully!');
 				} catch (errorData) {
-					error('command', 'refresh-blender-builds:failed', errorData);
+					error(this, 'Failed to refresh Blender builds', errorData);
 					new Notice(`Failed to refresh builds: ${errorData.message}`);
 				}
 			}
@@ -73,13 +78,13 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			id: 'debug-build-detection',
 			name: 'Debug Build Detection',
 			callback: async () => {
-				debug('command', 'debug-build-detection:start');
+				debug(this, 'Starting build detection debug command');
 				try {
 					new Notice('Starting build detection debug...', 3000);
 					await this.buildManager.forceRefreshExtractedBuilds();
-					info('command', 'debug-build-detection:success');
+					info(this, 'Build detection debug completed successfully');
 				} catch (errorData) {
-					error('command', 'debug-build-detection:failed', errorData);
+					error(this, 'Build detection debug failed', errorData);
 					new Notice(`Failed to debug build detection: ${errorData.message}`, 8000);
 					console.error('[DEBUG] Build detection error:', errorData);
 				}
@@ -90,11 +95,11 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			id: 'check-build-paths',
 			name: 'Check Build Paths',
 			callback: () => {
-				debug('command', 'check-build-paths:start');
+				debug(this, 'Checking build paths command started');
 				const buildsPath = this.buildManager.getBuildsPath();
 				const extractsPath = this.buildManager.getExtractsPath();
 				
-				debug('command', 'check-build-paths:paths', { buildsPath, extractsPath });
+				debug(this, `Build paths: builds=${buildsPath}, extracts=${extractsPath}`);
 				new Notice(`Builds path: ${buildsPath}`, 8000);
 				new Notice(`Extracts path: ${extractsPath}`, 8000);
 			}
@@ -104,7 +109,7 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			id: 'debug-cache-contents',
 			name: 'Debug Cache Contents',
 			callback: () => {
-				debug('command', 'debug-cache-contents');
+				debug(this, 'Debugging cache contents');
 				this.buildManager.debugShowCacheContents();
 			}
 		});
@@ -113,7 +118,7 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			id: 'open-blender-directory',
 			name: 'Open Blender Directory',
 			callback: () => {
-				debug('command', 'open-blender-directory');
+				debug(this, 'Opening Blender directory');
 				this.buildManager.openBuildsDirectory();
 			}
 		});
@@ -123,76 +128,76 @@ export default class FetchBlenderBuildsPlugin extends Plugin {
 			id: 'migrate-existing-builds',
 			name: 'Migrate Existing Builds to Metadata Cache',
 			callback: async () => {
-				debug('command', 'migrate-existing-builds:start');
+				debug(this, 'Starting migration of existing builds to metadata cache');
 				await this.buildManager.scanAndMigrateExistingBuilds();
-				info('command', 'migrate-existing-builds:completed');
+				info(this, 'Build migration completed successfully');
 				new Notice('Migration scan completed - check console for details');
 			}
 		});
 
 		// Add settings tab
-		debug('plugin', 'onload:adding-settings-tab');
-		this.addSettingTab(new FetchBlenderBuildsSettingTab(this.app, this));
+		debug(this, 'Adding settings tab to plugin');
+		this.addSettingTab(new BlenderBuildManagerSettingsTab(this.app, this));
 		
-		info('plugin', 'onload:complete');
+		info(this, 'Plugin loaded successfully');
 	}
 	async loadSettings() {
-		debug('settings', 'loadSettings:start');
+		debug(this, 'Loading plugin settings');
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-		debug('settings', 'loadSettings:complete', this.settings);
+		debug(this, 'Plugin settings loaded successfully');
 	}
 	async saveSettings() {
-		debug('settings', 'saveSettings:start', this.settings);
+		debug(this, 'Saving plugin settings');
 		await this.saveData(this.settings);
 		// Update build manager settings
 		if (this.buildManager) {
-			debug('settings', 'saveSettings:updating-build-manager');
+			debug(this, 'Updating build manager with new settings');
 			this.buildManager.updateSettings(this.settings);
 		}
 		
 		// Notify all open Blender builds views to update settings
 		const leaves = this.app.workspace.getLeavesOfType(BLENDER_BUILDS_VIEW_TYPE);
-		debug('settings', 'saveSettings:updating-views', { leafCount: leaves.length });
+		debug(this, `Updating ${leaves.length} view(s) with new settings`);
 		leaves.forEach(leaf => {
 			if (leaf.view instanceof BlenderBuildsView) {
 				leaf.view.updateSettings();
 			}
 		});
-		info('settings', 'saveSettings:complete');
+		info(this, 'Plugin settings saved successfully');
 	}	async openBuildsView(): Promise<void> {
-		debug('view', 'openBuildsView:start');
+		debug(this, 'Opening Blender builds view');
 		const { workspace } = this.app;
 
 		let leaf: WorkspaceLeaf | null = null;
 		const leaves = workspace.getLeavesOfType(BLENDER_BUILDS_VIEW_TYPE);
-		debug('view', 'openBuildsView:existing-leaves', { count: leaves.length });
+		debug(this, `Found ${leaves.length} existing Blender builds view(s)`);
 
 		if (leaves.length > 0) {
 			// A leaf with our view already exists, use that
 			leaf = leaves[0];
-			debug('view', 'openBuildsView:using-existing-leaf');
+			debug(this, 'Using existing Blender builds view');
 		} else {
 			// No leaf with our view exists, create a new one
-			debug('view', 'openBuildsView:creating-new-leaf');
+			debug(this, 'Creating new Blender builds view');
 			leaf = workspace.getRightLeaf(false);
 			if (leaf) {
 				await leaf.setViewState({
 					type: BLENDER_BUILDS_VIEW_TYPE,
 					active: true,
 				});
-				debug('view', 'openBuildsView:view-state-set');
+				debug(this, 'View state set for Blender builds view');
 			} else {
-				warn('view', 'openBuildsView:failed-to-get-right-leaf');
+				warn(this, 'Failed to get right leaf for Blender builds view');
 			}
 		}
 
 		// "Reveal" the leaf in case it is in a collapsed sidebar
 		if (leaf) {
-			debug('view', 'openBuildsView:revealing-leaf');
+			debug(this, 'Revealing Blender builds view');
 			workspace.revealLeaf(leaf);
-			info('view', 'openBuildsView:complete');
+			info(this, 'Blender builds view opened successfully');
 		} else {
-			error('view', 'openBuildsView:no-leaf-available');
+			error(this, 'No leaf available for Blender builds view');
 		}
 	}
 }

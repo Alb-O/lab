@@ -1,27 +1,28 @@
 import { ItemView, WorkspaceLeaf, App } from 'obsidian';
 import { FetchBlenderBuilds } from '../buildManager';
 import { BlenderViewRenderer } from '../ui/components';
-import type FetchBlenderBuildsPlugin from '../main';
+import type BlenderBuildManagerPlugin from '../main';
 import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from '../debug';
+	debug, 
+	info, 
+	warn, 
+	error,
+	registerLoggerClass 
+} from '../utils/obsidian-logger';
 
 export const BLENDER_BUILDS_VIEW_TYPE = 'blender-builds-view';
 
 export class BlenderBuildsView extends ItemView {
-	private plugin: FetchBlenderBuildsPlugin;
+	private plugin: BlenderBuildManagerPlugin;
 	private buildManager: FetchBlenderBuilds;
 	private viewRenderer: BlenderViewRenderer;
-	private isInitialized = false;
-	constructor(leaf: WorkspaceLeaf, plugin: FetchBlenderBuildsPlugin, buildManager: FetchBlenderBuilds) {
+	private isInitialized = false;	constructor(leaf: WorkspaceLeaf, plugin: BlenderBuildManagerPlugin, buildManager: FetchBlenderBuilds) {
 		super(leaf);
-		debug('view', 'constructor:start');
+		registerLoggerClass(this, 'BlenderBuildsView');
+		debug(this, 'Creating Blender builds view');
 		this.plugin = plugin;
 		this.buildManager = buildManager;
-		info('view', 'constructor:complete');
+		info(this, 'Blender builds view created successfully');
 	}
 
 	getViewType(): string {
@@ -34,40 +35,37 @@ export class BlenderBuildsView extends ItemView {
 
 	getIcon(): string {
 		return 'blender-logo';
-	}
-	async onOpen() {
-		debug('view', 'onOpen:start');
+	}	async onOpen() {
+		debug(this, 'Opening Blender builds view');
 		this.initializeView();
 		
 		// Wait for cached builds to be loaded
-		debug('view', 'onOpen:waiting-for-cache');
+		debug(this, 'Waiting for cached builds to load');
 		await this.buildManager.waitForCacheLoading();
 		
 		// Initial render
-		debug('view', 'onOpen:initial-render');
+		debug(this, 'Performing initial view render');
 		await this.viewRenderer.render();
-		info('view', 'onOpen:complete');
-	}
-	async onClose() {
-		debug('view', 'onClose:start');
+		info(this, 'Blender builds view opened successfully');
+	}	async onClose() {
+		debug(this, 'Closing Blender builds view');
 		// Clean up view renderer components
 		this.viewRenderer?.cleanup();
 		
 		// Clean up any event listeners or resources
 		this.isInitialized = false;
-		info('view', 'onClose:complete');
+		info(this, 'Blender builds view closed successfully');
 	}
 	/**
 	 * Initialize the view structure
-	 */
-	private initializeView(): void {
-		debug('view', 'initializeView:start', { isInitialized: this.isInitialized });
+	 */	private initializeView(): void {
+		debug(this, `Initializing view (already initialized: ${this.isInitialized})`);
 		if (this.isInitialized) {
-			debug('view', 'initializeView:already-initialized');
+			debug(this, 'View already initialized, skipping');
 			return;
 		}
 				// Create the BlenderViewRenderer
-		debug('view', 'initializeView:creating-renderer');
+		debug(this, 'Creating view renderer component');
 		this.viewRenderer = new BlenderViewRenderer(
 			this.plugin,
 			this.buildManager,
@@ -75,43 +73,40 @@ export class BlenderBuildsView extends ItemView {
 		);
 		
 		// Initialize the layout
-		debug('view', 'initializeView:initializing-layout');
+		debug(this, 'Initializing view layout');
 		this.viewRenderer.initializeLayout();
 		this.isInitialized = true;
-		info('view', 'initializeView:complete');
+		info(this, 'View initialization completed');
 	}
 
 	/**
 	 * Refresh the view
-	 */
-	async refreshView(): Promise<void> {
-		debug('view', 'refreshView:start');
+	 */	async refreshView(): Promise<void> {
+		debug(this, 'Refreshing view');
 		if (this.viewRenderer) {
 			await this.viewRenderer.render();
-			info('view', 'refreshView:complete');
+			info(this, 'View refreshed successfully');
 		} else {
-			warn('view', 'refreshView:no-renderer');
+			warn(this, 'Cannot refresh view - no renderer available');
 		}
 	}
 
 	/**
 	 * Get the view renderer for external access if needed
-	 */
-	getViewRenderer(): BlenderViewRenderer {
-		debug('view', 'getViewRenderer');
+	 */	getViewRenderer(): BlenderViewRenderer {
+		debug(this, 'Getting view renderer');
 		return this.viewRenderer;
 	}
 
 	/**
 	 * Update settings and refresh view
-	 */
-	updateSettings(): void {
-		debug('view', 'updateSettings:start');
+	 */	updateSettings(): void {
+		debug(this, 'Updating settings');
 		if (this.viewRenderer) {
 			this.viewRenderer.updateSettings();
-			info('view', 'updateSettings:complete');
+			info(this, 'Settings updated successfully');
 		} else {
-			warn('view', 'updateSettings:no-renderer');
+			warn(this, 'Cannot update settings - no renderer available');
 		}
 	}
 }

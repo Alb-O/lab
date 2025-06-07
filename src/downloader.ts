@@ -7,11 +7,12 @@ import * as yauzl from 'yauzl';
 import { EventEmitter } from 'events';
 import { BlenderExtractor } from './extractor';
 import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from './debug';
+	debug, 
+	info, 
+	warn, 
+	error,
+	registerLoggerClass 
+} from './utils/obsidian-logger';
 
 export class BlenderDownloader extends EventEmitter {
 	private downloadQueue: Map<string, AbortController> = new Map();
@@ -19,33 +20,34 @@ export class BlenderDownloader extends EventEmitter {
 	private extractor: BlenderExtractor;
 	constructor() {
 		super();
-		debug('downloader', 'constructor:start');
+		registerLoggerClass(this, 'BlenderDownloader');
+		debug(this, 'BlenderDownloader constructor started');
 		
 		this.extractor = new BlenderExtractor();
 		
 		// Forward extraction events
-		debug('downloader', 'constructor:setting-up-extractor-events');
+		debug(this, 'Setting up extractor event forwarding');
 		this.extractor.on('extractionStarted', (archivePath: string, extractPath: string) => {
-			debug('downloader', 'extraction:started', { archivePath, extractPath });
+			debug(this, `Extraction started: ${archivePath} -> ${extractPath}`);
 			this.emit('extractionStarted', archivePath, extractPath);
 		});
 		
 		this.extractor.on('extractionCompleted', (archivePath: string, extractPath: string) => {
-			info('downloader', 'extraction:completed', { archivePath, extractPath });
+			info(this, `Extraction completed: ${archivePath} -> ${extractPath}`);
 			this.emit('extractionCompleted', archivePath, extractPath);
 		});
 		
 		this.extractor.on('extractionError', (archivePath: string, errorData: Error) => {
-			error('downloader', 'extraction:error', { archivePath, error: errorData });
+			error(this, `Extraction failed for ${archivePath}`, errorData);
 			this.emit('extractionError', archivePath, errorData);
 		});
 		
 		this.extractor.on('extractionProgress', (progress: ExtractionProgress) => {
-			debug('downloader', 'extraction:progress', progress);
+			debug(this, `Extraction progress: ${progress.percentage}% (${progress.extractedFiles}/${progress.totalFiles} files)`);
 			this.emit('extractionProgress', progress);
 		});
 		
-		info('downloader', 'constructor:complete');
+		info(this, 'BlenderDownloader constructor completed');
 	}
 
 	/**

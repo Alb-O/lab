@@ -1,13 +1,14 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import { MINIMUM_BLENDER_VERSIONS, MinimumBlenderVersionType } from './constants';
 import { BuildType } from './types';
-import type FetchBlenderBuildsPlugin from './main';
+import type BlenderBuildManagerPlugin from './main';
 import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from './debug';
+	debug, 
+	info, 
+	warn, 
+	error,
+	registerLoggerClass 
+} from './utils/obsidian-logger';
 
 export interface BlenderPluginSettings {
 	libraryFolder: string;
@@ -54,21 +55,20 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	blenderEnvironmentVariables: {}
 };
 
-export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
-	plugin: FetchBlenderBuildsPlugin;
-	constructor(app: App, plugin: FetchBlenderBuildsPlugin) {
+export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
+	plugin: BlenderBuildManagerPlugin;	constructor(app: App, plugin: BlenderBuildManagerPlugin) {
 		super(app, plugin);
-		debug('settings', 'constructor:start');
+		registerLoggerClass(this, 'BlenderBuildManagerSettingsTab');
+		debug(this, 'Settings tab constructor started');
 		this.plugin = plugin;
-		info('settings', 'constructor:complete');
-	}
-	display(): void {
-		debug('settings', 'display:start');
+		info(this, 'Settings tab constructor completed');
+	}	display(): void {
+		debug(this, 'Displaying settings tab');
 		const { containerEl } = this;
 
 		containerEl.empty();
 
-		debug('settings', 'display:creating-settings-controls');
+		debug(this, 'Creating settings controls');
 		new Setting(containerEl)
 			.setName('Storage directory')
 			.setDesc('Directory relative to vault root where Blender builds will be stored. It is highly recommended to prefix the directory with a dot so Obsidian doesn\'t index it.')
@@ -76,7 +76,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 				.setPlaceholder('.blender')
 				.setValue(this.plugin.settings.libraryFolder)
 				.onChange(async (value) => {
-					debug('settings', 'libraryFolder:changed', { oldValue: this.plugin.settings.libraryFolder, newValue: value });
+					debug(this, `Library folder changed from '${this.plugin.settings.libraryFolder}' to '${value}'`);
 					this.plugin.settings.libraryFolder = value;
 					await this.plugin.saveSettings();
 				}));
@@ -86,7 +86,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoExtract)
 				.onChange(async (value) => {
-					debug('settings', 'autoExtract:changed', { oldValue: this.plugin.settings.autoExtract, newValue: value });
+					debug(this, `Auto-extract setting changed from ${this.plugin.settings.autoExtract} to ${value}`);
 					this.plugin.settings.autoExtract = value;
 					await this.plugin.saveSettings();
 				}));
@@ -96,7 +96,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.cleanUpAfterExtraction)
 				.onChange(async (value) => {
-					debug('settings', 'cleanUpAfterExtraction:changed', { oldValue: this.plugin.settings.cleanUpAfterExtraction, newValue: value });
+					debug(this, `Clean up after extraction setting changed from ${this.plugin.settings.cleanUpAfterExtraction} to ${value}`);
 					this.plugin.settings.cleanUpAfterExtraction = value;
 					await this.plugin.saveSettings();
 				}));
@@ -106,7 +106,7 @@ export class FetchBlenderBuildsSettingTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.launchWithConsole)
 				.onChange(async (value) => {
-					debug('settings', 'launchWithConsole:changed', { oldValue: this.plugin.settings.launchWithConsole, newValue: value });
+					debug(this, `Launch with console setting changed from ${this.plugin.settings.launchWithConsole} to ${value}`);
 					this.plugin.settings.launchWithConsole = value;
 					await this.plugin.saveSettings();
 				}));

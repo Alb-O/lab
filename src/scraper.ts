@@ -4,11 +4,12 @@ import * as cheerio from 'cheerio';
 import { valid, coerce, compare } from 'semver';
 import { EventEmitter } from 'events';
 import { 
-	blenderBuildManagerDebug as debug, 
-	blenderBuildManagerInfo as info, 
-	blenderBuildManagerWarn as warn, 
-	blenderBuildManagerError as error 
-} from './debug';
+	debug, 
+	info, 
+	warn, 
+	error,
+	registerLoggerClass 
+} from './utils/obsidian-logger';
 
 export class BlenderScraper extends EventEmitter {
 	private static readonly DOWNLOAD_BASE_URL = 'https://download.blender.org/release/';
@@ -18,53 +19,48 @@ export class BlenderScraper extends EventEmitter {
 		private platform: Platform;
 	private architecture: Architecture;
 	private cache: ScraperCache;
-	private minimumVersion: string;
-	constructor(minimumVersion: string = '3.0') {
+	private minimumVersion: string;	constructor(minimumVersion: string = '3.0') {
 		super();
-		debug('scraper', 'constructor:start', { minimumVersion });
+		registerLoggerClass(this, 'BlenderScraper');
+		debug(this, `Creating Blender scraper with minimum version ${minimumVersion}`);
 		
 		this.platform = this.getCurrentPlatform();
 		this.architecture = this.getCurrentArchitecture();
 		this.minimumVersion = minimumVersion;
 		this.cache = { folders: {} };
 		
-		debug('scraper', 'constructor:platform-detection', { 
-			platform: this.platform, 
-			architecture: this.architecture 
-		});
+		debug(this, `Platform detection completed: ${this.platform} ${this.architecture}`);
 		
-		info('scraper', 'constructor:complete');
+		info(this, 'Blender scraper created successfully');
 	}
 	/**
 	 * Get the current platform
-	 */
-	private getCurrentPlatform(): Platform {
-		debug('scraper', 'getCurrentPlatform:start');
+	 */	private getCurrentPlatform(): Platform {
+		debug(this, 'Detecting current platform');
 		const platform = process.platform;
 		switch (platform) {
 			case 'win32':
-				debug('scraper', 'getCurrentPlatform:detected-windows');
+				debug(this, 'Platform detected: Windows');
 				return Platform.Windows;
 			case 'darwin':
-				debug('scraper', 'getCurrentPlatform:detected-macos');
+				debug(this, 'Platform detected: macOS');
 				return Platform.macOS;
 			case 'linux':
-				debug('scraper', 'getCurrentPlatform:detected-linux');
+				debug(this, 'Platform detected: Linux');
 				return Platform.Linux;
 			default:
-				warn('scraper', 'getCurrentPlatform:unknown-platform-defaulting-to-windows', { platform });
+				warn(this, `Unknown platform '${platform}', defaulting to Windows`);
 				return Platform.Windows;
 		}
 	}
 
 	/**
 	 * Get the current architecture
-	 */
-	private getCurrentArchitecture(): Architecture {
-		debug('scraper', 'getCurrentArchitecture:start');
+	 */	private getCurrentArchitecture(): Architecture {
+		debug(this, 'Detecting current architecture');
 		const arch = process.arch;
 		const result = arch === 'arm64' ? Architecture.arm64 : Architecture.x64;
-		debug('scraper', 'getCurrentArchitecture:detected', { arch, result });
+		debug(this, `Architecture detected: ${arch} (using ${result})`);
 		return result;
 	}
 
@@ -238,9 +234,8 @@ export class BlenderScraper extends EventEmitter {
 				});
 			});
 
-			return builds;
-		} catch (error) {
-			console.error(`Error scraping version ${version}:`, error);
+			return builds;		} catch (error) {
+			error(this, `Failed to scrape version ${version}: ${error}`);
 			return [];
 		}
 	}
@@ -262,9 +257,8 @@ export class BlenderScraper extends EventEmitter {
 						return new Date(dateStr);
 					}
 				}
-			}
-		} catch (error) {
-			console.error('Error parsing commit time:', error);
+			}		} catch (error) {
+			error(this, `Failed to parse commit time: ${error}`);
 		}
 		return null;
 	}
@@ -321,10 +315,9 @@ export class BlenderScraper extends EventEmitter {
 							branch
 						});
 					}
-				}
-			} catch (error) {
-				console.error(`Error scraping ${branch} builds:`, error);
-			}		}
+				}			} catch (error) {
+				error(this, `Failed to scrape ${branch} builds: ${error}`);
+			}}
 
 		this.emit('status', `Found ${builds.length} automated builds`);
 		return builds;
