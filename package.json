@@ -10,7 +10,7 @@
 	},
 	"keywords": [],
 	"author": "Albert O'Shea",
-	"license": "MIT",
+	"license": "GPL-3.0-or-later",
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"@types/yauzl": "^2.10.3",
