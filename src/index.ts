@@ -1,6 +1,6 @@
 // Main barrel exports for the Blender Build Manager plugin
 export { default as BlenderBuildManagerPlugin } from './main';
-export * from './types';
+export * from './types/';
 export * from './settings';
 export * from './build-manager';
 export * from './utils';
@@ -14,8 +14,17 @@ export type {
 	BuildCache,
 	BuildType,
 	InstalledBuildMetadata,
-	InstalledBuildsCache
-} from './types';
+	InstalledBuildsCache,
+	// Event and error types
+	DownloadError,
+	ExtractionError,
+	LaunchError,
+	ScrapingError,
+	BlenderError,
+	ScrapingStatusEvent,
+	DownloadProgressEvent,
+	ExtractionProgressEvent,	DirectoryItem
+} from './types/';
 
 export type {
 	BlenderPluginSettings

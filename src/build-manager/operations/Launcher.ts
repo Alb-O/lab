@@ -106,7 +106,7 @@ export class BlenderLauncher extends EventEmitter {
 					}
 				}
 			} catch (error) {
-				console.warn(`Error searching directory ${dir}:`, error);
+				warn(this, `Error searching directory ${dir}:`, error);
 			}
 			
 			return null;

@@ -1,4 +1,4 @@
-import { BlenderBuildInfo, BuildType } from '@/types';
+import { BlenderBuildInfo, BuildType, ScrapingStatusEvent, ExtractionError } from '@types';
 import { FetchBlenderBuilds } from '@/build-manager';
 import { BuildFilter } from '@/build-manager';
 import type BlenderBuildManagerPlugin from '@/main';
@@ -390,7 +390,7 @@ export class BlenderViewRenderer {
 	/**
 	 * Handle scraping status changes
 	 */
-	private onScrapingStatus(status: any): void {
+	private onScrapingStatus(status: ScrapingStatusEvent): void {
 		// Update status display
 		this.updateStatusDisplay();
 		
@@ -434,7 +434,7 @@ export class BlenderViewRenderer {
 	/**
 	 * Handle extraction error event
 	 */
-	private onExtractionError(archivePath: string, error: any): void {
+	private onExtractionError(archivePath: string, error: ExtractionError | Error): void {
 		debug(this, `Extraction error: ${archivePath}`, error);
 		// Could update UI to show error state
 	}

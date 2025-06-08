@@ -193,7 +193,7 @@ export class BlenderBuildsRenderer {
 					try {
 						await this.launchBuild(build);
 					} catch (error) {
-						console.error('Failed to launch build:', error);
+						error(this, 'Failed to launch build:', error);
 						new Notice(`Failed to launch ${build.subversion}: ${error.message}`);
 					}
 				});
@@ -215,7 +215,7 @@ export class BlenderBuildsRenderer {
 				try {
 					await this.showBuildInExplorer(build, installStatus);
 				} catch (error) {
-					console.error('Failed to show build in explorer:', error);
+					error(this, 'Failed to show build in explorer:', error);
 					new Notice(`Failed to show ${build.subversion} in explorer: ${error.message}`);
 				}
 			});
@@ -233,7 +233,7 @@ export class BlenderBuildsRenderer {
 					try {
 						await this.extractBuild(build);
 					} catch (error) {
-						console.error('Failed to extract build:', error);
+						error(this, 'Failed to extract build:', error);
 						new Notice(`Failed to extract ${build.subversion}: ${error.message}`);
 					}
 				});
@@ -263,7 +263,7 @@ export class BlenderBuildsRenderer {
 							await this.symlinkBuild(build);
 						}
 					} catch (error) {
-						console.error('Failed to symlink/unsymlink build:', error);
+						error(this, 'Failed to symlink/unsymlink build:', error);
 						new Notice(`Failed to ${isCurrentlySymlinked ? 'unsymlink' : 'symlink'} ${build.subversion}: ${error.message}`);
 					}
 				});
@@ -288,7 +288,7 @@ export class BlenderBuildsRenderer {
 						try {
 							await this.deleteBuild(build);
 						} catch (error) {
-							console.error('Failed to delete build:', error);
+							error(this, 'Failed to delete build:', error);
 							new Notice(`Failed to delete ${build.subversion}: ${error.message}`);
 						}
 					}
@@ -308,7 +308,7 @@ export class BlenderBuildsRenderer {
 				try {
 					await this.downloadBuild(build);
 				} catch (error) {
-					console.error('Failed to download build:', error);
+					error(this, 'Failed to download build:', error);
 					new Notice(`Failed to download ${build.subversion}: ${error.message}`);
 				}
 			});
@@ -345,7 +345,7 @@ export class BlenderBuildsRenderer {
 			await this.buildManager.downloadBuild(build);
 			// The buildManager handles all notifications via events
 		} catch (error) {
-			console.error('Failed to download build:', error);
+			error(this, 'Failed to download build:', error);
 			new Notice(`Failed to start download: ${error.message}`);
 		}
 	}
@@ -359,7 +359,7 @@ export class BlenderBuildsRenderer {
 			// Refresh the view to update the UI
 			this.onRefresh();
 		} catch (error) {
-			console.error('Failed to delete build:', error);
+			error(this, 'Failed to delete build:', error);
 			new Notice(`Failed to delete build: ${error.message}`);
 		}
 	}
@@ -379,7 +379,7 @@ export class BlenderBuildsRenderer {
 			// Refresh the view to update the UI
 			this.onRefresh();
 		} catch (error) {
-			console.error('Failed to extract build:', error);
+			error(this, 'Failed to extract build:', error);
 			new Notice(`Failed to extract build: ${error.message}`);
 		}
 	}
@@ -404,7 +404,7 @@ export class BlenderBuildsRenderer {
 		try {
 			await this.buildManager.launchBuild(build);
 		} catch (error) {
-			console.error('Failed to launch build:', error);
+			error(this, 'Failed to launch build:', error);
 			new Notice(`Failed to launch build: ${error.message}`);
 		}
 	}
@@ -435,7 +435,7 @@ export class BlenderBuildsRenderer {
 			// Refresh the view to update the UI
 			this.onRefresh();
 		} catch (error) {
-			console.error('Failed to symlink build:', error);
+			error(this, 'Failed to symlink build:', error);
 			new Notice(`Failed to symlink build: ${error.message}`);
 		}
 	}
@@ -484,7 +484,7 @@ export class BlenderBuildsRenderer {
 				}
 			}
 		} catch (error) {
-			console.error('Error finding symlinked build:', error);
+			error(this, 'Error finding symlinked build:', error);
 		}
 
 		return null;
@@ -511,7 +511,7 @@ export class BlenderBuildsRenderer {
 				return symlinkTarget.includes(extractPath) || extractPath.includes(symlinkTarget);
 			}
 		} catch (error) {
-			console.error('Error checking if build is symlinked:', error);
+			error(this, 'Error checking if build is symlinked:', error);
 		}
 
 		return false;
@@ -526,7 +526,7 @@ export class BlenderBuildsRenderer {
 			// Refresh the view to update the UI
 			this.onRefresh();
 		} catch (error) {
-			console.error('Failed to remove symlink:', error);
+			error(this, 'Failed to remove symlink:', error);
 			new Notice(`Failed to remove symlink: ${error.message}`);
 		}
 	}
@@ -579,7 +579,7 @@ export class BlenderBuildsRenderer {
 				exec(`xdg-open "${pathToOpen}"`);
 			}
 		} catch (error) {
-			console.error('Failed to show build in explorer:', error);
+			error(this, 'Failed to show build in explorer:', error);
 			new Notice(`Failed to show build in explorer: ${error.message}`);
 		}
 	}

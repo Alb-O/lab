@@ -5,6 +5,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 import * as yauzl from 'yauzl';
 import { EventEmitter } from 'events';
+import { createDownloadError, createExtractionError, DirectoryItem } from '@types';
 import { BlenderExtractor } from './Extractor';
 import { 
 	debug, 
@@ -88,7 +89,7 @@ export class BlenderDownloader extends EventEmitter {
 				totalSize = parseInt(headResponse.headers['content-length'] || '0');
 			} catch (error) {
 				// If HEAD request fails, continue without size info
-				console.warn('Could not get file size:', error);
+				warn(this, 'Could not get file size:', error);
 			}
             const progress: DownloadProgress = {
 				downloaded: 0,
@@ -104,10 +105,8 @@ export class BlenderDownloader extends EventEmitter {
 			const response = await requestUrl({
 				url: build.link,
 				method: 'GET'
-			});
-
-			// Write the file
-			fs.writeFileSync(fullPath, Buffer.from(response.arrayBuffer));
+			});			// Write the file
+			await fs.promises.writeFile(fullPath, Buffer.from(response.arrayBuffer));
 
 			progress.downloaded = response.arrayBuffer.byteLength;
 			progress.total = progress.total || progress.downloaded;			progress.percentage = 100;
@@ -200,15 +199,13 @@ export class BlenderDownloader extends EventEmitter {
 		if (!fs.existsSync(buildsPath)) {
 			return 0;
 		}
-
-		const builds = fs.readdirSync(buildsPath)
+		const builds: DirectoryItem[] = fs.readdirSync(buildsPath)
 			.map((name: string) => ({
 				name,
-				path: path.join(buildsPath, name),
 				stats: fs.statSync(path.join(buildsPath, name))
 			}))
-			.filter((item: any) => item.stats.isDirectory())
-			.sort((a: any, b: any) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
+			.filter((item: DirectoryItem) => item.stats.isDirectory())
+			.sort((a: DirectoryItem, b: DirectoryItem) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
 
 		if (builds.length <= maxBuilds) {
 			return 0;
@@ -216,13 +213,13 @@ export class BlenderDownloader extends EventEmitter {
 
 		const buildsToRemove = builds.slice(maxBuilds);
 		let removedCount = 0;
-
 		for (const build of buildsToRemove) {
 			try {
-				await this.removeDirectory(build.path);
+				const buildPath = path.join(buildsPath, build.name);
+				await this.removeDirectory(buildPath);
 				removedCount++;
 			} catch (error) {
-				console.error(`Failed to remove build ${build.name}:`, error);
+				warn(this, `Failed to remove build ${build.name}: ${error}`);
 			}
 		}
 

@@ -26,7 +26,7 @@ let esbuildOptions = {
 	bundle: true,	plugins: [
 		alias({
 			"@": path.resolve(__dirname, "src"),
-			"@types": path.resolve(__dirname, "src/types.ts"),
+			"@types": path.resolve(__dirname, "src/types/index.ts"),
 			"@constants": path.resolve(__dirname, "src/constants.ts"),
 			"@build-manager": path.resolve(__dirname, "src/build-manager/index.ts"),
 			"@settings": path.resolve(__dirname, "src/settings/index.ts"),

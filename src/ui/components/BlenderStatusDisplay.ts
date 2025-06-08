@@ -1,5 +1,5 @@
 import { FetchBlenderBuilds } from '@/build-manager';
-import { ScrapingStatus, DownloadProgress, BlenderBuildInfo } from '@/types';
+import { ScrapingStatus, DownloadProgress, BlenderBuildInfo, DownloadError, ExtractionError, ExtractionProgressEvent } from '@types';
 import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
 
 export class BlenderStatusDisplay {
@@ -98,8 +98,7 @@ export class BlenderStatusDisplay {
 			// Clear activity after 3 seconds
 			setTimeout(() => this.clearActivity(), 3000);
 		});
-
-		this.buildManager.on('downloadError', (build: BlenderBuildInfo, error: any) => {
+		this.buildManager.on('downloadError', (build: BlenderBuildInfo, error: DownloadError | Error) => {
 			this.setActivity(`Download failed: ${build.subversion}`, 'download');
 			// Clear activity after 5 seconds for errors
 			setTimeout(() => this.clearActivity(), 5000);
@@ -109,8 +108,7 @@ export class BlenderStatusDisplay {
 			const fileName = archivePath.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || 'build';
 			this.setActivity(`Extracting ${fileName}...`, 'extraction');
 		});
-
-		this.buildManager.on('extractionProgress', (progress: any) => {
+		this.buildManager.on('extractionProgress', (progress: ExtractionProgressEvent) => {
 			if (progress.status) {
 				this.setActivity(progress.status, 'extraction');
 			}
@@ -122,8 +120,7 @@ export class BlenderStatusDisplay {
 			// Clear activity after 3 seconds
 			setTimeout(() => this.clearActivity(), 3000);
 		});
-
-		this.buildManager.on('extractionError', (archivePath: string, error: any) => {
+		this.buildManager.on('extractionError', (archivePath: string, error: ExtractionError | Error) => {
 			const fileName = archivePath.split(/[/\\]/).pop()?.replace(/\.[^/.]+$/, '') || 'build';
 			this.setActivity(`Extraction failed: ${fileName}`, 'extraction');
 			// Clear activity after 5 seconds for errors

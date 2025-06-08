@@ -2,7 +2,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@types": ["src/types.ts"],
+      "@types": ["src/types/index.ts"],
       "@constants": ["src/constants.ts"],
       "@build-manager": ["src/build-manager/index.ts"],
       "@build-manager/*": ["src/build-manager/*"],

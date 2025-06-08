@@ -182,7 +182,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 			});
 			new Notice(`Failed to debug build detection: ${commandError.message}`, 8000);
 			// Keep one console.error for severe debugging issues
-			console.error('[DEBUG] Build detection error:', commandError);
+			error(this, '[DEBUG] Build detection error:', commandError);
 		}
 	}
 

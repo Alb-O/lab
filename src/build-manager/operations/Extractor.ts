@@ -79,7 +79,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 				
 				if (stderr) {
-					console.warn(`Extraction warning: ${stderr}`);
+					warn(this, `Extraction warning: ${stderr}`);
 				}
 				
 				// Verify extraction completed by checking if files exist
@@ -123,7 +123,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 				
 				if (stderr) {
-					console.warn(`Extraction warning: ${stderr}`);
+					warn(this, `Extraction warning: ${stderr}`);
 				}
 				
 				// Verify extraction completed by checking if files exist
@@ -181,7 +181,7 @@ export class BlenderExtractor extends EventEmitter {
 					const unmountCommand = `hdiutil detach "${mountPoint}"`;
 					exec(unmountCommand, (unmountError: any) => {
 						if (unmountError) {
-							console.warn(`Warning: Failed to unmount DMG: ${unmountError.message}`);
+							warn(this, `Warning: Failed to unmount DMG: ${unmountError.message}`);
 						}
 						
 						if (copyError) {
@@ -190,7 +190,7 @@ export class BlenderExtractor extends EventEmitter {
 						}
 						
 						if (copyStderr) {
-							console.warn(`Copy warning: ${copyStderr}`);
+							warn(this, `Copy warning: ${copyStderr}`);
 						}
 						
 						// Verify extraction completed
@@ -234,7 +234,7 @@ export class BlenderExtractor extends EventEmitter {
 					}
 				}
 			} catch (error) {
-				console.error('Error searching for executable:', error);
+				error(this, 'Error searching for executable:', error);
 			}
 			
 			return null;
@@ -285,7 +285,7 @@ export class BlenderExtractor extends EventEmitter {
 			} catch (error) {
 				// If we can't get stats, filesystem might still be settling
 				if (attempt === maxAttempts) {
-					console.warn('Warning: Could not get directory stats during verification');
+					warn(this, 'Warning: Could not get directory stats during verification');
 				}
 				continue;
 			}
@@ -298,7 +298,7 @@ export class BlenderExtractor extends EventEmitter {
 					reason: 'waiting for more data to be extracted'
 				});
 				if (attempt === maxAttempts) {
-					console.warn('Warning: Extracted content seems smaller than expected for Blender');
+					warn(this, 'Warning: Extracted content seems smaller than expected for Blender');
 				} else {
 					continue;
 				}
@@ -330,7 +330,7 @@ export class BlenderExtractor extends EventEmitter {
 			}
 			
 			if (attempt === maxAttempts) {
-				console.warn('Warning: Could not verify Blender executable in extracted files after all attempts');
+				warn(this, 'Warning: Could not verify Blender executable in extracted files after all attempts');
 				// Don't throw error here as the extraction might still be valid for some builds
 				return;
 			} else {
@@ -403,7 +403,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 			} catch (error) {
 				// If there's an error checking, just continue
-				console.warn('Error monitoring extraction progress:', error);
+				warn(this, 'Error monitoring extraction progress:', error);
 			}
 		}, checkInterval);
 		

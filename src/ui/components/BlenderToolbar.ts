@@ -137,7 +137,7 @@ export class BlenderToolbar {
 		 	// @ts-ignore
 			this.plugin.app.openWithDefaultApp(path.join(this.plugin.settings.libraryFolder, BUILDS_FOLDER));
 		} catch (error) {
-			console.error('Failed to open builds folder:', error);
+			error(this, 'Failed to open builds folder:', error);
 		}
 	}
 

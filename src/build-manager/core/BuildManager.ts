@@ -1,4 +1,4 @@
-import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache, BuildType, InstalledBuildMetadata, InstalledBuildsCache } from '@types';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache, BuildType, InstalledBuildMetadata, InstalledBuildsCache, DownloadError, ExtractionError, LaunchError, ExtractionProgressEvent, DirectoryItem } from '@types';
 import { Platform } from 'obsidian';
 import { BlenderPluginSettings, DEFAULT_SETTINGS } from '@settings';
 import { BlenderScraper } from '../operations/Scraper';
@@ -108,25 +108,24 @@ export class FetchBlenderBuilds extends EventEmitter {
 						// Clean up archive after successful auto-extraction if enabled
 						if (this.settings.cleanUpAfterExtraction) {
 							debug(this, 'Cleanup after extraction enabled, starting cleanup');
-							this.cleanupAfterExtraction(filePath).catch(console.error);
+							this.cleanupAfterExtraction(filePath).catch(err => error(this, 'Cleanup after extraction failed:', err));
 						}
 					})
-					.catch(console.error);
+					.catch(err => error(this, 'Auto-extraction failed:', err));
 			}
 		});
-
-		this.downloader.on('downloadError', (build: BlenderBuildInfo, errorData: any) => {
-			error(this, `Download failed for ${build.subversion}: ${errorData.message || errorData}`);
+		this.downloader.on('downloadError', (build: BlenderBuildInfo, errorData: DownloadError | Error) => {
+			const errorMessage = errorData instanceof Error ? errorData.message : errorData.message;
+			error(this, `Download failed for ${build.subversion}: ${errorMessage}`);
 			this.emit('downloadError', build, errorData);
-			new Notice(`Download failed: ${build.subversion} - ${errorData.message}`);
+			new Notice(`Download failed: ${build.subversion} - ${errorMessage}`);
 		});
 		this.downloader.on('extractionStarted', (archivePath: string, extractPath: string) => {
 			info(this, `Started extracting ${path.basename(archivePath)} to ${extractPath}`);
 			this.emit('extractionStarted', archivePath, extractPath);
 			new Notice(`Extracting ${path.basename(archivePath)}...`);
 		});
-
-		this.downloader.on('extractionProgress', (progress: any) => {
+		this.downloader.on('extractionProgress', (progress: ExtractionProgressEvent) => {
 			this.emit('extractionProgress', progress);
 		});
 
@@ -139,18 +138,17 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 			// Emit buildsUpdated event to trigger UI refresh
 			this.emit('buildsUpdated', this.getCachedBuilds());
-		});
-		this.downloader.on('extractionError', (archivePath: string, error: any) => {
+		});		this.downloader.on('extractionError', (archivePath: string, error: ExtractionError | Error) => {
+			const errorMessage = error instanceof Error ? error.message : error.message;
 			this.emit('extractionError', archivePath, error);
-			new Notice(`Extraction failed: ${path.basename(archivePath)} - ${error.message}`);
+			new Notice(`Extraction failed: ${path.basename(archivePath)} - ${errorMessage}`);
 		});
 
 		// Launcher events - forward to our own events
 		this.launcher.on('buildLaunched', (build: BlenderBuildInfo, launcherPath: string) => {
 			this.emit('buildLaunched', build, launcherPath);
 		});
-
-		this.launcher.on('launchError', (build: BlenderBuildInfo, error: any) => {
+		this.launcher.on('launchError', (build: BlenderBuildInfo, error: LaunchError | Error) => {
 			this.emit('launchError', build, error);
 		});
 	}
@@ -398,14 +396,13 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Clean up archive file and empty build_archives folder after extraction
-	 */
-	async cleanupAfterExtraction(archivePath: string): Promise<void> {
+	 */	async cleanupAfterExtraction(archivePath: string): Promise<void> {
 		try {
-			const fs = require('fs');
+			const fs = require('fs').promises;
 			const path = require('path');
 
 			// Remove the archive file
-			fs.unlinkSync(archivePath);
+			await fs.unlink(archivePath);
 			// Clean up empty build_archives directory
 			const downloadsPath = path.dirname(archivePath);
 			await this.cleanupEmptyDirectory(downloadsPath);
@@ -770,13 +767,12 @@ export class FetchBlenderBuilds extends EventEmitter {
 	}
 	/**
 	 * Clean up empty directories
-	 */
-	private async cleanupEmptyDirectory(dirPath: string): Promise<void> {
+	 */	private async cleanupEmptyDirectory(dirPath: string): Promise<void> {
 		try {
-			const fs = require('fs');
-			const files = fs.readdirSync(dirPath);
+			const fs = require('fs').promises;
+			const files = await fs.readdir(dirPath);
 			if (files.length === 0) {
-				fs.rmdirSync(dirPath);
+				await fs.rmdir(dirPath);
 			}
 		} catch (error) {
 			// Directory might not exist, we don't have permission, or it's in use - ignore
@@ -905,7 +901,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 				return [];
 			}
 
-			const cacheData = fs.readFileSync(this.cacheFilePath, 'utf8');
+			const cacheData = await fs.promises.readFile(this.cacheFilePath, 'utf8');
 			const cache: BuildCache = JSON.parse(cacheData);
 
 			// Validate cache version
@@ -932,10 +928,9 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 			return builds;
 		} catch (error) {
-			error(this, `Failed to load cached builds: ${error}`);
-			// Remove invalid cache file
+			error(this, `Failed to load cached builds: ${error}`);			// Remove invalid cache file
 			if (fs.existsSync(this.cacheFilePath)) {
-				fs.unlinkSync(this.cacheFilePath);
+				await fs.promises.unlink(this.cacheFilePath);
 			}
 			return [];
 		}
@@ -955,7 +950,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			};
 
 			const cacheData = JSON.stringify(cache, null, 2);
-			fs.writeFileSync(this.cacheFilePath, cacheData, 'utf8');
+			await fs.promises.writeFile(this.cacheFilePath, cacheData, 'utf8');
 		} catch (error) {
 			error(this, `Failed to save builds cache: ${error}`);
 		}
@@ -963,10 +958,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Clear cached builds
-	 */
-	clearCache(): void {
-		try {
-			if (fs.existsSync(this.cacheFilePath)) {
+	 */	clearCache(): void {
+		try {			if (fs.existsSync(this.cacheFilePath)) {
 				fs.unlinkSync(this.cacheFilePath);
 			}
 			this.buildCache = [];
