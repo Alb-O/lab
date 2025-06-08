@@ -374,10 +374,6 @@ export class BlenderViewRenderer {
 		// Listen for build deletion events
 		this.buildManager.on('buildDeleted', this.onBuildDeleted.bind(this));
 		
-		// Listen for symlink events
-		this.buildManager.on('buildSymlinked', this.onBuildSymlinked.bind(this));
-		this.buildManager.on('buildUnsymlinked', this.onBuildUnsymlinked.bind(this));
-		
 		// Listen for settings updates (to refresh view when architecture changes)
 		this.buildManager.on('settingsUpdated', this.onSettingsUpdated.bind(this));
 	}
@@ -460,25 +456,7 @@ export class BlenderViewRenderer {
 		// Refresh the builds content to update button visibility
 		await this.updateBuildsContent();
 	}
-
-	/**
-	 * Handle build symlinked event
-	 */
-	private async onBuildSymlinked(build: BlenderBuildInfo, symlinkPath: string): Promise<void> {
-		debug(this, `Build symlinked: ${build.subversion} -> ${symlinkPath}`);
-		// Refresh the builds content to update symlink button states and pinned container
-		await this.updateBuildsContent();
-	}
-
-	/**
-	 * Handle build unsymlinked event
-	 */
-	private async onBuildUnsymlinked(build: BlenderBuildInfo, symlinkPath: string): Promise<void> {
-		debug(this, `Build unsymlinked: ${build.subversion} from ${symlinkPath}`);
-		// Refresh the builds content to update symlink button states and pinned container
-		await this.updateBuildsContent();
-	}
-
+	
 	/**
 	 * Update settings and refresh the view
 	 */

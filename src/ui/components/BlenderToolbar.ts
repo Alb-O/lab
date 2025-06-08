@@ -1,7 +1,9 @@
-import { ButtonComponent, Platform, normalizePath } from 'obsidian';
+import { ButtonComponent } from 'obsidian';
 import { FetchBlenderBuilds } from '../../buildManager';
+import { BUILDS_FOLDER } from '../../constants';
 import type BlenderBuildManagerPlugin from '../../main';
 import type { BlenderPluginSettings } from '../../settings';
+import * as path from 'path';
 
 export class BlenderToolbar {
 	private plugin: BlenderBuildManagerPlugin;
@@ -108,21 +110,17 @@ export class BlenderToolbar {
 	private toggleFilter(): void {
 		this.onToggleFilter();
 	}
-	
+
 	/**
 	 * Open builds folder
 	 */
 	private async openBuildsFolder(): Promise<void> {
 		try {
-			const { exec } = require('child_process');
 			const fs = require('fs');
-			const path = require('path');
 			
 			// Try to open the actual builds folder first (where extracted builds are stored)
 			const extractsPath = this.buildManager.getExtractsPath();
 			const basePath = this.buildManager.getBuildsPath();
-			
-			let pathToOpen = extractsPath;
 			
 			// Check if the builds folder exists
 			if (!fs.existsSync(extractsPath)) {
@@ -131,18 +129,10 @@ export class BlenderToolbar {
 					// Create the base .blender folder if it doesn't exist
 					fs.mkdirSync(basePath, { recursive: true });
 				}
-				// Use the base folder since builds folder doesn't exist yet
-				pathToOpen = normalizePath(basePath);
 			}
-			
-			// Open folder in system file manager using platform-specific commands
-			if (Platform.isWin) {
-				exec(`explorer "${pathToOpen}"`);
-			} else if (Platform.isMacOS) {
-				exec(`open "${pathToOpen}"`);
-			} else {
-				exec(`xdg-open "${pathToOpen}"`);
-			}
+			// openWithDefaultApp() requires vault-relative path
+		 	// @ts-ignore
+			this.plugin.app.openWithDefaultApp(path.join(this.plugin.settings.libraryFolder, BUILDS_FOLDER));
 		} catch (error) {
 			console.error('Failed to open builds folder:', error);
 		}
@@ -161,6 +151,7 @@ export class BlenderToolbar {
 			pinButton.setIcon('pin');
 		}
 	}
+
 	/**
 	 * Update toolbar state from plugin settings
 	 */

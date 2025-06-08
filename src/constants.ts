@@ -2,6 +2,14 @@
  * Constants used throughout the Blender builds plugin
  */
 
+export const BUILDS_FOLDER = 'builds';
+export const BUILDS_ARCHIVES_FOLDER = 'build_archives';
+
+/**
+ * Name of the symlink that points to the currently active Blender build
+ */
+export const SYMLINK_NAME = 'bl_symlink';
+
 /**
  * Known Blender LTS (Long Term Support) versions
  * Updated as new LTS versions are released

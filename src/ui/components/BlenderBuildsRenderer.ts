@@ -392,13 +392,30 @@ export class BlenderBuildsRenderer {
 			new Notice(`Failed to launch build: ${error.message}`);
 		}
 	}
-
+	
 	/**
 	 * Create a symlink to a build
 	 */
 	private async symlinkBuild(build: BlenderBuildInfo): Promise<void> {
 		try {
-			await this.buildManager.symlinkBuild(build);
+			let buildPath: string;
+
+			// Handle orphaned builds differently
+			if (build.isOrphanedInstall && build.extractedPath) {
+				buildPath = build.extractedPath;
+			} else {
+				// Get extracted builds once and reuse the results
+				const extractedBuilds = this.buildManager.getExtractedBuilds();
+				const extractedBuild = extractedBuilds.find(extracted => extracted.build === build);
+
+				if (!extractedBuild) {
+					throw new Error('Build must be extracted to create symlink');
+				}
+
+				buildPath = extractedBuild.extractPath;
+			}
+
+			await this.buildManager.symlinks.createSymlink(buildPath, build);
 			// Refresh the view to update the UI
 			this.onRefresh();
 		} catch (error) {
@@ -425,24 +442,20 @@ export class BlenderBuildsRenderer {
 		} catch {
 			return 'unknown-file';
 		}
-	}
-	/**
+	}	/**
 	 * Find the currently symlinked build from a list of builds
 	 */
 	private findSymlinkedBuild(builds: BlenderBuildInfo[]): BlenderBuildInfo | null {
 		// Check if there's a symlink and find the matching build
 		try {
-			const buildsRootPath = this.buildManager.getBuildsPath();
-			const path = require('path');
-			const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
-			const fs = require('fs');
-
-			if (!fs.existsSync(symlinkPath)) {
+			if (!this.buildManager.symlinks.isSymlinkValid()) {
 				return null;
 			}
 
-			// Read the symlink target
-			const symlinkTarget = fs.readlinkSync(symlinkPath);
+			const symlinkTarget = this.buildManager.symlinks.getSymlinkTarget();
+			if (!symlinkTarget) {
+				return null;
+			}
 
 			// Find the build that matches the symlink target
 			for (const build of builds) {
@@ -466,17 +479,14 @@ export class BlenderBuildsRenderer {
 	 */
 	private isBuildSymlinked(build: BlenderBuildInfo): boolean {
 		try {
-			const buildsRootPath = this.buildManager.getBuildsPath();
-			const path = require('path');
-			const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
-			const fs = require('fs');
-
-			if (!fs.existsSync(symlinkPath)) {
+			if (!this.buildManager.symlinks.isSymlinkValid()) {
 				return false;
 			}
 
-			// Read the symlink target
-			const symlinkTarget = fs.readlinkSync(symlinkPath);
+			const symlinkTarget = this.buildManager.symlinks.getSymlinkTarget();
+			if (!symlinkTarget) {
+				return false;
+			}
 
 			// Check if this build's extract path matches the symlink target
 			const installStatus = this.buildManager.isBuildInstalled(build);
@@ -496,44 +506,12 @@ export class BlenderBuildsRenderer {
 	 */
 	private async unsymlinkBuild(build: BlenderBuildInfo): Promise<void> {
 		try {
-			const buildsRootPath = this.buildManager.getBuildsPath();
-			const path = require('path');
-			const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
-			const fs = require('fs');
-			// Remove existing symlink if it exists (including broken symlinks)
-			try {
-				const stats = fs.lstatSync(symlinkPath);
-				// If lstatSync succeeds, something exists at this path
-				if (stats.isSymbolicLink() || (Platform.isWin && stats.isDirectory())) {
-					// On Windows, junctions appear as directories but can be safely unlinked
-					// On other platforms, check for symbolic links
-					if (Platform.isWin) {
-						// Use rmSync for Windows junctions as they can be stubborn
-						fs.rmSync(symlinkPath, { recursive: false, force: true });
-					} else {
-						fs.unlinkSync(symlinkPath);
-					}
-					new Notice(`Removed symlink for ${build.subversion}`);
-
-					// Emit event similar to buildManager (for consistency)
-					this.buildManager.emit('buildUnsymlinked', build, symlinkPath);
-
-					// Refresh the view to update the UI
-					this.onRefresh();
-				} else {
-					new Notice(`bl_symlink exists but is not a symlink - cannot remove`);
-				}
-			} catch (error: any) {
-				// If lstatSync throws ENOENT, the path doesn't exist
-				if (error.code === 'ENOENT') {
-					new Notice(`No symlink found for ${build.subversion}`);
-				} else {
-					throw error;
-				}
-			}
+			await this.buildManager.symlinks.removeSymlink();
+			// Refresh the view to update the UI
+			this.onRefresh();
 		} catch (error) {
 			console.error('Failed to remove symlink:', error);
-			throw error;
+			new Notice(`Failed to remove symlink: ${error.message}`);
 		}
 	}
 

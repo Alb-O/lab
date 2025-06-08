@@ -5,6 +5,8 @@ import { BlenderScraper } from './scraper';
 import { BlenderDownloader } from './downloader';
 import { BlenderLauncher } from './launcher';
 import { BuildFilter } from './buildFilter';
+import { SymlinkManager } from './SymlinkManager';
+import { BUILDS_FOLDER, BUILDS_ARCHIVES_FOLDER, SYMLINK_NAME } from './constants';
 import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -22,6 +24,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 	private downloader: BlenderDownloader;
 	private launcher: BlenderLauncher;
 	private buildFilter: BuildFilter;
+	private symlinkManager: SymlinkManager;
 	private settings: BlenderPluginSettings;
 	private vaultPath: string;
 	private buildCache: BlenderBuildInfo[] = [];
@@ -44,12 +47,13 @@ export class FetchBlenderBuilds extends EventEmitter {
 		super();
 		registerLoggerClass(this, 'FetchBlenderBuilds');
 		debug(this, 'FetchBlenderBuilds constructor started');
-
 		this.vaultPath = vaultPath;
 		this.settings = settings;
 		this.scraper = new BlenderScraper(settings.minimumBlenderVersion);
 		this.downloader = new BlenderDownloader();
-		this.launcher = new BlenderLauncher(settings); this.buildFilter = new BuildFilter(this);
+		this.launcher = new BlenderLauncher(settings);
+		this.buildFilter = new BuildFilter(this);
+		this.symlinkManager = new SymlinkManager(this.getExtractsPath());
 		this.cacheFilePath = path.join(this.getDownloadsPath(), 'build-cache.json');
 		this.installedBuildsCacheFilePath = path.join(this.getDownloadsPath(), 'installed-builds-cache.json');
 
@@ -197,14 +201,14 @@ export class FetchBlenderBuilds extends EventEmitter {
 	 * Get downloads directory path
 	 */
 	getDownloadsPath(): string {
-		return path.join(this.getBuildsPath(), 'build_archives');
+		return path.join(this.getBuildsPath(), BUILDS_ARCHIVES_FOLDER);
 	}
 
 	/**
 	 * Get builds directory path (where extracted builds are stored)
 	 */
 	getExtractsPath(): string {
-		return path.join(this.getBuildsPath(), 'builds');
+		return path.join(this.getBuildsPath(), BUILDS_FOLDER);
 	}
 
 	/**
@@ -221,6 +225,20 @@ export class FetchBlenderBuilds extends EventEmitter {
 	getDownloadsPathForBuild(build: BlenderBuildInfo): string {
 		const buildType = this.buildFilter.getBuildType(build);
 		return path.join(this.getDownloadsPath(), buildType);
+	}
+
+	/**
+	 * Get the SymlinkManager instance
+	 */
+	get symlinks(): SymlinkManager {
+		return this.symlinkManager;
+	}
+
+	/**
+	 * Remove the symlink
+	 */
+	async removeSymlink(): Promise<void> {
+		await this.symlinkManager.removeSymlink();
 	}
 
 	/**
@@ -1142,71 +1160,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		// Update last launched time in installed builds cache
 		await this.updateBuildLastLaunched(build);
-	}
-
-	/**
-	 * Create a symlink named 'bl_symlink' in the root builds directory pointing to the extracted build
-	 */
-	async symlinkBuild(build: BlenderBuildInfo): Promise<void> {
-		let buildPath: string;
-
-		// Handle orphaned builds differently
-		if (build.isOrphanedInstall && build.extractedPath) {
-			buildPath = build.extractedPath;
-			if (!fs.existsSync(buildPath)) {
-				throw new Error('Extracted build directory not found on filesystem');
-			}
-		} else {
-			// Get extracted builds once and reuse the results
-			const extractedBuilds = this.getExtractedBuilds();
-			const extractedBuild = extractedBuilds.find(extracted => extracted.build === build);
-
-			if (!extractedBuild) {
-				throw new Error('Build must be extracted to create symlink');
-			}
-
-			buildPath = extractedBuild.extractPath;
-
-			if (!fs.existsSync(buildPath)) {
-				throw new Error('Extracted build directory not found on filesystem');
-			}
-		}
-		const buildsRootPath = this.getBuildsPath();
-		const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
-
-		// Remove existing symlink if it exists (including broken symlinks)
-		try {
-			const stats = fs.lstatSync(symlinkPath);
-			// If lstatSync succeeds, something exists at this path
-			if (stats.isSymbolicLink() || (Platform.isWin && stats.isDirectory())) {
-				// On Windows, junctions appear as directories but can be safely unlinked
-				// On other platforms, check for symbolic links
-				if (Platform.isWin) {
-					// Use rmSync for Windows junctions as they can be stubborn
-					fs.rmSync(symlinkPath, { recursive: false, force: true });
-				} else {
-					fs.unlinkSync(symlinkPath);
-				}
-			} else {
-				throw new Error('bl_symlink exists but is not a symlink - cannot replace');
-			}
-		} catch (error: any) {
-			// If lstatSync throws ENOENT, the path doesn't exist, which is fine
-			if (error.code !== 'ENOENT') {
-				throw new Error(`Failed to remove existing bl_symlink: ${error.message}`);
-			}
-		}
-		try {
-			// Create the symlink - use platform-appropriate type
-			const symlinkType = Platform.isWin ? 'junction' : 'dir';
-			fs.symlinkSync(buildPath, symlinkPath, symlinkType);
-			this.emit('buildSymlinked', build, symlinkPath);
-			new Notice(`Created symlink: bl_symlink -> ${build.subversion}`);
-		} catch (error) {
-			throw new Error(`Failed to create symlink: ${error.message}`);
-		}
-	}
-	/**
+	}	/**
 	 * Recursively delete a directory and all its contents
 	 */
 	private async deleteDirectory(dirPath: string): Promise<void> {
