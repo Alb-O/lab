@@ -1,15 +1,24 @@
-import { BlenderBuildInfo } from './types';
-import { BlenderPluginSettings } from './settings';
+import { BlenderBuildInfo } from '@/types';
+import { BlenderPluginSettings } from '@/settings';
 import { Notice, Platform } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
+import {
+	debug,
+	info,
+	warn,
+	error,
+	registerLoggerClass
+} from '@/utils/obsidian-logger';
 
 export class BlenderLauncher extends EventEmitter {
 	private settings: BlenderPluginSettings;
 
 	constructor(settings: BlenderPluginSettings) {
 		super();
+		registerLoggerClass(this, 'BlenderLauncher');
+		debug(this, 'BlenderLauncher initialized with settings');
 		this.settings = settings;
 	}
 

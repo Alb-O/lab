@@ -1,9 +1,16 @@
-import { ExtractionProgress } from './types';
+import { ExtractionProgress } from '@/types';
 import { EventEmitter } from 'events';
 import { Platform } from 'obsidian';
 import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
+import {
+	debug,
+	info,
+	warn,
+	error,
+	registerLoggerClass
+} from '@/utils/obsidian-logger';
 
 /**
  * Handles extraction of Blender build archives (ZIP, TAR.GZ, DMG)
@@ -11,9 +18,10 @@ import { exec } from 'child_process';
  */
 export class BlenderExtractor extends EventEmitter {
 	private currentProgressMonitor: NodeJS.Timeout | null = null;
-
 	constructor() {
 		super();
+		registerLoggerClass(this, 'BlenderExtractor');
+		debug(this, 'BlenderExtractor initialized and ready for archive extraction');
 	}
 
 	/**
@@ -284,7 +292,11 @@ export class BlenderExtractor extends EventEmitter {
 			
 			// Check if we have a reasonable amount of content (at least 50MB for Blender)
 			if (directoryStats && directoryStats.totalSize < 50 * 1024 * 1024) {
-				console.log(`Extraction verification attempt ${attempt}: Only ${this.formatBytes(directoryStats.totalSize)} extracted, waiting for more...`);
+				debug(this, `Extraction verification attempt ${attempt}`, { 
+					sizeBytes: directoryStats.totalSize,
+					sizeMB: (directoryStats.totalSize / (1024 * 1024)).toFixed(2),
+					reason: 'waiting for more data to be extracted'
+				});
 				if (attempt === maxAttempts) {
 					console.warn('Warning: Extracted content seems smaller than expected for Blender');
 				} else {
@@ -309,7 +321,11 @@ export class BlenderExtractor extends EventEmitter {
 			
 			if (foundBlenderStructure) {
 				const sizeInfo = directoryStats ? this.formatBytes(directoryStats.totalSize) : 'unknown size';
-				console.log(`Extraction verification successful on attempt ${attempt}: Found Blender structure with ${sizeInfo} total`);
+				info(this, `Extraction verification successful on attempt ${attempt}`, { 
+					blenderStructureFound: true,
+					sizeInfo: sizeInfo,
+					totalSizeBytes: directoryStats.totalSize
+				});
 				return; // Verification successful
 			}
 			
@@ -318,7 +334,10 @@ export class BlenderExtractor extends EventEmitter {
 				// Don't throw error here as the extraction might still be valid for some builds
 				return;
 			} else {
-				console.log(`Extraction verification attempt ${attempt}: No Blender structure found yet, retrying...`);
+				debug(this, `Extraction verification attempt ${attempt}`, { 
+					blenderStructureFound: false,
+					reason: 'no Blender structure found yet, retrying verification'
+				});
 			}
 		}
 	}

@@ -1,5 +1,6 @@
-import { FetchBlenderBuilds } from '../../buildManager';
-import { ScrapingStatus, DownloadProgress, BlenderBuildInfo } from '../../types';
+import { FetchBlenderBuilds } from '@/build-manager';
+import { ScrapingStatus, DownloadProgress, BlenderBuildInfo } from '@/types';
+import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
 
 export class BlenderStatusDisplay {
 	private buildManager: FetchBlenderBuilds;

@@ -1,14 +1,14 @@
-import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
-import { MINIMUM_BLENDER_VERSIONS, MinimumBlenderVersionType } from './constants';
-import { BuildType } from './types';
-import type BlenderBuildManagerPlugin from './main';
+import { App, PluginSettingTab, Setting } from 'obsidian';
+import { MINIMUM_BLENDER_VERSIONS, MinimumBlenderVersionType } from '@/constants';
+import { BuildType } from '@/types';
+import type BlenderBuildManagerPlugin from '@/main';
 import { 
 	debug, 
 	info, 
 	warn, 
 	error,
 	registerLoggerClass 
-} from './utils/obsidian-logger';
+} from '@/utils/obsidian-logger';
 
 export interface BlenderPluginSettings {
 	libraryFolder: string;
@@ -61,11 +61,11 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 		this.plugin = plugin;
 		info(this, 'Settings tab constructor completed');
 	}
-	
-	display(): void {
-		debug(this, 'Displaying settings tab');
+		display(): void {
+		debug(this, 'Rendering settings tab UI - building user interface elements');
 		const { containerEl } = this;
 
+		debug(this, 'Clearing existing settings container content');
 		containerEl.empty();
 
 		debug(this, 'Creating settings controls');

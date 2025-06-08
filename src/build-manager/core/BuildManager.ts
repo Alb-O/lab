@@ -1,12 +1,12 @@
-import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache, BuildType, InstalledBuildMetadata, InstalledBuildsCache } from './types';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache, BuildType, InstalledBuildMetadata, InstalledBuildsCache } from '@/types';
 import { Platform } from 'obsidian';
-import { BlenderPluginSettings, DEFAULT_SETTINGS } from './settings';
-import { BlenderScraper } from './scraper';
-import { BlenderDownloader } from './downloader';
-import { BlenderLauncher } from './launcher';
-import { BuildFilter } from './buildFilter';
+import { BlenderPluginSettings, DEFAULT_SETTINGS } from '@/settings';
+import { BlenderScraper } from '../operations/Scraper';
+import { BlenderDownloader } from '../operations/Downloader';
+import { BlenderLauncher } from '../operations/Launcher';
+import { BuildFilter } from './BuildFilter';
 import { SymlinkManager } from './SymlinkManager';
-import { BUILDS_FOLDER, BUILDS_ARCHIVES_FOLDER, SYMLINK_NAME } from './constants';
+import { BUILDS_FOLDER, BUILDS_ARCHIVES_FOLDER, SYMLINK_NAME } from '@/constants';
 import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -17,7 +17,7 @@ import {
 	warn,
 	error,
 	registerLoggerClass
-} from './utils/obsidian-logger';
+} from '@/utils/obsidian-logger';
 
 export class FetchBlenderBuilds extends EventEmitter {
 	private scraper: BlenderScraper;

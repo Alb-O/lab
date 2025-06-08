@@ -1,18 +1,18 @@
-import { BlenderBuildInfo, DownloadProgress, ExtractionProgress } from './types';
+import { BlenderBuildInfo, DownloadProgress, ExtractionProgress } from '@/types';
 import { requestUrl } from 'obsidian';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as yauzl from 'yauzl';
 import { EventEmitter } from 'events';
-import { BlenderExtractor } from './extractor';
+import { BlenderExtractor } from './Extractor';
 import { 
 	debug, 
 	info, 
 	warn, 
 	error,
 	registerLoggerClass 
-} from './utils/obsidian-logger';
+} from '@/utils/obsidian-logger';
 
 export class BlenderDownloader extends EventEmitter {
 	private downloadQueue: Map<string, AbortController> = new Map();

@@ -1,7 +1,7 @@
-import { BlenderBuildInfo, BuildType } from '../../types';
-import { FetchBlenderBuilds } from '../../buildManager';
-import { BuildFilter } from '../../buildFilter';
-import type BlenderBuildManagerPlugin from '../../main';
+import { BlenderBuildInfo, BuildType } from '@/types';
+import { FetchBlenderBuilds } from '@/build-manager';
+import { BuildFilter } from '@/build-manager';
+import type BlenderBuildManagerPlugin from '@/main';
 import { SearchComponent, ToggleComponent } from 'obsidian';
 import { 
 	BlenderToolbar, 
@@ -9,7 +9,7 @@ import {
 	BlenderBuildsRenderer, 
 	BlenderViewLayoutManager 
 } from '.';
-import { debug, info, warn, error, registerLoggerClass } from '../../utils/obsidian-logger';
+import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
 
 /**
  * Main renderer component that coordinates all rendering logic for the BlenderBuildsView

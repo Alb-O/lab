@@ -1,6 +1,13 @@
-import { BlenderBuildInfo, BuildType } from './types';
-import { BLENDER_LTS_VERSIONS } from './constants';
-import type { FetchBlenderBuilds } from './buildManager';
+import { BlenderBuildInfo, BuildType } from '@/types';
+import { BLENDER_LTS_VERSIONS } from '@/constants';
+import type { FetchBlenderBuilds } from './BuildManager';
+import {
+	debug,
+	info,
+	warn,
+	error,
+	registerLoggerClass
+} from '@/utils/obsidian-logger';
 
 /**
  * Handles all build filtering logic including architecture, search, branch, and type filtering
@@ -9,6 +16,8 @@ export class BuildFilter {
 	private buildManager: FetchBlenderBuilds;
 
 	constructor(buildManager: FetchBlenderBuilds) {
+		registerLoggerClass(this, 'BuildFilter');
+		debug(this, 'BuildFilter initialized with build manager reference');
 		this.buildManager = buildManager;
 	}
 

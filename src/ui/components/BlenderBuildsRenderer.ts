@@ -1,25 +1,33 @@
 import { ButtonComponent, setTooltip, Notice, setIcon, Platform } from 'obsidian';
-import { BlenderBuildInfo } from '../../types';
-import { FetchBlenderBuilds } from '../../buildManager';
-import type BlenderBuildManagerPlugin from '../../main';
+import { BlenderBuildInfo } from '@/types';
+import { FetchBlenderBuilds } from '@/build-manager';
+import type BlenderBuildManagerPlugin from '@/main';
 import { ConfirmDeleteBuildModal } from './ConfirmDeleteBuildModal';
+import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
 import * as path from 'path';
 
 export class BlenderBuildsRenderer {
 	private plugin: BlenderBuildManagerPlugin;
 	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
-
 	constructor(
 		plugin: BlenderBuildManagerPlugin,
 		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void
 	) {
+		registerLoggerClass(this, 'BlenderBuildsRenderer');
+		debug('Initializing BlenderBuildsRenderer', {
+			plugin: plugin?.manifest?.id,
+			buildManager: !!buildManager,
+			onRefresh: !!onRefresh
+		});
+		
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
+		
+		debug('BlenderBuildsRenderer initialized successfully');
 	}
-
 	/**
 	 * Render builds list in container
 	 */
@@ -30,9 +38,17 @@ export class BlenderBuildsRenderer {
 		pinSymlinkedBuild?: boolean,
 		allBuilds?: BlenderBuildInfo[]
 	): void {
+		debug('Rendering builds', {
+			buildsCount: builds.length,
+			hasSearchFilter: !!searchFilter,
+			pinSymlinkedBuild,
+			allBuildsCount: allBuilds?.length || 0
+		});
+		
 		container.empty();
 
 		if (builds.length === 0 && !pinSymlinkedBuild) {
+			debug('No builds to render, showing empty state');
 			this.renderEmptyState(container);
 			return;
 		}

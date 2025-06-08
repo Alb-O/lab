@@ -1,4 +1,4 @@
-import { BlenderBuildInfo, Platform, Architecture, ScraperCache, StableFolder } from './types';
+import { BlenderBuildInfo, Platform, Architecture, ScraperCache, StableFolder } from '@/types';
 import { requestUrl, Platform as ObsidianPlatform } from 'obsidian';
 import * as cheerio from 'cheerio';
 import { valid, coerce, compare } from 'semver';
@@ -9,7 +9,7 @@ import {
 	warn, 
 	error,
 	registerLoggerClass 
-} from './utils/obsidian-logger';
+} from '@/utils/obsidian-logger';
 
 export class BlenderScraper extends EventEmitter {
 	private static readonly DOWNLOAD_BASE_URL = 'https://download.blender.org/release/';

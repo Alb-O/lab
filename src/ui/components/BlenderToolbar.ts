@@ -1,8 +1,9 @@
 import { ButtonComponent } from 'obsidian';
-import { FetchBlenderBuilds } from '../../buildManager';
-import { BUILDS_FOLDER } from '../../constants';
-import type BlenderBuildManagerPlugin from '../../main';
-import type { BlenderPluginSettings } from '../../settings';
+import { FetchBlenderBuilds } from '@/build-manager';
+import { BUILDS_FOLDER } from '@/constants';
+import type BlenderBuildManagerPlugin from '@/main';
+import type { BlenderPluginSettings } from '@/settings';
+import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
 import * as path from 'path';
 
 export class BlenderToolbar {
@@ -13,7 +14,6 @@ export class BlenderToolbar {
 	private onTogglePin: () => void;
 	private containerEl: HTMLElement | null = null;
 	private buttons: Map<string, ButtonComponent> = new Map();
-
 	constructor(
 		plugin: BlenderBuildManagerPlugin,
 		buildManager: FetchBlenderBuilds,
@@ -21,13 +21,16 @@ export class BlenderToolbar {
 		onToggleFilter: () => void,
 		onTogglePin: () => void
 	) {
+		registerLoggerClass(this, 'BlenderToolbar');
 		this.plugin = plugin;
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 		this.onToggleFilter = onToggleFilter;
 		this.onTogglePin = onTogglePin;
+		debug(this, 'BlenderToolbar initialized');
 	}
 	render(container: HTMLElement): void {
+		debug(this, 'Rendering toolbar');
 		container.empty();
 		this.containerEl = container;
 		this.buttons.clear();

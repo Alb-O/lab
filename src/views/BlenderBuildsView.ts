@@ -1,14 +1,14 @@
-import { ItemView, WorkspaceLeaf, App } from 'obsidian';
-import { FetchBlenderBuilds } from '../buildManager';
-import { BlenderViewRenderer } from '../ui/components';
-import type BlenderBuildManagerPlugin from '../main';
+import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { FetchBlenderBuilds } from '@/build-manager';
+import { BlenderViewRenderer } from '@/ui/components';
+import type BlenderBuildManagerPlugin from '@/main';
 import {
 	debug,
 	info,
 	warn,
 	error,
 	registerLoggerClass
-} from '../utils/obsidian-logger';
+} from '@/utils/obsidian-logger';
 
 export const BLENDER_BUILDS_VIEW_TYPE = 'blender-builds-view';
 
