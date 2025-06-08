@@ -15,7 +15,6 @@ export interface BlenderPluginSettings {
 	autoExtract: boolean;
 	cleanUpAfterExtraction: boolean;
 	preferredArchitecture: 'auto' | 'x64' | 'arm64';
-	maxConcurrentDownloads: number;
 	minimumBlenderVersion: MinimumBlenderVersionType;
 	launchWithConsole: boolean;
 	showInstalledOnly: boolean;
@@ -46,7 +45,6 @@ export const DEFAULT_SETTINGS: BlenderPluginSettings = {
 	autoExtract: true,
 	cleanUpAfterExtraction: true,
 	preferredArchitecture: 'auto',
-	maxConcurrentDownloads: 2,
 	minimumBlenderVersion: '3.0',
 	launchWithConsole: false,
 	showInstalledOnly: false,
@@ -179,36 +177,24 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		new Setting(containerEl)
-			.setName('Max concurrent downloads')
-			.setDesc('Maximum number of simultaneous downloads.')
-			.addSlider(slider => slider
-				.setLimits(1, 5, 1)
-				.setValue(this.plugin.settings.maxConcurrentDownloads)
-				.setDynamicTooltip()
-				.onChange(async (value) => {
-					this.plugin.settings.maxConcurrentDownloads = value;
-					await this.plugin.saveSettings();
-				}));
-
 		new Setting(containerEl).setName('Environment variables').setHeading().setDesc('Set custom path environment variables that will be passed to Blender when launching builds.');
 
 		const envVarDescriptions: Record<string, string> = {
-			BLENDER_USER_RESOURCES: 'User-specific resources directory',
-			BLENDER_USER_CONFIG: 'User configuration directory',
-			BLENDER_USER_SCRIPTS: 'User scripts directory',
-			BLENDER_USER_EXTENSIONS: 'User extensions directory',
-			BLENDER_USER_DATAFILES: 'User data files directory',
-			BLENDER_SYSTEM_RESOURCES: 'System resources directory',
-			BLENDER_SYSTEM_SCRIPTS: 'System scripts directory',
-			BLENDER_SYSTEM_EXTENSIONS: 'System extensions directory',
-			BLENDER_SYSTEM_DATAFILES: 'System data files directory',
-			BLENDER_SYSTEM_PYTHON: 'System Python directory',
-			BLENDER_CUSTOM_SPLASH: 'Custom splash screen image',
-			BLENDER_CUSTOM_SPLASH_BANNER: 'Custom splash banner text',
-			OCIO: 'OpenColorIO configuration file',
-			TEMP: 'Temporary files directory',
-			TMPDIR: 'Alternative temporary files directory'
+			BLENDER_USER_RESOURCES: 'User-specific resources directory.',
+			BLENDER_USER_CONFIG: 'User configuration directory.',
+			BLENDER_USER_SCRIPTS: 'User scripts directory.',
+			BLENDER_USER_EXTENSIONS: 'User extensions directory.',
+			BLENDER_USER_DATAFILES: 'User data files directory.',
+			BLENDER_SYSTEM_RESOURCES: 'System resources directory.',
+			BLENDER_SYSTEM_SCRIPTS: 'System scripts directory.',
+			BLENDER_SYSTEM_EXTENSIONS: 'System extensions directory.',
+			BLENDER_SYSTEM_DATAFILES: 'System data files directory.',
+			BLENDER_SYSTEM_PYTHON: 'System Python directory.',
+			BLENDER_CUSTOM_SPLASH: 'Custom splash screen image.',
+			BLENDER_CUSTOM_SPLASH_BANNER: 'Custom splash banner text.',
+			OCIO: 'OpenColorIO configuration file.',
+			TEMP: 'Temporary files directory.',
+			TMPDIR: 'Alternative temporary files directory.'
 		};
 
 		Object.entries(envVarDescriptions).forEach(([envVar, description]) => {
