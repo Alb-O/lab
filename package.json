@@ -1,6 +1,6 @@
 {
 	"name": "blender-build-manager",
-	"version": "0.3.6",
+	"version": "0.3.7",
 	"description": "Download and manage Blender builds (stable, daily, experimental) directly within your vault.",
 	"main": "main.js",
 	"scripts": {
