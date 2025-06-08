@@ -2,7 +2,7 @@
 
 Download, manage, and launch Blender builds directly from Obsidian.
 
-> [!WARNING] Notice
+> [!WARNING]
 > This plugin requires an internet connection to fetch and download Blender builds from the official Blender servers.
 
 ## Getting started
