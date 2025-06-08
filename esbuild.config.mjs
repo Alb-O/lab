@@ -23,10 +23,16 @@ let esbuildOptions = {
 		js: banner,
 	},
 	entryPoints: ["src/main.ts"],
-	bundle: true,
-	plugins: [
+	bundle: true,	plugins: [
 		alias({
 			"@": path.resolve(__dirname, "src"),
+			"@types": path.resolve(__dirname, "src/types.ts"),
+			"@constants": path.resolve(__dirname, "src/constants.ts"),
+			"@build-manager": path.resolve(__dirname, "src/build-manager/index.ts"),
+			"@settings": path.resolve(__dirname, "src/settings/index.ts"),
+			"@ui": path.resolve(__dirname, "src/ui"),
+			"@utils": path.resolve(__dirname, "src/utils"),
+			"@views": path.resolve(__dirname, "src/views"),
 		}),
 	],
 	external: [

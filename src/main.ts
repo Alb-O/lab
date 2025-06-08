@@ -1,9 +1,9 @@
 import { Notice, Plugin, WorkspaceLeaf, addIcon } from 'obsidian';
-import { initLogger, registerLoggerClass, debug, info, warn, error } from '@/utils/obsidian-logger';
-import { BLENDER_ICON_SVG } from '@/constants';
-import { BlenderPluginSettings, DEFAULT_SETTINGS, BlenderBuildManagerSettingsTab } from '@/settings';
-import { BuildManager } from '@/build-manager';
-import { BlenderBuildsView, BLENDER_BUILDS_VIEW_TYPE } from '@/views/BlenderBuildsView';
+import { initLogger, registerLoggerClass, debug, info, warn, error } from '@utils/obsidian-logger';
+import { BLENDER_ICON_SVG } from '@constants';
+import { BlenderPluginSettings, DEFAULT_SETTINGS, BlenderBuildManagerSettingsTab } from '@settings';
+import { BuildManager } from '@build-manager';
+import { BlenderBuildsView, BLENDER_BUILDS_VIEW_TYPE } from '@views/BlenderBuildsView';
 
 export default class BlenderBuildManagerPlugin extends Plugin {
 	settings: BlenderPluginSettings;

@@ -1,8 +1,15 @@
-{
-  "compilerOptions": {
+{  "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@types": ["src/types.ts"],
+      "@constants": ["src/constants.ts"],
+      "@build-manager": ["src/build-manager/index.ts"],
+      "@build-manager/*": ["src/build-manager/*"],
+      "@settings": ["src/settings/index.ts"],
+      "@ui/*": ["src/ui/*"], 
+      "@utils/*": ["src/utils/*"],
+      "@views/*": ["src/views/*"]
     },
     "inlineSourceMap": true,
     "inlineSources": true,

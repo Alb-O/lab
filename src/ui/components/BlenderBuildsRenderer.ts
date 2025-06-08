@@ -1,9 +1,9 @@
 import { ButtonComponent, setTooltip, Notice, setIcon, Platform } from 'obsidian';
-import { BlenderBuildInfo } from '@/types';
-import { FetchBlenderBuilds } from '@/build-manager';
+import { BlenderBuildInfo } from '@types';
+import { FetchBlenderBuilds } from '@build-manager';
 import type BlenderBuildManagerPlugin from '@/main';
 import { ConfirmDeleteBuildModal } from './ConfirmDeleteBuildModal';
-import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
+import { debug, info, warn, error, registerLoggerClass } from '@utils/obsidian-logger';
 import * as path from 'path';
 
 export class BlenderBuildsRenderer {

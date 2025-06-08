@@ -1,5 +1,5 @@
-import { BlenderBuildInfo, BuildType } from '@/types';
-import { BLENDER_LTS_VERSIONS } from '@/constants';
+import { BlenderBuildInfo, BuildType } from '@types';
+import { BLENDER_LTS_VERSIONS } from '@constants';
 import type { FetchBlenderBuilds } from './BuildManager';
 import {
 	debug,
@@ -7,7 +7,7 @@ import {
 	warn,
 	error,
 	registerLoggerClass
-} from '@/utils/obsidian-logger';
+} from '@utils/obsidian-logger';
 
 /**
  * Handles all build filtering logic including architecture, search, branch, and type filtering
