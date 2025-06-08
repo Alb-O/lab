@@ -60,7 +60,9 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 		debug(this, 'Settings tab constructor started');
 		this.plugin = plugin;
 		info(this, 'Settings tab constructor completed');
-	}	display(): void {
+	}
+	
+	display(): void {
 		debug(this, 'Displaying settings tab');
 		const { containerEl } = this;
 
@@ -78,6 +80,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 					this.plugin.settings.libraryFolder = value;
 					await this.plugin.saveSettings();
 				}));
+
 		new Setting(containerEl)
 			.setName('Auto-extract builds')
 			.setDesc('Automatically extract downloaded archives.')
@@ -88,6 +91,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 					this.plugin.settings.autoExtract = value;
 					await this.plugin.saveSettings();
 				}));
+
 		new Setting(containerEl)
 			.setName('Clean up after extraction')
 			.setDesc('Remove downloaded archives after extraction.')
@@ -98,6 +102,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 					this.plugin.settings.cleanUpAfterExtraction = value;
 					await this.plugin.saveSettings();
 				}));
+
 		new Setting(containerEl)
 			.setName('Launch Blender with console attached')
 			.setDesc('Launch the blender.exe executable instead of blender-launcher.exe to keep a console window attached for debugging. This setting only affects Windows.')
@@ -125,6 +130,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 			});
+
 		new Setting(containerEl)
 			.setName('Show installed builds only')
 			.setDesc('By default, show only builds that have been downloaded/installed.')
@@ -153,18 +159,6 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName('Pin symlinked build')
-			.setDesc('Show the currently symlinked build in a separate pinned container at the top.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.pinSymlinkedBuild)
-				.onChange(async (value) => {
-					this.plugin.settings.pinSymlinkedBuild = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl).setName('Downloads').setHeading();
-
-		new Setting(containerEl)
 			.setName('Preferred architecture')
 			.setDesc('Architecture preference for downloads.')
 			.addDropdown(dropdown => dropdown
@@ -174,6 +168,16 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.preferredArchitecture)
 				.onChange(async (value: 'auto' | 'x64' | 'arm64') => {
 					this.plugin.settings.preferredArchitecture = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Pin symlinked build')
+			.setDesc('Show the currently symlinked build in a separate pinned container at the top.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.pinSymlinkedBuild)
+				.onChange(async (value) => {
+					this.plugin.settings.pinSymlinkedBuild = value;
 					await this.plugin.saveSettings();
 				}));
 
