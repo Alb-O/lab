@@ -1,6 +1,6 @@
 import { BlenderBuildInfo } from './types';
 import { BlenderPluginSettings } from './settings';
-import { Notice } from 'obsidian';
+import { Notice, Platform } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
@@ -18,9 +18,8 @@ export class BlenderLauncher extends EventEmitter {
 	async launchBuild(build: BlenderBuildInfo, extractPath: string): Promise<void> {
 		// Look for blender launcher/executable in the extracted build directory
 		const launcherPath = this.findBlenderLauncher(extractPath);
-		
 		if (!launcherPath) {
-			const expectedName = process.platform === 'win32' ? 'blender-launcher.exe' : 'blender executable';
+			const expectedName = Platform.isWin ? 'blender-launcher.exe' : 'blender executable';
 			throw new Error(`${expectedName} not found in build directory`);
 		}
 		
@@ -80,10 +79,9 @@ export class BlenderLauncher extends EventEmitter {
 				
 				for (const entry of entries) {
 					const fullPath = path.join(dir, entry.name);
-					
-					if (entry.isFile()) {
+							if (entry.isFile()) {
 						// Platform-specific executable detection
-						const isLauncher = process.platform === 'win32' 
+						const isLauncher = Platform.isWin 
 							? entry.name.toLowerCase() === 'blender-launcher.exe'
 							: entry.name === 'blender' || entry.name === 'Blender';
 						

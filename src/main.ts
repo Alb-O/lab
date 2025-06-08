@@ -59,7 +59,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 		// Add command to refresh builds
 		this.addCommand({
 			id: 'refresh-blender-builds',
-			name: 'Refresh Blender Builds',
+			name: 'Refresh available builds',
 			callback: async () => {
 				debug(this, 'Starting refresh of Blender builds');
 				new Notice('Refreshing Blender builds...');

@@ -1,5 +1,6 @@
 import { ExtractionProgress } from './types';
 import { EventEmitter } from 'events';
+import { Platform } from 'obsidian';
 import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
@@ -212,10 +213,9 @@ export class BlenderExtractor extends EventEmitter {
 					
 					if (stats.isDirectory()) {
 						const result = findExecutable(itemPath);
-						if (result) return result;
-					} else if (stats.isFile()) {
+						if (result) return result;					} else if (stats.isFile()) {
 						// Look for blender executable
-						const isExecutable = process.platform === 'win32' 
+						const isExecutable = Platform.isWin 
 							? item.toLowerCase() === 'blender.exe'
 							: item === 'blender' || item === 'Blender';
 						

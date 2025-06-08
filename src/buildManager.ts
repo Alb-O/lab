@@ -1,4 +1,5 @@
 import { BlenderBuildInfo, DownloadProgress, ExtractionProgress, ScrapingStatus, BuildCache, BuildType, InstalledBuildMetadata, InstalledBuildsCache } from './types';
+import { Platform } from 'obsidian';
 import { BlenderPluginSettings, DEFAULT_SETTINGS } from './settings';
 import { BlenderScraper } from './scraper';
 import { BlenderDownloader } from './downloader';
@@ -843,15 +844,13 @@ export class FetchBlenderBuilds extends EventEmitter {
 		if (!fs.existsSync(buildsPath)) {
 			fs.mkdirSync(buildsPath, { recursive: true });
 		}
-
 		// Open directory based on platform
 		const { exec } = require('child_process');
-		const platform = process.platform;
 
 		let command: string;
-		if (platform === 'win32') {
+		if (Platform.isWin) {
 			command = `explorer "${buildsPath}"`;
-		} else if (platform === 'darwin') {
+		} else if (Platform.isMacOS) {
 			command = `open "${buildsPath}"`;
 		} else {
 			command = `xdg-open "${buildsPath}"`;
@@ -1164,23 +1163,22 @@ export class FetchBlenderBuilds extends EventEmitter {
 				throw new Error('Extracted build directory not found on filesystem');
 			}
 		}
-
-		const buildsRootPath = this.getBuildsPath(); const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
+		const buildsRootPath = this.getBuildsPath();
+		const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
 
 		// Remove existing symlink if it exists (including broken symlinks)
 		try {
 			const stats = fs.lstatSync(symlinkPath);
 			// If lstatSync succeeds, something exists at this path
-			if (stats.isSymbolicLink() || (process.platform === 'win32' && stats.isDirectory())) {
+			if (stats.isSymbolicLink() || (Platform.isWin && stats.isDirectory())) {
 				// On Windows, junctions appear as directories but can be safely unlinked
 				// On other platforms, check for symbolic links
-				if (process.platform === 'win32') {
+				if (Platform.isWin) {
 					// Use rmSync for Windows junctions as they can be stubborn
 					fs.rmSync(symlinkPath, { recursive: false, force: true });
 				} else {
 					fs.unlinkSync(symlinkPath);
-				}
-			} else {
+				}			} else {
 				throw new Error('bl_symlink exists but is not a symlink - cannot replace');
 			}
 		} catch (error: any) {
@@ -1191,7 +1189,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		}
 		try {
 			// Create the symlink - use platform-appropriate type
-			const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+			const symlinkType = Platform.isWin ? 'junction' : 'dir';
 			fs.symlinkSync(buildPath, symlinkPath, symlinkType);
 			this.emit('buildSymlinked', build, symlinkPath);
 			new Notice(`Created symlink: bl_symlink -> ${build.subversion}`);

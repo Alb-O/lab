@@ -1,4 +1,4 @@
-import { ButtonComponent } from 'obsidian';
+import { ButtonComponent, Platform } from 'obsidian';
 import { FetchBlenderBuilds } from '../../buildManager';
 import type BlenderBuildManagerPlugin from '../../main';
 import type { BlenderPluginSettings } from '../../settings';
@@ -33,7 +33,7 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 		// Refresh button
 		this.buttons.set('refresh', new ButtonComponent(toolbarEl)
 			.setIcon('refresh-cw')
-			.setTooltip('Refresh Blender builds')
+			.setTooltip('Refresh available builds')
 			.setClass('clickable-icon')
 			.onClick(() => this.onRefresh()));
 		// Filter button (for future filtering functionality)
@@ -133,11 +133,10 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 				// Use the base folder since builds folder doesn't exist yet
 				pathToOpen = basePath;
 			}
-			
-			// Open folder in system file manager
-			if (process.platform === 'win32') {
+					// Open folder in system file manager
+			if (Platform.isWin) {
 				exec(`explorer "${pathToOpen}"`);
-			} else if (process.platform === 'darwin') {
+			} else if (Platform.isMacOS) {
 				exec(`open "${pathToOpen}"`);
 			} else {
 				exec(`xdg-open "${pathToOpen}"`);

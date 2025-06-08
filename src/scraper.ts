@@ -1,5 +1,5 @@
 import { BlenderBuildInfo, Platform, Architecture, ScraperCache, StableFolder } from './types';
-import { requestUrl } from 'obsidian';
+import { requestUrl, Platform as ObsidianPlatform } from 'obsidian';
 import * as cheerio from 'cheerio';
 import { valid, coerce, compare } from 'semver';
 import { EventEmitter } from 'events';
@@ -32,25 +32,23 @@ export class BlenderScraper extends EventEmitter {
 		debug(this, `Platform detection completed: ${this.platform} ${this.architecture}`);
 		
 		info(this, 'Blender scraper created successfully');
-	}
-	/**
+	}	/**
 	 * Get the current platform
 	 */	private getCurrentPlatform(): Platform {
 		debug(this, 'Detecting current platform');
-		const platform = process.platform;
-		switch (platform) {
-			case 'win32':
-				debug(this, 'Platform detected: Windows');
-				return Platform.Windows;
-			case 'darwin':
-				debug(this, 'Platform detected: macOS');
-				return Platform.macOS;
-			case 'linux':
-				debug(this, 'Platform detected: Linux');
-				return Platform.Linux;
-			default:
-				warn(this, `Unknown platform '${platform}', defaulting to Windows`);
-				return Platform.Windows;
+		
+		if (ObsidianPlatform.isWin) {
+			debug(this, 'Platform detected: Windows');
+			return Platform.Windows;
+		} else if (ObsidianPlatform.isMacOS) {
+			debug(this, 'Platform detected: macOS');
+			return Platform.macOS;
+		} else if (ObsidianPlatform.isLinux) {
+			debug(this, 'Platform detected: Linux');
+			return Platform.Linux;
+		} else {
+			warn(this, 'Unknown platform, defaulting to Windows');
+			return Platform.Windows;
 		}
 	}
 

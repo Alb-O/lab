@@ -80,12 +80,6 @@ export class BlenderStatusDisplay {
 			text: statusText + timeText,
 			cls: status.isActive ? 'blender-status-active' : 'blender-status-idle'
 		});
-
-		// Show progress bar if active and has progress (directly in statusEl)
-		if (status.isActive && status.progress > 0) {
-			const progressBar = this.statusEl.createDiv('blender-progress-bar');
-			progressBar.style.width = `${status.progress}%`;
-		}
 	}
 	
 	/**
