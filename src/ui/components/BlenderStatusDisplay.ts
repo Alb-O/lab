@@ -21,6 +21,7 @@ export class BlenderStatusDisplay {
 		this.statusEl = container;
 		this.refreshStatus();
 	}
+	
 	/**
 	 * Update status display
 	 */
@@ -44,7 +45,7 @@ export class BlenderStatusDisplay {
 		if (!this.statusEl || !this.currentActivity) return;
 
 		const statusLine = this.statusEl.createDiv('blender-status-line');
-		statusLine.createSpan({ 
+		statusLine.createSpan({
 			text: this.currentActivity,
 			cls: 'blender-status-active'
 		});
@@ -54,7 +55,7 @@ export class BlenderStatusDisplay {
 			const elapsed = Math.floor((Date.now() - this.activityStartTime.getTime()) / 1000);
 			if (elapsed > 5) { // Show elapsed time after 5 seconds
 				const timeText = ` (${elapsed}s)`;
-				statusLine.createSpan({ 
+				statusLine.createSpan({
 					text: timeText,
 					cls: 'blender-status-time'
 				});
@@ -74,14 +75,14 @@ export class BlenderStatusDisplay {
 		// Create a single status line without extra containers
 		const statusText = status.isActive ? status.currentTask || 'Active' : 'Idle';
 		const timeText = status.lastChecked ? ` • Last checked: ${status.lastChecked.toLocaleTimeString()}` : '';
-		
+
 		const statusLine = this.statusEl.createDiv('blender-status-line');
-		statusLine.createSpan({ 
+		statusLine.createSpan({
 			text: statusText + timeText,
 			cls: status.isActive ? 'blender-status-active' : 'blender-status-idle'
 		});
 	}
-	
+
 	/**
 	 * Setup event listeners for build manager events
 	 */
@@ -142,7 +143,7 @@ export class BlenderStatusDisplay {
 			}
 		});
 	}
-	
+
 	/**
 	 * Set current activity status
 	 */
@@ -151,7 +152,7 @@ export class BlenderStatusDisplay {
 		this.currentActivityType = activityType;
 		this.activityStartTime = new Date();
 		this.refreshStatus();
-		
+
 		// Update elapsed time every 5 seconds for long-running activities
 		const updateTimer = setInterval(() => {
 			if (this.currentActivity === activity) {

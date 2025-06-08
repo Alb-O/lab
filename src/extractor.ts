@@ -213,7 +213,8 @@ export class BlenderExtractor extends EventEmitter {
 					
 					if (stats.isDirectory()) {
 						const result = findExecutable(itemPath);
-						if (result) return result;					} else if (stats.isFile()) {
+						if (result) return result;
+					} else if (stats.isFile()) {
 						// Look for blender executable
 						const isExecutable = Platform.isWin 
 							? item.toLowerCase() === 'blender.exe'

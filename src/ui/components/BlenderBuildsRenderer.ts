@@ -19,24 +19,24 @@ export class BlenderBuildsRenderer {
 		this.buildManager = buildManager;
 		this.onRefresh = onRefresh;
 	}
-	
+
 	/**
 	 * Render builds list in container
 	 */
 	renderBuilds(
-		container: HTMLElement, 
-		builds: BlenderBuildInfo[], 
+		container: HTMLElement,
+		builds: BlenderBuildInfo[],
 		searchFilter?: string,
 		pinSymlinkedBuild?: boolean,
 		allBuilds?: BlenderBuildInfo[]
 	): void {
 		container.empty();
-		
+
 		if (builds.length === 0 && !pinSymlinkedBuild) {
 			this.renderEmptyState(container);
 			return;
 		}
-		
+
 		// Check if we need to show pinned build
 		let pinnedBuild: BlenderBuildInfo | null = null;
 		let remainingBuilds = builds;
@@ -47,11 +47,11 @@ export class BlenderBuildsRenderer {
 			if (pinnedBuild) {
 				// Remove the pinned build from the main list if it exists there
 				// Use multiple fields for more accurate matching to avoid confusion between builds
-				remainingBuilds = builds.filter(build => 
-					!(build.link === pinnedBuild!.link && 
-					  build.subversion === pinnedBuild!.subversion &&
-					  build.buildHash === pinnedBuild!.buildHash &&
-					  build.commitTime.getTime() === pinnedBuild!.commitTime.getTime())
+				remainingBuilds = builds.filter(build =>
+					!(build.link === pinnedBuild!.link &&
+						build.subversion === pinnedBuild!.subversion &&
+						build.buildHash === pinnedBuild!.buildHash &&
+						build.commitTime.getTime() === pinnedBuild!.commitTime.getTime())
 				);
 			}
 		}
@@ -65,7 +65,7 @@ export class BlenderBuildsRenderer {
 		}
 		// Render main builds list
 		const buildsList = container.createEl('div', { cls: 'blender-builds-list' });
-		
+
 		if (remainingBuilds.length === 0 && !pinnedBuild) {
 			// Only show empty state if there are no builds AND no pinned build
 			this.renderEmptyState(buildsList);
@@ -75,50 +75,50 @@ export class BlenderBuildsRenderer {
 			});
 		}
 	}
-	
+
 	/**
 	 * Create a single build item - compact two-line design
 	 */
 	private createBuildItem(
-		buildsList: HTMLElement, 
-		build: BlenderBuildInfo, 
+		buildsList: HTMLElement,
+		build: BlenderBuildInfo,
 		index: number,
 		searchFilter?: string,
 		// Removed highlightFunction, will use internal helper
 	): void {
 		const listItem = buildsList.createEl('div', { cls: 'blender-build-item' });
-		
+
 		// Add orphaned class if this is an orphaned build
 		if (build.isOrphanedInstall) {
 			listItem.addClass('orphaned');
 		}
-				// Main content area
+		// Main content area
 		const contentEl = listItem.createEl('div', { cls: 'blender-build-content' });
 		// First line: Version, Branch, Date, Hash
 		const mainLineEl = contentEl.createEl('div', { cls: 'blender-build-main-line' });
 
 		// Version (more prominent) - with highlighting
-		const versionEl = mainLineEl.createEl('span', { 
+		const versionEl = mainLineEl.createEl('span', {
 			cls: 'blender-build-version'
 		});
 		this.setTextWithHighlight(versionEl, build.subversion, searchFilter);
 		setTooltip(versionEl, `Version: ${build.subversion}`);
 		// Branch tag - with highlighting
-		const branchEl = mainLineEl.createEl('span', { 
+		const branchEl = mainLineEl.createEl('span', {
 			cls: `blender-branch-tag branch-${build.branch.toLowerCase()}`
 		});
 		this.setTextWithHighlight(branchEl, build.branch.toUpperCase(), searchFilter);
 		setTooltip(branchEl, `Branch: ${build.branch}`);
 		// Build hash - with highlighting
 		if (build.buildHash) {
-			const hashEl = mainLineEl.createEl('span', { 
+			const hashEl = mainLineEl.createEl('span', {
 				cls: 'blender-build-hash'
 			});
 			this.setTextWithHighlight(hashEl, build.buildHash.substring(0, 8), searchFilter);
 			setTooltip(hashEl, `Build hash: ${build.buildHash}`);
 		}
 		// Date - with highlighting
-		const dateEl = mainLineEl.createEl('span', { 
+		const dateEl = mainLineEl.createEl('span', {
 			cls: 'blender-build-date'
 		});
 		this.setTextWithHighlight(dateEl, build.commitTime.toLocaleDateString(), searchFilter);
@@ -126,9 +126,9 @@ export class BlenderBuildsRenderer {
 
 		// Second line: Filename only
 		const detailsLineEl = contentEl.createEl('div', { cls: 'blender-build-details-line' });
-				// Filename - with highlighting
+		// Filename - with highlighting
 		const filename = this.getFilenameFromUrl(build.link);
-		const filenameEl = detailsLineEl.createEl('span', { 
+		const filenameEl = detailsLineEl.createEl('span', {
 			cls: 'blender-build-filename'
 		});
 		this.setTextWithHighlight(filenameEl, filename, searchFilter);
@@ -146,22 +146,22 @@ export class BlenderBuildsRenderer {
 		if (isInstalled) {
 			// For installed builds, add a different visual style
 			listItem.addClass('blender-build-installed');
-			
+
 			// Add special styling for symlinked build
 			if (isSymlinked) {
 				listItem.addClass('blender-build-symlinked');
 			}
 		}
 	}
-	
+
 	/**
 	 * Add action buttons for a build item
 	 */
 	private addBuildActions(actionsEl: HTMLElement, build: BlenderBuildInfo, index: number, installStatus: { downloaded: boolean; extracted: boolean }): void {
 		const isInstalled = installStatus.downloaded || installStatus.extracted;
-				if (isInstalled) {
+		if (isInstalled) {
 			// For installed builds: Launch button (first), Show in Explorer, Extract button (if needed), Symlink button, Trash button (last)
-			
+
 			// Launch button - show for all installed builds, but only enable if extracted
 			const launchBtn = new ButtonComponent(actionsEl)
 				.setIcon('play')
@@ -169,7 +169,7 @@ export class BlenderBuildsRenderer {
 				.setClass('clickable-icon')
 				.setClass('blender-action-button')
 				.setClass('blender-launch-button');
-			
+
 			if (installStatus.extracted) {
 				launchBtn.buttonEl.addEventListener('click', async (evt) => {
 					evt.preventDefault();
@@ -185,7 +185,7 @@ export class BlenderBuildsRenderer {
 				// Disable the button if not extracted
 				launchBtn.setDisabled(true);
 			}
-			
+
 			// Show in Explorer button - show for all installed builds
 			const explorerBtn = new ButtonComponent(actionsEl)
 				.setIcon('folder-open')
@@ -203,7 +203,7 @@ export class BlenderBuildsRenderer {
 					new Notice(`Failed to show ${build.subversion} in explorer: ${error.message}`);
 				}
 			});
-					// Extract button - show only if downloaded but not extracted and auto-extract is off
+			// Extract button - show only if downloaded but not extracted and auto-extract is off
 			if (installStatus.downloaded && !installStatus.extracted && !this.plugin.settings.autoExtract) {
 				const extractBtn = new ButtonComponent(actionsEl)
 					.setIcon('archive')
@@ -225,18 +225,18 @@ export class BlenderBuildsRenderer {
 			// Symlink button - show only for extracted builds
 			if (installStatus.extracted) {
 				const isCurrentlySymlinked = this.isBuildSymlinked(build);
-				
+
 				const symlinkBtn = new ButtonComponent(actionsEl)
 					.setIcon('link')
 					.setTooltip(isCurrentlySymlinked ? 'Remove symlink from this build' : 'Create symlink to this build')
 					.setClass('clickable-icon')
 					.setClass('blender-action-button')
 					.setClass('blender-symlink-button');
-					
+
 				if (isCurrentlySymlinked) {
 					symlinkBtn.buttonEl.addClass('is-active');
 				}
-				
+
 				symlinkBtn.buttonEl.addEventListener('click', async (evt) => {
 					evt.preventDefault();
 					evt.stopPropagation();
@@ -252,7 +252,7 @@ export class BlenderBuildsRenderer {
 					}
 				});
 			}
-			
+
 			// Trash button - for all installed builds
 			const trashBtn = new ButtonComponent(actionsEl)
 				.setIcon('trash-2')
@@ -263,7 +263,7 @@ export class BlenderBuildsRenderer {
 			trashBtn.buttonEl.addEventListener('click', async (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
-				
+
 				// Show confirmation modal before deleting
 				const modal = new ConfirmDeleteBuildModal(
 					this.plugin.app,
@@ -304,18 +304,18 @@ export class BlenderBuildsRenderer {
 	 */
 	private renderEmptyState(container: HTMLElement): void {
 		const emptyState = container.createEl('div', { cls: 'blender-empty-state' });
-		
-		const emptyIcon = emptyState.createEl('div', { 
+
+		const emptyIcon = emptyState.createEl('div', {
 			cls: 'blender-empty-icon',
-			text: '📦' 
+			text: '📦'
 		});
-		
-		const emptyMessage = emptyState.createEl('div', { 
+
+		const emptyMessage = emptyState.createEl('div', {
 			cls: 'blender-empty-message',
 			text: 'No Blender builds found'
 		});
-		
-		const emptySubtext = emptyState.createEl('div', { 
+
+		const emptySubtext = emptyState.createEl('div', {
 			cls: 'blender-empty-subtext',
 			text: 'Try refreshing or adjusting your filters'
 		});
@@ -347,7 +347,7 @@ export class BlenderBuildsRenderer {
 			new Notice(`Failed to delete build: ${error.message}`);
 		}
 	}
-	
+
 	/**
 	 * Extract a build
 	 */
@@ -358,7 +358,7 @@ export class BlenderBuildsRenderer {
 			const expectedFileName = this.extractFileName(build.link);
 			const path = require('path');
 			const archivePath = path.join(downloadsPath, expectedFileName);
-			
+
 			await this.buildManager.extractBuild(archivePath, build);
 			// Refresh the view to update the UI
 			this.onRefresh();
@@ -415,12 +415,12 @@ export class BlenderBuildsRenderer {
 			const urlObj = new URL(url);
 			const pathname = urlObj.pathname;
 			let filename = pathname.split('/').pop() || 'unknown-file';
-			
+
 			// Remove .zip extension since all Blender builds are ZIP files
 			if (filename.toLowerCase().endsWith('.zip')) {
 				filename = filename.slice(0, -4);
 			}
-			
+
 			return filename;
 		} catch {
 			return 'unknown-file';
@@ -436,14 +436,14 @@ export class BlenderBuildsRenderer {
 			const path = require('path');
 			const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
 			const fs = require('fs');
-			
+
 			if (!fs.existsSync(symlinkPath)) {
 				return null;
 			}
-			
+
 			// Read the symlink target
 			const symlinkTarget = fs.readlinkSync(symlinkPath);
-			
+
 			// Find the build that matches the symlink target
 			for (const build of builds) {
 				const installStatus = this.buildManager.isBuildInstalled(build);
@@ -457,7 +457,7 @@ export class BlenderBuildsRenderer {
 		} catch (error) {
 			console.error('Error finding symlinked build:', error);
 		}
-		
+
 		return null;
 	}
 
@@ -470,14 +470,14 @@ export class BlenderBuildsRenderer {
 			const path = require('path');
 			const symlinkPath = path.join(buildsRootPath, 'bl_symlink');
 			const fs = require('fs');
-			
+
 			if (!fs.existsSync(symlinkPath)) {
 				return false;
 			}
-			
+
 			// Read the symlink target
 			const symlinkTarget = fs.readlinkSync(symlinkPath);
-			
+
 			// Check if this build's extract path matches the symlink target
 			const installStatus = this.buildManager.isBuildInstalled(build);
 			if (installStatus.extracted) {
@@ -487,7 +487,7 @@ export class BlenderBuildsRenderer {
 		} catch (error) {
 			console.error('Error checking if build is symlinked:', error);
 		}
-		
+
 		return false;
 	}
 
@@ -514,10 +514,10 @@ export class BlenderBuildsRenderer {
 						fs.unlinkSync(symlinkPath);
 					}
 					new Notice(`Removed symlink for ${build.subversion}`);
-					
+
 					// Emit event similar to buildManager (for consistency)
 					this.buildManager.emit('buildUnsymlinked', build, symlinkPath);
-					
+
 					// Refresh the view to update the UI
 					this.onRefresh();
 				} else {
@@ -545,7 +545,7 @@ export class BlenderBuildsRenderer {
 			const { exec } = require('child_process');
 			const fs = require('fs');
 			let pathToOpen: string;
-			
+
 			// Handle orphaned builds differently
 			if (build.isOrphanedInstall) {
 				if (installStatus.extracted && build.extractedPath) {
@@ -570,7 +570,7 @@ export class BlenderBuildsRenderer {
 					return;
 				}
 			}
-			
+
 			// Check if the path exists
 			if (!fs.existsSync(pathToOpen)) {
 				new Notice(`Path does not exist: ${pathToOpen}`);
@@ -595,21 +595,21 @@ export class BlenderBuildsRenderer {
 	 */
 	private renderPinnedBuildContainer(container: HTMLElement, pinnedBuild: BlenderBuildInfo, searchFilter?: string): void {
 		const pinnedContainer = container.createEl('div', { cls: 'blender-pinned-builds-container' });
-		
+
 		// Add header
 		const header = pinnedContainer.createEl('div', { cls: 'blender-pinned-header' });
 		const titleContainer = header.createEl('div', { cls: 'blender-pinned-title' });
-		
+
 		// Add pin icon using built-in Obsidian icon
 		const calloutIcon = titleContainer.createDiv({ cls: "blender-pinned-icon" });
 		setIcon(calloutIcon, "pin");
-		
+
 		// Add title text
 		titleContainer.createEl('span', { text: 'Pinned build' });
-				// Add pinned build item with special styling
+		// Add pinned build item with special styling
 		const pinnedList = pinnedContainer.createEl('div', { cls: 'blender-pinned-builds-list' });
 		this.createBuildItem(pinnedList, pinnedBuild, 0, searchFilter);
-		
+
 		// Add special class to the pinned build item
 		const pinnedBuildItem = pinnedList.querySelector('.blender-build-item');
 		if (pinnedBuildItem) {
@@ -622,20 +622,20 @@ export class BlenderBuildsRenderer {
 	 */
 	private renderEmptyPinnedContainer(container: HTMLElement): void {
 		const pinnedContainer = container.createEl('div', { cls: 'blender-pinned-builds-container blender-pinned-empty' });
-		
+
 		// Add header
 		const header = pinnedContainer.createEl('div', { cls: 'blender-pinned-header' });
 		const titleContainer = header.createEl('div', { cls: 'blender-pinned-title' });
-		
+
 		// Add pin icon using built-in Obsidian icon
 		const calloutIcon = titleContainer.createDiv({ cls: "blender-pinned-icon" });
 		setIcon(calloutIcon, "pin");
-		
+
 		// Add title text
 		titleContainer.createEl('span', { text: 'Pinned build' });
-		
+
 		// Add empty message
-		const emptyMessage = pinnedContainer.createEl('div', { 
+		const emptyMessage = pinnedContainer.createEl('div', {
 			cls: 'blender-pinned-empty-message',
 			text: 'No build is currently symlinked. Create a symlink to pin a build here.'
 		});

@@ -32,9 +32,12 @@ export class BlenderScraper extends EventEmitter {
 		debug(this, `Platform detection completed: ${this.platform} ${this.architecture}`);
 		
 		info(this, 'Blender scraper created successfully');
-	}	/**
+	}
+	
+	/**
 	 * Get the current platform
-	 */	private getCurrentPlatform(): Platform {
+	 */
+	private getCurrentPlatform(): Platform {
 		debug(this, 'Detecting current platform');
 		
 		if (ObsidianPlatform.isWin) {
@@ -62,50 +65,6 @@ export class BlenderScraper extends EventEmitter {
 		return result;
 	}
 
-	/**
-	 * Get the target architecture based on user preference
-	 */
-	private getTargetArchitecture(preferredArchitecture: 'auto' | 'x64' | 'arm64'): Architecture {
-		if (preferredArchitecture === 'auto') {
-			return this.getCurrentArchitecture();
-		}
-		return preferredArchitecture === 'arm64' ? Architecture.arm64 : Architecture.x64;
-	}
-
-	/**
-	 * Map API architecture names to our standard names
-	 */
-	private normalizeArchitecture(apiArch: string): string {
-		const archLower = apiArch.toLowerCase();
-		switch (archLower) {
-			case 'x86_64':
-			case 'amd64':
-			case 'x64':
-				return 'x64';
-			case 'arm64':
-			case 'aarch64':
-				return 'arm64';
-			default:
-				return archLower;
-		}
-	}
-
-	/**
-	 * Extract architecture from stable build filename
-	 */
-	private extractArchitectureFromFilename(filename: string): string {
-		const filenameLower = filename.toLowerCase();
-		
-		// Look for architecture patterns in the filename
-		if (filenameLower.includes('arm64')) {
-			return 'arm64';
-		} else if (filenameLower.includes('x64') || filenameLower.includes('amd64') || filenameLower.includes('x86_64')) {
-			return 'x64';
-		}
-		
-		// Default to x64 if no specific architecture is found (for older builds)
-		return 'x64';
-	}
 	/**
 	 * Generate regex filter for the current platform (includes all architectures)
 	 */

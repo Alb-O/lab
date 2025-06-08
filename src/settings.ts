@@ -140,6 +140,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 					this.plugin.settings.showInstalledOnly = value;
 					await this.plugin.saveSettings();
 				}));
+				
 		new Setting(containerEl)
 			.setName('Preferred build type')
 			.setDesc('Default build type filter when opening the Blender builds view.')

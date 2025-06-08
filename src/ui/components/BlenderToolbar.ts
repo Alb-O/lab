@@ -1,16 +1,19 @@
-import { ButtonComponent, Platform } from 'obsidian';
+import { ButtonComponent, Platform, normalizePath } from 'obsidian';
 import { FetchBlenderBuilds } from '../../buildManager';
 import type BlenderBuildManagerPlugin from '../../main';
 import type { BlenderPluginSettings } from '../../settings';
 
-export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
+export class BlenderToolbar {
+	private plugin: BlenderBuildManagerPlugin;
 	private buildManager: FetchBlenderBuilds;
 	private onRefresh: () => void;
 	private onToggleFilter: () => void;
 	private onTogglePin: () => void;
 	private containerEl: HTMLElement | null = null;
-	private buttons: Map<string, ButtonComponent> = new Map();	constructor(
-		plugin: BlenderBuildManagerPlugin, 
+	private buttons: Map<string, ButtonComponent> = new Map();
+
+	constructor(
+		plugin: BlenderBuildManagerPlugin,
 		buildManager: FetchBlenderBuilds,
 		onRefresh: () => void,
 		onToggleFilter: () => void,
@@ -55,6 +58,7 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 			.setClass('clickable-icon')
 			.onClick(() => this.openBuildsFolder()));
 	}
+
 	/**
 	 * Set a button's active state by its key
 	 */
@@ -80,6 +84,7 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 			}
 		});
 	}
+
 	/**
 	 * Set refreshing state for the refresh button
 	 */
@@ -96,26 +101,22 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 			}
 		}
 	}
+
 	/**
 	 * Toggle filter functionality (placeholder)
 	 */
 	private toggleFilter(): void {
 		this.onToggleFilter();
 	}
-
+	
 	/**
-	 * Check if a button is active
-	 */
-	private isButtonActive(buttonKey: string): boolean {
-		const button = this.buttons.get(buttonKey);
-		return button?.buttonEl?.hasClass('is-active') || false;
-	}	/**
 	 * Open builds folder
 	 */
 	private async openBuildsFolder(): Promise<void> {
 		try {
 			const { exec } = require('child_process');
 			const fs = require('fs');
+			const path = require('path');
 			
 			// Try to open the actual builds folder first (where extracted builds are stored)
 			const extractsPath = this.buildManager.getExtractsPath();
@@ -131,9 +132,10 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 					fs.mkdirSync(basePath, { recursive: true });
 				}
 				// Use the base folder since builds folder doesn't exist yet
-				pathToOpen = basePath;
+				pathToOpen = normalizePath(basePath);
 			}
-					// Open folder in system file manager
+			
+			// Open folder in system file manager using platform-specific commands
 			if (Platform.isWin) {
 				exec(`explorer "${pathToOpen}"`);
 			} else if (Platform.isMacOS) {
@@ -145,6 +147,7 @@ export class BlenderToolbar {	private plugin: BlenderBuildManagerPlugin;
 			console.error('Failed to open builds folder:', error);
 		}
 	}
+
 	/**
 	 * Update pin button tooltip based on current state
 	 */

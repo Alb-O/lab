@@ -15,44 +15,44 @@ export class BuildFilter {
 	/**
 	 * Main filtering method that applies all filter criteria
 	 */
-   filterBuilds(
-	   builds: BlenderBuildInfo[],
-	   options: {
-		   searchFilter?: string;
-		   branch?: string;
-		   buildType?: BuildType | 'all';
-		   installedOnly?: boolean;
-	   } = {}
-   ): BlenderBuildInfo[] {
-	   const {
-		   searchFilter = '',
-		   branch = 'all',
-		   buildType = 'all',
-		   installedOnly = false
-	   } = options;
+	filterBuilds(
+		builds: BlenderBuildInfo[],
+		options: {
+			searchFilter?: string;
+			branch?: string;
+			buildType?: BuildType | 'all';
+			installedOnly?: boolean;
+		} = {}
+	): BlenderBuildInfo[] {
+		const {
+			searchFilter = '',
+			branch = 'all',
+			buildType = 'all',
+			installedOnly = false
+		} = options;
 
-	   let filteredBuilds = builds.filter(build => {
-		   // If only showing installed, filter out uninstalled builds
-		   if (installedOnly) {
-			   const status = this.buildManager.isBuildInstalled(build);
-			   if (!status.downloaded && !status.extracted) {
-				   return false;
-			   }
-		   }
+		let filteredBuilds = builds.filter(build => {
+			// If only showing installed, filter out uninstalled builds
+			if (installedOnly) {
+				const status = this.buildManager.isBuildInstalled(build);
+				if (!status.downloaded && !status.extracted) {
+					return false;
+				}
+			}
 			const matchesBranch = branch === 'all' || build.branch === branch;
 			const matchesBuildType = buildType === 'all' || this.getBuildType(build) === buildType;
-			
+
 			// Apply architecture filtering based on user preference
 			const matchesArchitecture = this.matchesPreferredArchitecture(build);
-			
+
 			// If no search filter, just apply branch, type, and architecture filters
 			if (!searchFilter) {
 				return matchesBranch && matchesBuildType && matchesArchitecture;
 			}
-			
+
 			// Apply search filter with improved matching
 			const matchesSearch = this.improvedFuzzyMatch(build, searchFilter);
-			
+
 			return matchesSearch && matchesBranch && matchesBuildType && matchesArchitecture;
 		});
 
@@ -75,39 +75,39 @@ export class BuildFilter {
 	getBuildType(build: BlenderBuildInfo): BuildType {
 		const version = build.subversion.toLowerCase();
 		const branch = build.branch.toLowerCase();
-		
+
 		// Check for patch builds first (branch = 'patch')
 		// Use word boundary to match "-pr" as a separate component, not part of other words
 		if (branch === 'patch' || /-pr(\d|$|-)/.test(version)) {
 			return BuildType.Patch;
 		}
-		
+
 		// Check for release candidates
 		if (version.includes('candidate') || version.includes('-rc')) {
 			return BuildType.ReleaseCandidate;
 		}
-		
+
 		// Check for LTS releases - based on known LTS version numbers
 		// LTS versions defined in constants.ts
 		if (version.includes('lts') || branch.includes('lts') || this.isLTSVersion(version)) {
 			return BuildType.LTS;
 		}
-		
+
 		// Check for stable branch builds (but not LTS)
 		if (branch === 'stable') {
 			return BuildType.Stable;
 		}
-		
+
 		// Check for experimental builds
 		if (branch === 'experimental') {
 			return BuildType.Experimental;
 		}
-		
+
 		// Check for daily builds (branch = 'daily' or default)
 		if (branch === 'daily') {
 			return BuildType.Daily;
 		}
-		
+
 		// Default to daily builds for everything else
 		return BuildType.Daily;
 	}
@@ -133,7 +133,7 @@ export class BuildFilter {
 				return this.normalizeArchitecture(archMatch[1]);
 			}
 		}
-		
+
 		// For all builds, extract from filename
 		const filename = build.link.split('/').pop()?.toLowerCase() || '';
 		return this.extractArchitectureFromFilename(filename);
@@ -144,14 +144,14 @@ export class BuildFilter {
 	 */
 	private extractArchitectureFromFilename(filename: string): string {
 		const filenameLower = filename.toLowerCase();
-		
+
 		// Look for architecture patterns in the filename
 		if (filenameLower.includes('arm64')) {
 			return 'arm64';
 		} else if (filenameLower.includes('x64') || filenameLower.includes('amd64') || filenameLower.includes('x86_64')) {
 			return 'x64';
 		}
-		
+
 		// Default to x64 if no specific architecture is found (for older builds)
 		return 'x64';
 	}
@@ -184,7 +184,7 @@ export class BuildFilter {
 			const majorMinor = versionMatch[1];
 			return (BLENDER_LTS_VERSIONS as readonly string[]).includes(majorMinor);
 		}
-		
+
 		return false;
 	}
 
@@ -194,15 +194,15 @@ export class BuildFilter {
 	private filterLatestLTSPatches(builds: BlenderBuildInfo[]): BlenderBuildInfo[] {
 		// Group builds by LTS version (major.minor)
 		const ltsBuildsByVersion = new Map<string, BlenderBuildInfo[]>();
-		
+
 		builds.forEach(build => {
 			const version = build.subversion.toLowerCase();
-			
+
 			// Extract major.minor version (e.g., "4.2" from "4.2.11-stable")
 			const versionMatch = version.match(/(\d+\.\d+)/);
 			if (versionMatch) {
 				const majorMinor = versionMatch[1];
-				
+
 				// Only group builds that are actually from LTS versions
 				if (this.isLTSVersion(majorMinor)) {
 					if (!ltsBuildsByVersion.has(majorMinor)) {
@@ -212,9 +212,9 @@ export class BuildFilter {
 				}
 			}
 		});
-		
+
 		const latestBuilds: BlenderBuildInfo[] = [];
-		
+
 		// For each LTS version, find the latest patch
 		ltsBuildsByVersion.forEach((buildsForVersion, ltsVersion) => {
 			// Sort builds by patch version (descending) and commit time (newest first)
@@ -222,21 +222,21 @@ export class BuildFilter {
 				// Extract patch numbers for comparison
 				const patchA = this.extractPatchNumber(a.subversion);
 				const patchB = this.extractPatchNumber(b.subversion);
-				
+
 				if (patchA !== patchB) {
 					return patchB - patchA; // Higher patch number first
 				}
-				
+
 				// If same patch, sort by commit time (newer first)
 				return b.commitTime.getTime() - a.commitTime.getTime();
 			});
-			
+
 			// Take the first (latest) build
 			if (sortedBuilds.length > 0) {
 				latestBuilds.push(sortedBuilds[0]);
 			}
 		});
-		
+
 		return latestBuilds;
 	}
 
@@ -261,25 +261,25 @@ export class BuildFilter {
 	 */
 	private fuzzyMatch(needle: string, haystack: string): boolean {
 		if (!needle || !haystack) return true;
-		
+
 		const needleLower = needle.toLowerCase();
 		const haystackLower = haystack.toLowerCase();
-		
+
 		// Simple substring match first (faster for exact matches)
 		if (haystackLower.includes(needleLower)) {
 			return true;
 		}
-		
+
 		// For longer search terms, be more strict about fuzzy matching
 		if (needleLower.length > 6) {
 			return false; // No fuzzy matching for long terms
 		}
-		
+
 		// Fuzzy match with gap constraints
 		let needleIndex = 0;
 		let lastMatchIndex = -1;
 		const maxGap = Math.max(2, Math.floor(needleLower.length / 2)); // Allow max gap of 2 or half the needle length
-		
+
 		for (let i = 0; i < haystackLower.length && needleIndex < needleLower.length; i++) {
 			if (haystackLower[i] === needleLower[needleIndex]) {
 				// Check if gap is too large
@@ -290,7 +290,7 @@ export class BuildFilter {
 				needleIndex++;
 			}
 		}
-		
+
 		// Only consider it a match if we matched all characters
 		// and the total span isn't too spread out
 		if (needleIndex === needleLower.length && lastMatchIndex >= 0) {
@@ -298,10 +298,11 @@ export class BuildFilter {
 			const maxSpan = needleLower.length * 3; // Allow max span of 3x the needle length
 			return span <= maxSpan;
 		}
-		
+
 		return false;
 	}
-		/**
+	
+	/**
 	 * Extract searchable text from build info
 	 */
 	private getSearchableText(build: BlenderBuildInfo): string {
@@ -314,7 +315,7 @@ export class BuildFilter {
 			build.commitTime.toLocaleDateString(),
 			build.commitTime.toLocaleString()
 		];
-		
+
 		return parts.join(' ').toLowerCase();
 	}
 
@@ -325,11 +326,11 @@ export class BuildFilter {
 		return builds.sort((a, b) => {
 			const scoreA = this.calculateRelevanceScore(a, searchTerm);
 			const scoreB = this.calculateRelevanceScore(b, searchTerm);
-			
+
 			if (scoreA !== scoreB) {
 				return scoreB - scoreA; // Higher score first
 			}
-			
+
 			// If same relevance, sort by commit time (newer first)
 			return b.commitTime.getTime() - a.commitTime.getTime();
 		});
@@ -341,28 +342,28 @@ export class BuildFilter {
 	private calculateRelevanceScore(build: BlenderBuildInfo, searchTerm: string): number {
 		const searchLower = searchTerm.toLowerCase();
 		let score = 0;
-		
+
 		// Exact match in subversion gets highest score
 		if (build.subversion.toLowerCase().includes(searchLower)) {
 			score += 100;
 		}
-		
+
 		// Match in branch gets medium score
 		if (build.branch.toLowerCase().includes(searchLower)) {
 			score += 50;
 		}
-		
+
 		// Match in build hash gets lower score
 		if (build.buildHash && build.buildHash.toLowerCase().includes(searchLower)) {
 			score += 25;
 		}
-		
+
 		// Match in filename gets lowest score
 		const filename = build.link.split('/').pop() || '';
 		if (filename.toLowerCase().includes(searchLower)) {
 			score += 10;
 		}
-		
+
 		return score;
 	}
 }

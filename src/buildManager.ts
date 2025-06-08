@@ -9,12 +9,12 @@ import { Notice } from 'obsidian';
 import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
-import { 
-	debug, 
-	info, 
-	warn, 
+import {
+	debug,
+	info,
+	warn,
 	error,
-	registerLoggerClass 
+	registerLoggerClass
 } from './utils/obsidian-logger';
 
 export class FetchBlenderBuilds extends EventEmitter {
@@ -39,12 +39,12 @@ export class FetchBlenderBuilds extends EventEmitter {
 	private extractedBuildsCache: Array<{ build: BlenderBuildInfo; extractPath: string; executable?: string }> | null = null;
 	private extractedBuildsCacheTime: number = 0;
 	private static readonly EXTRACTED_BUILDS_CACHE_TTL = 30000; // 30 seconds
-	
+
 	constructor(vaultPath: string, settings: BlenderPluginSettings = DEFAULT_SETTINGS) {
 		super();
 		registerLoggerClass(this, 'FetchBlenderBuilds');
 		debug(this, 'FetchBlenderBuilds constructor started');
-		
+
 		this.vaultPath = vaultPath;
 		this.settings = settings;
 		this.scraper = new BlenderScraper(settings.minimumBlenderVersion);
@@ -57,7 +57,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		this.setupEventListeners();
 		this.cacheLoadingPromise = this.loadCachedBuildsAsync();
-		
+
 		info(this, 'FetchBlenderBuilds constructor completed successfully');
 	}
 
@@ -125,14 +125,14 @@ export class FetchBlenderBuilds extends EventEmitter {
 		this.downloader.on('extractionProgress', (progress: any) => {
 			this.emit('extractionProgress', progress);
 		});
-		
+
 		this.downloader.on('extractionCompleted', (archivePath: string, extractPath: string) => {
 			this.emit('extractionCompleted', archivePath, extractPath);
 			new Notice(`Extraction completed: ${path.basename(archivePath)}`);
-			
+
 			// Invalidate extracted builds cache and refresh UI so the newly extracted build shows up as installed
 			this.invalidateExtractedBuildsCache();
-			
+
 			// Emit buildsUpdated event to trigger UI refresh
 			this.emit('buildsUpdated', this.getCachedBuilds());
 		});
@@ -199,7 +199,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 	getDownloadsPath(): string {
 		return path.join(this.getBuildsPath(), 'build_archives');
 	}
-	
+
 	/**
 	 * Get builds directory path (where extracted builds are stored)
 	 */
@@ -390,11 +390,12 @@ export class FetchBlenderBuilds extends EventEmitter {
 			fs.unlinkSync(archivePath);
 			// Clean up empty build_archives directory
 			const downloadsPath = path.dirname(archivePath);
-			await this.cleanupEmptyDirectory(downloadsPath);		} catch (error) {
+			await this.cleanupEmptyDirectory(downloadsPath);
+		} catch (error) {
 			warn(this, `Failed to cleanup after extraction: ${error}`);
 		}
 	}
-	
+
 	/**
 	 * Find a build by matching patterns in the directory name
 	 * This helps detect manually installed builds that don't follow the exact naming convention
@@ -861,9 +862,12 @@ export class FetchBlenderBuilds extends EventEmitter {
 				new Notice(`Failed to open directory: ${error.message}`);
 			}
 		});
-	}	/**
+	}
+
+	/**
 	 * Load cached builds asynchronously without blocking constructor
-	 */	private async loadCachedBuildsAsync(): Promise<void> {
+	 */
+	private async loadCachedBuildsAsync(): Promise<void> {
 		try {
 			await this.loadCachedBuilds();
 			await this.loadInstalledBuildsCache();
@@ -908,7 +912,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				this.emit('buildsUpdated', builds);
 			}
 
-			return builds;		} catch (error) {
+			return builds;
+		} catch (error) {
 			error(this, `Failed to load cached builds: ${error}`);
 			// Remove invalid cache file
 			if (fs.existsSync(this.cacheFilePath)) {
@@ -932,7 +937,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			};
 
 			const cacheData = JSON.stringify(cache, null, 2);
-			fs.writeFileSync(this.cacheFilePath, cacheData, 'utf8');		} catch (error) {
+			fs.writeFileSync(this.cacheFilePath, cacheData, 'utf8');
+		} catch (error) {
 			error(this, `Failed to save builds cache: ${error}`);
 		}
 	}
@@ -946,7 +952,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 				fs.unlinkSync(this.cacheFilePath);
 			}
 			this.buildCache = [];
-			this.emit('buildsUpdated', []);		} catch (error) {
+			this.emit('buildsUpdated', []);
+		} catch (error) {
 			error(this, `Failed to clear cache: ${error}`);
 		}
 	}
@@ -1058,9 +1065,10 @@ export class FetchBlenderBuilds extends EventEmitter {
 				new Notice(`No installed files found for ${build.subversion}`);
 			}
 
-			return { deletedDownload, deletedExtract };		} catch (error) {
+			return { deletedDownload, deletedExtract };
+		} catch (error) {
 			this.emit('deletionError', build, error);
-			
+
 			// Provide specific error message for permission issues
 			if (error.message.includes('Please close Blender')) {
 				throw new Error(`Cannot delete ${build.subversion} - ${error.message}`);
@@ -1073,8 +1081,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 	}
 
 	/**
- 	* Check if a build is installed (downloaded or extracted)
- 	*/
+	  * Check if a build is installed (downloaded or extracted)
+	  */
 	isBuildInstalled(build: BlenderBuildInfo): { downloaded: boolean; extracted: boolean } {
 		// Handle orphaned builds differently
 		if (build.isOrphanedInstall) {
@@ -1178,7 +1186,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 					fs.rmSync(symlinkPath, { recursive: false, force: true });
 				} else {
 					fs.unlinkSync(symlinkPath);
-				}			} else {
+				}
+			} else {
 				throw new Error('bl_symlink exists but is not a symlink - cannot replace');
 			}
 		} catch (error: any) {
@@ -1266,7 +1275,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			// Clean up any orphaned duplicates after loading
 			this.cleanupOrphanedDuplicates();
 
-			return this.installedBuildsCache;		} catch (error) {
+			return this.installedBuildsCache;
+		} catch (error) {
 			error(this, `Failed to load installed builds cache: ${error}`);
 			// Remove invalid cache file
 			if (fs.existsSync(this.installedBuildsCacheFilePath)) {
@@ -1290,7 +1300,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 			};
 
 			const cacheData = JSON.stringify(cache, null, 2);
-			fs.writeFileSync(this.installedBuildsCacheFilePath, cacheData, 'utf8');		} catch (error) {
+			fs.writeFileSync(this.installedBuildsCacheFilePath, cacheData, 'utf8');
+		} catch (error) {
 			error(this, `Failed to save installed builds cache: ${error}`);
 		}
 	}
@@ -1360,7 +1371,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Convert installed build metadata to BlenderBuildInfo
-	 */	private metadataToBlenderBuildInfo(metadata: InstalledBuildMetadata, isOrphaned: boolean = true): BlenderBuildInfo {
+	 */
+	private metadataToBlenderBuildInfo(metadata: InstalledBuildMetadata, isOrphaned: boolean = true): BlenderBuildInfo {
 		return {
 			link: metadata.link,
 			subversion: metadata.subversion,
@@ -1451,7 +1463,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 				// Emit event to update UI
 				this.emit('buildsUpdated', this.getCachedBuilds());
-			}		} catch (error) {
+			}
+		} catch (error) {
 			error(this, `Failed to migrate existing builds: ${error}`);
 		}
 	}

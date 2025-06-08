@@ -18,7 +18,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 		// Initialize the logger system
 		initLogger(this);
 		registerLoggerClass(this, 'BlenderBuildManagerPlugin');
-				debug(this, 'Plugin is starting to load');
+		debug(this, 'Plugin is starting to load');
 		
 		await this.loadSettings();
 		debug(this, 'Settings have been loaded successfully');
@@ -29,24 +29,20 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 		this.buildManager = new FetchBlenderBuilds(vaultPath, this.settings);
 		debug(this, 'Build manager created successfully');
 
-		// Register the view type
 		debug(this, 'Registering Blender builds view type');
 		this.registerView(
 			BLENDER_BUILDS_VIEW_TYPE,
 			(leaf: WorkspaceLeaf) => new BlenderBuildsView(leaf, this, this.buildManager)
 		);
-		// Register custom Blender icon
 		debug(this, 'Registering custom Blender icon');
 		addIcon('blender-logo', BLENDER_ICON_SVG);
 
-		// Add ribbon icon with custom Blender logo
 		debug(this, 'Adding ribbon icon for Blender builds');
 		this.addRibbonIcon('blender-logo', 'Open Blender build manager', () => {
 			debug(this, 'Ribbon icon clicked - opening builds view');
 			this.openBuildsView();
 		});
 
-		// Add command to palette
 		debug(this, 'Registering command palette commands');
 		this.addCommand({
 			id: 'open-blender-builds',
@@ -56,7 +52,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 				this.openBuildsView();
 			}
 		});
-		// Add command to refresh builds
+
 		this.addCommand({
 			id: 'refresh-blender-builds',
 			name: 'Refresh available builds',
@@ -73,7 +69,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 				}
 			}
 		});
-		// Add command to debug build detection
+
 		this.addCommand({
 			id: 'debug-build-detection',
 			name: 'Debug Build Detection',
@@ -90,7 +86,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 				}
 			}
 		});
-		// Add command to check paths
+
 		this.addCommand({
 			id: 'check-build-paths',
 			name: 'Check Build Paths',
@@ -104,7 +100,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 				new Notice(`Extracts path: ${extractsPath}`, 8000);
 			}
 		});
-				// Add command to debug cache contents
+	
 		this.addCommand({
 			id: 'debug-cache-contents',
 			name: 'Debug Cache Contents',
@@ -113,7 +109,7 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 				this.buildManager.debugShowCacheContents();
 			}
 		});
-		// Add command to open builds directory
+
 		this.addCommand({
 			id: 'open-blender-directory',
 			name: 'Open Blender Directory',
@@ -123,7 +119,6 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 			}
 		});
 
-		// Add command to migrate existing builds
 		this.addCommand({
 			id: 'migrate-existing-builds',
 			name: 'Migrate Existing Builds to Metadata Cache',
@@ -135,17 +130,18 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 			}
 		});
 
-		// Add settings tab
 		debug(this, 'Adding settings tab to plugin');
 		this.addSettingTab(new BlenderBuildManagerSettingsTab(this.app, this));
 		
 		info(this, 'Plugin loaded successfully');
 	}
+	
 	async loadSettings() {
 		debug(this, 'Loading plugin settings');
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 		debug(this, 'Plugin settings loaded successfully');
 	}
+
 	async saveSettings() {
 		debug(this, 'Saving plugin settings');
 		await this.saveData(this.settings);

@@ -12,6 +12,7 @@ export class BlenderLauncher extends EventEmitter {
 		super();
 		this.settings = settings;
 	}
+
 	/**
 	 * Launch a Blender build from the extracted directory
 	 */
@@ -48,6 +49,7 @@ export class BlenderLauncher extends EventEmitter {
 			throw error;
 		}
 	}
+
 	/**
 	 * Get environment variables for Blender launch, using settings-based variables
 	 */
@@ -64,6 +66,7 @@ export class BlenderLauncher extends EventEmitter {
 		
 		return env;
 	}
+
 	/**
 	 * Find blender launcher/executable in the extracted build directory
 	 */
@@ -102,6 +105,7 @@ export class BlenderLauncher extends EventEmitter {
 
 		return searchForLauncher(extractPath);
 	}
+	
 	/**
 	 * Update settings
 	 */
