@@ -13,6 +13,7 @@ Features automatic dialog re-showing, progress tracking, and safety mechanisms t
 
 import bpy
 import os
+import time # Add this import
 from ..core import log_info, log_warning, log_error, log_success, log_debug, ensure_saved_file
 from .asset_relinker import AssetRelinkProcessor
 from .library_relinker import LibraryRelinkProcessor
@@ -32,6 +33,11 @@ _pending_relink_items = []
 _consecutive_dialog_count = 0
 _max_consecutive_dialogs = 5
 
+# Cache for missing links check
+_cached_missing_links_items = None
+_cached_missing_links_timestamp = 0.0
+CACHE_DURATION_SECONDS = 1.0  # Cache results for 1 second
+
 
 class RelinkItem:
 	"""Represents an item that needs to be relinked."""
@@ -41,11 +47,28 @@ class RelinkItem:
 		self.details = details
 
 
+def invalidate_missing_links_cache():
+	"""Invalidate the missing links cache."""
+	global _cached_missing_links_items, _cached_missing_links_timestamp
+	_cached_missing_links_items = None
+	_cached_missing_links_timestamp = 0.0
+	# log_debug("Missing links cache invalidated", module_name='MissingLinks')
+
 def check_missing_links():
 	"""
 	Check what items need to be relinked.
 	Returns a list of RelinkItem objects.
+	Utilizes a cache to avoid frequent re-computation.
 	"""
+	global _cached_missing_links_items, _cached_missing_links_timestamp
+	current_time = time.monotonic()
+
+	# Check cache validity
+	if _cached_missing_links_items is not None and \
+	   (current_time - _cached_missing_links_timestamp) < CACHE_DURATION_SECONDS:
+		# log_debug(f"Returning {len(_cached_missing_links_items)} cached missing links", module_name='MissingLinks')
+		return _cached_missing_links_items.copy()  # Return a copy
+
 	blend_path = ensure_saved_file()
 	if not blend_path:
 		log_debug("No saved file, cannot check missing links", module_name='MissingLinks')
@@ -80,6 +103,11 @@ def check_missing_links():
 			log_debug(f"  {i+1}. {item.item_type}: {item.description}", module_name='MissingLinks')
 	else:
 		log_debug("MissingLinks detected 0 items", module_name='MissingLinks')
+	
+	# Update cache before returning
+	_cached_missing_links_items = all_items.copy() # Store a copy
+	_cached_missing_links_timestamp = current_time
+	# log_debug(f"Cached {len(all_items)} missing links results", module_name='MissingLinks')
 	
 	return all_items
 
@@ -163,7 +191,9 @@ def perform_all_relinks():
 	asset_processor.process_relink()
 	
 	# Re-check missing links after all relinking
-	pending_after = check_missing_links()
+	# Invalidate cache before this crucial check to ensure it's fresh
+	invalidate_missing_links_cache()
+	pending_after = check_missing_links() # This will perform a full check and update the cache
 	final_count = len(pending_after)
 	
 	# Count remaining items by type for detailed logging
@@ -190,6 +220,7 @@ def perform_all_relinks():
 	
 	log_debug(f"Total success: {total_fixed} items resolved (assets: {assets_fixed}, libraries: {libraries_fixed})", module_name='MissingLinks')
 	
+	# The cache now holds the 'pending_after' state, which is correct.
 	return total_fixed, initial_count
 
 
@@ -197,6 +228,9 @@ def show_missing_links_dialog():
 	"""Show the missing links dialog if items need relinking."""
 	global _missing_links_dialog_shown, _consecutive_dialog_count
 	
+	# Invalidate cache to ensure the dialog gets fresh data if it proceeds
+	invalidate_missing_links_cache()
+
 	if _missing_links_dialog_shown:
 		return
 	
@@ -224,49 +258,55 @@ class BV_OT_MissingLinksDialog(bpy.types.Operator):
 	
 	def execute(self, context):
 		global _missing_links_dialog_shown, _consecutive_dialog_count
-		_missing_links_dialog_shown = False
+		_missing_links_dialog_shown = False # Dialog is now closing
 		
+		# Attempt to relink
 		try:
-			success_count, total_count = perform_all_relinks()
+			# Invalidate before relinking to ensure perform_all_relinks starts fresh if needed,
+			# though perform_all_relinks manages its own internal cache for its final check.
+			invalidate_missing_links_cache()
+			fixed_count, initial_count = perform_all_relinks()
+			# After relinking, invalidate again so panel updates and subsequent checks are fresh.
+			invalidate_missing_links_cache()
 			
-			# Check current state after relinking to provide better feedback
+			# Check if more items need relinking for auto-retry
 			remaining_items = check_missing_links()
 			remaining_count = len(remaining_items)
 			
 			# Determine if we should automatically show the dialog again
 			should_show_dialog_again = False
 			
-			if success_count is not None and success_count > 0:
+			if fixed_count is not None and fixed_count > 0:
 				if remaining_count == 0:
 					# All resolved successfully
-					if success_count == 1:
+					if fixed_count == 1:
 						self.report({'INFO'}, "Successfully relinked 1 item")
 					else:
-						self.report({'INFO'}, f"Successfully relinked all {success_count} items")
-				elif remaining_count > total_count:
+						self.report({'INFO'}, f"Successfully relinked all {fixed_count} items")
+				elif remaining_count > initial_count:
 					# Special case: new missing items appeared (library relinking revealed new assets)
-					new_items = remaining_count - total_count
+					new_items = remaining_count - initial_count
 					should_show_dialog_again = True
-					if success_count == 1:
+					if fixed_count == 1:
 						self.report({'INFO'}, f"Relinked 1 item, but {new_items} new missing assets were revealed. Showing dialog for next batch...")
 					else:
-						self.report({'INFO'}, f"Relinked {success_count} items, but {new_items} new missing assets were revealed. Showing dialog for next batch...")
+						self.report({'INFO'}, f"Relinked {fixed_count} items, but {new_items} new missing assets were revealed. Showing dialog for next batch...")
 				else:
 					# Some items successfully relinked, some still need attention
 					should_show_dialog_again = True
-					item_word = "item" if total_count == 1 else "items"
-					if success_count == 1:
-						self.report({'INFO'}, f"Relinked 1 out of {total_count} {item_word}. Showing dialog for remaining {remaining_count}...")
+					item_word = "item" if initial_count == 1 else "items"
+					if fixed_count == 1:
+						self.report({'INFO'}, f"Relinked 1 out of {initial_count} {item_word}. Showing dialog for remaining {remaining_count}...")
 					else:
-						self.report({'INFO'}, f"Relinked {success_count} out of {total_count} {item_word}. Showing dialog for remaining {remaining_count}...")
+						self.report({'INFO'}, f"Relinked {fixed_count} out of {initial_count} {item_word}. Showing dialog for remaining {remaining_count}...")
 			else:
 				if remaining_count == 0:
 					self.report({'INFO'}, "All items were already properly linked")
-				elif remaining_count == total_count:
+				elif remaining_count == initial_count:
 					# Nothing was fixed, don't auto-show dialog again to prevent infinite loop
 					self.report({'WARNING'}, f"No items were successfully relinked. {remaining_count} items still need manual attention. Check console for details.")
 				else:
-					# Some progress was made even though success_count is 0, show dialog again
+					# Some progress was made even though fixed_count is 0, show dialog again
 					should_show_dialog_again = True
 					self.report({'INFO'}, f"Some progress made. Showing dialog for remaining {remaining_count} items...")
 			
@@ -335,6 +375,8 @@ class BV_OT_MissingLinksDialog(bpy.types.Operator):
 	def invoke(self, context, event):
 		# If this is a fresh invocation (not part of auto-sequence), reset counter
 		global _consecutive_dialog_count
+		# Cache would have been invalidated by show_missing_links_dialog or manual trigger
+		# if this dialog is being shown due to detected changes.
 		if _consecutive_dialog_count == 0:
 			log_debug("Fresh dialog invocation, resetting consecutive counter", module_name='MissingLinks')
 		
@@ -414,7 +456,8 @@ class BV_OT_ManualRelink(bpy.types.Operator):
 			except Exception:
 				pass
 
-		# Check if there are items that need relinking
+		# Before showing the dialog or checking items, ensure the check is fresh
+		invalidate_missing_links_cache()
 		items = check_missing_links()
 		if not items:
 			self.report({'INFO'}, "No missing links detected")
@@ -428,7 +471,9 @@ class BV_OT_ManualRelink(bpy.types.Operator):
 		# Show the missing links dialog
 		try:
 			_missing_links_dialog_shown = True
-			bpy.ops.bv.missing_links_dialog('INVOKE_DEFAULT')  # type: ignore
+			# The dialog's invoke will call check_missing_links again,
+			# which will be fresh due to the invalidation above.
+			bpy.ops.bv.missing_links_dialog('INVOKE_DEFAULT') # type: ignore
 			return {'FINISHED'}
 		except Exception as e:
 			_missing_links_dialog_shown = False

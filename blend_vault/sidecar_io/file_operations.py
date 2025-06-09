@@ -6,7 +6,7 @@ Handles reading, writing, and managing sidecar files.
 import os
 import json
 import re
-from typing import Dict
+from typing import Dict, Optional
 from ..core import (
 	LOG_COLORS,
 	SIDECAR_EXTENSION,
@@ -41,7 +41,7 @@ def _log(level: str, message: str) -> None:
 	else:
 		print(f"{message}")
 
-def write_sidecar_with_content_preservation(md_path: str, new_data_content: str) -> None:
+def write_sidecar_with_content_preservation(md_path: str, new_data_content: str, preview_link: Optional[str] = None) -> None:
 	"""Write sidecar while preserving user content."""
 	original_lines = []
 	if os.path.exists(md_path):
@@ -49,7 +49,7 @@ def write_sidecar_with_content_preservation(md_path: str, new_data_content: str)
 			original_lines = f.readlines()
 	
 	# Generate frontmatter and extract user content
-	frontmatter, fm_end_idx = generate_frontmatter_string(original_lines, list(FRONTMATTER_TAGS))
+	frontmatter, fm_end_idx = generate_frontmatter_string(original_lines, list(FRONTMATTER_TAGS), preview_link)
 	user_content = ""
 	
 	if original_lines:

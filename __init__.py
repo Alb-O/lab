@@ -1,5 +1,67 @@
+import os
+import sys
+import platform
+import zipfile
+from pathlib import Path
 import bpy
 import importlib
+
+# Extract and load wheel dependencies
+def setup_wheel_dependencies():
+	"""Extract and load wheel dependencies for Pillow (PIL)"""
+	extension_dir = Path(__file__).parent
+	wheels_dir = extension_dir / "wheels"
+	extracted_dir = extension_dir / "extracted_wheels"
+	
+	if not wheels_dir.exists():
+		print("Blend Vault: No wheels directory found")
+		return
+	
+	# Create extraction directory if it doesn't exist
+	extracted_dir.mkdir(exist_ok=True)
+	
+	# Determine platform-specific wheel patterns
+	system = platform.system()
+	if system == "Windows":
+		wheel_patterns = ["win_amd64", "win32"]
+	elif system == "Darwin":
+		wheel_patterns = ["macosx"]
+	else:  # Linux
+		wheel_patterns = ["linux", "manylinux"]
+	
+	# Extract wheels
+	extracted_paths = []
+	wheel_files = list(wheels_dir.glob("*.whl"))
+	
+	# Process Pillow wheels
+	pillow_wheels = [w for w in wheel_files if "pillow" in w.name.lower()]
+	
+	for wheel_file in pillow_wheels:
+		# Check if this wheel is for our platform
+		wheel_matches = any(pattern in wheel_file.name for pattern in wheel_patterns) or "py3-none-any" in wheel_file.name
+		
+		if wheel_matches:
+			wheel_extract_dir = extracted_dir / wheel_file.stem
+			
+			if not wheel_extract_dir.exists():
+				try:
+					with zipfile.ZipFile(wheel_file, 'r') as zip_ref:
+						zip_ref.extractall(wheel_extract_dir)
+					print(f"Blend Vault: Extracted {wheel_file.name}")
+				except Exception as e:
+					print(f"Blend Vault: Error extracting {wheel_file.name}: {e}")
+					continue
+			
+			extracted_paths.append(str(wheel_extract_dir))
+	
+	# Add extracted paths to sys.path
+	for path in extracted_paths:
+		if path not in sys.path:
+			sys.path.insert(0, path)
+			print(f"Blend Vault: Added extracted wheel to sys.path: {path}")
+
+# Setup wheel dependencies before importing anything else
+setup_wheel_dependencies()
 
 # Import core functionality - use module-level imports
 from .blend_vault import preferences as prefs_module

@@ -39,6 +39,12 @@ SIDECAR_EXTENSION = ".side.md"
 # Redirect file extension
 REDIRECT_EXTENSION = ".redirect.md"
 
+# Preview image file extension
+PREVIEW_EXTENSION = ".blend.preview.png"
+
+# Preview link text alias
+PREVIEW_ALIAS = "preview"
+
 # Default frontmatter tags
 FRONTMATTER_TAGS = {"sidecar", "blendvault"}
 
