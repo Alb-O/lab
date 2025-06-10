@@ -1,6 +1,6 @@
 {
 	"name": "fragments",
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"description": "Trim and timestamp media non-destructively.",
 	"main": "main.js",
 	"scripts": {
