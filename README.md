@@ -30,24 +30,6 @@ After installing, the plugin automatically detects videos in your markdown notes
 
 ## Debugging
 
-To troubleshoot issues with the Fragments plugin, you can enable debug logging:
+In Devloper Console, run `window.DEBUG.enable('fragments')`
 
-### Quick Setup
-1. Open Developer Console (`Ctrl+Shift+I` or `Cmd+Option+I`)
-2. Run:
-
-```javascript
-window.DEBUG.enable('fragments')
-```
-
-You should see `[fragments]` messages in the console when:
-- Detecting and processing videos in markdown views
-- Parsing time fragments and applying restrictions
-- Setting up context menus and UI components
-- Plugin encounters issues
-
-### Disable Debug
-
-```javascript
-window.DEBUG.disable('fragments')
-```
+To learn more, see [obsidian-logger](https://github.com/AMC-Albert/obsidian-logger).
