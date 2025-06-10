@@ -4,10 +4,10 @@ import * as cheerio from 'cheerio';
 import { valid, coerce, compare } from 'semver';
 import { EventEmitter } from 'events';
 import { 
-	debug, 
-	info, 
-	warn, 
-	error,
+	loggerDebug, 
+	loggerInfo, 
+	loggerWarn, 
+	loggerError,
 	registerLoggerClass 
 } from '@/utils/obsidian-logger';
 
@@ -22,35 +22,35 @@ export class BlenderScraper extends EventEmitter {
 	private minimumVersion: string;	constructor(minimumVersion: string = '3.0') {
 		super();
 		registerLoggerClass(this, 'BlenderScraper');
-		debug(this, `Creating Blender scraper with minimum version ${minimumVersion}`);
+		loggerDebug(this, `Creating Blender scraper with minimum version ${minimumVersion}`);
 		
 		this.platform = this.getCurrentPlatform();
 		this.architecture = this.getCurrentArchitecture();
 		this.minimumVersion = minimumVersion;
 		this.cache = { folders: {} };
 		
-		debug(this, `Platform detection completed: ${this.platform} ${this.architecture}`);
+		loggerDebug(this, `Platform detection completed: ${this.platform} ${this.architecture}`);
 		
-		info(this, 'Blender scraper created successfully');
+		loggerInfo(this, 'Blender scraper created successfully');
 	}
 	
 	/**
 	 * Get the current platform
 	 */
 	private getCurrentPlatform(): Platform {
-		debug(this, 'Detecting current platform');
+		loggerDebug(this, 'Detecting current platform');
 		
 		if (ObsidianPlatform.isWin) {
-			debug(this, 'Platform detected: Windows');
+			loggerDebug(this, 'Platform detected: Windows');
 			return Platform.Windows;
 		} else if (ObsidianPlatform.isMacOS) {
-			debug(this, 'Platform detected: macOS');
+			loggerDebug(this, 'Platform detected: macOS');
 			return Platform.macOS;
 		} else if (ObsidianPlatform.isLinux) {
-			debug(this, 'Platform detected: Linux');
+			loggerDebug(this, 'Platform detected: Linux');
 			return Platform.Linux;
 		} else {
-			warn(this, 'Unknown platform, defaulting to Windows');
+			loggerWarn(this, 'Unknown platform, defaulting to Windows');
 			return Platform.Windows;
 		}
 	}
@@ -58,10 +58,10 @@ export class BlenderScraper extends EventEmitter {
 	/**
 	 * Get the current architecture
 	 */	private getCurrentArchitecture(): Architecture {
-		debug(this, 'Detecting current architecture');
+		loggerDebug(this, 'Detecting current architecture');
 		const arch = process.arch;
 		const result = arch === 'arm64' ? Architecture.arm64 : Architecture.x64;
-		debug(this, `Architecture detected: ${arch} (using ${result})`);
+		loggerDebug(this, `Architecture detected: ${arch} (using ${result})`);
 		return result;
 	}
 
@@ -192,7 +192,7 @@ export class BlenderScraper extends EventEmitter {
 			});
 
 			return builds;		} catch (error) {
-			error(this, `Failed to scrape version ${version}: ${error}`);
+			loggerError(this, `Failed to scrape version ${version}: ${error}`);
 			return [];
 		}
 	}
@@ -215,7 +215,7 @@ export class BlenderScraper extends EventEmitter {
 					}
 				}
 			}		} catch (error) {
-			error(this, `Failed to parse commit time: ${error}`);
+			loggerError(this, `Failed to parse commit time: ${error}`);
 		}
 		return null;
 	}
@@ -273,7 +273,7 @@ export class BlenderScraper extends EventEmitter {
 						});
 					}
 				}			} catch (error) {
-				error(this, `Failed to scrape ${branch} builds: ${error}`);
+				loggerError(this, `Failed to scrape ${branch} builds: ${error}`);
 			}}
 
 		this.emit('status', `Found ${builds.length} automated builds`);

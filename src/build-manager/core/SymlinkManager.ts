@@ -4,10 +4,10 @@ import { Platform, Notice } from 'obsidian';
 import { BlenderBuildInfo } from '@/types';
 import { SYMLINK_NAME } from '@/constants';
 import {
-	debug,
-	info,
-	warn,
-	error,
+	loggerDebug,
+	loggerInfo,
+	loggerWarn,
+	loggerError,
 	registerLoggerClass
 } from '@/utils/obsidian-logger';
 
@@ -16,7 +16,7 @@ export class SymlinkManager {
 
 	constructor(extractsPath: string) {
 		registerLoggerClass(this, 'SymlinkManager');
-		debug(this, 'SymlinkManager initialized', { extractsPath });
+		loggerDebug(this, 'SymlinkManager initialized', { extractsPath });
 		this.extractsPath = extractsPath;
 	}
 

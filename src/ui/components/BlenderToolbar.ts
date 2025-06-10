@@ -3,7 +3,7 @@ import { FetchBlenderBuilds } from '@/build-manager';
 import { BUILDS_FOLDER } from '@/constants';
 import type BlenderBuildManagerPlugin from '@/main';
 import type { BlenderPluginSettings } from '@/settings';
-import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
+import { loggerDebug, loggerInfo, loggerWarn, loggerError, registerLoggerClass } from '@/utils/obsidian-logger';
 import * as path from 'path';
 
 export class BlenderToolbar {
@@ -27,10 +27,10 @@ export class BlenderToolbar {
 		this.onRefresh = onRefresh;
 		this.onToggleFilter = onToggleFilter;
 		this.onTogglePin = onTogglePin;
-		debug(this, 'BlenderToolbar initialized');
+		loggerDebug(this, 'BlenderToolbar initialized');
 	}
 	render(container: HTMLElement): void {
-		debug(this, 'Rendering toolbar');
+		loggerDebug(this, 'Rendering toolbar');
 		container.empty();
 		this.containerEl = container;
 		this.buttons.clear();
@@ -137,7 +137,7 @@ export class BlenderToolbar {
 		 	// @ts-ignore
 			this.plugin.app.openWithDefaultApp(path.join(this.plugin.settings.libraryFolder, BUILDS_FOLDER));
 		} catch (error) {
-			error(this, 'Failed to open builds folder:', error);
+			loggerError(this, 'Failed to open builds folder:', error);
 		}
 	}
 

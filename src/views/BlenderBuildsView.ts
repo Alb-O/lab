@@ -3,10 +3,10 @@ import { FetchBlenderBuilds } from '@/build-manager';
 import { BlenderViewRenderer } from '@/ui/components';
 import type BlenderBuildManagerPlugin from '@/main';
 import {
-	debug,
-	info,
-	warn,
-	error,
+	loggerDebug,
+	loggerInfo,
+	loggerWarn,
+	loggerError,
 	registerLoggerClass
 } from '@/utils/obsidian-logger';
 
@@ -19,10 +19,10 @@ export class BlenderBuildsView extends ItemView {
 	private isInitialized = false; constructor(leaf: WorkspaceLeaf, plugin: BlenderBuildManagerPlugin, buildManager: FetchBlenderBuilds) {
 		super(leaf);
 		registerLoggerClass(this, 'BlenderBuildsView');
-		debug(this, 'Creating Blender builds view');
+		loggerDebug(this, 'Creating Blender builds view');
 		this.plugin = plugin;
 		this.buildManager = buildManager;
-		info(this, 'Blender builds view created successfully');
+		loggerInfo(this, 'Blender builds view created successfully');
 	}
 
 	getViewType(): string {
@@ -36,38 +36,38 @@ export class BlenderBuildsView extends ItemView {
 	getIcon(): string {
 		return 'blender-logo';
 	} async onOpen() {
-		debug(this, 'Opening Blender builds view');
+		loggerDebug(this, 'Opening Blender builds view');
 		this.initializeView();
 
 		// Wait for cached builds to be loaded
-		debug(this, 'Waiting for cached builds to load');
+		loggerDebug(this, 'Waiting for cached builds to load');
 		await this.buildManager.waitForCacheLoading();
 
 		// Initial render
-		debug(this, 'Performing initial view render');
+		loggerDebug(this, 'Performing initial view render');
 		await this.viewRenderer.render();
-		info(this, 'Blender builds view opened successfully');
+		loggerInfo(this, 'Blender builds view opened successfully');
 	} async onClose() {
-		debug(this, 'Closing Blender builds view');
+		loggerDebug(this, 'Closing Blender builds view');
 		// Clean up view renderer components
 		this.viewRenderer?.cleanup();
 
 		// Clean up any event listeners or resources
 		this.isInitialized = false;
-		info(this, 'Blender builds view closed successfully');
+		loggerInfo(this, 'Blender builds view closed successfully');
 	}
 	
 	/**
 	 * Initialize the view structure
 	 */
 	private initializeView(): void {
-		debug(this, `Initializing view (already initialized: ${this.isInitialized})`);
+		loggerDebug(this, `Initializing view (already initialized: ${this.isInitialized})`);
 		if (this.isInitialized) {
-			debug(this, 'View already initialized, skipping');
+			loggerDebug(this, 'View already initialized, skipping');
 			return;
 		}
 		// Create the BlenderViewRenderer
-		debug(this, 'Creating view renderer component');
+		loggerDebug(this, 'Creating view renderer component');
 		this.viewRenderer = new BlenderViewRenderer(
 			this.plugin,
 			this.buildManager,
@@ -75,22 +75,22 @@ export class BlenderBuildsView extends ItemView {
 		);
 
 		// Initialize the layout
-		debug(this, 'Initializing view layout');
+		loggerDebug(this, 'Initializing view layout');
 		this.viewRenderer.initializeLayout();
 		this.isInitialized = true;
-		info(this, 'View initialization completed');
+		loggerInfo(this, 'View initialization completed');
 	}
 
 	/**
 	 * Refresh the view
 	 */
 	async refreshView(): Promise<void> {
-		debug(this, 'Refreshing view');
+		loggerDebug(this, 'Refreshing view');
 		if (this.viewRenderer) {
 			await this.viewRenderer.render();
-			info(this, 'View refreshed successfully');
+			loggerInfo(this, 'View refreshed successfully');
 		} else {
-			warn(this, 'Cannot refresh view - no renderer available');
+			loggerWarn(this, 'Cannot refresh view - no renderer available');
 		}
 	}
 
@@ -98,19 +98,19 @@ export class BlenderBuildsView extends ItemView {
 	 * Get the view renderer for external access if needed
 	 */
 	getViewRenderer(): BlenderViewRenderer {
-		debug(this, 'Getting view renderer');
+		loggerDebug(this, 'Getting view renderer');
 		return this.viewRenderer;
 	}
 
 	/**
 	 * Update settings and refresh view
 	 */	updateSettings(): void {
-		debug(this, 'Updating settings');
+		loggerDebug(this, 'Updating settings');
 		if (this.viewRenderer) {
 			this.viewRenderer.updateSettings();
-			info(this, 'Settings updated successfully');
+			loggerInfo(this, 'Settings updated successfully');
 		} else {
-			warn(this, 'Cannot update settings - no renderer available');
+			loggerWarn(this, 'Cannot update settings - no renderer available');
 		}
 	}
 }

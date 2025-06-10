@@ -5,10 +5,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import {
-	debug,
-	info,
-	warn,
-	error,
+	loggerDebug,
+	loggerInfo,
+	loggerWarn,
+	loggerError,
 	registerLoggerClass
 } from '@/utils/obsidian-logger';
 
@@ -21,7 +21,7 @@ export class BlenderExtractor extends EventEmitter {
 	constructor() {
 		super();
 		registerLoggerClass(this, 'BlenderExtractor');
-		debug(this, 'BlenderExtractor initialized and ready for archive extraction');
+		loggerDebug(this, 'BlenderExtractor initialized and ready for archive extraction');
 	}
 
 	/**
@@ -79,7 +79,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 				
 				if (stderr) {
-					warn(this, `Extraction warning: ${stderr}`);
+					loggerWarn(this, `Extraction warning: ${stderr}`);
 				}
 				
 				// Verify extraction completed by checking if files exist
@@ -123,7 +123,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 				
 				if (stderr) {
-					warn(this, `Extraction warning: ${stderr}`);
+					loggerWarn(this, `Extraction warning: ${stderr}`);
 				}
 				
 				// Verify extraction completed by checking if files exist
@@ -181,7 +181,7 @@ export class BlenderExtractor extends EventEmitter {
 					const unmountCommand = `hdiutil detach "${mountPoint}"`;
 					exec(unmountCommand, (unmountError: any) => {
 						if (unmountError) {
-							warn(this, `Warning: Failed to unmount DMG: ${unmountError.message}`);
+							loggerWarn(this, `Warning: Failed to unmount DMG: ${unmountError.message}`);
 						}
 						
 						if (copyError) {
@@ -190,7 +190,7 @@ export class BlenderExtractor extends EventEmitter {
 						}
 						
 						if (copyStderr) {
-							warn(this, `Copy warning: ${copyStderr}`);
+							loggerWarn(this, `Copy warning: ${copyStderr}`);
 						}
 						
 						// Verify extraction completed
@@ -234,7 +234,7 @@ export class BlenderExtractor extends EventEmitter {
 					}
 				}
 			} catch (error) {
-				error(this, 'Error searching for executable:', error);
+				loggerError(this, 'Error searching for executable:', error);
 			}
 			
 			return null;
@@ -285,20 +285,20 @@ export class BlenderExtractor extends EventEmitter {
 			} catch (error) {
 				// If we can't get stats, filesystem might still be settling
 				if (attempt === maxAttempts) {
-					warn(this, 'Warning: Could not get directory stats during verification');
+					loggerWarn(this, 'Warning: Could not get directory stats during verification');
 				}
 				continue;
 			}
 			
 			// Check if we have a reasonable amount of content (at least 50MB for Blender)
 			if (directoryStats && directoryStats.totalSize < 50 * 1024 * 1024) {
-				debug(this, `Extraction verification attempt ${attempt}`, { 
+				loggerDebug(this, `Extraction verification attempt ${attempt}`, { 
 					sizeBytes: directoryStats.totalSize,
 					sizeMB: (directoryStats.totalSize / (1024 * 1024)).toFixed(2),
 					reason: 'waiting for more data to be extracted'
 				});
 				if (attempt === maxAttempts) {
-					warn(this, 'Warning: Extracted content seems smaller than expected for Blender');
+					loggerWarn(this, 'Warning: Extracted content seems smaller than expected for Blender');
 				} else {
 					continue;
 				}
@@ -321,7 +321,7 @@ export class BlenderExtractor extends EventEmitter {
 			
 			if (foundBlenderStructure) {
 				const sizeInfo = directoryStats ? this.formatBytes(directoryStats.totalSize) : 'unknown size';
-				info(this, `Extraction verification successful on attempt ${attempt}`, { 
+				loggerInfo(this, `Extraction verification successful on attempt ${attempt}`, { 
 					blenderStructureFound: true,
 					sizeInfo: sizeInfo,
 					totalSizeBytes: directoryStats.totalSize
@@ -330,11 +330,11 @@ export class BlenderExtractor extends EventEmitter {
 			}
 			
 			if (attempt === maxAttempts) {
-				warn(this, 'Warning: Could not verify Blender executable in extracted files after all attempts');
+				loggerWarn(this, 'Warning: Could not verify Blender executable in extracted files after all attempts');
 				// Don't throw error here as the extraction might still be valid for some builds
 				return;
 			} else {
-				debug(this, `Extraction verification attempt ${attempt}`, { 
+				loggerDebug(this, `Extraction verification attempt ${attempt}`, { 
 					blenderStructureFound: false,
 					reason: 'no Blender structure found yet, retrying verification'
 				});
@@ -403,7 +403,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 			} catch (error) {
 				// If there's an error checking, just continue
-				warn(this, 'Error monitoring extraction progress:', error);
+				loggerWarn(this, 'Error monitoring extraction progress:', error);
 			}
 		}, checkInterval);
 		
@@ -441,7 +441,7 @@ export class BlenderExtractor extends EventEmitter {
 				}
 			}
 		} catch (error) {
-			// If there's an error, return current totals
+			// If there's an loggerError, return current totals
 		}
 		
 		return { totalSize, fileCount };

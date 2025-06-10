@@ -3,10 +3,10 @@ import { MINIMUM_BLENDER_VERSIONS, MinimumBlenderVersionType } from '@/constants
 import { BuildType } from '@/types';
 import type BlenderBuildManagerPlugin from '@/main';
 import { 
-	debug, 
-	info, 
-	warn, 
-	error,
+	loggerDebug, 
+	loggerInfo, 
+	loggerWarn, 
+	loggerError,
 	registerLoggerClass 
 } from '@/utils/obsidian-logger';
 
@@ -57,18 +57,18 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 	plugin: BlenderBuildManagerPlugin;	constructor(app: App, plugin: BlenderBuildManagerPlugin) {
 		super(app, plugin);
 		registerLoggerClass(this, 'BlenderBuildManagerSettingsTab');
-		debug(this, 'Settings tab constructor started');
+		loggerDebug(this, 'Settings tab constructor started');
 		this.plugin = plugin;
-		info(this, 'Settings tab constructor completed');
+		loggerInfo(this, 'Settings tab constructor completed');
 	}
 		display(): void {
-		debug(this, 'Rendering settings tab UI - building user interface elements');
+		loggerDebug(this, 'Rendering settings tab UI - building user interface elements');
 		const { containerEl } = this;
 
-		debug(this, 'Clearing existing settings container content');
+		loggerDebug(this, 'Clearing existing settings container content');
 		containerEl.empty();
 
-		debug(this, 'Creating settings controls');
+		loggerDebug(this, 'Creating settings controls');
 		new Setting(containerEl)
 			.setName('Storage directory')
 			.setDesc('Directory relative to vault root where Blender builds will be stored. It is highly recommended to prefix the directory with a dot so Obsidian doesn\'t index it.')
@@ -76,7 +76,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 				.setPlaceholder('.blender')
 				.setValue(this.plugin.settings.libraryFolder)
 				.onChange(async (value) => {
-					debug(this, `Library folder changed from '${this.plugin.settings.libraryFolder}' to '${value}'`);
+					loggerDebug(this, `Library folder changed from '${this.plugin.settings.libraryFolder}' to '${value}'`);
 					this.plugin.settings.libraryFolder = value;
 					await this.plugin.saveSettings();
 				}));
@@ -87,7 +87,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoExtract)
 				.onChange(async (value) => {
-					debug(this, `Auto-extract setting changed from ${this.plugin.settings.autoExtract} to ${value}`);
+					loggerDebug(this, `Auto-extract setting changed from ${this.plugin.settings.autoExtract} to ${value}`);
 					this.plugin.settings.autoExtract = value;
 					await this.plugin.saveSettings();
 				}));
@@ -98,7 +98,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.cleanUpAfterExtraction)
 				.onChange(async (value) => {
-					debug(this, `Clean up after extraction setting changed from ${this.plugin.settings.cleanUpAfterExtraction} to ${value}`);
+					loggerDebug(this, `Clean up after extraction setting changed from ${this.plugin.settings.cleanUpAfterExtraction} to ${value}`);
 					this.plugin.settings.cleanUpAfterExtraction = value;
 					await this.plugin.saveSettings();
 				}));
@@ -109,7 +109,7 @@ export class BlenderBuildManagerSettingsTab extends PluginSettingTab {
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.launchWithConsole)
 				.onChange(async (value) => {
-					debug(this, `Launch with console setting changed from ${this.plugin.settings.launchWithConsole} to ${value}`);
+					loggerDebug(this, `Launch with console setting changed from ${this.plugin.settings.launchWithConsole} to ${value}`);
 					this.plugin.settings.launchWithConsole = value;
 					await this.plugin.saveSettings();
 				}));

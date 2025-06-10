@@ -2,10 +2,10 @@ import { BlenderBuildInfo, BuildType } from '@types';
 import { BLENDER_LTS_VERSIONS } from '@constants';
 import type { FetchBlenderBuilds } from './BuildManager';
 import {
-	debug,
-	info,
-	warn,
-	error,
+	loggerDebug,
+	loggerInfo,
+	loggerWarn,
+	loggerError,
 	registerLoggerClass
 } from '@utils/obsidian-logger';
 
@@ -17,7 +17,7 @@ export class BuildFilter {
 
 	constructor(buildManager: FetchBlenderBuilds) {
 		registerLoggerClass(this, 'BuildFilter');
-		debug(this, 'BuildFilter initialized with build manager reference');
+		loggerDebug(this, 'BuildFilter initialized with build manager reference');
 		this.buildManager = buildManager;
 	}
 

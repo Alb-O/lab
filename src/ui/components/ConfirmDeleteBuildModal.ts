@@ -1,13 +1,13 @@
 import { App, Modal } from "obsidian";
 import { BlenderBuildInfo } from "@/types";
-import { debug, info, warn, error, registerLoggerClass } from '@/utils/obsidian-logger';
+import { loggerDebug, loggerInfo, loggerWarn, loggerError, registerLoggerClass } from '@/utils/obsidian-logger';
 
 export class ConfirmDeleteBuildModal extends Modal {
 	private onAccept: () => void;
 	private build: BlenderBuildInfo;	constructor(app: App, build: BlenderBuildInfo, onAccept: () => void) {
 		super(app);
 		registerLoggerClass(this, 'ConfirmDeleteBuildModal');
-		debug('Initializing ConfirmDeleteBuildModal', {
+		loggerDebug('Initializing ConfirmDeleteBuildModal', {
 			buildSubversion: build?.subversion,
 			buildBranch: build?.branch,
 			hasCustomExecutable: !!build?.customExecutable

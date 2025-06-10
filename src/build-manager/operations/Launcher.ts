@@ -5,10 +5,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import {
-	debug,
-	info,
-	warn,
-	error,
+	loggerDebug,
+	loggerInfo,
+	loggerWarn,
+	loggerError,
 	registerLoggerClass
 } from '@/utils/obsidian-logger';
 
@@ -18,7 +18,7 @@ export class BlenderLauncher extends EventEmitter {
 	constructor(settings: BlenderPluginSettings) {
 		super();
 		registerLoggerClass(this, 'BlenderLauncher');
-		debug(this, 'BlenderLauncher initialized with settings');
+		loggerDebug(this, 'BlenderLauncher initialized with settings');
 		this.settings = settings;
 	}
 
@@ -106,7 +106,7 @@ export class BlenderLauncher extends EventEmitter {
 					}
 				}
 			} catch (error) {
-				warn(this, `Error searching directory ${dir}:`, error);
+				loggerWarn(this, `Error searching directory ${dir}:`, error);
 			}
 			
 			return null;

@@ -8,10 +8,10 @@ import { EventEmitter } from 'events';
 import { createDownloadError, createExtractionError, DirectoryItem } from '@types';
 import { BlenderExtractor } from './Extractor';
 import { 
-	debug, 
-	info, 
-	warn, 
-	error,
+	loggerDebug, 
+	loggerInfo, 
+	loggerWarn, 
+	loggerError,
 	registerLoggerClass 
 } from '@/utils/obsidian-logger';
 
@@ -22,33 +22,33 @@ export class BlenderDownloader extends EventEmitter {
 	constructor() {
 		super();
 		registerLoggerClass(this, 'BlenderDownloader');
-		debug(this, 'BlenderDownloader constructor started');
+		loggerDebug(this, 'BlenderDownloader constructor started');
 		
 		this.extractor = new BlenderExtractor();
 		
 		// Forward extraction events
-		debug(this, 'Setting up extractor event forwarding');
+		loggerDebug(this, 'Setting up extractor event forwarding');
 		this.extractor.on('extractionStarted', (archivePath: string, extractPath: string) => {
-			debug(this, `Extraction started: ${archivePath} -> ${extractPath}`);
+			loggerDebug(this, `Extraction started: ${archivePath} -> ${extractPath}`);
 			this.emit('extractionStarted', archivePath, extractPath);
 		});
 		
 		this.extractor.on('extractionCompleted', (archivePath: string, extractPath: string) => {
-			info(this, `Extraction completed: ${archivePath} -> ${extractPath}`);
+			loggerInfo(this, `Extraction completed: ${archivePath} -> ${extractPath}`);
 			this.emit('extractionCompleted', archivePath, extractPath);
 		});
 		
 		this.extractor.on('extractionError', (archivePath: string, errorData: Error) => {
-			error(this, `Extraction failed for ${archivePath}`, errorData);
+			loggerError(this, `Extraction failed for ${archivePath}`, errorData);
 			this.emit('extractionError', archivePath, errorData);
 		});
 		
 		this.extractor.on('extractionProgress', (progress: ExtractionProgress) => {
-			debug(this, `Extraction progress: ${progress.percentage}% (${progress.extractedFiles}/${progress.totalFiles} files)`);
+			loggerDebug(this, `Extraction progress: ${progress.percentage}% (${progress.extractedFiles}/${progress.totalFiles} files)`);
 			this.emit('extractionProgress', progress);
 		});
 		
-		info(this, 'BlenderDownloader constructor completed');
+		loggerInfo(this, 'BlenderDownloader constructor completed');
 	}
 
 	/**
@@ -89,7 +89,7 @@ export class BlenderDownloader extends EventEmitter {
 				totalSize = parseInt(headResponse.headers['content-length'] || '0');
 			} catch (error) {
 				// If HEAD request fails, continue without size info
-				warn(this, 'Could not get file size:', error);
+				loggerWarn(this, 'Could not get file size:', error);
 			}
             const progress: DownloadProgress = {
 				downloaded: 0,
@@ -219,7 +219,7 @@ export class BlenderDownloader extends EventEmitter {
 				await this.removeDirectory(buildPath);
 				removedCount++;
 			} catch (error) {
-				warn(this, `Failed to remove build ${build.name}: ${error}`);
+				loggerWarn(this, `Failed to remove build ${build.name}: ${error}`);
 			}
 		}
 
