@@ -1,7 +1,7 @@
 {
 	"id": "fragments",
 	"name": "Fragments",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"minAppVersion": "1.8.10",
 	"description": "Trim and timestamp media non-destructively.",
 	"author": "Albert O'Shea",
