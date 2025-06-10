@@ -1,5 +1,5 @@
 import { FragmentsSettings } from "@settings";
-import { debug, warn, error } from './obsidian-logger';
+import { loggerDebug, loggerWarn, loggerError } from './obsidian-logger';
 import parse from 'parse-duration';
 
 /**
@@ -67,7 +67,7 @@ function getTimeSpan(
             startTime = 0;
         } else {
             startTime = parseFragmentToSeconds(startRaw);            if (startTime === null) {
-                warn(this, "Unable to parse start time:", startRaw);
+                loggerWarn(this, "Unable to parse start time:", startRaw);
                 return null; // Invalid start time format
             }
         }
@@ -78,7 +78,7 @@ function getTimeSpan(
             endTime = Infinity;
         } else {
             endTime = parseFragmentToSeconds(endRaw);            if (endTime === null) {
-                warn(this, "Unable to parse end time:", endRaw);
+                loggerWarn(this, "Unable to parse end time:", endRaw);
                 return null; // Invalid end time format
             }
         }
@@ -189,7 +189,7 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
     if (!fragment || typeof fragment !== 'string') return null;
     const trimmed = fragment.trim().toLowerCase();
     // Debug logging to help troubleshoot
-    debug(this, `Attempting to parse time: '${trimmed}'`);
+    loggerDebug(this, `Attempting to parse time: '${trimmed}'`);
     
     // Handle special keywords
     if (trimmed === 'start') return 0;
@@ -207,7 +207,7 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
     // First check if it's raw seconds (just a number) for efficiency
     if (timePatterns.npt_sec.test(trimmed)) {
         const s = parseFloat(trimmed);
-        debug(this, `  Parsed as raw seconds: ${s}`);
+        loggerDebug(this, `  Parsed as raw seconds: ${s}`);
         return s >= 0 ? s : null;
     }
     
@@ -220,7 +220,7 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
         const s = parseFloat(match[3]);
         if (h < 0 || m < 0 || m >= 60 || s < 0 || s >= 60) return null;
         const result = h * 3600 + m * 60 + s;
-        debug(this, `  Parsed as hh:mm:ss: ${h}:${m}:${s} = ${result}s`);
+        loggerDebug(this, `  Parsed as hh:mm:ss: ${h}:${m}:${s} = ${result}s`);
         return result;
     }
     
@@ -230,13 +230,13 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
         const s = parseFloat(match[2]);
         if (m < 0 || s < 0 || s >= 60) return null;
         if (m >= 60 && trimmed.includes(':') && !trimmed.match(/^\d+:\d+:\d+/)) {            // if it has a colon, and minutes is >=60, but it's not hh:mm:ss, it's invalid
-            warn(this, `  Invalid mm:ss format (m>=60): ${m}:${s}`);
+            loggerWarn(this, `  Invalid mm:ss format (m>=60): ${m}:${s}`);
             return null;        } else if (m >= 60) {
             const result = m * 60 + s;
-            debug(this, `  Parsed as mm:ss (m>=60): ${m}:${s} = ${result}s`);
+            loggerDebug(this, `  Parsed as mm:ss (m>=60): ${m}:${s} = ${result}s`);
             return result;
         }        const result = m * 60 + s;
-        debug(this, `  Parsed as mm:ss: ${m}:${s} = ${result}s`);
+        loggerDebug(this, `  Parsed as mm:ss: ${m}:${s} = ${result}s`);
         return result;
     }
     
@@ -250,16 +250,16 @@ export function parseFragmentToSeconds(fragment: string): number | { percent: nu
             const seconds = durationMs / 1000;
               // Verify the result is reasonable for a video time (less than 24 hours)
             if (seconds < 0 || seconds > 86400) {
-                warn(this, `  Parsed value ${seconds}s is outside reasonable range for a video time`);
+                loggerWarn(this, `  Parsed value ${seconds}s is outside reasonable range for a video time`);
                 return null;
             }            
-            debug(this, `  Parsed with parse-duration: ${seconds}s`);
+            loggerDebug(this, `  Parsed with parse-duration: ${seconds}s`);
             return seconds;
         }    } catch (err) {
-        error(this, "Error parsing time with parse-duration:", err);
+        loggerError(this, "Error parsing time with parse-duration:", err);
     }
     
-    debug(this, `  Failed to parse time: '${trimmed}'`);
+    loggerDebug(this, `  Failed to parse time: '${trimmed}'`);
     return null;
 }
 

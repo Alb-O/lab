@@ -2,7 +2,7 @@
 export * from './utils';
 export * from '../context-menu/utils';
 export { 
-	debug, info, warn, error, 
+	loggerDebug, loggerInfo, loggerWarn, loggerError, 
 	initLogger, registerLoggerClass,
 	setNamespaceOverride, setColors, setDefaultLogLevel,
 	setFormatTemplate, setCallbackFormatTemplate, setMessageColor,
