@@ -138,7 +138,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 			// Emit buildsUpdated event to trigger UI refresh
 			this.emit('buildsUpdated', this.getCachedBuilds());
-		});		this.downloader.on('extractionError', (archivePath: string, error: ExtractionError | Error) => {
+		}); this.downloader.on('extractionError', (archivePath: string, error: ExtractionError | Error) => {
 			const errorMessage = error instanceof Error ? error.message : error.message;
 			this.emit('extractionError', archivePath, error);
 			new Notice(`Extraction failed: ${path.basename(archivePath)} - ${errorMessage}`);
@@ -315,7 +315,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			const installedMetadata = this.installedBuildsCache.find(metadata =>
 				build.link === metadata.link && build.subversion === metadata.subversion
 			);
-			
+
 			if (installedMetadata) {
 				// Mark this build as installed by updating its properties
 				build.extractedPath = installedMetadata.extractedPath;
@@ -633,7 +633,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 		loggerInfo(this, `=== DEBUG CACHE CONTENTS ===`);
 		loggerInfo(this, `Build cache: ${this.buildCache.length} builds`);
 		loggerInfo(this, `Installed builds cache: ${this.installedBuildsCache.length} builds`);
-		
+
 		this.installedBuildsCache.forEach((metadata, index) => {
 			loggerInfo(this, `Installed build ${index + 1}: ${metadata.subversion} (link: ${metadata.link}), extractedPath: ${metadata.extractedPath}`);
 		});
@@ -983,7 +983,8 @@ export class FetchBlenderBuilds extends EventEmitter {
 	/**
 	 * Clear cached builds
 	 */	clearCache(): void {
-		try {			if (fs.existsSync(this.cacheFilePath)) {
+		try {
+			if (fs.existsSync(this.cacheFilePath)) {
 				fs.unlinkSync(this.cacheFilePath);
 			}
 			this.buildCache = [];
@@ -1078,18 +1079,21 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 				// Clean up empty downloads directory if needed
 				await this.cleanupEmptyDirectory(downloadsPath);
-			}// Invalidate extracted builds cache if we deleted an extracted build
+			}
+			// Invalidate extracted builds cache if we deleted an extracted build
 			if (deletedExtract) {
 				this.invalidateExtractedBuildsCache();
 			}
 
-			// Remove from installed builds cache if anything was deleted
-			if (deletedDownload || deletedExtract) {
-				await this.removeInstalledBuild(build);
-			}
-
+			// Always remove from installed builds cache to handle cases where files are missing
+			// but metadata still exists (orphaned cache entries)
+			await this.removeInstalledBuild(build);
 			// Emit deletion event
 			this.emit('buildDeleted', build, { deletedDownload, deletedExtract });
+
+			// Emit buildsUpdated event to refresh the UI with updated build list
+			this.emit('buildsUpdated', this.getCachedBuilds());
+
 			const deletedItems: string[] = [];
 			if (deletedDownload) deletedItems.push('download');
 			if (deletedExtract) deletedItems.push('extracted files');
@@ -1097,7 +1101,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			if (deletedItems.length > 0) {
 				new Notice(`Deleted ${build.subversion}: ${deletedItems.join(' and ')}`);
 			} else {
-				new Notice(`No installed files found for ${build.subversion}`);
+				new Notice(`Removed ${build.subversion} from installed builds list (no files found)`);
 			}
 
 			return { deletedDownload, deletedExtract };
