@@ -26,6 +26,7 @@ from ..core import (
     build_section_heading_regex,
     build_heading_section_break_regex
 )
+from ..preferences import get_obsidian_vault_root # MODIFIED IMPORT
 from ..utils.templates import (
     build_template_heading_regex,
     build_main_section_break_regex,
@@ -252,6 +253,17 @@ class PathResolver:
         if blender_path.startswith("//"):
             return PathResolver.normalize_path(bpy.path.abspath(blender_path))
         return PathResolver.normalize_path(blender_path)
+
+    @staticmethod
+    def resolve_from_vault(vault_relative_path: str) -> str:
+        """Resolve a vault-relative path to an absolute path."""
+        vault_root = get_obsidian_vault_root() # MODIFIED FUNCTION CALL
+        if not vault_root:
+            log_error("Vault root not found. Cannot resolve vault-relative path.", module_name='PathResolver')
+            # Fallback or raise an error, depending on desired behavior
+            # For now, returning the original path might be safest if vault_root is None
+            return vault_relative_path 
+        return PathResolver.normalize_path(os.path.join(vault_root, vault_relative_path.lstrip('/\\')))
 
 
 class LibraryManager:
