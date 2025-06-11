@@ -14,8 +14,8 @@
 }
 
 .blender-status-line {
-    font-family: var(--font-monospace);
-    font-size: var(--font-ui-smaller);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
 }
 
 .blender-status-icon {
@@ -53,22 +53,34 @@
 }
 
 .blender-status-loading {
-    color: var(--text-muted);
+	color: var(--text-muted);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	display: block;
+	width: 100%;
 }
 
 .blender-status-active {
-    color: var(--text-accent);
-    font-weight: var(--font-weight-medium);
+	color: var(--text-accent);
+	font-weight: var(--font-weight-medium);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	display: block;
+	width: 100%;
 }
 
 .blender-status-idle {
-    color: var(--text-muted);
+	color: var(--text-muted);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	display: block;
+	width: 100%;
 }
 
-.blender-status-time {
-    color: var(--text-faint);
-    font-size: var(--font-ui-smaller);
-}
+/* Status message styling - consistent colors for all status elements */
 
 /* Builds list styles */
 .blender-content-area {
@@ -283,15 +295,23 @@
     pointer-events: none;
 }
 
-/* Loading state for refresh button */
-.blender-toolbar .clickable-icon.is-loading {
-    animation: spin 1s linear infinite;
-    opacity: 0.7;
+/* Custom loading animation for refresh button - spinning icon */
+.blender-refreshing {
+	position: relative !important;
 }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+/* Make the SVG icon spin when loading - more specific selector */
+.blender-refreshing svg,
+.blender-refreshing .svg-icon,
+.blender-refreshing .lucide {
+	animation: 2s linear infinite loading;
+    transform-origin: 50% 50%;
+    display: inline-block;
+}
+
+@keyframes blender-refresh-spin {
+	0% { transform: rotate(0deg); }
+	100% { transform: rotate(360deg); }
 }
 
 /* Filters section */

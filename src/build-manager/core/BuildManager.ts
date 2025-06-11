@@ -302,7 +302,6 @@ export class FetchBlenderBuilds extends EventEmitter {
 			throw error;
 		}
 	}
-
 	/**
 	 * Get cached builds merged with locally installed builds
 	 */
@@ -310,7 +309,21 @@ export class FetchBlenderBuilds extends EventEmitter {
 		const officialBuilds = [...this.buildCache];
 		const orphanedBuilds: BlenderBuildInfo[] = [];
 
-
+		// First, update official builds with installed metadata
+		let updatedCount = 0;
+		for (const build of officialBuilds) {
+			const installedMetadata = this.installedBuildsCache.find(metadata =>
+				build.link === metadata.link && build.subversion === metadata.subversion
+			);
+			
+			if (installedMetadata) {
+				// Mark this build as installed by updating its properties
+				build.extractedPath = installedMetadata.extractedPath;
+				build.archivePath = installedMetadata.archivePath;
+				build.customExecutable = installedMetadata.customExecutable;
+				updatedCount++;
+			}
+		}
 
 		// Convert installed builds metadata to BlenderBuildInfo and find orphaned builds
 		for (const metadata of this.installedBuildsCache) {
@@ -319,16 +332,17 @@ export class FetchBlenderBuilds extends EventEmitter {
 				build.link === metadata.link && build.subversion === metadata.subversion
 			);
 
-
-
 			if (!exists) {
 				// This is an orphaned install - build no longer in official cache
 				const orphanedBuild = this.metadataToBlenderBuildInfo(metadata, true);
-
 				orphanedBuilds.push(orphanedBuild);
 			}
 		}
 
+		// Log summary only when there are installed builds
+		if (updatedCount > 0 || orphanedBuilds.length > 0) {
+			loggerDebug(this, `getCachedBuilds: Updated ${updatedCount} builds with install metadata, ${orphanedBuilds.length} orphaned builds`);
+		}
 
 		// Return merged list with orphaned builds at the end
 		return [...officialBuilds, ...orphanedBuilds];
@@ -614,8 +628,15 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Debug method to show what builds are in cache
-	 */
-	debugShowCacheContents(): void {
+	 */	debugShowCacheContents(): void {
+		// Show installed builds cache info
+		loggerInfo(this, `=== DEBUG CACHE CONTENTS ===`);
+		loggerInfo(this, `Build cache: ${this.buildCache.length} builds`);
+		loggerInfo(this, `Installed builds cache: ${this.installedBuildsCache.length} builds`);
+		
+		this.installedBuildsCache.forEach((metadata, index) => {
+			loggerInfo(this, `Installed build ${index + 1}: ${metadata.subversion} (link: ${metadata.link}), extractedPath: ${metadata.extractedPath}`);
+		});
 
 		// Group builds by type
 		const buildsByType: Record<string, BlenderBuildInfo[]> = {};
@@ -629,9 +650,10 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 		// Show summary by type
 		for (const [type, builds] of Object.entries(buildsByType)) {
-
+			loggerInfo(this, `${type}: ${builds.length} builds`);
 			// Show first few builds of each type
 			builds.slice(0, 2).forEach(build => {
+				loggerInfo(this, `  - ${build.subversion} (${build.branch})`);
 			});
 		}
 
@@ -641,9 +663,11 @@ export class FetchBlenderBuilds extends EventEmitter {
 			build.branch.toLowerCase().includes('main')
 		);
 
+		loggerInfo(this, `Found ${potentialMatches.length} potential matches for 4.5.0-main builds`);
 		new Notice(`Found ${potentialMatches.length} potential matches for 4.5.0-main builds`, 6000);
 
 		potentialMatches.slice(0, 5).forEach(build => {
+			loggerInfo(this, `Match candidate: ${build.subversion}-${build.branch}`);
 			new Notice(`Match candidate: ${build.subversion}-${build.branch}`, 5000);
 		});
 	}
@@ -1093,8 +1117,15 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	  * Check if a build is installed (downloaded or extracted)
-	  */
-	isBuildInstalled(build: BlenderBuildInfo): { downloaded: boolean; extracted: boolean } {
+	  */	isBuildInstalled(build: BlenderBuildInfo): { downloaded: boolean; extracted: boolean } {
+		// First check if the build has extractedPath set (from installed builds cache)
+		if (build.extractedPath) {
+			const extracted = fs.existsSync(build.extractedPath);
+			const downloaded = build.archivePath ? fs.existsSync(build.archivePath) : false;
+			loggerDebug(this, `isBuildInstalled: Build ${build.subversion} has extractedPath, extracted: ${extracted}, downloaded: ${downloaded}`);
+			return { downloaded, extracted };
+		}
+
 		// Handle orphaned builds differently
 		if (build.isOrphanedInstall) {
 			const downloaded = build.archivePath ? fs.existsSync(build.archivePath) : false;
@@ -1102,7 +1133,7 @@ export class FetchBlenderBuilds extends EventEmitter {
 			return { downloaded, extracted };
 		}
 
-		// Handle regular builds
+		// Handle regular builds - check file system
 		const downloadsPath = this.getDownloadsPathForBuild(build);
 		const expectedFileName = this.extractFileName(build.link);
 		const downloadPath = path.join(downloadsPath, expectedFileName);
@@ -1202,10 +1233,10 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 	/**
 	 * Load installed builds metadata from cache
-	 */
-	private async loadInstalledBuildsCache(): Promise<InstalledBuildMetadata[]> {
+	 */	private async loadInstalledBuildsCache(): Promise<InstalledBuildMetadata[]> {
 		try {
 			if (!fs.existsSync(this.installedBuildsCacheFilePath)) {
+				loggerDebug(this, 'loadInstalledBuildsCache: Cache file does not exist, returning empty array');
 				return [];
 			}
 
@@ -1214,10 +1245,12 @@ export class FetchBlenderBuilds extends EventEmitter {
 
 			// Validate cache version
 			if (cache.version !== FetchBlenderBuilds.INSTALLED_BUILDS_CACHE_VERSION) {
+				loggerWarn(this, `loadInstalledBuildsCache: Cache version mismatch. Expected: ${FetchBlenderBuilds.INSTALLED_BUILDS_CACHE_VERSION}, Got: ${cache.version}`);
 				return [];
 			}
 
 			this.installedBuildsCache = cache.builds;
+			loggerDebug(this, `loadInstalledBuildsCache: Loaded ${this.installedBuildsCache.length} installed builds from cache`);
 
 			// Clean up any orphaned duplicates after loading
 			this.cleanupOrphanedDuplicates();

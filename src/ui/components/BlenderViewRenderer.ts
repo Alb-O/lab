@@ -29,9 +29,8 @@ export class BlenderViewRenderer {
 	private buildsRenderer: BlenderBuildsRenderer;	// State handling
 	private isInitialized = false;
 	private isRefreshing = false;
-	private cachedBuilds: BlenderBuildInfo[] = [];
 	private currentFilter: string = '';
-	private currentBranch: string = 'all';	private currentBuildType: BuildType | 'all' = 'all';
+	private currentBranch: string = 'all';private currentBuildType: BuildType | 'all' = 'all';
 	private showInstalledOnly = false;
 	private pinSymlinkedBuild = false;
 	private isTypeFilterVisible = false;	constructor(
@@ -168,6 +167,12 @@ export class BlenderViewRenderer {
 			buildType: this.currentBuildType,
 			installedOnly: this.showInstalledOnly
 		});
+		
+		// Log summary for debugging if needed
+		const installedCount = builds.filter(build => build.extractedPath).length;
+		if (installedCount > 0) {
+			loggerDebug(this, `updateBuildsContent: ${installedCount} installed builds out of ${builds.length} total, ${filteredBuilds.length} after filtering`);
+		}
 		
 		// Render builds with highlighting and pin state
 		// Pass both filtered builds and all builds so pinned build can be found from unfiltered list
@@ -377,13 +382,12 @@ export class BlenderViewRenderer {
 		// Listen for settings updates (to refresh view when architecture changes)
 		this.buildManager.on('settingsUpdated', this.onSettingsUpdated.bind(this));
 	}
-
 	/**
 	 * Handle builds updated event
 	 */
 	private async onBuildsUpdated(builds: BlenderBuildInfo[]): Promise<void> {
-		loggerDebug(this, '[BlenderViewRenderer] onBuildsUpdated called with', builds.length, 'builds');
-		this.cachedBuilds = builds;
+		loggerDebug(this, 'Updating', builds.length, 'builds');
+		// Refresh the UI to show the updated builds list
 		await this.updateBuildsContent();
 	}
 
@@ -540,7 +544,9 @@ export class BlenderViewRenderer {
 	
 	getStatusDisplay(): BlenderStatusDisplay { 
 		return this.statusDisplay; 
-	}	getBuildsRenderer(): BlenderBuildsRenderer { 
+	}
+	
+	getBuildsRenderer(): BlenderBuildsRenderer { 
 		return this.buildsRenderer; 
 	}
 	/**

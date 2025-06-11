@@ -1,5 +1,5 @@
 import { Notice, Plugin, WorkspaceLeaf, addIcon } from 'obsidian';
-import { initLogger, registerLoggerClass, loggerDebug, loggerInfo, loggerWarn, loggerError } from '@utils/obsidian-logger';
+import { initLogger, registerLoggerClass, loggerDebug, loggerInfo, loggerWarn, loggerError, initializeDebugSystem } from '@utils/obsidian-logger';
 import { BLENDER_ICON_SVG } from '@constants';
 import { BlenderPluginSettings, DEFAULT_SETTINGS, BlenderBuildManagerSettingsTab } from '@settings';
 import { BuildManager } from '@build-manager';
@@ -9,7 +9,6 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 	settings: BlenderPluginSettings;
 	buildManager: BuildManager;	async onload() {
 		// Initialize the logger system
-		loggerDebug(this, 'Initializing logger system');
 		initLogger(this);
 		registerLoggerClass(this, 'BlenderBuildManagerPlugin');
 
@@ -42,6 +41,10 @@ export default class BlenderBuildManagerPlugin extends Plugin {
 			});
 			throw initError;
 		}
+
+		this.app.workspace.onLayoutReady(() => {
+      		initializeDebugSystem();
+   	 	});
 	}
 	private initializeComponents() {
 		loggerDebug(this, 'Registering Blender builds view type');

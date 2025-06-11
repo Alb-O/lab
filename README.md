@@ -1,6 +1,6 @@
 # Blender Build Manager
 
-Download, manage, and launch Blender builds directly from Obsidian.
+Download, manage, and launch Blender builds directly from Obsidian. This is an unnoficial plugin, I am not affiliated with the Blender Foundation in any way.
 
 > [!WARNING]
 > This plugin requires an internet connection to fetch and download Blender builds from the official Blender servers.
@@ -26,6 +26,6 @@ After installing, use the ribbon icon or command palette to open the Blender Bui
 
 ## Debugging
 
-In Devloper Console, run `window.DEBUG.enable('blender-build-manager')`
+In Devloper Console, run `window.DEBUG['blender-build-manager'].enable()`
 
 To learn more, see [obsidian-logger](https://github.com/AMC-Albert/obsidian-logger).

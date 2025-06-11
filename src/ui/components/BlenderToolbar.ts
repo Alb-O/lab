@@ -92,17 +92,16 @@ export class BlenderToolbar {
 
 	/**
 	 * Set refreshing state for the refresh button
-	 */
-	setRefreshingState(isRefreshing: boolean): void {
+	 */	setRefreshingState(isRefreshing: boolean): void {
 		const refreshButton = this.buttons.get('refresh');
 		if (refreshButton) {
 			if (isRefreshing) {
 				refreshButton.setDisabled(true);
-				// Add a visual indicator that it's refreshing (but keep the icon)
-				refreshButton.buttonEl.addClass('is-loading');
+				// Add our custom spinning animation class
+				refreshButton.buttonEl.addClass('blender-refreshing');
 			} else {
 				refreshButton.setDisabled(false);
-				refreshButton.buttonEl.removeClass('is-loading');
+				refreshButton.buttonEl.removeClass('blender-refreshing');
 			}
 		}
 	}

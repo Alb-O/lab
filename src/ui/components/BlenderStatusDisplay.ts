@@ -1,5 +1,5 @@
 import { FetchBlenderBuilds } from '@/build-manager';
-import { ScrapingStatus, DownloadProgress, BlenderBuildInfo, DownloadError, ExtractionError, ExtractionProgressEvent } from '@types';
+import { BlenderBuildInfo, DownloadError, ExtractionError, ExtractionProgressEvent } from '@types';
 import { loggerDebug, loggerInfo, loggerWarn, loggerError, registerLoggerClass } from '@/utils/obsidian-logger';
 
 export class BlenderStatusDisplay {
@@ -38,7 +38,6 @@ export class BlenderStatusDisplay {
 			this.renderScrapingStatus();
 		}
 	}
-
 	/**
 	 * Render current activity status (download/extraction)
 	 */
@@ -46,28 +45,28 @@ export class BlenderStatusDisplay {
 		if (!this.statusEl || !this.currentActivity) return;
 
 		const statusLine = this.statusEl.createDiv('blender-status-line');
-		statusLine.createSpan({
-			text: this.currentActivity,
-			cls: 'blender-status-active'
-		});
-
+		
+		// Build complete status text with timer
+		let statusText = this.currentActivity;
+		
 		// Show elapsed time for long-running activities
 		if (this.activityStartTime) {
 			const elapsed = Math.floor((Date.now() - this.activityStartTime.getTime()) / 1000);
 			if (elapsed > 5) { // Show elapsed time after 5 seconds
-				const timeText = ` (${elapsed}s)`;
-				statusLine.createSpan({
-					text: timeText,
-					cls: 'blender-status-time'
-				});
+				statusText += ` (${elapsed}s)`;
 			}
 		}
+		
+		// Create single span with consistent styling
+		statusLine.createSpan({
+			text: statusText,
+			cls: 'blender-status-active'
+		});
 	}
 
 	/**
 	 * Render scraping status section
-	 */
-	private renderScrapingStatus(): void {
+	 */	private renderScrapingStatus(): void {
 		if (!this.statusEl) return;
 
 		// Get actual scraping status from build manager
@@ -75,7 +74,7 @@ export class BlenderStatusDisplay {
 
 		// Create a single status line without extra containers
 		const statusText = status.isActive ? status.currentTask || 'Active' : 'Idle';
-		const timeText = status.lastChecked ? ` • Last checked: ${status.lastChecked.toLocaleTimeString()}` : '';
+		const timeText = status.lastChecked ? ` • Last checked: ${status.lastChecked.toLocaleDateString()} ${status.lastChecked.toLocaleTimeString()}` : '';
 
 		const statusLine = this.statusEl.createDiv('blender-status-line');
 		statusLine.createSpan({
