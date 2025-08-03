@@ -4,11 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Low-level parsing engine for Blender .blend files"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/Alb-O/blend-chunk"
 readme = "../../README.md"
 keywords = ["blender", "blend", "parser", "graphics", "3d"]
 categories = ["multimedia", "parser-implementations", "graphics"]
 
 [dependencies]
-thiserror = "1.0"
-log = "0.4"
+log = "0.4.27"
+thiserror = "2.0.12"
