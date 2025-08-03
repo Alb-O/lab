@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "crates/bllink-parser",
+    "crates/bllink-tracer",
+    "crates/bllink-cli",
+]
+resolver = "2"

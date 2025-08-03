@@ -1,0 +1,15 @@
+[package]
+name = "bllink-tracer"
+version = "0.1.0"
+edition = "2021"
+description = "Dependency tracing engine for Blender .blend files"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Alb-O/blend-chunk"
+readme = "../../README.md"
+keywords = ["blender", "blend", "dependencies", "tracing", "3d"]
+categories = ["multimedia", "graphics"]
+
+[dependencies]
+bllink-parser = { path = "../bllink-parser" }
+thiserror = "1.0"
+log = "0.4"
