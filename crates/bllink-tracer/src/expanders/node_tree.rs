@@ -29,13 +29,13 @@ impl<R: Read + Seek> BlockExpander<R> for NodeTreeExpander {
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {
-        // Handle both NT blocks and DATA blocks that might contain node trees
-        code == b"NT\0\0" || code == b"DATA"
+        // Only handle NT blocks - DATA blocks are too generic and can be collections, etc.
+        code == b"NT\0\0"
     }
 }
 
 /// Try to expand a block as a node tree using different approaches
-fn try_expand_as_nodetree<R: Read + Seek>(
+pub fn try_expand_as_nodetree<R: Read + Seek>(
     block_index: usize,
     blend_file: &mut BlendFile<R>,
 ) -> Result<Vec<usize>> {

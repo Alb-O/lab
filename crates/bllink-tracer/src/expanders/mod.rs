@@ -5,6 +5,7 @@
 
 pub mod cache_file;
 pub mod collection;
+pub mod data_block;
 pub mod image;
 pub mod lamp;
 pub mod library;
@@ -18,6 +19,7 @@ pub mod texture;
 
 pub use cache_file::CacheFileExpander;
 pub use collection::CollectionExpander;
+pub use data_block::DataBlockExpander;
 pub use image::ImageExpander;
 pub use lamp::LampExpander;
 pub use library::LibraryExpander;

@@ -23,6 +23,19 @@ impl<R: Read + Seek> BlockExpander<R> for CollectionExpander {
             let collection_data = blend_file.read_block_data(block_index)?;
             let reader = blend_file.create_field_reader(&collection_data)?;
 
+            // For DATA blocks, check if this is actually a collection or something else (like a nodetree)
+            let block = &blend_file.blocks[block_index];
+            if block.header.code == *b"DATA" {
+                // Try to detect if this is a collection by looking for collection fields
+                let has_gobject = reader.read_field_pointer("Collection", "gobject").is_ok();
+                let has_children = reader.read_field_pointer("Collection", "children").is_ok();
+
+                if !has_gobject && !has_children {
+                    // This DATA block doesn't look like a collection, skip it
+                    return Ok(dependencies);
+                }
+            }
+
             // Try "Collection" first (Blender 2.8+)
             let gobject = reader
                 .read_field_pointer("Collection", "gobject")
@@ -51,7 +64,8 @@ impl<R: Read + Seek> BlockExpander<R> for CollectionExpander {
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {
-        code == b"GR\0\0"
+        // Handle both GR blocks (legacy/actual collections) and DATA blocks (modern collection containers)
+        code == b"GR\0\0" || code == b"DATA"
     }
 }
 
