@@ -1,8 +1,9 @@
 [workspace]
 members = [
-    "crates/bllink-parser",
-    "crates/bllink-tracer",
-    "crates/bllink-cli",
-    "crates/bllink-diff", "crates/bllink-editor",
+    "crates/dot001-parser",
+    "crates/dot001-tracer",
+    "crates/dot001-cli",
+    "crates/dot001-diff",
+    "crates/dot001-editor",
 ]
 resolver = "2"

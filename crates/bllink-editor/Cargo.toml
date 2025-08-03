@@ -1,9 +1,0 @@
-[package]
-name = "bllink-editor"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-bllink-parser = { path = "../bllink-parser" }
-bllink-tracer = { path = "../bllink-tracer" }
-thiserror = "1.0"

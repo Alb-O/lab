@@ -1,0 +1,15 @@
+[package]
+name = "dot001-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dot001-tracer = { path = "../dot001-tracer" }
+dot001-diff = { path = "../dot001-diff" }
+dot001-parser = { path = "../dot001-parser" }
+dot001-editor = { path = "../dot001-editor" }
+clap = { version = "4.5.42", features = ["derive"] }
+env_logger = "0.11.8"
+log = "0.4.27"
+serde_json = "1.0.142"
+text_trees = "0.1.2"

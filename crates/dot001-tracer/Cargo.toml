@@ -1,0 +1,15 @@
+[package]
+name = "dot001-tracer"
+version = "0.1.0"
+edition = "2021"
+description = "Dependency tracing engine for Blender .blend files"
+license = "MIT OR Apache-2.0"
+readme = "../../README.md"
+keywords = ["blender", "blend", "dependencies", "tracing", "3d"]
+categories = ["multimedia", "graphics"]
+
+[dependencies]
+dot001-parser = { path = "../dot001-parser" }
+log = "0.4.27"
+serde = { version = "1.0.219", features = ["derive"] }
+thiserror = "2.0.12"

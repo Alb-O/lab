@@ -79,59 +79,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bllink-cli"
-version = "0.1.0"
-dependencies = [
- "bllink-diff",
- "bllink-editor",
- "bllink-parser",
- "bllink-tracer",
- "clap",
- "env_logger",
- "log",
- "serde_json",
- "text_trees",
-]
-
-[[package]]
-name = "bllink-diff"
-version = "0.1.0"
-dependencies = [
- "bdiff",
- "bllink-parser",
- "log",
- "serde",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "bllink-editor"
-version = "0.1.0"
-dependencies = [
- "bllink-parser",
- "bllink-tracer",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "bllink-parser"
-version = "0.1.0"
-dependencies = [
- "log",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "bllink-tracer"
-version = "0.1.0"
-dependencies = [
- "bllink-parser",
- "log",
- "serde",
- "thiserror 2.0.12",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -188,6 +135,59 @@ name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
+
+[[package]]
+name = "dot001-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "dot001-diff",
+ "dot001-editor",
+ "dot001-parser",
+ "dot001-tracer",
+ "env_logger",
+ "log",
+ "serde_json",
+ "text_trees",
+]
+
+[[package]]
+name = "dot001-diff"
+version = "0.1.0"
+dependencies = [
+ "bdiff",
+ "dot001-parser",
+ "log",
+ "serde",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "dot001-editor"
+version = "0.1.0"
+dependencies = [
+ "dot001-parser",
+ "dot001-tracer",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "dot001-parser"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "dot001-tracer"
+version = "0.1.0"
+dependencies = [
+ "dot001-parser",
+ "log",
+ "serde",
+ "thiserror 2.0.12",
+]
 
 [[package]]
 name = "env_filter"
