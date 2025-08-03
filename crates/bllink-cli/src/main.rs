@@ -4,15 +4,26 @@ use bllink_tracer::{BlendFile, Result};
 use bllink_tracer::{
     CollectionExpander, DependencyTracer, MeshExpander, ObjectExpander, SceneExpander,
 };
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
+use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Clone, ValueEnum)]
+enum OutputFormat {
+    /// Simple flat list of dependencies
+    Flat,
+    /// Hierarchical tree structure
+    Tree,
+    /// JSON output
+    Json,
 }
 
 #[derive(Subcommand)]
@@ -26,6 +37,13 @@ enum Commands {
         file: PathBuf,
         #[arg(short, long)]
         block_index: usize,
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
+        format: OutputFormat,
+        #[arg(
+            long,
+            help = "Use ASCII characters instead of Unicode box characters for tree output"
+        )]
+        ascii: bool,
     },
 }
 
@@ -35,7 +53,12 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Info { file } => cmd_info(file),
         Commands::Blocks { file } => cmd_blocks(file),
-        Commands::Dependencies { file, block_index } => cmd_dependencies(file, block_index),
+        Commands::Dependencies {
+            file,
+            block_index,
+            format,
+            ascii,
+        } => cmd_dependencies(file, block_index, format, ascii),
     }
 }
 
@@ -86,7 +109,12 @@ fn cmd_blocks(file_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_dependencies(file_path: PathBuf, block_index: usize) -> Result<()> {
+fn cmd_dependencies(
+    file_path: PathBuf,
+    block_index: usize,
+    format: OutputFormat,
+    ascii: bool,
+) -> Result<()> {
     let file = File::open(&file_path)?;
     let mut reader = BufReader::new(file);
     let mut blend_file = BlendFile::new(&mut reader)?;
@@ -110,30 +138,83 @@ fn cmd_dependencies(file_path: PathBuf, block_index: usize) -> Result<()> {
 
     let start_block = &blend_file.blocks[block_index];
     let start_code = String::from_utf8_lossy(&start_block.header.code);
-    println!(
-        "Tracing dependencies for block {} ({}):",
-        block_index,
-        start_code.trim_end_matches('\0')
-    );
 
-    let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
+    match format {
+        OutputFormat::Flat => {
+            println!(
+                "Tracing dependencies for block {} ({}):",
+                block_index,
+                start_code.trim_end_matches('\0')
+            );
 
-    if deps.is_empty() {
-        println!("  No dependencies found");
-    } else {
-        println!("  Found {} dependencies:", deps.len());
-        for (i, &dep_index) in deps.iter().enumerate() {
-            if let Some(block) = blend_file.get_block(dep_index) {
-                let code_str = String::from_utf8_lossy(&block.header.code);
-                println!(
-                    "    {}: Block {} ({})",
-                    i + 1,
-                    dep_index,
-                    code_str.trim_end_matches('\0')
-                );
+            let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
+
+            if deps.is_empty() {
+                println!("  No dependencies found");
+            } else {
+                println!("  Found {} dependencies:", deps.len());
+                for (i, &dep_index) in deps.iter().enumerate() {
+                    if let Some(block) = blend_file.get_block(dep_index) {
+                        let code_str = String::from_utf8_lossy(&block.header.code);
+                        println!(
+                            "    {}: Block {} ({})",
+                            i + 1,
+                            dep_index,
+                            code_str.trim_end_matches('\0')
+                        );
+                    }
+                }
+            }
+        }
+        OutputFormat::Tree => {
+            println!(
+                "Dependency tree for block {} ({}):",
+                block_index,
+                start_code.trim_end_matches('\0')
+            );
+
+            let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
+            let tree_display = build_text_tree(&tree.root);
+
+            // Use box characters for a cleaner look (ASCII option for compatibility)
+            let format_chars = if ascii {
+                FormatCharacters::ascii()
+            } else {
+                FormatCharacters::box_chars()
+            };
+            let formatting = TreeFormatting::dir_tree(format_chars);
+            match tree_display.to_string_with_format(&formatting) {
+                Ok(output) => println!("{output}"),
+                Err(e) => eprintln!("Error formatting tree: {e}"),
+            }
+
+            println!("Summary:");
+            println!("  Total dependencies: {}", tree.total_dependencies);
+            println!("  Maximum depth: {}", tree.max_depth);
+        }
+        OutputFormat::Json => {
+            let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
+            match serde_json::to_string_pretty(&tree) {
+                Ok(json) => println!("{json}"),
+                Err(e) => eprintln!("Error serializing to JSON: {e}"),
             }
         }
     }
 
     Ok(())
+}
+
+fn build_text_tree(node: &bllink_tracer::DependencyNode) -> StringTreeNode {
+    let label = format!(
+        "Block {} ({}) - size: {}, addr: 0x{:x}",
+        node.block_index, node.block_code, node.block_size, node.block_address
+    );
+
+    if node.children.is_empty() {
+        StringTreeNode::new(label)
+    } else {
+        let child_nodes: Vec<StringTreeNode> = node.children.iter().map(build_text_tree).collect();
+
+        StringTreeNode::with_child_nodes(label, child_nodes.into_iter())
+    }
 }
