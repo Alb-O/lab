@@ -2,7 +2,9 @@
 
 use bllink_tracer::{BlendFile, Result};
 use bllink_tracer::{
-    CollectionExpander, DependencyTracer, MeshExpander, ObjectExpander, SceneExpander,
+    CacheFileExpander, CollectionExpander, DependencyTracer, ImageExpander, LampExpander,
+    LibraryExpander, MaterialExpander, MeshExpander, ObjectExpander, SceneExpander, SoundExpander,
+    TextureExpander,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::fs::File;
@@ -135,6 +137,13 @@ fn cmd_dependencies(
     tracer.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
     tracer.register_expander(*b"ME\0\0", Box::new(MeshExpander));
     tracer.register_expander(*b"GR\0\0", Box::new(CollectionExpander));
+    tracer.register_expander(*b"MA\0\0", Box::new(MaterialExpander));
+    tracer.register_expander(*b"TE\0\0", Box::new(TextureExpander));
+    tracer.register_expander(*b"IM\0\0", Box::new(ImageExpander));
+    tracer.register_expander(*b"LI\0\0", Box::new(LibraryExpander));
+    tracer.register_expander(*b"CF\0\0", Box::new(CacheFileExpander));
+    tracer.register_expander(*b"SO\0\0", Box::new(SoundExpander));
+    tracer.register_expander(*b"LA\0\0", Box::new(LampExpander));
 
     let start_block = &blend_file.blocks[block_index];
     let start_code = String::from_utf8_lossy(&start_block.header.code);
