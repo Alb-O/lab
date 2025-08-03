@@ -27,19 +27,27 @@
 //! performance and memory safety.
 
 pub mod block;
+pub mod compression;
 pub mod dna;
 pub mod error;
 pub mod fields;
 pub mod header;
 
 pub use block::{BlendFileBlock, BlockHeader};
+pub use compression::{CompressionKind, DecompressionMode, DecompressionPolicy, ParseOptions};
 pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
 pub use error::{BlendError, Result};
 pub use fields::FieldReader;
 pub use header::BlendFileHeader;
 
 use std::collections::HashMap;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
+/// A trait for readable and seekable sources that can be sent across threads
+pub trait ReadSeekSend: Read + Seek + Send {}
+
+// Blanket implementation for all types that implement the required traits
+impl<T: Read + Seek + Send> ReadSeekSend for T {}
 
 /// Main parser for .blend files
 pub struct BlendFile<R: Read + Seek> {
@@ -53,6 +61,16 @@ pub struct BlendFile<R: Read + Seek> {
 
 impl<R: Read + Seek> BlendFile<R> {
     pub fn new(mut reader: R) -> Result<Self> {
+        // Check if file is zstd compressed by reading magic bytes
+        let mut magic_bytes = [0u8; 4];
+        reader.read_exact(&mut magic_bytes)?;
+        reader.seek(SeekFrom::Start(0))?;
+
+        // Zstandard magic number is 0x28B52FFD (little endian: FD 2F B5 28)
+        if magic_bytes == [0x28, 0xB5, 0x2F, 0xFD] {
+            return Err(BlendError::UnsupportedCompression("Zstandard-compressed blend files require decompression first. Use 'zstd -d' to decompress the file.".to_string()));
+        }
+
         let header = BlendFileHeader::read(&mut reader)?;
 
         let mut blend_file = BlendFile {
@@ -173,4 +191,103 @@ impl<R: Read + Seek> BlendFile<R> {
         );
         Ok(reader)
     }
+}
+
+/// Create a BlendFile from a file path, automatically handling zstd compression
+///
+/// This is a backward-compatible function that uses default decompression policy.
+/// For more control, use `parse_from_path` instead.
+pub fn from_path<P: AsRef<std::path::Path>>(path: P) -> Result<BlendFile<Cursor<Vec<u8>>>> {
+    let mut file = std::fs::File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+
+    // Check if file is zstd compressed
+    if buffer.len() >= 4 && buffer[0..4] == [0x28, 0xB5, 0x2F, 0xFD] {
+        // Decompress with zstd
+        #[cfg(feature = "zstd")]
+        {
+            let decompressed = zstd::decode_all(&buffer[..])?;
+            let cursor = Cursor::new(decompressed);
+            BlendFile::new(cursor)
+        }
+        #[cfg(not(feature = "zstd"))]
+        {
+            Err(BlendError::UnsupportedCompression(
+                "Zstd support not compiled in".to_string(),
+            ))
+        }
+    } else {
+        let cursor = Cursor::new(buffer);
+        BlendFile::new(cursor)
+    }
+}
+
+/// Parse a blend file from a path with transparent decompression handling
+pub fn parse_from_path<P: AsRef<std::path::Path>>(
+    path: P,
+    options: Option<&ParseOptions>,
+) -> Result<(BlendFile<Box<dyn ReadSeekSend>>, DecompressionMode)> {
+    use compression::{create_reader, open_source};
+
+    let default_options = ParseOptions::default();
+    let options = options.unwrap_or(&default_options);
+    let blend_read = open_source(path, Some(&options.decompression_policy))?;
+
+    // Determine the decompression mode based on what we got back
+    let mode = match &blend_read {
+        compression::BlendRead::Memory(_) => DecompressionMode::ZstdInMemory,
+        #[cfg(feature = "mmap")]
+        compression::BlendRead::TempMmap(_, _) => DecompressionMode::ZstdTempMmap,
+        compression::BlendRead::TempFile(_, _) => DecompressionMode::ZstdTempFile,
+        compression::BlendRead::File(_) => DecompressionMode::None,
+    };
+
+    let reader = create_reader(blend_read)?;
+    let blend_file = BlendFile::new(reader)?;
+
+    Ok((blend_file, mode))
+}
+
+/// Parse a blend file from a reader with transparent decompression handling
+pub fn parse_from_reader<R: Read + Seek + Send + 'static>(
+    mut reader: R,
+    options: Option<&ParseOptions>,
+) -> Result<(BlendFile<Box<dyn ReadSeekSend>>, DecompressionMode)> {
+    use compression::{
+        create_reader, detect_compression, CompressionKind, Decompressor, ZstdDecompressor,
+    };
+
+    let default_options = ParseOptions::default();
+    let options = options.unwrap_or(&default_options);
+    let compression = detect_compression(&mut reader)?;
+
+    let (blend_read, mode) = match compression {
+        CompressionKind::None => {
+            // Box the original reader directly
+            let boxed_reader: Box<dyn ReadSeekSend> = Box::new(reader);
+            let blend_file = BlendFile::new(boxed_reader)?;
+            return Ok((blend_file, DecompressionMode::None));
+        }
+        CompressionKind::Zstd => {
+            let decompressor = ZstdDecompressor;
+            let blend_read =
+                decompressor.decompress(&mut reader, None, &options.decompression_policy)?;
+
+            let mode = match &blend_read {
+                compression::BlendRead::Memory(_) => DecompressionMode::ZstdInMemory,
+                #[cfg(feature = "mmap")]
+                compression::BlendRead::TempMmap(_, _) => DecompressionMode::ZstdTempMmap,
+                compression::BlendRead::TempFile(_, _) => DecompressionMode::ZstdTempFile,
+                compression::BlendRead::File(_) => DecompressionMode::None, // Shouldn't happen for zstd
+            };
+
+            (blend_read, mode)
+        }
+    };
+
+    let reader = create_reader(blend_read)?;
+    let blend_file = BlendFile::new(reader)?;
+
+    Ok((blend_file, mode))
 }

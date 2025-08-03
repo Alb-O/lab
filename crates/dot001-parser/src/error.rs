@@ -13,6 +13,11 @@ pub enum BlendError {
     InvalidDna(String),
     InvalidData(String),
     InvalidField(String),
+    UnsupportedCompression(String),
+    DecompressionFailed(String),
+    TempFileError(std::io::Error),
+    NonSeekableSource(String),
+    SizeLimitExceeded(usize),
 }
 
 pub type Result<T> = std::result::Result<T, BlendError>;
@@ -41,6 +46,21 @@ impl fmt::Display for BlendError {
             BlendError::InvalidField(field) => {
                 write!(f, "Invalid field access: {field}")
             }
+            BlendError::UnsupportedCompression(msg) => {
+                write!(f, "Unsupported compression: {msg}")
+            }
+            BlendError::DecompressionFailed(msg) => {
+                write!(f, "Decompression failed: {msg}")
+            }
+            BlendError::TempFileError(err) => {
+                write!(f, "Temporary file error: {err}")
+            }
+            BlendError::NonSeekableSource(msg) => {
+                write!(f, "Non-seekable source: {msg}")
+            }
+            BlendError::SizeLimitExceeded(limit) => {
+                write!(f, "Size limit exceeded: {limit} bytes")
+            }
         }
     }
 }
@@ -49,6 +69,7 @@ impl std::error::Error for BlendError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             BlendError::Io(err) => Some(err),
+            BlendError::TempFileError(err) => Some(err),
             _ => None,
         }
     }

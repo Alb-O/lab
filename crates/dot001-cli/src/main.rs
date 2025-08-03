@@ -1,6 +1,7 @@
 // dot001-cli/src/main.rs
 
 use dot001_diff::BlendDiffer;
+use dot001_parser::{parse_from_path, DecompressionPolicy, ParseOptions};
 use dot001_tracer::{BlendFile, Result};
 
 mod diff_formatter;
@@ -19,6 +20,22 @@ use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Maximum size to decompress into memory (in MB)
+    #[arg(long, global = true, default_value = "256")]
+    max_in_memory: usize,
+
+    /// Custom temp directory for large compressed files
+    #[arg(long, global = true)]
+    temp_dir: Option<PathBuf>,
+
+    /// Prefer memory-mapped temp files
+    #[arg(long, global = true, action = clap::ArgAction::Set)]
+    prefer_mmap: Option<bool>,
+
+    /// Disable automatic decompression of compressed files
+    #[arg(long, global = true)]
+    no_auto_decompress: bool,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -106,16 +123,28 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    let parse_options = create_parse_options(&cli);
+
     match cli.command {
-        Commands::Info { file } => cmd_info(file),
-        Commands::Blocks { file, show_names } => cmd_blocks(file, show_names),
+        Commands::Info { file } => cmd_info(file, &parse_options, cli.no_auto_decompress),
+        Commands::Blocks { file, show_names } => {
+            cmd_blocks(file, show_names, &parse_options, cli.no_auto_decompress)
+        }
         Commands::Dependencies {
             file,
             block_index,
             format,
             ascii,
             show_names,
-        } => cmd_dependencies(file, block_index, format, ascii, show_names),
+        } => cmd_dependencies(
+            file,
+            block_index,
+            format,
+            ascii,
+            show_names,
+            &parse_options,
+            cli.no_auto_decompress,
+        ),
         Commands::Diff {
             file1,
             file2,
@@ -123,20 +152,66 @@ fn main() -> Result<()> {
             format,
             ascii,
             show_names,
-        } => cmd_diff(file1, file2, only_modified, format, ascii, show_names),
+        } => cmd_diff(
+            file1,
+            file2,
+            only_modified,
+            format,
+            ascii,
+            show_names,
+            &parse_options,
+            cli.no_auto_decompress,
+        ),
         Commands::Rename {
             file,
             block_index,
             new_name,
             dry_run,
-        } => cmd_rename(file, block_index, new_name, dry_run),
+        } => cmd_rename(
+            file,
+            block_index,
+            new_name,
+            dry_run,
+            &parse_options,
+            cli.no_auto_decompress,
+        ),
     }
 }
 
-fn cmd_info(file_path: PathBuf) -> Result<()> {
-    let file = File::open(&file_path)?;
-    let mut reader = BufReader::new(file);
-    let blend_file = BlendFile::new(&mut reader)?;
+fn create_parse_options(cli: &Cli) -> ParseOptions {
+    let mut policy = DecompressionPolicy::default();
+
+    policy.max_in_memory_bytes = cli.max_in_memory * 1024 * 1024; // Convert MB to bytes
+    policy.temp_dir = cli.temp_dir.clone();
+
+    if let Some(prefer_mmap) = cli.prefer_mmap {
+        policy.prefer_mmap_temp = prefer_mmap;
+    }
+
+    ParseOptions {
+        decompression_policy: policy,
+    }
+}
+
+fn load_blend_file(
+    file_path: &PathBuf,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
+) -> Result<BlendFile<Box<dyn dot001_parser::ReadSeekSend>>> {
+    if no_auto_decompress {
+        // Use old method that rejects compressed files
+        let file = File::open(file_path)?;
+        let reader = BufReader::new(file);
+        let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
+        BlendFile::new(boxed_reader)
+    } else {
+        let (blend_file, _mode) = parse_from_path(file_path, Some(options))?;
+        Ok(blend_file)
+    }
+}
+
+fn cmd_info(file_path: PathBuf, options: &ParseOptions, no_auto_decompress: bool) -> Result<()> {
+    let blend_file = load_blend_file(&file_path, options, no_auto_decompress)?;
 
     println!("File: {}", file_path.display());
     println!("Header:");
@@ -160,10 +235,13 @@ fn cmd_info(file_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_blocks(file_path: PathBuf, show_names: bool) -> Result<()> {
-    let file = File::open(&file_path)?;
-    let mut reader = BufReader::new(file);
-    let mut blend_file = BlendFile::new(&mut reader)?;
+fn cmd_blocks(
+    file_path: PathBuf,
+    show_names: bool,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
+) -> Result<()> {
+    let mut blend_file = load_blend_file(&file_path, options, no_auto_decompress)?;
 
     println!("Blocks in {}:", file_path.display());
 
@@ -200,10 +278,10 @@ fn cmd_dependencies(
     format: OutputFormat,
     ascii: bool,
     show_names: bool,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
 ) -> Result<()> {
-    let file = File::open(&file_path)?;
-    let mut reader = BufReader::new(file);
-    let mut blend_file = BlendFile::new(&mut reader)?;
+    let mut blend_file = load_blend_file(&file_path, options, no_auto_decompress)?;
 
     if block_index >= blend_file.blocks.len() {
         eprintln!(
@@ -341,14 +419,11 @@ fn cmd_diff(
     format: OutputFormat,
     ascii: bool,
     show_names: bool,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
 ) -> Result<()> {
-    let file1 = File::open(&file1_path)?;
-    let mut reader1 = BufReader::new(file1);
-    let mut blend_file1 = BlendFile::new(&mut reader1)?;
-
-    let file2 = File::open(&file2_path)?;
-    let mut reader2 = BufReader::new(file2);
-    let mut blend_file2 = BlendFile::new(&mut reader2)?;
+    let mut blend_file1 = load_blend_file(&file1_path, options, no_auto_decompress)?;
+    let mut blend_file2 = load_blend_file(&file2_path, options, no_auto_decompress)?;
 
     let differ = BlendDiffer::new();
     let diff_result = differ
@@ -395,12 +470,12 @@ fn cmd_rename(
     block_index: usize,
     new_name: String,
     dry_run: bool,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
 ) -> Result<()> {
     use dot001_editor::BlendEditor;
 
-    let file = File::open(&file_path)?;
-    let mut reader = BufReader::new(file);
-    let mut blend_file = BlendFile::new(&mut reader)?;
+    let mut blend_file = load_blend_file(&file_path, options, no_auto_decompress)?;
 
     // Verify the block exists and get current info
     if block_index >= blend_file.blocks.len() {
@@ -430,9 +505,8 @@ fn cmd_rename(
                 match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
                     Ok(()) => {
                         // Re-read the file to verify the change
-                        let file = File::open(&file_path)?;
-                        let mut reader = BufReader::new(file);
-                        let mut updated_blend_file = BlendFile::new(&mut reader)?;
+                        let mut updated_blend_file =
+                            load_blend_file(&file_path, options, no_auto_decompress)?;
 
                         match NameResolver::resolve_name(block_index, &mut updated_blend_file) {
                             Some(updated_name) => {
