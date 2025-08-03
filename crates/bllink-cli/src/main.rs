@@ -3,7 +3,7 @@
 use bllink_tracer::{BlendFile, Result};
 use bllink_tracer::{
     CacheFileExpander, CollectionExpander, DataBlockExpander, DependencyTracer, ImageExpander,
-    LampExpander, LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander,
+    LampExpander, LibraryExpander, MaterialExpander, MeshExpander, NameResolver, NodeTreeExpander,
     ObjectExpander, SceneExpander, SoundExpander, TextureExpander,
 };
 use clap::{Parser, Subcommand, ValueEnum};
@@ -46,6 +46,11 @@ enum Commands {
             help = "Use ASCII characters instead of Unicode box characters for tree output"
         )]
         ascii: bool,
+        #[arg(
+            long,
+            help = "Show user-defined names for datablocks (e.g., 'Cube', 'Material.001')"
+        )]
+        show_names: bool,
     },
 }
 
@@ -60,7 +65,8 @@ fn main() -> Result<()> {
             block_index,
             format,
             ascii,
-        } => cmd_dependencies(file, block_index, format, ascii),
+            show_names,
+        } => cmd_dependencies(file, block_index, format, ascii, show_names),
     }
 }
 
@@ -116,6 +122,7 @@ fn cmd_dependencies(
     block_index: usize,
     format: OutputFormat,
     ascii: bool,
+    show_names: bool,
 ) -> Result<()> {
     let file = File::open(&file_path)?;
     let mut reader = BufReader::new(file);
@@ -166,13 +173,17 @@ fn cmd_dependencies(
                 println!("  Found {} dependencies:", deps.len());
                 for (i, &dep_index) in deps.iter().enumerate() {
                     if let Some(block) = blend_file.get_block(dep_index) {
-                        let code_str = String::from_utf8_lossy(&block.header.code);
-                        println!(
-                            "    {}: Block {} ({})",
-                            i + 1,
-                            dep_index,
-                            code_str.trim_end_matches('\0')
-                        );
+                        let code_str = String::from_utf8_lossy(&block.header.code)
+                            .trim_end_matches('\0')
+                            .to_string();
+
+                        let display_name = if show_names {
+                            NameResolver::get_display_name(dep_index, &mut blend_file, &code_str)
+                        } else {
+                            code_str
+                        };
+
+                        println!("    {}: Block {} ({})", i + 1, dep_index, display_name);
                     }
                 }
             }
@@ -185,7 +196,7 @@ fn cmd_dependencies(
             );
 
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
-            let tree_display = build_text_tree(&tree.root);
+            let tree_display = build_text_tree(&tree.root, &mut blend_file, show_names);
 
             // Use box characters for a cleaner look (ASCII option for compatibility)
             let format_chars = if ascii {
@@ -205,6 +216,8 @@ fn cmd_dependencies(
         }
         OutputFormat::Json => {
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
+            // Note: JSON output currently doesn't include names to maintain compatibility
+            // Could be extended in the future with an enriched format
             match serde_json::to_string_pretty(&tree) {
                 Ok(json) => println!("{json}"),
                 Err(e) => eprintln!("Error serializing to JSON: {e}"),
@@ -215,16 +228,30 @@ fn cmd_dependencies(
     Ok(())
 }
 
-fn build_text_tree(node: &bllink_tracer::DependencyNode) -> StringTreeNode {
+fn build_text_tree<R: std::io::Read + std::io::Seek>(
+    node: &bllink_tracer::DependencyNode,
+    blend_file: &mut BlendFile<R>,
+    show_names: bool,
+) -> StringTreeNode {
+    let display_code = if show_names {
+        NameResolver::get_display_name(node.block_index, blend_file, &node.block_code)
+    } else {
+        node.block_code.clone()
+    };
+
     let label = format!(
         "Block {} ({}) - size: {}, addr: 0x{:x}",
-        node.block_index, node.block_code, node.block_size, node.block_address
+        node.block_index, display_code, node.block_size, node.block_address
     );
 
     if node.children.is_empty() {
         StringTreeNode::new(label)
     } else {
-        let child_nodes: Vec<StringTreeNode> = node.children.iter().map(build_text_tree).collect();
+        let child_nodes: Vec<StringTreeNode> = node
+            .children
+            .iter()
+            .map(|child| build_text_tree(child, blend_file, show_names))
+            .collect();
 
         StringTreeNode::with_child_nodes(label, child_nodes.into_iter())
     }

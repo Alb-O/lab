@@ -137,9 +137,8 @@ fn expand_collection_objects<R: Read + Seek>(
 ) -> Result<Vec<usize>> {
     let dependencies = Vec::new();
 
-    // Read the collection data
-    let collection_data = blend_file.read_block_data(collection_index)?;
-    let reader = blend_file.create_field_reader(&collection_data)?;
+    // Read the collection data (not currently used, but kept for future collection processing)
+    let _collection_data = blend_file.read_block_data(collection_index)?;
 
     // Note: Collections in modern Blender are organized hierarchically
     // The master collection typically contains child collections, which contain the actual objects

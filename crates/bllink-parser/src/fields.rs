@@ -123,4 +123,45 @@ impl<'a> FieldReader<'a> {
 
         self.read_u32(field.offset)
     }
+
+    /// Read a field as a string (for character arrays like name[66])
+    pub fn read_field_string(&self, struct_name: &str, field_name: &str) -> Result<String> {
+        let struct_def = self
+            .dna
+            .structs
+            .iter()
+            .find(|s| s.type_name == struct_name)
+            .ok_or_else(|| BlendError::InvalidField(format!("Struct {struct_name} not found")))?;
+
+        let field = struct_def
+            .fields
+            .iter()
+            .find(|f| f.name.name_only == field_name)
+            .ok_or_else(|| {
+                BlendError::InvalidField(format!(
+                    "Field {field_name} not found in struct {struct_name}"
+                ))
+            })?;
+
+        // Read the raw bytes from the field
+        let start = field.offset;
+        let size = field.size;
+
+        if start + size > self.data.len() {
+            return Err(BlendError::InvalidField(format!(
+                "Field data exceeds block bounds: offset {} + size {} > {}",
+                start,
+                size,
+                self.data.len()
+            )));
+        }
+
+        let bytes = &self.data[start..start + size];
+
+        // Convert bytes to string, handling null termination
+        let string_bytes: Vec<u8> = bytes.iter().take_while(|&&b| b != 0).copied().collect();
+
+        String::from_utf8(string_bytes)
+            .map_err(|e| BlendError::InvalidField(format!("Invalid UTF-8 in field: {e}")))
+    }
 }

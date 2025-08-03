@@ -33,6 +33,7 @@
 //! ```
 
 pub mod expanders;
+pub mod name_resolver;
 
 pub use bllink_parser::{BlendFile, Result};
 pub use expanders::{
@@ -40,6 +41,7 @@ pub use expanders::{
     LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander,
     SceneExpander, SoundExpander, TextureExpander,
 };
+pub use name_resolver::NameResolver;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Seek};
