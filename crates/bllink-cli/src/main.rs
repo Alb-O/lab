@@ -88,6 +88,19 @@ enum Commands {
         )]
         show_names: bool,
     },
+    /// Rename an ID block (datablock with user-defined name) [EXPERIMENTAL]
+    ///
+    /// WARNING: This command modifies .blend file binary data. Use only on backup copies.
+    /// Always test modified files in Blender before using them in production.
+    Rename {
+        file: PathBuf,
+        #[arg(short, long)]
+        block_index: usize,
+        #[arg(short, long)]
+        new_name: String,
+        #[arg(long, help = "Preview changes without modifying the file")]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -111,6 +124,12 @@ fn main() -> Result<()> {
             ascii,
             show_names,
         } => cmd_diff(file1, file2, only_modified, format, ascii, show_names),
+        Commands::Rename {
+            file,
+            block_index,
+            new_name,
+            dry_run,
+        } => cmd_rename(file, block_index, new_name, dry_run),
     }
 }
 
@@ -365,6 +384,79 @@ fn cmd_diff(
         },
         OutputFormat::Flat => {
             diff_formatter::DiffFormatter::display_flat(&diff_result, only_modified);
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_rename(
+    file_path: PathBuf,
+    block_index: usize,
+    new_name: String,
+    dry_run: bool,
+) -> Result<()> {
+    use bllink_editor::BlendEditor;
+
+    let file = File::open(&file_path)?;
+    let mut reader = BufReader::new(file);
+    let mut blend_file = BlendFile::new(&mut reader)?;
+
+    // Verify the block exists and get current info
+    if block_index >= blend_file.blocks.len() {
+        eprintln!(
+            "Error: Block index {} is out of range (max: {})",
+            block_index,
+            blend_file.blocks.len() - 1
+        );
+        return Ok(());
+    }
+
+    let block_code = {
+        let block = &blend_file.blocks[block_index];
+        String::from_utf8_lossy(&block.header.code)
+            .trim_end_matches('\0')
+            .to_string()
+    };
+
+    // Try to get current name
+    match NameResolver::resolve_name(block_index, &mut blend_file) {
+        Some(current_name) => {
+            if dry_run {
+                println!("Would rename {block_code} block '{current_name}' to '{new_name}'");
+            } else {
+                println!("Renaming {block_code} block '{current_name}' to '{new_name}'");
+
+                match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
+                    Ok(()) => {
+                        // Re-read the file to verify the change
+                        let file = File::open(&file_path)?;
+                        let mut reader = BufReader::new(file);
+                        let mut updated_blend_file = BlendFile::new(&mut reader)?;
+
+                        match NameResolver::resolve_name(block_index, &mut updated_blend_file) {
+                            Some(updated_name) => {
+                                if updated_name == new_name {
+                                    println!("Success: Block renamed to '{updated_name}'");
+                                } else {
+                                    eprintln!(
+                                        "Warning: Name is '{updated_name}', expected '{new_name}'"
+                                    );
+                                }
+                            }
+                            None => {
+                                eprintln!("Warning: Could not verify name change");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error: Failed to rename block: {e}");
+                    }
+                }
+            }
+        }
+        None => {
+            eprintln!("Error: Block {block_index} is not a named datablock");
         }
     }
 

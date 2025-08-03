@@ -124,6 +124,31 @@ impl<'a> FieldReader<'a> {
         self.read_u32(field.offset)
     }
 
+    /// Get the offset of a field within a struct
+    ///
+    /// This is useful for direct binary modifications of field data.
+    /// WARNING: Direct binary modification can corrupt files!
+    pub fn get_field_offset(&self, struct_name: &str, field_name: &str) -> Result<usize> {
+        let struct_def = self
+            .dna
+            .structs
+            .iter()
+            .find(|s| s.type_name == struct_name)
+            .ok_or_else(|| BlendError::InvalidField(format!("Struct {struct_name} not found")))?;
+
+        let field = struct_def
+            .fields
+            .iter()
+            .find(|f| f.name.name_only == field_name)
+            .ok_or_else(|| {
+                BlendError::InvalidField(format!(
+                    "Field {field_name} not found in struct {struct_name}"
+                ))
+            })?;
+
+        Ok(field.offset)
+    }
+
     /// Read a field as a string (for character arrays like name[66])
     pub fn read_field_string(&self, struct_name: &str, field_name: &str) -> Result<String> {
         let struct_def = self

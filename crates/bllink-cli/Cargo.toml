@@ -7,6 +7,7 @@ edition = "2021"
 bllink-tracer = { path = "../bllink-tracer" }
 bllink-diff = { path = "../bllink-diff" }
 bllink-parser = { path = "../bllink-parser" }
+bllink-editor = { path = "../bllink-editor" }
 clap = { version = "4.5.42", features = ["derive"] }
 env_logger = "0.11.8"
 log = "0.4.27"
