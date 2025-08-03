@@ -1,7 +1,9 @@
 // bllink-cli/src/main.rs
 
 use bllink_tracer::{BlendFile, Result};
-use bllink_tracer::{DependencyTracer, MeshExpander, ObjectExpander, SceneExpander};
+use bllink_tracer::{
+    CollectionExpander, DependencyTracer, MeshExpander, ObjectExpander, SceneExpander,
+};
 use clap::{Parser, Subcommand};
 use std::fs::File;
 use std::io::BufReader;
@@ -104,6 +106,7 @@ fn cmd_dependencies(file_path: PathBuf, block_index: usize) -> Result<()> {
     tracer.register_expander(*b"SC\0\0", Box::new(SceneExpander));
     tracer.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
     tracer.register_expander(*b"ME\0\0", Box::new(MeshExpander));
+    tracer.register_expander(*b"GR\0\0", Box::new(CollectionExpander));
 
     let start_block = &blend_file.blocks[block_index];
     let start_code = String::from_utf8_lossy(&start_block.header.code);

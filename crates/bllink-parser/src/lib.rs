@@ -1,6 +1,6 @@
 // bllink-parser/src/lib.rs
 
-//! # bllink-parser  
+//! # bllink-parser
 //!
 //! Low-level parsing engine for Blender .blend files.
 //!
@@ -20,7 +20,7 @@
 //! The parser follows a layered approach:
 //! 1. **Header parsing**: Extracts file metadata and version information
 //! 2. **Block enumeration**: Maps all data blocks and builds address index
-//! 3. **DNA parsing**: Reads data structure definitions  
+//! 3. **DNA parsing**: Reads data structure definitions
 //! 4. **Field access**: Provides structured access to block data
 //!
 //! This design enables sophisticated dependency analysis while maintaining

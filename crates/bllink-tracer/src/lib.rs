@@ -10,7 +10,7 @@
 //! ## Key Features
 //!
 //! - **Dynamic data access**: Block expanders can read additional data on-demand
-//! - **Material array dereferencing**: Properly handles objects with multiple materials  
+//! - **Material array dereferencing**: Properly handles objects with multiple materials
 //! - **Cross-version compatibility**: Works with Blender 2.79 through 5.0+
 //! - **Extensible architecture**: Easy to add new block expanders
 //!
@@ -35,7 +35,7 @@
 pub mod expanders;
 
 pub use bllink_parser::{BlendFile, Result};
-pub use expanders::{MeshExpander, ObjectExpander, SceneExpander};
+pub use expanders::{CollectionExpander, MeshExpander, ObjectExpander, SceneExpander};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Seek};
 use std::marker::PhantomData;
