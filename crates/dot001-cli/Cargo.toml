@@ -3,6 +3,7 @@ name = "dot001-cli"
 version = "0.1.0"
 edition = "2021"
 license = "gpl-3.0-or-later"
+authors = ["Albert O'Shea"]
 
 [dependencies]
 dot001-tracer = { path = "../dot001-tracer" }

@@ -3,6 +3,7 @@ name = "dot001-editor"
 version = "0.1.0"
 edition = "2024"
 license = "gpl-3.0-or-later"
+authors = ["Albert O'Shea"]
 
 [dependencies]
 dot001-parser = { path = "../dot001-parser" }
