@@ -37,7 +37,8 @@ pub mod expanders;
 pub use bllink_parser::{BlendFile, Result};
 pub use expanders::{
     CacheFileExpander, CollectionExpander, ImageExpander, LampExpander, LibraryExpander,
-    MaterialExpander, MeshExpander, ObjectExpander, SceneExpander, SoundExpander, TextureExpander,
+    MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander, SceneExpander, SoundExpander,
+    TextureExpander,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};

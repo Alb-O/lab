@@ -20,17 +20,10 @@ impl<R: Read + Seek> BlockExpander<R> for MaterialExpander {
         let material_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&material_data)?;
 
-        // Check for node tree (Shader Editor nodes)
-        if let Ok(nodetree_ptr) = reader.read_field_pointer("Material", "nodetree") {
-            if nodetree_ptr != 0 {
-                if let Some(nodetree_index) = blend_file.find_block_by_address(nodetree_ptr) {
-                    dependencies.push(nodetree_index);
-
-                    // TODO: We could recursively traverse the node tree to find Image nodes,
-                    // but that would require implementing a NodeTree expander
-                }
-            }
-        }
+        // Check for node tree (Shader Editor nodes) - collect pointer first
+        let nodetree_ptr = reader
+            .read_field_pointer("Material", "nodetree")
+            .unwrap_or(0);
 
         // Legacy material system - check for texture slots
         // Materials can have multiple texture slots (mtex array)
@@ -59,6 +52,13 @@ impl<R: Read + Seek> BlockExpander<R> for MaterialExpander {
                         }
                     }
                 }
+            }
+        }
+
+        // Process nodetree if found
+        if nodetree_ptr != 0 {
+            if let Some(nodetree_index) = blend_file.find_block_by_address(nodetree_ptr) {
+                dependencies.push(nodetree_index);
             }
         }
 
