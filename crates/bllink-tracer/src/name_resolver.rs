@@ -29,26 +29,9 @@ impl NameResolver {
             Err(_) => return None,
         };
 
-        // Try to read the name field from various datablock structures
-        // Most datablocks have an ID structure at the beginning with a name field
-        let name_result = reader
-            .read_field_string("ID", "name")
-            .or_else(|_| reader.read_field_string("Object", "name"))
-            .or_else(|_| reader.read_field_string("Mesh", "name"))
-            .or_else(|_| reader.read_field_string("Material", "name"))
-            .or_else(|_| reader.read_field_string("Image", "name"))
-            .or_else(|_| reader.read_field_string("Collection", "name"))
-            .or_else(|_| reader.read_field_string("bNodeTree", "name"))
-            .or_else(|_| reader.read_field_string("NodeTree", "name"))
-            .or_else(|_| reader.read_field_string("Scene", "name"))
-            .or_else(|_| reader.read_field_string("Camera", "name"))
-            .or_else(|_| reader.read_field_string("Lamp", "name"))
-            .or_else(|_| reader.read_field_string("Light", "name"))
-            .or_else(|_| reader.read_field_string("World", "name"))
-            .or_else(|_| reader.read_field_string("Texture", "name"))
-            .or_else(|_| reader.read_field_string("Sound", "name"))
-            .or_else(|_| reader.read_field_string("Library", "name"))
-            .or_else(|_| reader.read_field_string("CacheFile", "name"));
+        // Most datablocks start with an `ID` struct, which contains the name.
+        // We can read this directly. If it fails, it's not a named block.
+        let name_result = reader.read_field_string("ID", "name");
 
         match name_result {
             Ok(raw_name) => {

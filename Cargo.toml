@@ -3,5 +3,6 @@ members = [
     "crates/bllink-parser",
     "crates/bllink-tracer",
     "crates/bllink-cli",
+    "crates/bllink-diff",
 ]
 resolver = "2"
