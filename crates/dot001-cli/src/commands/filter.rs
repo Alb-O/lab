@@ -1,6 +1,8 @@
+use crate::commands::NameResolver;
 use dot001_parser::ParseOptions;
 use dot001_tracer::Result;
 use std::path::PathBuf;
+use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
 pub fn cmd_filter(
     file_path: PathBuf,
@@ -31,24 +33,33 @@ pub fn cmd_filter(
     let filter_spec = dot001_tracer::filter::build_filter_spec(&filter_slice_triples)?;
     let filter_engine = dot001_tracer::filter::FilterEngine::new();
     let filtered_indices = filter_engine.apply(&filter_spec, &mut blend_file)?;
-    if json {
-        let filtered_blocks: Vec<serde_json::Value> = filtered_indices
-            .iter()
-            .map(|&i| {
+    if json || matches!(format, crate::OutputFormat::Json) {
+        let mut filtered_blocks: Vec<serde_json::Value> = Vec::new();
+        for &i in &filtered_indices {
+            // Copy block fields by value to avoid borrow conflicts
+            let (code_str, size, count, old_address, block_offset) = {
                 let block = &blend_file.blocks[i];
-                let code_str = String::from_utf8_lossy(&block.header.code)
-                    .trim_end_matches('\0')
-                    .to_string();
-                serde_json::json!({
-                    "index": i,
-                    "code": code_str,
-                    "size": block.header.size,
-                    "count": block.header.count,
-                    "address": format!("{:#x}", block.header.old_address),
-                    "file_offset": block.header_offset
-                })
-            })
-            .collect();
+                (
+                    String::from_utf8_lossy(&block.header.code)
+                        .trim_end_matches('\0')
+                        .to_string(),
+                    block.header.size,
+                    block.header.count,
+                    block.header.old_address,
+                    block.header_offset,
+                )
+            };
+            let name = NameResolver::resolve_name(i, &mut blend_file);
+            filtered_blocks.push(serde_json::json!({
+                "index": i,
+                "code": code_str,
+                "size": size,
+                "count": count,
+                "address": format!("{:#x}", old_address),
+                "file_offset": block_offset,
+                "name": name
+            }));
+        }
         match serde_json::to_string_pretty(&filtered_blocks) {
             Ok(json_str) => println!("{json_str}"),
             Err(e) => {
@@ -56,6 +67,7 @@ pub fn cmd_filter(
                 std::process::exit(1);
             }
         }
+        return Ok(());
     } else {
         println!("Filtered blocks from {}:", file_path.display());
         println!(
@@ -64,45 +76,94 @@ pub fn cmd_filter(
             filtered_indices.len()
         );
         println!();
-        let mut sorted_indices: Vec<_> = filtered_indices.into_iter().collect();
-        sorted_indices.sort();
-        for &i in &sorted_indices {
-            let block = &blend_file.blocks[i];
-            let code_str = String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string();
-            if verbose {
-                println!(
-                    "Block {}: {} (size: {}, count: {}, addr: {:#x}, offset: {})",
-                    i,
-                    code_str,
-                    block.header.size,
-                    block.header.count,
-                    block.header.old_address,
-                    block.header_offset
-                );
-                if let Ok(data) = blend_file.read_block_data(i) {
-                    if let Ok(reader) = blend_file.create_field_reader(&data) {
-                        if let Ok(name) = reader.read_field_string("ID", "name") {
-                            let trimmed = name.trim_end_matches('\0');
-                            if !trimmed.is_empty() {
-                                println!("  Name: {trimmed}");
+        match format {
+            crate::OutputFormat::Flat => {
+                let mut sorted_indices: Vec<_> = filtered_indices.into_iter().collect();
+                sorted_indices.sort();
+                for &i in &sorted_indices {
+                    let (code_str, size, count, old_address, block_offset) = {
+                        let block = &blend_file.blocks[i];
+                        (
+                            String::from_utf8_lossy(&block.header.code)
+                                .trim_end_matches('\0')
+                                .to_string(),
+                            block.header.size,
+                            block.header.count,
+                            block.header.old_address,
+                            block.header_offset,
+                        )
+                    };
+                    let name = NameResolver::resolve_name(i, &mut blend_file);
+                    if verbose {
+                        println!(
+                            "Block {i}: {code_str} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
+                        );
+                        if let Some(name) = &name {
+                            if !name.is_empty() {
+                                println!("  Name: {name}");
                             }
                         }
-                    }
-                }
-            } else {
-                match format {
-                    crate::OutputFormat::Flat => {
+                    } else if let Some(name) = &name {
+                        if !name.is_empty() {
+                            println!("{i}: {code_str} ({name})");
+                        } else {
+                            println!("{i}: {code_str}");
+                        }
+                    } else {
                         println!("{i}: {code_str}");
                     }
-                    crate::OutputFormat::Tree => {
-                        println!("├─ {i}: {code_str}");
-                    }
-                    crate::OutputFormat::Json => unreachable!(),
                 }
             }
+            crate::OutputFormat::Tree => {
+                // Build a tree using text_trees
+                let indices_vec: Vec<usize> = filtered_indices.iter().copied().collect();
+                let tree = build_filter_tree(&indices_vec, &mut blend_file);
+                let format_chars = FormatCharacters::box_chars();
+                let formatting = TreeFormatting::dir_tree(format_chars);
+                match tree.to_string_with_format(&formatting) {
+                    Ok(output) => println!("{output}"),
+                    Err(e) => eprintln!("Error formatting tree: {e}"),
+                }
+            }
+            crate::OutputFormat::Json => return Ok(()),
         }
+    }
+    /// Build a simple flat tree for filtered blocks (no hierarchy, just a list)
+    fn build_filter_tree<R: std::io::Read + std::io::Seek>(
+        indices: &[usize],
+        blend_file: &mut dot001_tracer::BlendFile<R>,
+    ) -> StringTreeNode {
+        let mut sorted_indices: Vec<_> = indices.to_vec();
+        sorted_indices.sort();
+        let children: Vec<StringTreeNode> = sorted_indices
+            .iter()
+            .map(|&i| {
+                let (code_str, _size, _count, _old_address, _block_offset) = {
+                    let block = &blend_file.blocks[i];
+                    (
+                        String::from_utf8_lossy(&block.header.code)
+                            .trim_end_matches('\0')
+                            .to_string(),
+                        block.header.size,
+                        block.header.count,
+                        block.header.old_address,
+                        block.header_offset,
+                    )
+                };
+                let name = NameResolver::resolve_name(i, blend_file);
+                let label = if let Some(name) = name {
+                    if !name.is_empty() {
+                        format!("{i}: {code_str} ({name})")
+                    } else {
+                        format!("{i}: {code_str}")
+                    }
+                } else {
+                    format!("{i}: {code_str}")
+                };
+                StringTreeNode::new(label)
+            })
+            .collect();
+        StringTreeNode::with_child_nodes("Filtered Blocks".to_string(), children.into_iter())
     }
     Ok(())
 }
