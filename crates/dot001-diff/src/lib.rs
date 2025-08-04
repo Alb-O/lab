@@ -25,10 +25,17 @@
 //! This crate serves as a foundation for future development but should not be
 //! considered complete or production-ready.
 
+pub mod provenance;
+
 use dot001_parser::BlendFile;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek};
 use thiserror::Error;
+
+pub use provenance::{
+    DataBlockCorrelation, DataBlockInfo, DataChangeClass, MeshAnalysisResult, ProvenanceAnalyzer,
+    ProvenanceGraph,
+};
 
 #[derive(Error, Debug)]
 pub enum DiffError {
@@ -91,13 +98,34 @@ pub struct DiffSummary {
 pub struct BlendDiffer {
     /// Whether to perform content-aware comparison for specific block types
     pub content_aware: bool,
+    /// Provenance analyzer for advanced ME-DATA correlation
+    pub provenance_analyzer: ProvenanceAnalyzer,
+    /// Enable enhanced mesh analysis with provenance tracking
+    pub enable_provenance_analysis: bool,
 }
 
 impl BlendDiffer {
     pub fn new() -> Self {
         Self {
             content_aware: true,
+            provenance_analyzer: ProvenanceAnalyzer::new(),
+            enable_provenance_analysis: false,
         }
+    }
+
+    /// Enable enhanced provenance-based analysis for ME blocks
+    pub fn with_provenance_analysis(mut self, enabled: bool) -> Self {
+        self.enable_provenance_analysis = enabled;
+        self
+    }
+
+    /// Configure the provenance analyzer
+    pub fn with_provenance_config<F>(mut self, config_fn: F) -> Self
+    where
+        F: FnOnce(ProvenanceAnalyzer) -> ProvenanceAnalyzer,
+    {
+        self.provenance_analyzer = config_fn(self.provenance_analyzer);
+        self
     }
 
     /// Compare two blend files and return a diff
@@ -231,6 +259,44 @@ impl BlendDiffer {
     }
 
     fn compare_mesh_blocks<R1, R2>(
+        &self,
+        index: usize,
+        file1: &mut BlendFile<R1>,
+        file2: &mut BlendFile<R2>,
+    ) -> Result<BlockChangeType>
+    where
+        R1: Read + Seek,
+        R2: Read + Seek,
+    {
+        if self.enable_provenance_analysis {
+            // Use enhanced provenance-based analysis
+            match self
+                .provenance_analyzer
+                .analyze_mesh_changes(index, file1, file2)
+            {
+                Ok(analysis) => {
+                    if self.provenance_analyzer.verbose {
+                        log::info!("ME block {} analysis: {}", index, analysis.summary);
+                    }
+
+                    if analysis.is_true_edit {
+                        Ok(BlockChangeType::Modified)
+                    } else {
+                        Ok(BlockChangeType::Unchanged)
+                    }
+                }
+                Err(_) => {
+                    // Fallback to legacy comparison if provenance analysis fails
+                    self.compare_mesh_blocks_legacy(index, file1, file2)
+                }
+            }
+        } else {
+            // Use legacy comparison
+            self.compare_mesh_blocks_legacy(index, file1, file2)
+        }
+    }
+
+    fn compare_mesh_blocks_legacy<R1, R2>(
         &self,
         index: usize,
         file1: &mut BlendFile<R1>,
@@ -390,6 +456,21 @@ impl BlendDiffer {
         }
 
         summary
+    }
+
+    /// Get detailed mesh analysis for a specific ME block (requires provenance analysis enabled)
+    pub fn analyze_mesh_block<R1, R2>(
+        &self,
+        index: usize,
+        file1: &mut BlendFile<R1>,
+        file2: &mut BlendFile<R2>,
+    ) -> Result<MeshAnalysisResult>
+    where
+        R1: Read + Seek,
+        R2: Read + Seek,
+    {
+        self.provenance_analyzer
+            .analyze_mesh_changes(index, file1, file2)
     }
 }
 

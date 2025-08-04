@@ -3,7 +3,8 @@
   "permissions": {
     "allow": [
       "Bash(cargo check:*)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Bash(target/release/dot001-cli mesh-diff:*)"
     ],
     "deny": []
   }

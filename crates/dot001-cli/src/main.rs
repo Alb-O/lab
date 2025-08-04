@@ -53,14 +53,7 @@ enum Commands {
     /// Show basic info about the blend file
     Info { file: PathBuf },
     /// List all blocks in the file
-    Blocks {
-        file: PathBuf,
-        #[arg(
-            long,
-            help = "Show user-defined names for datablocks (e.g., 'Cube', 'Material.001')"
-        )]
-        show_names: bool,
-    },
+    Blocks { file: PathBuf },
     /// Trace dependencies from a specific block
     Dependencies {
         file: PathBuf,
@@ -73,11 +66,6 @@ enum Commands {
             help = "Use ASCII characters instead of Unicode box characters for tree output"
         )]
         ascii: bool,
-        #[arg(
-            long,
-            help = "Show user-defined names for datablocks (e.g., 'Cube', 'Material.001')"
-        )]
-        show_names: bool,
     },
     /// Compare two blend files and show differences [EXPERIMENTAL - INCOMPLETE IMPLEMENTATION]
     ///
@@ -99,11 +87,6 @@ enum Commands {
             help = "Use ASCII characters instead of Unicode box characters for tree output"
         )]
         ascii: bool,
-        #[arg(
-            long,
-            help = "Show user-defined names for datablocks (e.g., 'Cube', 'Material.001')"
-        )]
-        show_names: bool,
     },
     /// Rename an ID block (datablock with user-defined name) [EXPERIMENTAL]
     ///
@@ -118,6 +101,17 @@ enum Commands {
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
     },
+    /// Enhanced mesh diff with provenance analysis [EXPERIMENTAL]
+    MeshDiff {
+        file1: PathBuf,
+        file2: PathBuf,
+        #[arg(long, help = "ME block index to analyze")]
+        mesh_index: Option<usize>,
+        #[arg(long, help = "Enable verbose provenance logging")]
+        verbose: bool,
+        #[arg(long, help = "Output detailed analysis as JSON")]
+        json: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -127,21 +121,17 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Info { file } => cmd_info(file, &parse_options, cli.no_auto_decompress),
-        Commands::Blocks { file, show_names } => {
-            cmd_blocks(file, show_names, &parse_options, cli.no_auto_decompress)
-        }
+        Commands::Blocks { file } => cmd_blocks(file, &parse_options, cli.no_auto_decompress),
         Commands::Dependencies {
             file,
             block_index,
             format,
             ascii,
-            show_names,
         } => cmd_dependencies(
             file,
             block_index,
             format,
             ascii,
-            show_names,
             &parse_options,
             cli.no_auto_decompress,
         ),
@@ -151,14 +141,12 @@ fn main() -> Result<()> {
             only_modified,
             format,
             ascii,
-            show_names,
         } => cmd_diff(
             file1,
             file2,
             only_modified,
             format,
             ascii,
-            show_names,
             &parse_options,
             cli.no_auto_decompress,
         ),
@@ -172,6 +160,21 @@ fn main() -> Result<()> {
             block_index,
             new_name,
             dry_run,
+            &parse_options,
+            cli.no_auto_decompress,
+        ),
+        Commands::MeshDiff {
+            file1,
+            file2,
+            mesh_index,
+            verbose,
+            json,
+        } => cmd_mesh_diff(
+            file1,
+            file2,
+            mesh_index,
+            verbose,
+            json,
             &parse_options,
             cli.no_auto_decompress,
         ),
@@ -235,12 +238,7 @@ fn cmd_info(file_path: PathBuf, options: &ParseOptions, no_auto_decompress: bool
     Ok(())
 }
 
-fn cmd_blocks(
-    file_path: PathBuf,
-    show_names: bool,
-    options: &ParseOptions,
-    no_auto_decompress: bool,
-) -> Result<()> {
+fn cmd_blocks(file_path: PathBuf, options: &ParseOptions, no_auto_decompress: bool) -> Result<()> {
     let mut blend_file = load_blend_file(&file_path, options, no_auto_decompress)?;
 
     println!("Blocks in {}:", file_path.display());
@@ -260,12 +258,7 @@ fn cmd_blocks(
 
     // Now process each block with name resolution
     for (i, code_str, size, address) in block_info {
-        let display_name = if show_names {
-            NameResolver::get_display_name(i, &mut blend_file, &code_str)
-        } else {
-            code_str
-        };
-
+        let display_name = NameResolver::get_display_name(i, &mut blend_file, &code_str);
         println!("  {i}: {display_name} (size: {size}, addr: 0x{address:x})");
     }
 
@@ -277,7 +270,6 @@ fn cmd_dependencies(
     block_index: usize,
     format: OutputFormat,
     ascii: bool,
-    show_names: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
 ) -> Result<()> {
@@ -332,11 +324,8 @@ fn cmd_dependencies(
                             .trim_end_matches('\0')
                             .to_string();
 
-                        let display_name = if show_names {
-                            NameResolver::get_display_name(dep_index, &mut blend_file, &code_str)
-                        } else {
-                            code_str
-                        };
+                        let display_name =
+                            NameResolver::get_display_name(dep_index, &mut blend_file, &code_str);
 
                         println!("    {}: Block {} ({})", i + 1, dep_index, display_name);
                     }
@@ -351,7 +340,7 @@ fn cmd_dependencies(
             );
 
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
-            let tree_display = build_text_tree(&tree.root, &mut blend_file, show_names);
+            let tree_display = build_text_tree(&tree.root, &mut blend_file, true);
 
             // Use box characters for a cleaner look (ASCII option for compatibility)
             let format_chars = if ascii {
@@ -418,7 +407,6 @@ fn cmd_diff(
     only_modified: bool,
     format: OutputFormat,
     ascii: bool,
-    show_names: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
 ) -> Result<()> {
@@ -450,7 +438,7 @@ fn cmd_diff(
                 &mut blend_file1,
                 only_modified,
                 ascii,
-                show_names,
+                true,
             )?;
         }
         OutputFormat::Json => match serde_json::to_string_pretty(&diff_result) {
@@ -531,6 +519,137 @@ fn cmd_rename(
         }
         None => {
             eprintln!("Error: Block {block_index} is not a named datablock");
+        }
+    }
+
+    Ok(())
+}
+
+fn cmd_mesh_diff(
+    file1_path: PathBuf,
+    file2_path: PathBuf,
+    mesh_index: Option<usize>,
+    verbose: bool,
+    json: bool,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
+) -> Result<()> {
+    let mut blend_file1 = load_blend_file(&file1_path, options, no_auto_decompress)?;
+    let mut blend_file2 = load_blend_file(&file2_path, options, no_auto_decompress)?;
+
+    // Create a differ with provenance analysis enabled
+    let differ = BlendDiffer::new()
+        .with_provenance_analysis(true)
+        .with_provenance_config(|analyzer| analyzer.with_verbose(verbose));
+
+    println!("Enhanced Mesh Diff Analysis");
+    println!("==========================");
+    println!("File 1: {}", file1_path.display());
+    println!("File 2: {}", file2_path.display());
+    println!();
+
+    if let Some(me_index) = mesh_index {
+        // Analyze specific ME block
+        match differ.analyze_mesh_block(me_index, &mut blend_file1, &mut blend_file2) {
+            Ok(analysis) => {
+                if json {
+                    match serde_json::to_string_pretty(&analysis) {
+                        Ok(json_str) => println!("{json_str}"),
+                        Err(e) => eprintln!("Error serializing to JSON: {e}"),
+                    }
+                } else {
+                    let me_name = NameResolver::get_display_name(me_index, &mut blend_file1, "ME");
+                    println!("Analysis for ME block {me_index} ({me_name}):");
+                    println!("  Classification: {:?}", analysis.overall_classification);
+                    println!("  Is True Edit: {}", analysis.is_true_edit);
+                    println!("  Summary: {}", analysis.summary);
+                    println!();
+
+                    if let Some(before) = &analysis.before_provenance {
+                        println!(
+                            "  Before: {} referenced DATA blocks",
+                            before.referenced_data_blocks.len()
+                        );
+                    }
+                    if let Some(after) = &analysis.after_provenance {
+                        println!(
+                            "  After: {} referenced DATA blocks",
+                            after.referenced_data_blocks.len()
+                        );
+                    }
+
+                    println!("  DATA Block Correlations:");
+                    for (i, correlation) in analysis.data_correlations.iter().enumerate() {
+                        println!(
+                            "    {}: {:?} (confidence: {:.2}) - {}",
+                            i + 1,
+                            correlation.change_class,
+                            correlation.confidence,
+                            correlation.rationale
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error analyzing ME block {me_index}: {e}");
+            }
+        }
+    } else {
+        // Find all ME blocks and analyze them
+        let me_blocks: Vec<usize> = blend_file1
+            .blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(i, block)| {
+                let code = String::from_utf8_lossy(&block.header.code);
+                if code.trim_end_matches('\0') == "ME" {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        println!("Found {} ME blocks to analyze", me_blocks.len());
+        println!();
+
+        let mut analyses = Vec::new();
+        for &me_index in &me_blocks {
+            match differ.analyze_mesh_block(me_index, &mut blend_file1, &mut blend_file2) {
+                Ok(analysis) => {
+                    if !json {
+                        let me_name =
+                            NameResolver::get_display_name(me_index, &mut blend_file1, "ME");
+                        println!(
+                            "ME block {} ({}): {} ({})",
+                            me_index,
+                            me_name,
+                            if analysis.is_true_edit {
+                                "TRUE EDIT"
+                            } else {
+                                "Layout/Noise"
+                            },
+                            analysis.summary
+                        );
+                    }
+                    analyses.push(analysis);
+                }
+                Err(e) => {
+                    eprintln!("Error analyzing ME block {me_index}: {e}");
+                }
+            }
+        }
+
+        if json {
+            match serde_json::to_string_pretty(&analyses) {
+                Ok(json_str) => println!("{json_str}"),
+                Err(e) => eprintln!("Error serializing to JSON: {e}"),
+            }
+        } else {
+            println!();
+            let true_edits = analyses.iter().filter(|a| a.is_true_edit).count();
+            let layout_changes = analyses.len() - true_edits;
+            println!("Summary: {true_edits} true edits, {layout_changes} layout/noise changes");
         }
     }
 
