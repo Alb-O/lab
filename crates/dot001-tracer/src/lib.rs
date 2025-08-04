@@ -34,9 +34,6 @@ pub mod bpath;
 pub mod expanders;
 pub mod name_resolver;
 
-#[cfg(test)]
-mod bpath_tests;
-
 pub use dot001_parser::{BlendFile, Result};
 pub use expanders::{
     CacheFileExpander, CollectionExpander, DataBlockExpander, ImageExpander, LampExpander,
