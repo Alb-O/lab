@@ -67,8 +67,12 @@ impl BlendEditor {
     ///
     /// ### Example:
     /// ```rust,no_run
-    /// // Rename collection "Lighting" to "Lights"
-    /// BlendEditor::rename_id_block_and_save("file.blend", 5015, "Lights")?;
+    /// use dot001_editor::BlendEditor;
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     // Rename collection "Lighting" to "Lights"
+    ///     BlendEditor::rename_id_block_and_save("file.blend", 5015, "Lights")?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn rename_id_block_and_save<P: AsRef<Path>>(
         file_path: P,
