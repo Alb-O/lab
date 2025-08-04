@@ -1,0 +1,68 @@
+use dot001_parser::ParseOptions;
+use dot001_tracer::Result;
+use std::path::PathBuf;
+
+pub fn cmd_rename(
+    file_path: PathBuf,
+    block_index: usize,
+    new_name: String,
+    dry_run: bool,
+    options: &ParseOptions,
+    no_auto_decompress: bool,
+) -> Result<()> {
+    use dot001_editor::BlendEditor;
+    let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
+    if block_index >= blend_file.blocks.len() {
+        eprintln!(
+            "Error: Block index {} is out of range (max: {})",
+            block_index,
+            blend_file.blocks.len() - 1
+        );
+        return Ok(());
+    }
+    let block_code = {
+        let block = &blend_file.blocks[block_index];
+        String::from_utf8_lossy(&block.header.code)
+            .trim_end_matches('\0')
+            .to_string()
+    };
+    match dot001_tracer::NameResolver::resolve_name(block_index, &mut blend_file) {
+        Some(current_name) => {
+            if dry_run {
+                println!("Would rename {block_code} block '{current_name}' to '{new_name}'");
+            } else {
+                println!("Renaming {block_code} block '{current_name}' to '{new_name}'");
+                match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
+                    Ok(()) => {
+                        let mut updated_blend_file =
+                            crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
+                        match dot001_tracer::NameResolver::resolve_name(
+                            block_index,
+                            &mut updated_blend_file,
+                        ) {
+                            Some(updated_name) => {
+                                if updated_name == new_name {
+                                    println!("Success: Block renamed to '{updated_name}'");
+                                } else {
+                                    eprintln!(
+                                        "Warning: Name is '{updated_name}', expected '{new_name}'"
+                                    );
+                                }
+                            }
+                            None => {
+                                eprintln!("Warning: Could not verify name change");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error: Failed to rename block: {e}");
+                    }
+                }
+            }
+        }
+        None => {
+            eprintln!("Error: Block {block_index} is not a named datablock");
+        }
+    }
+    Ok(())
+}
