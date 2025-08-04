@@ -1,5 +1,6 @@
 {
     "github.copilot.chat.agent.thinkingTool": true,
     "chat.tools.autoApprove": true,
-    "chat.agent.maxRequests": 100
+    "chat.agent.maxRequests": 100,
+    "nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix"
 }

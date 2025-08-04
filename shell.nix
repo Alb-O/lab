@@ -1,0 +1,1 @@
+/home/albert/_/projects/nix-project/nix/shells/rust.nix
