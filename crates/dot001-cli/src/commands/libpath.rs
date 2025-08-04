@@ -7,12 +7,13 @@ pub fn cmd_libpath(
     block_index: usize,
     new_path: String,
     dry_run: bool,
+    no_validate: bool,
 ) -> Result<()> {
     if dry_run {
         println!("[dry-run] Would update library path in block {block_index} to: {new_path}");
         return Ok(());
     }
-    match BlendEditor::update_libpath_and_save(&file, block_index, &new_path) {
+    match BlendEditor::update_libpath_and_save(&file, block_index, &new_path, no_validate) {
         Ok(()) => {
             println!("Successfully updated library path in block {block_index} to: {new_path}");
             Ok(())

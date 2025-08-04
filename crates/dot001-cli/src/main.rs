@@ -48,6 +48,11 @@ enum Commands {
         new_path: String,
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
+        #[arg(
+            long,
+            help = "Bypass validation checks (allow non-existent target and no-op)"
+        )]
+        no_validate: bool,
     },
     Info {
         file: PathBuf,
@@ -121,7 +126,8 @@ fn main() -> dot001_tracer::Result<()> {
             block_index,
             new_path,
             dry_run,
-        } => commands::cmd_libpath(file, block_index, new_path, dry_run),
+            no_validate,
+        } => commands::cmd_libpath(file, block_index, new_path, dry_run, no_validate),
         Commands::Info { file } => commands::cmd_info(file, &parse_options, cli.no_auto_decompress),
         Commands::Blocks { file } => {
             commands::cmd_blocks(file, &parse_options, cli.no_auto_decompress)

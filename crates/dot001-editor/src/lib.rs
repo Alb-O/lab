@@ -76,11 +76,13 @@ impl BlendEditor {
         file_path: P,
         block_index: usize,
         new_path: &str,
+        no_validate: bool,
     ) -> Result<()> {
         crate::commands::libpath::LibPathCommand::update_libpath_and_save(
             file_path,
             block_index,
             new_path,
+            no_validate,
         )
     }
     /// Rename an ID block and save changes to file
