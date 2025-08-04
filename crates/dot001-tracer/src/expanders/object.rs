@@ -1,6 +1,6 @@
 use crate::BlockExpander;
 use crate::ExpandResult;
-use dot001_parser::{BlendFile, Result};
+use dot001_parser::{BlendFile, PointerTraversal, Result};
 use std::io::{Read, Seek};
 
 /// Expander for Object (OB) blocks
@@ -17,46 +17,18 @@ impl<R: Read + Seek> BlockExpander<R> for ObjectExpander {
     ) -> Result<ExpandResult> {
         let mut dependencies = Vec::new();
 
-        // Read the object block data
-        let object_data = blend_file.read_block_data(block_index)?;
-        let reader = blend_file.create_field_reader(&object_data)?;
-
-        // Add mesh data dependency
-        if let Ok(data_ptr) = reader.read_field_pointer("Object", "data") {
-            if data_ptr != 0 {
-                if let Some(data_index) = blend_file.find_block_by_address(data_ptr) {
-                    dependencies.push(data_index);
-                }
-            }
+        // Add single pointer field dependencies (like 'data' field)
+        if let Ok(single_targets) =
+            PointerTraversal::read_pointer_fields(blend_file, block_index, "Object", &["data"])
+        {
+            dependencies.extend(single_targets);
         }
 
-        // Add material dependencies - read the materials array
-        if let Ok(totcol) = reader.read_field_u32("Object", "totcol") {
-            if totcol > 0 {
-                if let Ok(mats_ptr) = reader.read_field_pointer("Object", "mat") {
-                    if mats_ptr != 0 {
-                        // Read the materials array block
-                        if let Some(mats_index) = blend_file.find_block_by_address(mats_ptr) {
-                            let mats_data = blend_file.read_block_data(mats_index)?;
-                            let mats_reader = blend_file.create_field_reader(&mats_data)?;
-
-                            // Read each material pointer in the array
-                            for i in 0..totcol {
-                                let offset = i as usize * blend_file.header().pointer_size as usize;
-                                if let Ok(mat_ptr) = mats_reader.read_pointer(offset) {
-                                    if mat_ptr != 0 {
-                                        if let Some(mat_index) =
-                                            blend_file.find_block_by_address(mat_ptr)
-                                        {
-                                            dependencies.push(mat_index);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // Add material dependencies using the pointer array helper
+        if let Ok(mat_targets) =
+            PointerTraversal::read_pointer_array(blend_file, block_index, "Object", "totcol", "mat")
+        {
+            dependencies.extend(mat_targets);
         }
 
         Ok(ExpandResult::new(dependencies))

@@ -32,6 +32,7 @@ pub mod dna;
 pub mod error;
 pub mod fields;
 pub mod header;
+pub mod reflect;
 
 pub use block::{BlendFileBlock, BlockHeader};
 pub use compression::{CompressionKind, DecompressionMode, DecompressionPolicy, ParseOptions};
@@ -39,6 +40,7 @@ pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
 pub use error::{BlendFileErrorKind, Dot001Error, Result};
 pub use fields::FieldReader;
 pub use header::BlendFileHeader;
+pub use reflect::PointerTraversal;
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Seek, SeekFrom};

@@ -1,5 +1,5 @@
 use dot001_error::{Dot001Error, Result as UnifiedResult, TracerErrorKind};
-use dot001_parser::{BlendFile, BlendFileBlock, Result};
+use dot001_parser::{BlendFile, BlendFileBlock, PointerTraversal, Result};
 use regex::Regex;
 use std::collections::HashSet;
 use std::io::{Read, Seek};
@@ -268,128 +268,44 @@ impl FilterEngine {
     }
 
     /// Enumerate pointer targets from a block by inspecting common pointer fields.
-    /// This is a pragmatic subset until full DNA reflection iteration lands.
+    /// Now uses the shared PointerTraversal utilities for consistency, with specialized
+    /// heuristics for complex cases like pointer arrays and ListBase traversal.
     fn pointer_targets<R: Read + Seek>(
         blend: &mut BlendFile<R>,
         block_index: usize,
     ) -> Result<Vec<usize>> {
         let mut out = Vec::new();
-        // Copy code bytes and pointer_size locally to avoid holding an immutable borrow on blend
-        let (code, pointer_size) = {
+
+        // First try the generic DNA-based approach
+        if let Ok(generic_targets) = PointerTraversal::find_pointer_targets(blend, block_index) {
+            out.extend(generic_targets);
+        }
+
+        // Then add specialized heuristics for complex cases that need custom logic
+        let code = {
             let h = &blend.get_block(block_index).unwrap().header;
-            (h.code, blend.header().pointer_size)
+            h.code
         };
 
-        // Heuristics over known structures to discover pointer fields:
-        // Object: data, mat (array)
+        // Object and Mesh: materials arrays require special handling
         if code == *b"OB\0\0" {
-            // data pointer
+            if let Ok(targets) =
+                PointerTraversal::read_pointer_array(blend, block_index, "Object", "totcol", "mat")
             {
-                let data = blend.read_block_data(block_index)?;
-                let reader = blend.create_field_reader(&data)?;
-                if let Ok(ptr) = reader.read_field_pointer("Object", "data") {
-                    Self::push_addr(blend, &mut out, ptr);
-                }
-            }
-            // totcol and mat pointer
-            let (totcol, mats_ptr) = {
-                let data = blend.read_block_data(block_index)?;
-                let reader = blend.create_field_reader(&data)?;
-                (
-                    reader.read_field_u32("Object", "totcol").ok(),
-                    reader.read_field_pointer("Object", "mat").ok(),
-                )
-            };
-            if let (Some(totcol), Some(mats_ptr)) = (totcol, mats_ptr) {
-                if totcol > 0 {
-                    let mats_index_opt = blend.find_block_by_address(mats_ptr);
-                    if let Some(mats_index) = mats_index_opt {
-                        let mats_data = blend.read_block_data(mats_index)?;
-                        let mr = blend.create_field_reader(&mats_data)?;
-                        let stride = pointer_size as usize;
-                        let mut mat_ptrs = Vec::with_capacity(totcol as usize);
-                        for i in 0..totcol {
-                            if let Ok(p) = mr.read_pointer(i as usize * stride) {
-                                mat_ptrs.push(p);
-                            }
-                        }
-                        for p in mat_ptrs {
-                            Self::push_addr(blend, &mut out, p);
-                        }
-                    }
-                }
+                out.extend(targets);
             }
         }
 
-        // Mesh: mat array, common geometry arrays
         if code == *b"ME\0\0" {
-            let (totcol, mats_ptr) = {
-                let data = blend.read_block_data(block_index)?;
-                let reader = blend.create_field_reader(&data)?;
-                (
-                    reader.read_field_u32("Mesh", "totcol").ok(),
-                    reader.read_field_pointer("Mesh", "mat").ok(),
-                )
-            };
-            if let (Some(totcol), Some(mats_ptr)) = (totcol, mats_ptr) {
-                if totcol > 0 {
-                    let mats_index_opt = blend.find_block_by_address(mats_ptr);
-                    if let Some(mats_index) = mats_index_opt {
-                        let mats_data = blend.read_block_data(mats_index)?;
-                        let mr = blend.create_field_reader(&mats_data)?;
-                        let stride = pointer_size as usize;
-                        let mut mat_ptrs = Vec::with_capacity(totcol as usize);
-                        for i in 0..totcol {
-                            if let Ok(p) = mr.read_pointer(i as usize * stride) {
-                                mat_ptrs.push(p);
-                            }
-                        }
-                        for p in mat_ptrs {
-                            Self::push_addr(blend, &mut out, p);
-                        }
-                    }
-                }
-            }
-            for field in ["vert", "edge", "poly", "loop"] {
-                let p = {
-                    let data = blend.read_block_data(block_index)?;
-                    let reader = blend.create_field_reader(&data)?;
-                    reader.read_field_pointer("Mesh", field).ok()
-                };
-                if let Some(ptr) = p {
-                    Self::push_addr(blend, &mut out, ptr);
-                }
+            if let Ok(targets) =
+                PointerTraversal::read_pointer_array(blend, block_index, "Mesh", "totcol", "mat")
+            {
+                out.extend(targets);
             }
         }
 
-        // Collections: gobject and children listbases
-        if code == *b"GR\0\0" || code == *b"DATA" {
-            // gobject pointer (Collection or Group)
-            let gobject_p = {
-                let data = blend.read_block_data(block_index)?;
-                let reader = blend.create_field_reader(&data)?;
-                reader
-                    .read_field_pointer("Collection", "gobject")
-                    .or_else(|_| reader.read_field_pointer("Group", "gobject"))
-                    .ok()
-            };
-            if let Some(p) = gobject_p {
-                Self::push_addr(blend, &mut out, p);
-            }
-            // children pointer (Collection)
-            let children_p = {
-                let data = blend.read_block_data(block_index)?;
-                let reader = blend.create_field_reader(&data)?;
-                reader.read_field_pointer("Collection", "children").ok()
-            };
-            if let Some(p) = children_p {
-                Self::push_addr(blend, &mut out, p);
-            }
-        }
-
-        // NodeTree: id in nodes
+        // NodeTree: complex ListBase traversal for nodes
         if code == *b"NT\0\0" || code == *b"DATA" {
-            // Best-effort: try to resolve nodes.first and then traverse as in expander
             let nodes_ptr = {
                 let data = blend.read_block_data(block_index)?;
                 let reader = blend.create_field_reader(&data)?;
@@ -428,6 +344,9 @@ impl FilterEngine {
             }
         }
 
+        // Remove duplicates
+        out.sort_unstable();
+        out.dedup();
         Ok(out)
     }
 

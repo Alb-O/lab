@@ -162,10 +162,14 @@ Prioritized improvement plan
 - ✅ Migrated internal code across crates to use the new accessors.
 - ✅ Risk: medium; touches many call sites. Benefit: stronger invariants, easier refactors.
 
-3) Create shared pointer traversal utilities
-- Implement a new module in `dot001-parser` (e.g., `reflect.rs`) for generic pointer field enumeration via DNA.
-- Update `FilterEngine::pointer_targets` and key expanders to use this shared utility.
-- Risk: medium; requires careful DNA reading and offset calculations. Benefit: eliminates duplication and future drift.
+3) ✅ **COMPLETED** Create shared pointer traversal utilities
+- ✅ Implemented new `reflect.rs` module in `dot001-parser` with `PointerTraversal` utility struct.
+- ✅ Added DNA-based `find_pointer_targets` for generic pointer field discovery.  
+- ✅ Added `read_pointer_array` helper for materials arrays and similar patterns.
+- ✅ Added `read_pointer_fields` helper for multiple single pointer fields.
+- ✅ Updated `FilterEngine::pointer_targets` to use shared utilities with specialized heuristics.
+- ✅ Refactored `ObjectExpander` and `MeshExpander` to use shared utilities.
+- Risk: medium; required careful DNA reading and borrowing patterns. Benefit: eliminates duplication and future drift.
 
 4) Introduce `NameResolver` trait and `Determinizer`
 - Define a `NameResolver` trait and a default implementation in `dot001-tracer` or a new shared crate.
