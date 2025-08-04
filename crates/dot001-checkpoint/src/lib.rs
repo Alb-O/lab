@@ -136,31 +136,28 @@ impl BlenderCheckpointer {
 
     pub fn find_blend_files(&self) -> Result<Vec<PathBuf>> {
         let mut blend_files = Vec::new();
-        self.scan_directory(&self.project_path, &mut blend_files)?;
-        Ok(blend_files)
-    }
-
-    fn scan_directory(&self, dir: &Path, blend_files: &mut Vec<PathBuf>) -> Result<()> {
-        if dir.is_dir() {
-            for entry in std::fs::read_dir(dir)? {
-                let entry = entry?;
-                let path = entry.path();
-
-                if path.is_dir()
-                    && !path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or("")
-                        .starts_with('.')
-                {
-                    self.scan_directory(&path, blend_files)?;
-                } else if path.extension().and_then(|s| s.to_str()) == Some("blend") {
-                    blend_files.push(path);
+        let mut stack = vec![self.project_path.clone()];
+        while let Some(dir) = stack.pop() {
+            if dir.is_dir() {
+                for entry in std::fs::read_dir(&dir)? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.is_dir()
+                        && !path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_str()
+                            .unwrap_or("")
+                            .starts_with('.')
+                    {
+                        stack.push(path);
+                    } else if path.extension().and_then(|s| s.to_str()) == Some("blend") {
+                        blend_files.push(path);
+                    }
                 }
             }
         }
-        Ok(())
+        Ok(blend_files)
     }
 }
 
