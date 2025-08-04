@@ -94,6 +94,8 @@ impl<R: Read + Seek> BlendFile<R> {
             .seek(SeekFrom::Start(self.header.header_size() as u64))?;
 
         loop {
+            // Record the header start offset before reading the BlockHeader
+            let header_offset = self.reader.stream_position()?;
             let block_header = BlockHeader::read(&mut self.reader, &self.header)?;
             let data_offset = self.reader.stream_position()?;
 
@@ -105,9 +107,11 @@ impl<R: Read + Seek> BlendFile<R> {
             let block = BlendFileBlock {
                 header: block_header,
                 data_offset,
+                header_offset,
             };
             self.blocks.push(block);
 
+            // Seek past the block's data to the next header
             self.reader.seek(SeekFrom::Current(block_size as i64))?;
         }
 
@@ -139,6 +143,26 @@ impl<R: Read + Seek> BlendFile<R> {
                 .push(i);
             self.address_index.insert(block.header.old_address, i);
         }
+    }
+
+    /// Compute a deterministic content hash for the given block.
+    /// Hash includes sdna_index, count, size, and raw block bytes.
+    /// Uses xxhash64 for speed and stability.
+    pub fn block_content_hash(&mut self, block_index: usize) -> Result<u64> {
+        use std::hash::Hasher;
+        let block = self
+            .blocks
+            .get(block_index)
+            .ok_or(BlendError::InvalidBlockIndex(block_index))?;
+        let mut hasher = twox_hash::XxHash64::with_seed(0);
+        hasher.write(&block.header.sdna_index.to_le_bytes());
+        hasher.write(&block.header.count.to_le_bytes());
+        hasher.write(&block.header.size.to_le_bytes());
+        // Include code for extra discrimination
+        hasher.write(&block.header.code);
+        let data = self.read_block_data(block_index)?;
+        hasher.write(&data);
+        Ok(hasher.finish())
     }
 
     /// Read the raw data for a specific block

@@ -561,16 +561,12 @@ impl ProvenanceAnalyzer {
     fn is_likely_true_edit(&self, correlations: &[DataBlockCorrelation]) -> bool {
         let high_confidence_content_changes = correlations
             .iter()
-            .filter(|c| {
-                c.confidence > 0.7 && c.change_class == DataChangeClass::ContentChange
-            })
+            .filter(|c| c.confidence > 0.7 && c.change_class == DataChangeClass::ContentChange)
             .count();
 
         let high_confidence_size_changes = correlations
             .iter()
-            .filter(|c| {
-                c.confidence > 0.6 && c.change_class == DataChangeClass::SizeChange
-            })
+            .filter(|c| c.confidence > 0.6 && c.change_class == DataChangeClass::SizeChange)
             .count();
 
         let total_correlations = correlations.len();
@@ -606,10 +602,11 @@ impl ProvenanceAnalyzer {
         }
 
         // Different criteria for different scenarios:
-        
+
         // Scenario 1: Strong evidence of mesh editing (multiple content changes OR content + size changes)
-        if high_confidence_content_changes >= 3 || 
-           (high_confidence_content_changes >= 2 && high_confidence_size_changes >= 2) {
+        if high_confidence_content_changes >= 3
+            || (high_confidence_content_changes >= 2 && high_confidence_size_changes >= 2)
+        {
             return true;
         }
 

@@ -14,3 +14,4 @@ dot001-parser = { path = "../dot001-parser" }
 log = "0.4.27"
 serde = { version = "1.0.219", features = ["derive"] }
 thiserror = "2.0.12"
+regex = "1"

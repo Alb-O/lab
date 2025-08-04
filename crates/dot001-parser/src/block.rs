@@ -13,8 +13,12 @@ pub struct BlockHeader {
 
 #[derive(Debug, Clone)]
 pub struct BlendFileBlock {
+    /// Parsed header fields
     pub header: BlockHeader,
+    /// Offset in the file where the block's raw data starts
     pub data_offset: u64,
+    /// Offset in the file where this block header starts (for diagnostics/debugging)
+    pub header_offset: u64,
 }
 
 impl BlockHeader {

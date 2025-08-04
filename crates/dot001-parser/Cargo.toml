@@ -15,6 +15,7 @@ thiserror = "2.0.12"
 zstd = { version = "0.13", optional = true }
 memmap2 = { version = "0.9", optional = true }
 tempfile = "3.0"
+twox-hash = "1.6"
 
 [features]
 default = ["zstd", "mmap"]

@@ -47,6 +47,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Seek};
 use std::marker::PhantomData;
 
+// Re-export filter module only once
+pub mod filter;
+use crate::filter::{FilterEngine, FilterSpec};
+
 /// Represents a block in the dependency tree
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DependencyNode {
@@ -80,10 +84,28 @@ pub trait BlockExpander<R: Read + Seek> {
     fn can_handle(&self, code: &[u8; 4]) -> bool;
 }
 
+/// Options to control traversal limits and behavior.
+#[derive(Debug, Clone, Copy)]
+pub struct TracerOptions {
+    pub max_depth: usize,
+}
+
+impl Default for TracerOptions {
+    fn default() -> Self {
+        Self { max_depth: 10 }
+    }
+}
+
 pub struct DependencyTracer<'a, R: Read + Seek> {
     expanders: HashMap<[u8; 4], Box<dyn BlockExpander<R> + 'a>>,
     visited: HashSet<usize>,
     visiting: HashSet<usize>,
+    /// Optional filter of allowed blocks (indices). If Some, traversal will only enqueue blocks in this set.
+    allowed: Option<HashSet<usize>>,
+    /// Optional address remapping (old_address -> remapped_id) for deterministic outputs.
+    address_map: Option<HashMap<u64, u64>>,
+    /// Tracer options (limits and behavior).
+    options: TracerOptions,
     _phantom: PhantomData<&'a R>,
 }
 
@@ -99,8 +121,40 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
             expanders: HashMap::new(),
             visited: HashSet::new(),
             visiting: HashSet::new(),
+            allowed: None,
+            address_map: None,
+            options: TracerOptions::default(),
             _phantom: PhantomData,
         }
+    }
+
+    /// Set tracer options (e.g., max_depth).
+    pub fn with_options(mut self, options: TracerOptions) -> Self {
+        self.options = options;
+        self
+    }
+
+    /// Provide an address map to remap old addresses to deterministic IDs during output.
+    pub fn with_address_map(mut self, map: HashMap<u64, u64>) -> Self {
+        self.address_map = Some(map);
+        self
+    }
+
+    /// Apply a FilterSpec using the FilterEngine and store the allowed set internally.
+    pub fn apply_filters(
+        &mut self,
+        spec: &FilterSpec,
+        blend_file: &mut BlendFile<R>,
+    ) -> Result<()> {
+        let engine = FilterEngine::new();
+        let allowed = engine.apply(spec, blend_file)?;
+        self.allowed = Some(allowed);
+        Ok(())
+    }
+
+    /// Clear any previously applied filters.
+    pub fn clear_filters(&mut self) {
+        self.allowed = None;
     }
 
     pub fn register_expander(&mut self, code: [u8; 4], expander: Box<dyn BlockExpander<R> + 'a>) {
@@ -116,9 +170,16 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         self.visiting.clear();
         let mut result = Vec::new();
         let mut queue = VecDeque::new();
-        queue.push_back(start_block_index);
 
-        while let Some(block_index) = queue.pop_front() {
+        // Respect allowed set: if present and start not allowed, return empty.
+        if let Some(allowed) = &self.allowed {
+            if !allowed.contains(&start_block_index) {
+                return Ok(result);
+            }
+        }
+        queue.push_back((start_block_index, 0usize));
+
+        while let Some((block_index, depth)) = queue.pop_front() {
             if self.visited.contains(&block_index) {
                 continue;
             }
@@ -127,11 +188,29 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
             }
 
             if let Some(block) = blend_file.blocks.get(block_index) {
+                // Skip if filtered out
+                if let Some(allowed) = &self.allowed {
+                    if !allowed.contains(&block_index) {
+                        self.visiting.remove(&block_index);
+                        self.visited.insert(block_index);
+                        continue;
+                    }
+                }
+
                 if let Some(expander) = self.expanders.get(&block.header.code) {
                     let deps = expander.expand_block(block_index, blend_file)?;
                     for dep in deps {
+                        // Skip if filtered out
+                        if let Some(allowed) = &self.allowed {
+                            if !allowed.contains(&dep) {
+                                continue;
+                            }
+                        }
                         if !self.visited.contains(&dep) {
-                            queue.push_back(dep);
+                            // Depth limit
+                            if depth < self.options.max_depth {
+                                queue.push_back((dep, depth + 1));
+                            }
                         }
                     }
                 }
@@ -183,7 +262,20 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
                     block_index,
                     block_code,
                     block_size: block.header.size,
-                    block_address: block.header.old_address,
+                    block_address: self.remap_address(block.header.old_address),
+                    children: Vec::new(),
+                });
+            }
+        }
+
+        // Respect filter: skip building this node if not allowed
+        if let Some(allowed) = &self.allowed {
+            if !allowed.contains(&block_index) {
+                return Ok(DependencyNode {
+                    block_index,
+                    block_code: String::from("FILTERED"),
+                    block_size: 0,
+                    block_address: 0,
                     children: Vec::new(),
                 });
             }
@@ -206,7 +298,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
             (
                 block_code,
                 block.header.size,
-                block.header.old_address,
+                self.remap_address(block.header.old_address),
                 block.header.code,
             )
         };
@@ -218,8 +310,14 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
             let deps = expander.expand_block(block_index, blend_file)?;
 
             for dep_index in deps {
+                // Respect filter
+                if let Some(allowed) = &self.allowed {
+                    if !allowed.contains(&dep_index) {
+                        continue;
+                    }
+                }
                 // Prevent excessive depth to avoid stack overflow
-                if depth < 10 {
+                if depth < self.options.max_depth {
                     let child_node =
                         self.build_dependency_node(dep_index, blend_file, depth + 1)?;
                     children.push(child_node);
@@ -254,5 +352,15 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
                 .max()
                 .unwrap_or(current_depth)
         }
+    }
+
+    /// Remap an address using the optional address_map if present.
+    fn remap_address(&self, addr: u64) -> u64 {
+        if let Some(map) = &self.address_map {
+            if let Some(mapped) = map.get(&addr) {
+                return *mapped;
+            }
+        }
+        addr
     }
 }
