@@ -1,39 +1,41 @@
+/// # dot001-tracer
+///
+/// Dependency tracing engine for Blender .blend files.
+///
+/// This crate provides the core dependency tracing functionality with support for
+/// sophisticated traversal patterns including linked lists and array dereferencing.
+///
+/// ## Key Features
+///
+/// - **Dynamic data access**: Block expanders can read additional data on-demand
+/// - **Material array dereferencing**: Properly handles objects with multiple materials
+/// - **Cross-version compatibility**: Works with Blender 2.79 through 5.0+
+/// - **Extensible architecture**: Easy to add new block expanders
+///
+/// ## Example
+///
+// Example usage (not a real test):
+// use dot001_tracer::{BlendFile, DependencyTracer, ObjectExpander};
+// use std::fs::File;
+// use std::io::BufReader;
+//
+// let file = File::open("scene.blend")?;
+// let mut reader = BufReader::new(file);
+// let mut blend_file = BlendFile::new(&mut reader)?;
+//
+// let mut tracer = DependencyTracer::new();
+// tracer.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
+//
+// let deps = tracer.trace_dependencies(object_block_index, &mut blend_file)?;
+// Ok::<(), Box<dyn std::error::Error>>(())
+pub mod bpath;
 // dot001-tracer/src/lib.rs
-
-//! # dot001-tracer
-//!
-//! Dependency tracing engine for Blender .blend files.
-//!
-//! This crate provides the core dependency tracing functionality with support for
-//! sophisticated traversal patterns including linked lists and array dereferencing.
-//!
-//! ## Key Features
-//!
-//! - **Dynamic data access**: Block expanders can read additional data on-demand
-//! - **Material array dereferencing**: Properly handles objects with multiple materials
-//! - **Cross-version compatibility**: Works with Blender 2.79 through 5.0+
-//! - **Extensible architecture**: Easy to add new block expanders
-//!
-//! ## Example
-//!
-//! ```rust,no_run
-//! use dot001_tracer::{BlendFile, DependencyTracer, ObjectExpander};
-//! use std::fs::File;
-//! use std::io::BufReader;
-//!
-//! let file = File::open("scene.blend")?;
-//! let mut reader = BufReader::new(file);
-//! let mut blend_file = BlendFile::new(&mut reader)?;
-//!
-//! let mut tracer = DependencyTracer::new();
-//! tracer.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
-//!
-//! let deps = tracer.trace_dependencies(object_block_index, &mut blend_file)?;
-//! # Ok::<(), Box<dyn std::error::Error>>(())
-//! ```
 
 pub mod expanders;
 pub mod name_resolver;
+
+#[cfg(test)]
+mod bpath_tests;
 
 pub use dot001_parser::{BlendFile, Result};
 pub use expanders::{
