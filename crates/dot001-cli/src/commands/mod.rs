@@ -10,6 +10,7 @@ pub mod info;
 pub mod libpath;
 #[cfg(feature = "diff")]
 pub mod mesh_diff;
+pub mod reconstruct_link;
 #[cfg(feature = "editor")]
 pub mod rename;
 
@@ -22,6 +23,8 @@ pub use diff::cmd_diff;
 #[cfg(feature = "trace")]
 pub use filter::cmd_filter;
 pub use info::cmd_info;
+pub use reconstruct_link::cmd_reconstruct_link;
+
 #[cfg(feature = "editor")]
 pub use libpath::cmd_libpath;
 #[cfg(feature = "diff")]

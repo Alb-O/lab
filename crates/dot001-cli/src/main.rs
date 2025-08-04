@@ -112,7 +112,7 @@ enum Commands {
     #[cfg(feature = "trace")]
     Filter {
         file: PathBuf,
-        #[arg(short, long, help = "Filter expressions (format: [+/-][recursion]key=value_regex)", action = clap::ArgAction::Append)]
+        #[arg(long, help = "Filter expressions (format: [+/-][recursion]key=value_regex)", action = clap::ArgAction::Append)]
         filter: Vec<String>,
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
         format: OutputFormat,
@@ -120,6 +120,18 @@ enum Commands {
         verbose: bool,
         #[arg(long, help = "Output as JSON")]
         json: bool,
+    },
+
+    /// Analyze and reconstruct broken library links
+    #[cfg(feature = "trace")]
+    ReconstructLink {
+        file: PathBuf,
+        #[arg(short, long)]
+        block_index: usize,
+        #[arg(long, help = "Preview reconstruction without modifying the file")]
+        dry_run: bool,
+        #[arg(long, help = "Target asset name to link to")]
+        target_name: Option<String>,
     },
 }
 
@@ -224,6 +236,20 @@ fn run_main() -> anyhow::Result<()> {
             format,
             verbose,
             json,
+            &parse_options,
+            cli.no_auto_decompress,
+        ),
+        #[cfg(feature = "trace")]
+        Commands::ReconstructLink {
+            file,
+            block_index,
+            dry_run,
+            target_name,
+        } => commands::cmd_reconstruct_link(
+            file,
+            block_index,
+            dry_run,
+            target_name,
             &parse_options,
             cli.no_auto_decompress,
         ),
