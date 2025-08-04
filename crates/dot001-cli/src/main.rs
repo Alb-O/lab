@@ -39,6 +39,16 @@ enum OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Update the filepath of a Library (LI) block
+    LibPath {
+        file: PathBuf,
+        #[arg(short, long)]
+        block_index: usize,
+        #[arg(short, long)]
+        new_path: String,
+        #[arg(long, help = "Preview changes without modifying the file")]
+        dry_run: bool,
+    },
     Info {
         file: PathBuf,
     },
@@ -106,6 +116,12 @@ fn main() -> dot001_tracer::Result<()> {
     let cli = Cli::parse();
     let parse_options = util::create_parse_options(&cli);
     match cli.command {
+        Commands::LibPath {
+            file,
+            block_index,
+            new_path,
+            dry_run,
+        } => commands::cmd_libpath(file, block_index, new_path, dry_run),
         Commands::Info { file } => commands::cmd_info(file, &parse_options, cli.no_auto_decompress),
         Commands::Blocks { file } => {
             commands::cmd_blocks(file, &parse_options, cli.no_auto_decompress)

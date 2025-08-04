@@ -1,23 +1,34 @@
-//! # dot001-editor - EXPERIMENTAL FUNCTIONALITY
-//!
-//! This crate provides editing capabilities for Blender .blend files.
-//!
-//! ## WARNING: EXPERIMENTAL
-//!
-//! This functionality directly modifies .blend file binary data. While designed
-//! to be safe, there is inherent risk when modifying binary file formats.
-//! Always work with backup copies of your files.
-//!
-//! ### Current Capabilities:
-//! - ID name modification for datablocks
-//! - Input validation and safety checks
-//! - File verification after modifications
-//!
-//! ### Recommendations:
-//! - Use only on backup copies
-//! - Test modified files in Blender before production use
-//! - Validate results after operations
-
+/// Update the filepath of a Library (LI) block and save changes to file
+///
+/// This function modifies the filepath field of a Library block in the blend file.
+///
+/// ### Example:
+/// ```rust,no_run
+/// use dot001_editor::BlendEditor;
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     BlendEditor::update_libpath_and_save("file.blend", 42, "//libs/other.blend")?;
+///     Ok(())
+/// }
+/// ```
+/// # dot001-editor - EXPERIMENTAL FUNCTIONALITY
+///
+/// This crate provides editing capabilities for Blender .blend files.
+///
+/// ## WARNING: EXPERIMENTAL
+///
+/// This functionality directly modifies .blend file binary data. While designed
+/// to be safe, there is inherent risk when modifying binary file formats.
+/// Always work with backup copies of your files.
+///
+/// ### Current Capabilities:
+/// - ID name modification for datablocks
+/// - Input validation and safety checks
+/// - File verification after modifications
+///
+/// ### Recommendations:
+/// - Use only on backup copies
+/// - Test modified files in Blender before production use
+/// - Validate results after operations
 pub mod commands;
 use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
@@ -49,6 +60,29 @@ pub type Result<T> = std::result::Result<T, EditorError>;
 pub struct BlendEditor;
 
 impl BlendEditor {
+    /// Update the filepath of a Library (LI) block and save changes to file
+    ///
+    /// This function modifies the filepath field of a Library block in the blend file.
+    ///
+    /// ### Example:
+    /// ```rust,no_run
+    /// use dot001_editor::BlendEditor;
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     BlendEditor::update_libpath_and_save("file.blend", 42, "//libs/other.blend")?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn update_libpath_and_save<P: AsRef<std::path::Path>>(
+        file_path: P,
+        block_index: usize,
+        new_path: &str,
+    ) -> Result<()> {
+        crate::commands::libpath::LibPathCommand::update_libpath_and_save(
+            file_path,
+            block_index,
+            new_path,
+        )
+    }
     /// Rename an ID block and save changes to file
     ///
     /// This function modifies binary data in the blend file and writes changes to disk.

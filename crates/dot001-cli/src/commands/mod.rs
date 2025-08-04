@@ -3,6 +3,7 @@ pub mod dependencies;
 pub mod diff;
 pub mod filter;
 pub mod info;
+pub mod libpath;
 pub mod mesh_diff;
 pub mod rename;
 
@@ -12,6 +13,7 @@ pub use dependencies::cmd_dependencies;
 pub use diff::cmd_diff;
 pub use filter::cmd_filter;
 pub use info::cmd_info;
+pub use libpath::cmd_libpath;
 pub use mesh_diff::cmd_mesh_diff;
 pub use rename::cmd_rename;
 

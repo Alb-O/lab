@@ -450,6 +450,7 @@ dependencies = [
 name = "dot001-cli"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "dot001-diff",
  "dot001-editor",
