@@ -11,15 +11,14 @@ pub fn cmd_blocks(
 ) -> Result<(), Dot001Error> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
     println!("Blocks in {}:", file_path.display());
-    let block_info: Vec<(usize, String, u32, u64)> = blend_file
-        .blocks
-        .iter()
-        .enumerate()
-        .map(|(i, block)| {
-            let code_str = String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string();
-            (i, code_str, block.header.size, block.header.old_address)
+    let block_info: Vec<(usize, String, u32, u64)> = (0..blend_file.blocks_len())
+        .filter_map(|i| {
+            blend_file.get_block(i).map(|block| {
+                let code_str = String::from_utf8_lossy(&block.header.code)
+                    .trim_end_matches('\0')
+                    .to_string();
+                (i, code_str, block.header.size, block.header.old_address)
+            })
         })
         .collect();
     for (i, code_str, size, address) in block_info {

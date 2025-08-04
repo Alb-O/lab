@@ -1,7 +1,7 @@
 use crate::commands::{DependencyTracer, NameResolver};
 use dot001_error::Dot001Error;
-use dot001_parser::ParseOptions;
-use dot001_tracer::{BlendFile, DependencyNode};
+use dot001_parser::{BlendFile, ParseOptions};
+use dot001_tracer::DependencyNode;
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -14,11 +14,11 @@ pub fn cmd_dependencies(
     no_auto_decompress: bool,
 ) -> Result<(), Dot001Error> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
-    if block_index >= blend_file.blocks.len() {
+    if block_index >= blend_file.blocks_len() {
         eprintln!(
             "Error: Block index {} is out of range (max: {})",
             block_index,
-            blend_file.blocks.len() - 1
+            blend_file.blocks_len() - 1
         );
         return Ok(());
     }
@@ -36,7 +36,7 @@ pub fn cmd_dependencies(
     tracer.register_expander(*b"LA\0\0", Box::new(crate::commands::LampExpander));
     tracer.register_expander(*b"NT\0\0", Box::new(crate::commands::NodeTreeExpander));
     tracer.register_expander(*b"DATA", Box::new(crate::commands::DataBlockExpander));
-    let start_block = &blend_file.blocks[block_index];
+    let start_block = blend_file.get_block(block_index).unwrap();
     let start_code = String::from_utf8_lossy(&start_block.header.code);
     match format {
         crate::OutputFormat::Flat => {

@@ -1,6 +1,6 @@
 use crate::commands::NameResolver;
 use dot001_error::Dot001Error;
-use dot001_parser::ParseOptions;
+use dot001_parser::{BlendFile, ParseOptions};
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -38,7 +38,7 @@ pub fn cmd_filter(
         for &i in &filtered_indices {
             // Copy block fields by value to avoid borrow conflicts
             let (code_str, size, count, old_address, block_offset) = {
-                let block = &blend_file.blocks[i];
+                let block = blend_file.get_block(i).unwrap();
                 (
                     String::from_utf8_lossy(&block.header.code)
                         .trim_end_matches('\0')
@@ -72,7 +72,7 @@ pub fn cmd_filter(
         println!("Filtered blocks from {}:", file_path.display());
         println!(
             "Total blocks: {}, Filtered: {}",
-            blend_file.blocks.len(),
+            blend_file.blocks_len(),
             filtered_indices.len()
         );
         println!();
@@ -82,7 +82,7 @@ pub fn cmd_filter(
                 sorted_indices.sort();
                 for &i in &sorted_indices {
                     let (code_str, size, count, old_address, block_offset) = {
-                        let block = &blend_file.blocks[i];
+                        let block = blend_file.get_block(i).unwrap();
                         (
                             String::from_utf8_lossy(&block.header.code)
                                 .trim_end_matches('\0')
@@ -131,7 +131,7 @@ pub fn cmd_filter(
     /// Build a simple flat tree for filtered blocks (no hierarchy, just a list)
     fn build_filter_tree<R: std::io::Read + std::io::Seek>(
         indices: &[usize],
-        blend_file: &mut dot001_tracer::BlendFile<R>,
+        blend_file: &mut BlendFile<R>,
     ) -> StringTreeNode {
         let mut sorted_indices: Vec<_> = indices.to_vec();
         sorted_indices.sort();
@@ -139,7 +139,7 @@ pub fn cmd_filter(
             .iter()
             .map(|&i| {
                 let (code_str, _size, _count, _old_address, _block_offset) = {
-                    let block = &blend_file.blocks[i];
+                    let block = blend_file.get_block(i).unwrap();
                     (
                         String::from_utf8_lossy(&block.header.code)
                             .trim_end_matches('\0')

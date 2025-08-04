@@ -69,17 +69,16 @@ pub fn cmd_mesh_diff(
             }
         }
     } else {
-        let me_blocks: Vec<usize> = blend_file1
-            .blocks
-            .iter()
-            .enumerate()
-            .filter_map(|(i, block)| {
-                let code = String::from_utf8_lossy(&block.header.code);
-                if code.trim_end_matches('\0') == "ME" {
-                    Some(i)
-                } else {
-                    None
-                }
+        let me_blocks: Vec<usize> = (0..blend_file1.blocks_len())
+            .filter_map(|i| {
+                blend_file1.get_block(i).and_then(|block| {
+                    let code = String::from_utf8_lossy(&block.header.code);
+                    if code.trim_end_matches('\0') == "ME" {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
             })
             .collect();
         println!("Found {} ME blocks to analyze", me_blocks.len());

@@ -51,15 +51,35 @@ impl<T: Read + Seek + Send> ReadSeekSend for T {}
 
 /// Main parser for .blend files
 pub struct BlendFile<R: Read + Seek> {
-    pub reader: R,
-    pub header: BlendFileHeader,
-    pub blocks: Vec<BlendFileBlock>,
-    pub dna: Option<DnaCollection>,
-    pub block_index: HashMap<[u8; 4], Vec<usize>>,
-    pub address_index: HashMap<u64, usize>,
+    reader: R,
+    header: BlendFileHeader,
+    blocks: Vec<BlendFileBlock>,
+    dna: Option<DnaCollection>,
+    block_index: HashMap<[u8; 4], Vec<usize>>,
+    address_index: HashMap<u64, usize>,
 }
 
 impl<R: Read + Seek> BlendFile<R> {
+    /// Access to the header information
+    pub fn header(&self) -> &BlendFileHeader {
+        &self.header
+    }
+
+    /// Get the number of blocks in the file
+    pub fn blocks_len(&self) -> usize {
+        self.blocks.len()
+    }
+
+    /// Get an iterator over block types of a specific kind
+    pub fn blocks_by_type_iter(&self, code: &[u8; 4]) -> impl Iterator<Item = usize> + '_ {
+        self.block_index.get(code).into_iter().flatten().copied()
+    }
+
+    /// Get mutable access to the reader (needed for certain operations)
+    pub fn reader_mut(&mut self) -> &mut R {
+        &mut self.reader
+    }
+
     pub fn new(mut reader: R) -> Result<Self> {
         // Check if file is zstd compressed by reading magic bytes
         let mut magic_bytes = [0u8; 4];

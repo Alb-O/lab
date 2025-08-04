@@ -113,13 +113,13 @@ impl LibPathCommand {
         let mut blend_file = BlendFile::new(&mut reader)?;
 
         // Check if block exists
-        if block_index >= blend_file.blocks.len() {
+        if block_index >= blend_file.blocks_len() {
             return Err(Dot001Error::editor(
                 format!("Block not found at index: {block_index}"),
                 EditorErrorKind::BlockNotFound,
             ));
         }
-        let block = &blend_file.blocks[block_index];
+        let block = blend_file.get_block(block_index).unwrap();
         let block_code = String::from_utf8_lossy(&block.header.code)
             .trim_end_matches('\0')
             .to_string();

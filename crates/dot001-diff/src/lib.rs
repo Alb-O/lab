@@ -129,13 +129,13 @@ impl BlendDiffer {
         let mut block_diffs = Vec::new();
 
         // Get block count from both files
-        let max_blocks = file1.blocks.len().max(file2.blocks.len());
+        let max_blocks = file1.blocks_len().max(file2.blocks_len());
 
         // Collect block information first to avoid borrowing conflicts
         let block_info: Vec<_> = (0..max_blocks)
             .map(|i| {
-                let block1_info = file1.blocks.get(i).map(|b| (b.header.code, b.header.size));
-                let block2_info = file2.blocks.get(i).map(|b| (b.header.code, b.header.size));
+                let block1_info = file1.get_block(i).map(|b| (b.header.code, b.header.size));
+                let block2_info = file2.get_block(i).map(|b| (b.header.code, b.header.size));
                 (i, block1_info, block2_info)
             })
             .collect();

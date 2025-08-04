@@ -65,7 +65,7 @@ impl<R: Read + Seek> BlockExpander<R> for MeshExpander {
                 let mats_reader = blend_file.create_field_reader(&mats_data)?;
 
                 for i in 0..totcol {
-                    let offset = i as usize * blend_file.header.pointer_size as usize;
+                    let offset = i as usize * blend_file.header().pointer_size as usize;
                     if let Ok(mat_ptr) = mats_reader.read_pointer(offset) {
                         if mat_ptr != 0 {
                             if let Some(mat_index) = blend_file.find_block_by_address(mat_ptr) {

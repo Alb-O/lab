@@ -133,7 +133,7 @@ impl ProvenanceAnalyzer {
 
         // Filter for DATA blocks and collect info
         for &block_idx in &referenced_blocks {
-            if let Some(block) = file.blocks.get(block_idx) {
+            if let Some(block) = file.get_block(block_idx) {
                 let block_code = String::from_utf8_lossy(&block.header.code);
                 if block_code.trim_end_matches('\0') == "DATA" {
                     referenced_data_blocks.insert(block_idx);
@@ -150,7 +150,7 @@ impl ProvenanceAnalyzer {
         if referenced_data_blocks.len() < 3 {
             let search_range = 10; // Reduced from 20 to be more conservative
             let start = me_block_index.saturating_sub(search_range);
-            let end = (me_block_index + search_range).min(file.blocks.len());
+            let end = (me_block_index + search_range).min(file.blocks_len());
 
             // Collect candidate blocks first to avoid borrowing conflicts
             let mut candidate_blocks = Vec::new();
@@ -159,7 +159,7 @@ impl ProvenanceAnalyzer {
                     continue;
                 }
 
-                if let Some(block) = file.blocks.get(block_idx) {
+                if let Some(block) = file.get_block(block_idx) {
                     let block_code = String::from_utf8_lossy(&block.header.code);
                     if block_code.trim_end_matches('\0') == "DATA" {
                         // Be more restrictive: only include smaller DATA blocks that are likely mesh data
@@ -224,7 +224,7 @@ impl ProvenanceAnalyzer {
                 continue;
             }
 
-            if let Some(block) = file.blocks.get(block_idx) {
+            if let Some(block) = file.get_block(block_idx) {
                 let block_code = String::from_utf8_lossy(&block.header.code);
                 if block_code.trim_end_matches('\0') == "DATA" && block.header.size > 8 {
                     referenced_data_blocks.insert(block_idx);
@@ -256,7 +256,7 @@ impl ProvenanceAnalyzer {
         block_index: usize,
         file: &mut BlendFile<R>,
     ) -> Result<DataBlockInfo> {
-        let block = file.blocks.get(block_index).ok_or_else(|| {
+        let block = file.get_block(block_index).ok_or_else(|| {
             Dot001Error::diff(
                 format!("Block not found: {block_index}"),
                 DiffErrorKind::InsufficientData,

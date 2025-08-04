@@ -21,7 +21,7 @@ pub fn cmd_reconstruct_link(
     println!("Analyzing library link for block {block_index}...");
 
     // Validate block exists and read data
-    if block_index >= blend_file.blocks.len() {
+    if block_index >= blend_file.blocks_len() {
         return Err(invalid_arguments_error(format!(
             "Block index {block_index} out of range"
         )));
@@ -148,17 +148,16 @@ fn find_collections_in_library(
     let mut available_collections = Vec::new();
 
     // Find all GR (Collection) blocks
-    let collection_indices: Vec<usize> = lib_blend_file
-        .blocks
-        .iter()
-        .enumerate()
-        .filter_map(|(index, block)| {
-            let block_code = String::from_utf8_lossy(&block.header.code);
-            if block_code.trim_end_matches('\0') == "GR" {
-                Some(index)
-            } else {
-                None
-            }
+    let collection_indices: Vec<usize> = (0..lib_blend_file.blocks_len())
+        .filter_map(|index| {
+            lib_blend_file.get_block(index).and_then(|block| {
+                let block_code = String::from_utf8_lossy(&block.header.code);
+                if block_code.trim_end_matches('\0') == "GR" {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
         })
         .collect();
 
@@ -243,7 +242,7 @@ fn reconstruct_id_name(
     block_data[name_offset..name_end].copy_from_slice(&name_bytes);
 
     // Write back to file
-    let block = &blend_file.blocks[block_index];
+    let block = blend_file.get_block(block_index).unwrap();
     let block_data_offset = block.data_offset;
 
     let mut output_file = OpenOptions::new().read(true).write(true).open(file_path)?;

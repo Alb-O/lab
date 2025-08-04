@@ -152,15 +152,15 @@ Testing strategy recommendations
   - Argument parsing tests via clap’s test harness.
 
 Prioritized improvement plan
-1) Consolidate `BlendFile` type usage and decompression handling
-- Refactor `dot001-cli/src/util.rs` to always return `dot001_parser::BlendFile`.
-- Remove the feature-gated alternate return types.
-- Risk: low; code touch in CLI and tracer imports. Benefit: simplifies mental model.
+1) ✅ **COMPLETED** Consolidate `BlendFile` type usage and decompression handling
+- ✅ Refactored `dot001-cli/src/util.rs` to always return `dot001_parser::BlendFile`.
+- ✅ Removed the feature-gated alternate return types.
+- ✅ Risk: low; code touch in CLI and tracer imports. Benefit: simplifies mental model.
 
-2) Encapsulate `BlendFile` fields and provide accessors
-- Make fields private in `dot001-parser/src/lib.rs`. Add public, read-only accessors and iterator-based helpers.
-- Migrate internal code across crates to use the new accessors.
-- Risk: medium; touches many call sites. Benefit: stronger invariants, easier refactors.
+2) ✅ **COMPLETED** Encapsulate `BlendFile` fields and provide accessors
+- ✅ Made fields private in `dot001-parser/src/lib.rs`. Added public, read-only accessors and iterator-based helpers.
+- ✅ Migrated internal code across crates to use the new accessors.
+- ✅ Risk: medium; touches many call sites. Benefit: stronger invariants, easier refactors.
 
 3) Create shared pointer traversal utilities
 - Implement a new module in `dot001-parser` (e.g., `reflect.rs`) for generic pointer field enumeration via DNA.

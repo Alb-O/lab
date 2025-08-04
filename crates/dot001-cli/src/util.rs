@@ -17,27 +17,6 @@ pub fn create_parse_options(cli: &crate::Cli) -> ParseOptions {
     }
 }
 
-#[cfg(feature = "trace")]
-pub fn load_blend_file(
-    file_path: &PathBuf,
-    options: &ParseOptions,
-    no_auto_decompress: bool,
-) -> Result<dot001_tracer::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, dot001_error::Dot001Error>
-{
-    use std::fs::File;
-    use std::io::BufReader;
-    if no_auto_decompress {
-        let file = File::open(file_path)?;
-        let reader = BufReader::new(file);
-        let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
-        Ok(dot001_tracer::BlendFile::new(boxed_reader)?)
-    } else {
-        let (parser_file, _mode) = dot001_parser::parse_from_path(file_path, Some(options))?;
-        Ok(dot001_tracer::BlendFile::new(parser_file.reader)?)
-    }
-}
-
-#[cfg(not(feature = "trace"))]
 pub fn load_blend_file(
     file_path: &PathBuf,
     options: &ParseOptions,

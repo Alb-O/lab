@@ -196,7 +196,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
                 continue;
             }
 
-            if let Some(block) = blend_file.blocks.get(block_index) {
+            if let Some(block) = blend_file.get_block(block_index) {
                 // Skip if filtered out
                 if let Some(allowed) = &self.allowed {
                     if !allowed.contains(&block_index) {
@@ -263,7 +263,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         // Prevent infinite recursion with circular dependencies
         if self.visited.contains(&block_index) {
             // Return a placeholder node for already visited blocks
-            if let Some(block) = blend_file.blocks.get(block_index) {
+            if let Some(block) = blend_file.get_block(block_index) {
                 let block_code = String::from_utf8_lossy(&block.header.code)
                     .trim_end_matches('\0')
                     .to_string();
@@ -294,7 +294,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
 
         // Extract block info before mutable operations
         let (block_code, block_size, block_address, expander_code) = {
-            let block = blend_file.blocks.get(block_index).ok_or_else(|| {
+            let block = blend_file.get_block(block_index).ok_or_else(|| {
                 Dot001Error::tracer(
                     format!("Invalid block index: {block_index}"),
                     TracerErrorKind::BlockExpansionFailed,

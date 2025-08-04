@@ -84,14 +84,14 @@ impl FilterEngine {
         spec: &FilterSpec,
         blend: &mut BlendFile<R>,
     ) -> Result<HashSet<usize>> {
-        let mut marks: Vec<BlockMark> = vec![BlockMark::None; blend.blocks.len()];
+        let mut marks: Vec<BlockMark> = vec![BlockMark::None; blend.blocks_len()];
         let mut include_queue: Vec<(usize, usize)> = Vec::new(); // (block_index, current_depth)
         let mut included: HashSet<usize> = HashSet::new();
         let mut processed_count = 0usize;
 
         // First pass: evaluate rules against all blocks, enqueue recursive includes as needed.
         for (i, mark) in marks.iter_mut().enumerate() {
-            let meta = Self::meta_view(&blend.blocks[i]);
+            let meta = Self::meta_view(blend.get_block(i).unwrap());
             let data = Self::data_view_minimal(blend, i)?;
 
             let mut matched_include: Option<usize> = None;
@@ -165,7 +165,7 @@ impl FilterEngine {
         // If no include rules, include all by default (Blender behavior).
         let has_include = spec.rules.iter().any(|r| r.include);
         if !has_include {
-            included = (0..blend.blocks.len()).collect();
+            included = (0..blend.blocks_len()).collect();
         }
 
         // Remove explicitly excluded blocks
@@ -212,7 +212,7 @@ impl FilterEngine {
         let mut pairs: Vec<(String, String)> = Vec::with_capacity(8);
         // Copy header primitives without holding an immutable borrow across &mut calls
         let (code_bytes, size_v, count_v, sdna_v, old_addr_v) = {
-            let h = &blend.blocks[block_index].header;
+            let h = &blend.get_block(block_index).unwrap().header;
             (h.code, h.size, h.count, h.sdna_index, h.old_address)
         };
 
@@ -276,8 +276,8 @@ impl FilterEngine {
         let mut out = Vec::new();
         // Copy code bytes and pointer_size locally to avoid holding an immutable borrow on blend
         let (code, pointer_size) = {
-            let h = &blend.blocks[block_index].header;
-            (h.code, blend.header.pointer_size)
+            let h = &blend.get_block(block_index).unwrap().header;
+            (h.code, blend.header().pointer_size)
         };
 
         // Heuristics over known structures to discover pointer fields:

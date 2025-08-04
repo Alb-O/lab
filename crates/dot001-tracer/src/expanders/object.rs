@@ -42,7 +42,7 @@ impl<R: Read + Seek> BlockExpander<R> for ObjectExpander {
 
                             // Read each material pointer in the array
                             for i in 0..totcol {
-                                let offset = i as usize * blend_file.header.pointer_size as usize;
+                                let offset = i as usize * blend_file.header().pointer_size as usize;
                                 if let Ok(mat_ptr) = mats_reader.read_pointer(offset) {
                                     if mat_ptr != 0 {
                                         if let Some(mat_index) =

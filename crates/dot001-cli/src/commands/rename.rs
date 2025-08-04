@@ -12,16 +12,16 @@ pub fn cmd_rename(
 ) -> Result<(), Dot001Error> {
     use dot001_editor::BlendEditor;
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
-    if block_index >= blend_file.blocks.len() {
+    if block_index >= blend_file.blocks_len() {
         eprintln!(
             "Error: Block index {} is out of range (max: {})",
             block_index,
-            blend_file.blocks.len() - 1
+            blend_file.blocks_len() - 1
         );
         return Ok(());
     }
     let block_code = {
-        let block = &blend_file.blocks[block_index];
+        let block = blend_file.get_block(block_index).unwrap();
         String::from_utf8_lossy(&block.header.code)
             .trim_end_matches('\0')
             .to_string()

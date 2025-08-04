@@ -25,7 +25,7 @@ impl<R: Read + Seek> BlockExpander<R> for CollectionExpander {
             let reader = blend_file.create_field_reader(&collection_data)?;
 
             // For DATA blocks, check if this is actually a collection or something else (like a nodetree)
-            let block = &blend_file.blocks[block_index];
+            let block = blend_file.get_block(block_index).unwrap();
             if block.header.code == *b"DATA" {
                 // Try to detect if this is a collection by looking for collection fields
                 let has_gobject = reader.read_field_pointer("Collection", "gobject").is_ok();

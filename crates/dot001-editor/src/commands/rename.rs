@@ -20,14 +20,14 @@ impl RenameCommand {
         let file = std::fs::File::open(&file_path)?;
         let mut reader = std::io::BufReader::new(file);
         let mut blend_file = BlendFile::new(&mut reader)?;
-        if block_index >= blend_file.blocks.len() {
+        if block_index >= blend_file.blocks_len() {
             return Err(Dot001Error::editor(
                 format!("Block not found at index: {block_index}"),
                 EditorErrorKind::BlockNotFound,
             ));
         }
         let block_code = {
-            let block = &blend_file.blocks[block_index];
+            let block = blend_file.get_block(block_index).unwrap();
             String::from_utf8_lossy(&block.header.code)
                 .trim_end_matches('\0')
                 .to_string()
@@ -41,7 +41,7 @@ impl RenameCommand {
 
         #[cfg(not(feature = "tracer_integration"))]
         let _current_name = format!("Block{}", block_index); // Fallback without tracer
-        let block = &blend_file.blocks[block_index];
+        let block = blend_file.get_block(block_index).unwrap();
         let block_data_offset = block.data_offset;
         let mut block_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&block_data)?;
@@ -79,14 +79,14 @@ impl RenameCommand {
         new_name: &str,
     ) -> Result<()> {
         validate_new_name(new_name)?;
-        if block_index >= blend_file.blocks.len() {
+        if block_index >= blend_file.blocks_len() {
             return Err(Dot001Error::editor(
                 format!("Block not found at index: {block_index}"),
                 EditorErrorKind::BlockNotFound,
             ));
         }
         let block_code = {
-            let block = &blend_file.blocks[block_index];
+            let block = blend_file.get_block(block_index).unwrap();
             String::from_utf8_lossy(&block.header.code)
                 .trim_end_matches('\0')
                 .to_string()
