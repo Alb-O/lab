@@ -46,49 +46,54 @@ Findings:
 - Dot001Error::with_file_path takes a path and blindly sets Some(path) across variants that have file context, but unwrap_or_default patterns elsewhere can hide missing context.
 
 Suggestions:
-- Add From<Dot001Error> conversions or newtype wrappers per crate if you want crate-specific Result<T> but still unify at the CLI boundary. Currently many crates re-export dot001_error::Result which is fine.
-- Provide helper constructors for common patterns in a small extension trait per domain, living in dot001-error to avoid repetition of message strings across crates.
-- Consider an ErrorContext struct for shared fields (file_path, block_index, command, operation) to reduce enum payload variability and give consistent accessor methods.
+- **Leverage `thiserror` context**: Use `#[from]` and `#[source]` attributes for cleaner error chaining, especially for `io::Error`. This would make the `From<std::io::Error>` implementation more idiomatic and remove the need for `source_message`.
+- **Implement `Display`**: Add a `impl Display for Dot001Error` that calls `user_message()`. This allows for direct, user-friendly printing of errors (e.g., `println!("Error: {}", my_error);`).
+- **Add `From<Dot001Error>` conversions**: Or newtype wrappers per crate if you want crate-specific `Result<T>` but still unify at the CLI boundary. Currently many crates re-export `dot001_error::Result` which is fine.
+- **Provide helper constructors**: For common error patterns, create constructors in a small extension trait per domain, living in `dot001-error` to avoid repetition of message strings across crates.
+- **Consider an `ErrorContext` struct**: For shared fields (file_path, block_index, command, operation), an `ErrorContext` struct could reduce enum payload variability and provide consistent accessor methods.
 
 B) dot001-parser
 Findings:
-- BlendFile::new checks zstd via magic; parse_from_* handle decompression policy correctly.
-- Public struct BlendFile exposes reader and all fields. This eases internal coordination but leaks internals to API consumers.
-- read_blocks/read_dna/build_block_index do a single pass. The DNA not found error is consistent.
-- block_content_hash uses twox-hash including header fields and data; good determinism.
-- ReadSeekSend trait is blanket implemented for any Read+Seek+Send; helpful for trait object.
+- `BlendFile::new` checks for zstd magic bytes; `parse_from_*` handles decompression policy correctly.
+- The public `BlendFile` struct exposes its `reader` and all other fields, which, while convenient, leaks implementation details.
+- The DNA is always parsed, which might be unnecessary for commands that only need header info.
 
 Suggestions:
-- Encapsulate `BlendFile` fields. Expose functionality through public methods to strengthen invariants. For example, provide an iterator over blocks of a certain type instead of direct access to the `blocks` vector.
-- Offer borrow-safe methods that return lightweight structs with header snapshots to prevent callers from maintaining references into internal Vec while mutating.
-- Consider zero-copy options for block data with an internal buffer pool or guarded slice if using mmap, to reduce allocations for repeated reads. Currently read_block_data allocates Vec new each time.
-- Unify compression detection path: You check magic twice (in new and in parse_from_*). Document or centralize detection to one path to avoid drift. Optionally gate BlendFile::new to require already-decompressed streams and keep auto-detection only in parse_* APIs.
+- **Encapsulate `BlendFile` fields**: Expose functionality through public methods to strengthen invariants. For example, provide an iterator over blocks of a certain type instead of direct access to the `blocks` vector.
+- **Lazy-load DNA**: Modify `BlendFile` to parse the DNA block only when it's first accessed (e.g., via a `dna()` method that caches the result). This would speed up simple commands like `info`.
+- **Refine `DnaName` parsing**: The `DnaName::new` and `calc_array_size_fast` methods could be simplified and made more robust, perhaps by using a small, dedicated parser function for the name string.
+- **Introduce a `BlockReader`**: Create a `BlockReader<'a>` struct that takes ownership of a block's data (`Vec<u8>`) and a reference to the `DnaCollection`. This would encapsulate the logic for reading data from a single block and improve ergonomics over the current `FieldReader`.
+- **Offer borrow-safe methods**: Return lightweight structs with header snapshots to prevent callers from maintaining references into internal `Vec` while mutating.
+- **Consider zero-copy options**: For block data with an internal buffer pool or guarded slice if using mmap, to reduce allocations for repeated reads. Currently `read_block_data` allocates a new `Vec` each time.
+- **Unify compression detection**: The magic byte check in `BlendFile::new` is redundant given the logic in `parse_from_path`. Centralize this detection to avoid drift.
 
 C) dot001-tracer
 Findings:
-- DependencyTracer uses BFS with visited/visiting sets and depth limit, plus optional allowed set precomputed by FilterEngine. Good protections against cycles and explosions.
-- build_dependency_node duplicates filtering logic; both trace_dependencies and tree path re-check allowed sets. Acceptable for now but consider centralizing.
-- Error mapping function to_tracer_error unwrap_or_default when adding file_path may insert empty PathBuf. This can hide missing context.
-- FilterEngine implements pointer_targets heuristics for multiple block types (OB, ME, GR/DATA, NT/DATA), partially overlapping expander logic. This is a DRY hotspot and a maintenance risk if expander logic evolves differently.
-- The `NameResolver` is a static utility struct and its methods require a mutable `BlendFile` reference, which can be ergonomically challenging.
+- `DependencyTracer` uses a robust BFS approach with good protection against cycles.
+- The `FilterEngine`'s `pointer_targets` heuristics overlap with `BlockExpander` logic, creating a maintenance risk.
+- `NameResolver` is a static utility struct with methods that require a mutable `BlendFile` reference, which can be awkward to use.
 
 Suggestions:
-- Refactor pointer traversal into shared utilities/traits. Two approaches:
-  1) Promote a SharedReflect module in dot001-parser with reflective helpers over DNA, providing generic traversal of pointer fields and arrays. Then both FilterEngine and expanders can rely on it.
-  2) Or, route filter recursion through expanders instead of separate heuristics, e.g., FilterEngine requests DependencyTracer to expand “one step” for a given index. This consolidates traversal knowledge.
-- Enhance BlockExpander::expand_block to optionally return metadata (e.g., external file refs) via a richer ExpandResult, unblocking ImageExpander’s TODO for file paths.
-- Provide a NameResolver trait in dot001-tracer with a default implementation; allow crates to add resolvers per block type. Currently NameResolver is present but tightly coupled in tracer; define a formal interface and allow DI.
-- Introduce a Determinizer that applies address remapping and stable sorting in one place for any outputs (flat lists, trees), used by CLI and diff when needed. This centralizes determinism handling.
+- **Refactor pointer traversal**: Consolidate pointer traversal logic into a shared utility or trait in `dot001-parser` to be used by both `FilterEngine` and the expanders.
+- **Decouple `NameResolver`**: Make `NameResolver` an instantiable struct that holds an immutable reference to `BlendFile`, improving its ergonomics and removing the need for `&mut` borrows in display logic.
+- **Richer `ExpandResult`**: Enhance `ExpandResult` to include a `DependencyKind` enum (`Direct`, `Array`, `Node`, etc.) to provide more context on *why* a block is a dependency.
+- **Centralize `BlockExpander` registration**: Add a `register_default_expanders` method to `DependencyTracer` to simplify the setup in `dot001-cli`.
+- **Introduce a `Determinizer`**: Create a utility to apply address remapping and stable sorting for any outputs, centralizing deterministic output generation.
+- **Enhance `BlockExpander::expand_block`**: Optionally return metadata (e.g., external file refs) via a richer `ExpandResult`, unblocking `ImageExpander`’s TODO for file paths.
 
 D) dot001-cli
 Findings:
-- Commands are split and re-exported; main.rs is thin and uses util for parse options and file loading.
-- load_blend_file has two implementations depending on feature "trace", returning different BlendFile types (tracer vs parser module). This is a type coupling that can be surprising.
+- The command structure is modular, but some command implementations are becoming large and monolithic.
+- The `load_blend_file` function in `util.rs` has a surprising type coupling based on the "trace" feature.
+- Error handling is inconsistent; some commands print to `eprintln!` and return `Ok(())`.
 
 Suggestions:
-- Standardize on a single BlendFile type alias across crates via re-export in dot001-parser, and keep tracer consuming parser::BlendFile generically. In CLI util, always return dot001_parser::BlendFile<Box<dyn ReadSeekSend>>; let commands pass it to tracer or diff. Avoid returning tracer::BlendFile constructor, since tracer re-exports parser::BlendFile anyway.
-- Extract output formatting (tree/flat/json) into a small presenter module so commands/dependencies.rs is more testable and formatting can be reused by dot001-diff and future commands.
-- Normalize error returns: commands sometimes print to `eprintln!` and return `Ok(())` (e.g., `cmd_dependencies` for an out-of-range index). Prefer returning a proper error using `dot001_error` to allow for consistent CLI exit codes and centralized error handling in `main`.
+- **Introduce a `CliContext` struct**: Create a `CliContext` to hold shared state like `ParseOptions` and `no_auto_decompress`, and pass it to command functions instead of multiple individual arguments.
+- **Refactor commands into modules**: Organize each command into its own submodule (e.g., `commands::info`, `commands::dependencies`) to improve structure and maintainability.
+- **Break down large commands**: Refactor long command functions like `cmd_filter` into smaller, more focused functions for parsing, filtering, and formatting.
+- **Standardize on a single `BlendFile` type**: The `util::load_blend_file` function should always return a `dot001_parser::BlendFile`. The tracer can then be instantiated with a reference to this file.
+- **Normalize error returns**: Ensure all commands return a `Result<(), Dot001Error>` and let `main` handle the rendering of errors to the user.
+- **Extract output formatting**: Create a small presenter module for tree/flat/json formatting so it can be reused by `dependencies`, `diff`, and future commands.
 
 E) dot001-diff
 Findings:
