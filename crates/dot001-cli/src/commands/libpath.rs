@@ -1,4 +1,5 @@
 use dot001_editor::BlendEditor;
+use dot001_error::{CliErrorKind, Dot001Error};
 use std::path::PathBuf;
 
 pub fn cmd_libpath(
@@ -7,7 +8,7 @@ pub fn cmd_libpath(
     new_path: String,
     dry_run: bool,
     no_validate: bool,
-) -> anyhow::Result<()> {
+) -> Result<(), Dot001Error> {
     if dry_run {
         println!("[dry-run] Would update library path in block {block_index} to: {new_path}");
         return Ok(());
@@ -19,7 +20,10 @@ pub fn cmd_libpath(
         }
         Err(e) => {
             eprintln!("Error updating library path: {e}");
-            Err(anyhow::anyhow!("Editor error: {}", e))
+            Err(Dot001Error::cli(
+                format!("Editor error: {e}"),
+                CliErrorKind::ExecutionFailed,
+            ))
         }
     }
 }

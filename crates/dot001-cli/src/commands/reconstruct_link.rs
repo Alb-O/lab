@@ -1,3 +1,5 @@
+use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
+use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Seek, SeekFrom, Write};
@@ -11,7 +13,7 @@ pub fn cmd_reconstruct_link(
     target_name: Option<String>,
     _parse_options: &ParseOptions,
     _no_auto_decompress: bool,
-) -> anyhow::Result<()> {
+) -> Result<(), Dot001Error> {
     let file = File::open(&file_path)?;
     let reader = BufReader::new(file);
     let mut blend_file = BlendFile::new(reader)?;
@@ -20,7 +22,9 @@ pub fn cmd_reconstruct_link(
 
     // Validate block exists and read data
     if block_index >= blend_file.blocks.len() {
-        return Err(anyhow::anyhow!("Block index {block_index} out of range"));
+        return Err(invalid_arguments_error(format!(
+            "Block index {block_index} out of range"
+        )));
     }
 
     let block_data = blend_file.read_block_data(block_index)?;
@@ -37,13 +41,13 @@ pub fn cmd_reconstruct_link(
     // Find and read library block
     let lib_block_index = blend_file
         .find_block_by_address(link_info.lib_ptr)
-        .ok_or_else(|| anyhow::anyhow!("Lib pointer does not point to a valid block"))?;
+        .ok_or_else(|| execution_failed_error("Lib pointer does not point to a valid block"))?;
 
     let lib_data = blend_file.read_block_data(lib_block_index)?;
     let lib_reader = blend_file.create_field_reader(&lib_data)?;
     let lib_filepath = lib_reader
         .read_field_string("Library", "name")
-        .map_err(|e| anyhow::anyhow!("Error reading library name field: {e}"))?;
+        .map_err(|e| execution_failed_error(format!("Error reading library name field: {e}")))?;
 
     println!("Current link status:");
     println!("  ID Name: '{}'", link_info.name);
@@ -59,8 +63,8 @@ pub fn cmd_reconstruct_link(
     println!("  Resolved Library Path: '{}'", lib_file_path.display());
 
     if !lib_file_path.exists() {
-        return Err(anyhow::anyhow!(
-            "Library file does not exist at resolved path"
+        return Err(execution_failed_error(
+            "Library file does not exist at resolved path",
         ));
     }
 
@@ -100,17 +104,17 @@ struct IdLinkInfo {
 }
 
 /// Read ID block information for library linking
-fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> anyhow::Result<IdLinkInfo> {
+fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> Result<IdLinkInfo, Dot001Error> {
     let full_name = field_reader
         .read_field_string("ID", "name")
-        .map_err(|e| anyhow::anyhow!("Error reading ID name: {e}"))?;
+        .map_err(|e| execution_failed_error(format!("Error reading ID name: {e}")))?;
 
     // ID names include the 2-byte type prefix, skip it
     let name = full_name.chars().skip(2).collect::<String>();
 
     let lib_ptr = field_reader
         .read_field_pointer("ID", "lib")
-        .map_err(|e| anyhow::anyhow!("Error reading lib pointer: {e}"))?;
+        .map_err(|e| execution_failed_error(format!("Error reading lib pointer: {e}")))?;
 
     Ok(IdLinkInfo { name, lib_ptr })
 }
@@ -119,13 +123,13 @@ fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> anyhow::Resul
 fn resolve_library_path(
     lib_filepath: &str,
     main_file_path: &std::path::Path,
-) -> anyhow::Result<PathBuf> {
+) -> Result<PathBuf, Dot001Error> {
     if lib_filepath.starts_with("//") {
         // Blendfile-relative path
         let rel_path = lib_filepath.strip_prefix("//").unwrap();
         let main_file_dir = main_file_path
             .parent()
-            .ok_or_else(|| anyhow::anyhow!("Main file has no parent directory"))?;
+            .ok_or_else(|| execution_failed_error("Main file has no parent directory"))?;
         Ok(main_file_dir.join(rel_path))
     } else {
         Ok(PathBuf::from(lib_filepath))
@@ -133,10 +137,13 @@ fn resolve_library_path(
 }
 
 /// Find all collections in the library file
-fn find_collections_in_library(lib_file_path: &PathBuf) -> anyhow::Result<Vec<(usize, String)>> {
+fn find_collections_in_library(
+    lib_file_path: &PathBuf,
+) -> Result<Vec<(usize, String)>, Dot001Error> {
     let lib_file = File::open(lib_file_path)?;
     let mut lib_reader = BufReader::new(lib_file);
-    let mut lib_blend_file = BlendFile::new(&mut lib_reader)?;
+    let mut lib_blend_file = BlendFile::new(&mut lib_reader)
+        .map_err(|e| execution_failed_error(format!("Error opening library blend file: {e}")))?;
 
     let mut available_collections = Vec::new();
 
@@ -174,7 +181,7 @@ fn find_collections_in_library(lib_file_path: &PathBuf) -> anyhow::Result<Vec<(u
 fn determine_target_collection(
     available_collections: &[(usize, String)],
     target_name: Option<String>,
-) -> anyhow::Result<String> {
+) -> Result<String, Dot001Error> {
     match target_name {
         Some(target) => {
             if available_collections
@@ -183,21 +190,21 @@ fn determine_target_collection(
             {
                 Ok(target)
             } else {
-                Err(anyhow::anyhow!(
+                Err(invalid_arguments_error(format!(
                     "Target collection '{target}' not found in library"
-                ))
+                )))
             }
         }
         None => {
             if available_collections.is_empty() {
-                Err(anyhow::anyhow!("No collections found in library"))
+                Err(execution_failed_error("No collections found in library"))
             } else if available_collections.len() == 1 {
                 Ok(available_collections[0].1.clone())
             } else {
-                Err(anyhow::anyhow!(
+                Err(missing_argument_error(format!(
                     "Multiple collections available ({}), specify --target-name",
                     available_collections.len()
-                ))
+                )))
             }
         }
     }
@@ -209,16 +216,16 @@ fn reconstruct_id_name(
     blend_file: &mut BlendFile<BufReader<File>>,
     block_index: usize,
     target_name: &str,
-) -> anyhow::Result<()> {
+) -> Result<(), Dot001Error> {
     println!("Performing pointer reconstruction...");
 
     // Read block data and get field offset
     let mut block_data = blend_file.read_block_data(block_index)?;
     let field_reader = blend_file.create_field_reader(&block_data)?;
 
-    let name_offset = field_reader
-        .get_field_offset("ID", "name")
-        .map_err(|e| anyhow::anyhow!("Could not find name field in ID block: {e}"))?;
+    let name_offset = field_reader.get_field_offset("ID", "name").map_err(|e| {
+        execution_failed_error(format!("Could not find name field in ID block: {e}"))
+    })?;
 
     // Construct new ID name with type prefix (GR for collections)
     let new_id_name = format!("GR{target_name}");
@@ -229,7 +236,9 @@ fn reconstruct_id_name(
     // Update the name field in block data
     let name_end = name_offset + 258;
     if name_end > block_data.len() {
-        return Err(anyhow::anyhow!("Name field extends beyond block data"));
+        return Err(execution_failed_error(
+            "Name field extends beyond block data",
+        ));
     }
     block_data[name_offset..name_end].copy_from_slice(&name_bytes);
 

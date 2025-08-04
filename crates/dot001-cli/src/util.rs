@@ -22,7 +22,8 @@ pub fn load_blend_file(
     file_path: &PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> anyhow::Result<dot001_tracer::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>> {
+) -> Result<dot001_tracer::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, dot001_error::Dot001Error>
+{
     use std::fs::File;
     use std::io::BufReader;
     if no_auto_decompress {
@@ -41,7 +42,8 @@ pub fn load_blend_file(
     file_path: &PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> anyhow::Result<dot001_parser::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>> {
+) -> Result<dot001_parser::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, dot001_error::Dot001Error>
+{
     use std::fs::File;
     use std::io::BufReader;
     if no_auto_decompress {

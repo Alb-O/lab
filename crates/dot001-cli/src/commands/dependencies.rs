@@ -1,4 +1,5 @@
 use crate::commands::{DependencyTracer, NameResolver};
+use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
 use dot001_tracer::{BlendFile, DependencyNode};
 use std::path::PathBuf;
@@ -11,7 +12,7 @@ pub fn cmd_dependencies(
     ascii: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> anyhow::Result<()> {
+) -> Result<(), Dot001Error> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
     if block_index >= blend_file.blocks.len() {
         eprintln!(

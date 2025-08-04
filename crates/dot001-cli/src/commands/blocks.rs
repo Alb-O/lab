@@ -1,5 +1,6 @@
 #[cfg(feature = "trace")]
 use crate::commands::NameResolver;
+use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
 use std::path::PathBuf;
 
@@ -7,7 +8,7 @@ pub fn cmd_blocks(
     file_path: PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> anyhow::Result<()> {
+) -> Result<(), Dot001Error> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
     println!("Blocks in {}:", file_path.display());
     let block_info: Vec<(usize, String, u32, u64)> = blend_file

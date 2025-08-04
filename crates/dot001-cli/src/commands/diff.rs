@@ -1,3 +1,4 @@
+use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
 use std::path::PathBuf;
 
@@ -9,7 +10,7 @@ pub fn cmd_diff(
     ascii: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> anyhow::Result<()> {
+) -> Result<(), Dot001Error> {
     let mut blend_file1 = crate::util::load_blend_file(&file1_path, options, no_auto_decompress)?;
     let mut blend_file2 = crate::util::load_blend_file(&file2_path, options, no_auto_decompress)?;
     let differ = dot001_diff::BlendDiffer::new();

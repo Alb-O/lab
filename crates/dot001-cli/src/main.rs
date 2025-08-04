@@ -136,16 +136,16 @@ enum Commands {
 }
 
 #[cfg(feature = "trace")]
-fn main() -> dot001_tracer::Result<()> {
-    run_main().map_err(|e| Dot001Error::from(std::io::Error::other(e.to_string())))
-}
-
-#[cfg(not(feature = "trace"))]
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), Dot001Error> {
     run_main()
 }
 
-fn run_main() -> anyhow::Result<()> {
+#[cfg(not(feature = "trace"))]
+fn main() -> Result<(), Dot001Error> {
+    run_main()
+}
+
+fn run_main() -> Result<(), Dot001Error> {
     let cli = Cli::parse();
     let parse_options = util::create_parse_options(&cli);
     match cli.command {
@@ -280,9 +280,4 @@ pub fn execution_failed_error<M: Into<String>>(message: M) -> Dot001Error {
 /// Create an output format error
 pub fn output_format_error<M: Into<String>>(message: M) -> Dot001Error {
     create_cli_error(message, CliErrorKind::OutputFormatError)
-}
-
-/// Convert anyhow::Error to unified CLI error
-pub fn to_cli_error(err: anyhow::Error) -> Dot001Error {
-    create_cli_error(err.to_string(), CliErrorKind::ExecutionFailed)
 }
