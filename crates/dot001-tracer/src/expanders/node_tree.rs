@@ -97,6 +97,7 @@ pub fn try_expand_as_nodetree<R: Read + Seek>(
 
     Ok(ExpandResult {
         dependencies,
+        external_refs: Vec::new(),
         debug,
     })
 }

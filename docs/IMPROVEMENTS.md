@@ -171,14 +171,21 @@ Prioritized improvement plan
 - ✅ Refactored `ObjectExpander` and `MeshExpander` to use shared utilities.
 - Risk: medium; required careful DNA reading and borrowing patterns. Benefit: eliminates duplication and future drift.
 
-4) Introduce `NameResolver` trait and `Determinizer`
-- Define a `NameResolver` trait and a default implementation in `dot001-tracer` or a new shared crate.
-- Implement a `Determinizer` for stable output generation in the CLI and diff tools.
+4) ✅ **COMPLETED** Introduce `NameResolver` trait and `Determinizer`
+- ✅ Created `NameResolverTrait` in `dot001-tracer/src/determinizer.rs` for flexible name resolution.
+- ✅ Implemented `Determinizer` utility with address remapping, stable sorting, and fallback ID generation.
+- ✅ Updated existing `NameResolver` to implement the new trait while maintaining compatibility.
+- ✅ Enhanced `DependencyTracer` with `with_deterministic_output()` and `with_determinizer()` methods.
+- ✅ Added `create_stable_id()` method combining name resolution with deterministic address mapping.
 - Risk: low. Benefit: consistent outputs and better UX.
 
-5) Expand `BlockExpander`/`ExpandResult` for external asset tracking
-- Add a field like `external_refs: Vec<PathBuf>` to `ExpandResult`.
-- Update `ImageExpander` to populate this field for non-packed images.
+5) ✅ **COMPLETED** Expand `BlockExpander`/`ExpandResult` for external asset tracking
+- ✅ Added `external_refs: Vec<PathBuf>` field to `ExpandResult` with comprehensive helper methods.
+- ✅ Updated `ImageExpander` to track external image files (supports Blender's '//' relative path format).
+- ✅ Enhanced `LibraryExpander` to track linked .blend files with fallback for different field names.
+- ✅ Implemented external asset tracking in `SoundExpander` for audio files (with packed file detection).
+- ✅ Added `CacheFileExpander` support for simulation cache files.
+- ✅ Updated `NodeTreeExpander` to use new ExpandResult structure.
 - Risk: low; additive change. Benefit: unlocks file dependency reporting.
 
 6) Standardize error helpers

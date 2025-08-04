@@ -2,6 +2,7 @@ use crate::BlockExpander;
 use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
+use std::path::PathBuf;
 
 /// Expander for Image (IM) blocks
 ///
@@ -18,6 +19,7 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
         blend_file: &mut BlendFile<R>,
     ) -> Result<ExpandResult> {
         let dependencies = Vec::new();
+        let mut external_refs = Vec::new();
 
         // Read the image block data
         let image_data = blend_file.read_block_data(block_index)?;
@@ -37,18 +39,32 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
             if matches!(source, 1 | 2 | 3 | 5) {
                 // These are file-based sources that we need to track
                 // The actual file path is stored in the "name" field
-                // Note: In a full implementation, we would add the file path as an external asset,
-                // but since our current system tracks block dependencies rather than file paths,
-                // we don't add anything to dependencies here.
+                if let Ok(filepath) = reader.read_field_string("Image", "filepath") {
+                    let path_str = filepath.trim_end_matches('\0').trim();
+                    if !path_str.is_empty() {
+                        // Convert Blender's path format (which might use '//' prefix for relative paths)
+                        let cleaned_path = if path_str.starts_with("//") {
+                            // Relative path in Blender format - convert to standard relative path
+                            &path_str[2..]
+                        } else {
+                            path_str
+                        };
+                        external_refs.push(PathBuf::from(cleaned_path));
+                    }
+                }
 
-                // TODO: In the future, we might want to extend the dependency system
-                // to also track external file references, not just block references.
+                // For image sequences, we might want to detect patterns like "image_####.png"
+                // and potentially expand to multiple files, but for now we just track the pattern
+                if source == 2 {
+                    // Image sequence - the filepath contains the pattern
+                    // We could expand this in the future to track all files in the sequence
+                }
             } else {
                 // Generated images, viewer nodes, etc. - no external files
             }
         }
 
-        Ok(ExpandResult::new(dependencies))
+        Ok(ExpandResult::with_externals(dependencies, external_refs))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {

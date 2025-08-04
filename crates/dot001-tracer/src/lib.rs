@@ -34,11 +34,13 @@ pub mod bpath;
 pub mod expand_result;
 pub mod expanders;
 pub use expand_result::ExpandResult;
+pub mod determinizer;
 pub mod name_resolver;
 
 pub use dot001_parser::BlendFile;
 pub use dot001_parser::Result;
 
+pub use determinizer::{Determinizer, NameResolverTrait};
 /// New unified result type - preferred for new code
 pub use dot001_error::Result as UnifiedResult;
 use dot001_error::{Dot001Error, TracerErrorKind};
@@ -111,8 +113,8 @@ pub struct DependencyTracer<'a, R: Read + Seek> {
     visiting: HashSet<usize>,
     /// Optional filter of allowed blocks (indices). If Some, traversal will only enqueue blocks in this set.
     allowed: Option<HashSet<usize>>,
-    /// Optional address remapping (old_address -> remapped_id) for deterministic outputs.
-    address_map: Option<HashMap<u64, u64>>,
+    /// Determinizer for stable output generation
+    determinizer: Option<Determinizer>,
     /// Tracer options (limits and behavior).
     options: TracerOptions,
     _phantom: PhantomData<&'a R>,
@@ -131,7 +133,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
             visited: HashSet::new(),
             visiting: HashSet::new(),
             allowed: None,
-            address_map: None,
+            determinizer: None,
             options: TracerOptions::default(),
             _phantom: PhantomData,
         }
@@ -143,9 +145,17 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         self
     }
 
-    /// Provide an address map to remap old addresses to deterministic IDs during output.
-    pub fn with_address_map(mut self, map: HashMap<u64, u64>) -> Self {
-        self.address_map = Some(map);
+    /// Enable deterministic output generation with address remapping
+    pub fn with_deterministic_output(mut self, blend_file: &BlendFile<R>) -> Self {
+        let mut determinizer = Determinizer::new();
+        determinizer.build_address_map(blend_file);
+        self.determinizer = Some(determinizer);
+        self
+    }
+
+    /// Provide a pre-configured Determinizer for custom deterministic behavior
+    pub fn with_determinizer(mut self, determinizer: Determinizer) -> Self {
+        self.determinizer = Some(determinizer);
         self
     }
 
@@ -362,14 +372,18 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         }
     }
 
-    /// Remap an address using the optional address_map if present.
+    /// Remap an address using the optional determinizer if present.
     fn remap_address(&self, addr: u64) -> u64 {
-        if let Some(map) = &self.address_map {
-            if let Some(mapped) = map.get(&addr) {
-                return *mapped;
-            }
+        if let Some(determinizer) = &self.determinizer {
+            determinizer.remap_address(addr)
+        } else {
+            addr
         }
-        addr
+    }
+
+    /// Get a reference to the internal determinizer, if configured
+    pub fn determinizer(&self) -> Option<&Determinizer> {
+        self.determinizer.as_ref()
     }
 }
 

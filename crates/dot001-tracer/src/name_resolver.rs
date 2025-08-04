@@ -1,3 +1,4 @@
+use crate::determinizer::NameResolverTrait;
 use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 
@@ -73,5 +74,21 @@ impl NameResolver {
             Some(name) => format!("{block_code} ({name})"),
             None => block_code.to_string(),
         }
+    }
+}
+
+/// Implementation of the NameResolverTrait for the default NameResolver
+impl<R: Read + Seek> NameResolverTrait<R> for NameResolver {
+    fn resolve_name(&self, block_index: usize, blend_file: &mut BlendFile<R>) -> Option<String> {
+        Self::resolve_name(block_index, blend_file)
+    }
+
+    fn get_display_name(
+        &self,
+        block_index: usize,
+        blend_file: &mut BlendFile<R>,
+        block_code: &str,
+    ) -> String {
+        Self::get_display_name(block_index, blend_file, block_code)
     }
 }
