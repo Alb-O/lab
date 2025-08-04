@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -11,14 +12,11 @@ impl<R: Read + Seek> BlockExpander<R> for CacheFileExpander {
         &self,
         _block_index: usize,
         _blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
-        let dependencies = Vec::new();
-
+    ) -> Result<ExpandResult> {
         // Cache files typically reference external data files on disk
         // They don't usually have block dependencies within the blend file
         // For now, we don't track external file dependencies
-
-        Ok(dependencies)
+        Ok(ExpandResult::new(Vec::new()))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {

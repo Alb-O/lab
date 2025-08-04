@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -11,14 +12,14 @@ impl<R: Read + Seek> BlockExpander<R> for SoundExpander {
         &self,
         _block_index: usize,
         _blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
+    ) -> Result<ExpandResult> {
         let dependencies = Vec::new();
 
         // Sound files reference external audio files
         // For now, we don't track external file dependencies
         // but this is where we would add external file tracking
 
-        Ok(dependencies)
+        Ok(ExpandResult::new(dependencies))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {

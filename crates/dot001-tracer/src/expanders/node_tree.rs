@@ -1,3 +1,4 @@
+use crate::expand_result::ExpandResult;
 use crate::BlockExpander;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
@@ -14,18 +15,13 @@ impl<R: Read + Seek> BlockExpander<R> for NodeTreeExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
-        let mut dependencies = Vec::new();
-
+    ) -> Result<ExpandResult> {
         // The critical insight from the Python implementation:
         // Node trees can be embedded in DATA blocks, not just NT blocks
         // We need to try multiple approaches to find the node data
 
-        if let Ok(nodetree_deps) = try_expand_as_nodetree(block_index, blend_file) {
-            dependencies.extend(nodetree_deps);
-        }
-
-        Ok(dependencies)
+        let expand = try_expand_as_nodetree(block_index, blend_file)?;
+        Ok(expand)
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {
@@ -38,8 +34,9 @@ impl<R: Read + Seek> BlockExpander<R> for NodeTreeExpander {
 pub fn try_expand_as_nodetree<R: Read + Seek>(
     block_index: usize,
     blend_file: &mut BlendFile<R>,
-) -> Result<Vec<usize>> {
+) -> Result<ExpandResult> {
     let mut dependencies = Vec::new();
+    let mut debug = None;
 
     // Read the block data
     let block_data = blend_file.read_block_data(block_index)?;
@@ -95,10 +92,13 @@ pub fn try_expand_as_nodetree<R: Read + Seek>(
             dependencies.extend(node_deps);
         }
     } else {
-        println!("Debug: Could not find nodes.first in block {block_index}");
+        debug = Some(format!("Could not find nodes.first in block {block_index}"));
     }
 
-    Ok(dependencies)
+    Ok(ExpandResult {
+        dependencies,
+        debug,
+    })
 }
 
 /// Traverse a linked list of nodes starting from the first node pointer

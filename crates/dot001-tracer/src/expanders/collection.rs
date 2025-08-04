@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -14,7 +15,7 @@ impl<R: Read + Seek> BlockExpander<R> for CollectionExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
+    ) -> Result<ExpandResult> {
         let mut dependencies = Vec::new();
 
         // Read the collection block data and extract pointers
@@ -32,7 +33,7 @@ impl<R: Read + Seek> BlockExpander<R> for CollectionExpander {
 
                 if !has_gobject && !has_children {
                     // This DATA block doesn't look like a collection, skip it
-                    return Ok(dependencies);
+                    return Ok(ExpandResult::new(dependencies));
                 }
             }
 
@@ -60,7 +61,7 @@ impl<R: Read + Seek> BlockExpander<R> for CollectionExpander {
             traverse_children_list(children_ptr, blend_file, &mut dependencies)?;
         }
 
-        Ok(dependencies)
+        Ok(ExpandResult::new(dependencies))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {
@@ -152,7 +153,7 @@ fn traverse_children_list<R: Read + Seek>(
                     // Recursively expand the child collection
                     let expander = CollectionExpander;
                     let child_deps = expander.expand_block(collection_index, blend_file)?;
-                    dependencies.extend(child_deps);
+                    dependencies.extend(child_deps.dependencies);
                 }
             }
 

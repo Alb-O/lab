@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -17,7 +18,7 @@ impl<R: Read + Seek> BlockExpander<R> for DataBlockExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
+    ) -> Result<ExpandResult> {
         let mut dependencies = Vec::new();
 
         // Read the data block
@@ -35,7 +36,7 @@ impl<R: Read + Seek> BlockExpander<R> for DataBlockExpander {
             if let Ok(nodetree_deps) = expand_as_nodetree(block_index, blend_file) {
                 dependencies.extend(nodetree_deps);
             }
-            return Ok(dependencies);
+            return Ok(ExpandResult::new(dependencies));
         }
 
         // Check if it's a Collection (has gobject or children fields)
@@ -47,11 +48,11 @@ impl<R: Read + Seek> BlockExpander<R> for DataBlockExpander {
             if let Ok(collection_deps) = expand_as_collection(block_index, blend_file) {
                 dependencies.extend(collection_deps);
             }
-            return Ok(dependencies);
+            return Ok(ExpandResult::new(dependencies));
         }
 
         // Unknown DATA block type - no expansion
-        Ok(dependencies)
+        Ok(ExpandResult::new(dependencies))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {
@@ -67,7 +68,7 @@ fn expand_as_collection<R: Read + Seek>(
     // Reuse the CollectionExpander logic
     use super::collection::CollectionExpander;
     let expander = CollectionExpander;
-    expander.expand_block(block_index, blend_file)
+    Ok(expander.expand_block(block_index, blend_file)?.dependencies)
 }
 
 /// Expand DATA block as a NodeTree
@@ -77,5 +78,5 @@ fn expand_as_nodetree<R: Read + Seek>(
 ) -> Result<Vec<usize>> {
     // Reuse the NodeTreeExpander logic
     use super::node_tree::try_expand_as_nodetree;
-    try_expand_as_nodetree(block_index, blend_file)
+    Ok(try_expand_as_nodetree(block_index, blend_file)?.dependencies)
 }

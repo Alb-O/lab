@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -15,7 +16,7 @@ impl<R: Read + Seek> BlockExpander<R> for LibraryExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
+    ) -> Result<ExpandResult> {
         let dependencies = Vec::new();
 
         // Read the library block data
@@ -34,7 +35,7 @@ impl<R: Read + Seek> BlockExpander<R> for LibraryExpander {
         // For now, library blocks don't have internal block dependencies,
         // so we return an empty dependencies list.
 
-        Ok(dependencies)
+        Ok(ExpandResult::new(dependencies))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {

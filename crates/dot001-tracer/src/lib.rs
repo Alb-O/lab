@@ -31,7 +31,9 @@
 pub mod bpath;
 // dot001-tracer/src/lib.rs
 
+pub mod expand_result;
 pub mod expanders;
+pub use expand_result::ExpandResult;
 pub mod name_resolver;
 
 pub use dot001_parser::BlendFile;
@@ -82,8 +84,11 @@ pub struct DependencyTree {
 }
 
 pub trait BlockExpander<R: Read + Seek> {
-    fn expand_block(&self, block_index: usize, blend_file: &mut BlendFile<R>)
-        -> Result<Vec<usize>>;
+    fn expand_block(
+        &self,
+        block_index: usize,
+        blend_file: &mut BlendFile<R>,
+    ) -> Result<ExpandResult>;
 
     fn can_handle(&self, code: &[u8; 4]) -> bool;
 }
@@ -203,7 +208,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
 
                 if let Some(expander) = self.expanders.get(&block.header.code) {
                     let deps = expander.expand_block(block_index, blend_file)?;
-                    for dep in deps {
+                    for dep in deps.dependencies {
                         // Skip if filtered out
                         if let Some(allowed) = &self.allowed {
                             if !allowed.contains(&dep) {
@@ -312,8 +317,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         // Get direct dependencies using the appropriate expander
         if let Some(expander) = self.expanders.get(&expander_code) {
             let deps = expander.expand_block(block_index, blend_file)?;
-
-            for dep_index in deps {
+            for dep_index in deps.dependencies {
                 // Respect filter
                 if let Some(allowed) = &self.allowed {
                     if !allowed.contains(&dep_index) {

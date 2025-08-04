@@ -125,7 +125,8 @@ impl ProvenanceAnalyzer {
                     format!("Blend file error: {e}"),
                     DiffErrorKind::AnalysisFailed,
                 )
-            })?;
+            })?
+            .dependencies;
 
         let mut referenced_data_blocks = HashSet::new();
         let mut data_block_info = HashMap::new();

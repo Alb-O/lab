@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -11,7 +12,7 @@ impl<R: Read + Seek> BlockExpander<R> for LampExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
+    ) -> Result<ExpandResult> {
         let mut dependencies = Vec::new();
 
         // Read the lamp block data
@@ -31,7 +32,7 @@ impl<R: Read + Seek> BlockExpander<R> for LampExpander {
             }
         }
 
-        Ok(dependencies)
+        Ok(ExpandResult::new(dependencies))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {

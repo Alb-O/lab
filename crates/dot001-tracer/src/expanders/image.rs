@@ -1,4 +1,5 @@
 use crate::BlockExpander;
+use crate::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
@@ -15,7 +16,7 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Vec<usize>> {
+    ) -> Result<ExpandResult> {
         let dependencies = Vec::new();
 
         // Read the image block data
@@ -26,7 +27,7 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
         if let Ok(packedfile_ptr) = reader.read_field_pointer("Image", "packedfile") {
             if packedfile_ptr != 0 {
                 // Image is packed, no external file dependency
-                return Ok(dependencies);
+                return Ok(ExpandResult::new(dependencies));
             }
         }
 
@@ -47,7 +48,7 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
             }
         }
 
-        Ok(dependencies)
+        Ok(ExpandResult::new(dependencies))
     }
 
     fn can_handle(&self, code: &[u8; 4]) -> bool {
