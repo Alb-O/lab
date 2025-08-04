@@ -1,3 +1,4 @@
+use dot001_error::{Dot001Error, Result as UnifiedResult, TracerErrorKind};
 use dot001_parser::{BlendFile, BlendFileBlock, Result};
 use regex::Regex;
 use std::collections::HashSet;
@@ -441,20 +442,24 @@ impl FilterEngine {
 }
 
 /// Utility to build FilterSpec from CLI-like triples
-pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> Result<FilterSpec> {
+pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<FilterSpec> {
     let mut spec = FilterSpec { rules: Vec::new() };
     for (modif, key, val) in triples {
         let mut chars = modif.chars();
         let sign = chars.next().ok_or_else(|| {
-            dot001_parser::BlendError::InvalidData("Empty filter modifier".to_string())
+            Dot001Error::tracer(
+                "Empty filter modifier".to_string(),
+                TracerErrorKind::DependencyResolutionFailed,
+            )
         })?;
         let include = match sign {
             '+' => true,
             '-' => false,
             _ => {
-                return Err(dot001_parser::BlendError::InvalidData(format!(
-                    "Invalid filter modifier: {modif}"
-                )))
+                return Err(Dot001Error::tracer(
+                    format!("Invalid filter modifier: {modif}"),
+                    TracerErrorKind::DependencyResolutionFailed,
+                ))
             }
         };
         // Recursion parse
@@ -466,9 +471,10 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> Result<FilterSpec> {
                 Some(usize::MAX)
             } else {
                 let n = rest.parse::<usize>().map_err(|_| {
-                    dot001_parser::BlendError::InvalidData(format!(
-                        "Invalid recursion level: {rest}"
-                    ))
+                    Dot001Error::tracer(
+                        format!("Invalid recursion level: {rest}"),
+                        TracerErrorKind::DependencyResolutionFailed,
+                    )
                 })?;
                 Some(n)
             }
@@ -477,10 +483,16 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> Result<FilterSpec> {
         };
 
         let key_regex = Regex::new(key).map_err(|e| {
-            dot001_parser::BlendError::InvalidData(format!("Invalid key regex: {e}"))
+            Dot001Error::tracer(
+                format!("Invalid key regex: {e}"),
+                TracerErrorKind::DependencyResolutionFailed,
+            )
         })?;
         let value_regex = Regex::new(val).map_err(|e| {
-            dot001_parser::BlendError::InvalidData(format!("Invalid value regex: {e}"))
+            Dot001Error::tracer(
+                format!("Invalid value regex: {e}"),
+                TracerErrorKind::DependencyResolutionFailed,
+            )
         })?;
 
         spec.rules.push(FilterRule {

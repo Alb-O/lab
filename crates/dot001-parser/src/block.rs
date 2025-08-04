@@ -1,4 +1,4 @@
-use crate::error::{BlendError, Result};
+use crate::error::{Dot001Error, Result};
 use crate::header::BlendFileHeader;
 use std::io::{Read, Seek};
 
@@ -69,8 +69,12 @@ impl BlockHeader {
     }
 
     pub fn code_str(&self) -> Result<&str> {
-        std::str::from_utf8(&self.code)
-            .map_err(|_| BlendError::InvalidData("Block code is not valid UTF-8".to_string()))
+        std::str::from_utf8(&self.code).map_err(|_| {
+            Dot001Error::blend_file(
+                "Block code is not valid UTF-8",
+                crate::error::BlendFileErrorKind::InvalidData,
+            )
+        })
     }
 
     pub fn is_end_block(&self) -> bool {

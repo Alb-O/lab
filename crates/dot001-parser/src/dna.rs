@@ -1,4 +1,4 @@
-use crate::error::{BlendError, Result};
+use crate::error::{Dot001Error, Result};
 use crate::header::BlendFileHeader;
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
@@ -130,9 +130,10 @@ impl DnaCollection {
         let mut sdna_marker = [0u8; 4];
         reader.read_exact(&mut sdna_marker)?;
         if &sdna_marker != b"SDNA" {
-            return Err(BlendError::InvalidDna(format!(
-                "Expected SDNA marker, got: {sdna_marker:?}"
-            )));
+            return Err(Dot001Error::blend_file(
+                format!("Expected SDNA marker, got: {sdna_marker:?}"),
+                crate::error::BlendFileErrorKind::DnaError,
+            ));
         }
 
         let names = Self::read_names_section(reader, header)?;
@@ -161,9 +162,10 @@ impl DnaCollection {
         let mut name_marker = [0u8; 4];
         reader.read_exact(&mut name_marker)?;
         if &name_marker != b"NAME" {
-            return Err(BlendError::InvalidDna(format!(
-                "Expected NAME marker, got: {name_marker:?}"
-            )));
+            return Err(Dot001Error::blend_file(
+                format!("Expected NAME marker, got: {name_marker:?}"),
+                crate::error::BlendFileErrorKind::DnaError,
+            ));
         }
 
         let names_count = read_u32(reader, header.is_little_endian)?;
@@ -227,9 +229,10 @@ impl DnaCollection {
             let field_count = read_u16(reader, header.is_little_endian)? as usize;
 
             if struct_type_index >= types.len() {
-                return Err(BlendError::InvalidDna(format!(
-                    "Invalid struct type index: {struct_type_index}"
-                )));
+                return Err(Dot001Error::blend_file(
+                    format!("Invalid struct type index: {struct_type_index}"),
+                    crate::error::BlendFileErrorKind::DnaError,
+                ));
             }
 
             let type_name = types[struct_type_index].clone();
@@ -243,15 +246,17 @@ impl DnaCollection {
                 let field_name_index = read_u16(reader, header.is_little_endian)? as usize;
 
                 if field_type_index >= types.len() {
-                    return Err(BlendError::InvalidDna(format!(
-                        "Invalid field type index: {field_type_index}"
-                    )));
+                    return Err(Dot001Error::blend_file(
+                        format!("Invalid field type index: {field_type_index}"),
+                        crate::error::BlendFileErrorKind::DnaError,
+                    ));
                 }
 
                 if field_name_index >= names.len() {
-                    return Err(BlendError::InvalidDna(format!(
-                        "Invalid field name index: {field_name_index}"
-                    )));
+                    return Err(Dot001Error::blend_file(
+                        format!("Invalid field name index: {field_name_index}"),
+                        crate::error::BlendFileErrorKind::DnaError,
+                    ));
                 }
 
                 let field_type_name = types[field_type_index].clone();
@@ -322,8 +327,12 @@ fn read_null_terminated_string<R: Read>(reader: &mut R) -> Result<String> {
         bytes.push(byte[0]);
     }
 
-    String::from_utf8(bytes)
-        .map_err(|_| BlendError::InvalidData("Invalid UTF-8 in DNA string".to_string()))
+    String::from_utf8(bytes).map_err(|_| {
+        Dot001Error::blend_file(
+            "Invalid UTF-8 in DNA string",
+            crate::error::BlendFileErrorKind::InvalidData,
+        )
+    })
 }
 
 fn find_and_seek_to_marker<R: Read + Seek>(
@@ -352,9 +361,12 @@ fn find_and_seek_to_marker<R: Read + Seek>(
         }
     }
 
-    Err(BlendError::InvalidDna(format!(
-        "{} marker not found after {}",
-        String::from_utf8_lossy(marker),
-        section_name
-    )))
+    Err(Dot001Error::blend_file(
+        format!(
+            "{} marker not found after {}",
+            String::from_utf8_lossy(marker),
+            section_name
+        ),
+        crate::error::BlendFileErrorKind::DnaError,
+    ))
 }

@@ -1,4 +1,4 @@
-use crate::error::{BlendError, Result};
+use crate::error::{Dot001Error, Result};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -206,7 +206,10 @@ impl Decompressor for ZstdDecompressor {
             // Try in-memory decompression first
             match self.decompress_to_memory(reader, policy.max_in_memory_bytes) {
                 Ok(data) => return Ok(BlendRead::Memory(Arc::new(data))),
-                Err(BlendError::SizeLimitExceeded(_)) => {
+                Err(Dot001Error::BlendFile {
+                    kind: crate::error::BlendFileErrorKind::SizeLimitExceeded,
+                    ..
+                }) => {
                     // Spillover to temp file
                     log::debug!("Size limit exceeded, spilling over to temp file");
                     reader.seek(SeekFrom::Start(0))?;
@@ -237,7 +240,10 @@ impl ZstdDecompressor {
                 }
 
                 if result.len() + bytes_read > max_size {
-                    return Err(BlendError::SizeLimitExceeded(max_size));
+                    return Err(Dot001Error::blend_file(
+                        format!("Size limit exceeded: {max_size} bytes"),
+                        crate::error::BlendFileErrorKind::SizeLimitExceeded,
+                    ));
                 }
 
                 result.extend_from_slice(&buffer[..bytes_read]);
@@ -248,8 +254,9 @@ impl ZstdDecompressor {
 
         #[cfg(not(feature = "zstd"))]
         {
-            Err(BlendError::UnsupportedCompression(
-                "Zstd support not compiled in".to_string(),
+            Err(Dot001Error::blend_file(
+                "Zstd support not compiled in",
+                crate::error::BlendFileErrorKind::UnsupportedCompression,
             ))
         }
     }
@@ -266,8 +273,12 @@ impl ZstdDecompressor {
             // Create temp file
             let default_temp = std::env::temp_dir();
             let temp_dir = policy.temp_dir.as_deref().unwrap_or(default_temp.as_path());
-            let temp_file =
-                tempfile::NamedTempFile::new_in(temp_dir).map_err(BlendError::TempFileError)?;
+            let temp_file = tempfile::NamedTempFile::new_in(temp_dir).map_err(|e| {
+                Dot001Error::blend_file(
+                    format!("Temporary file error: {e}"),
+                    crate::error::BlendFileErrorKind::InvalidData,
+                )
+            })?;
             let temp_path = temp_file.path().to_path_buf();
 
             // Decompress to temp file
@@ -299,8 +310,9 @@ impl ZstdDecompressor {
 
         #[cfg(not(feature = "zstd"))]
         {
-            Err(BlendError::UnsupportedCompression(
-                "Zstd support not compiled in".to_string(),
+            Err(Dot001Error::blend_file(
+                "Zstd support not compiled in",
+                crate::error::BlendFileErrorKind::UnsupportedCompression,
             ))
         }
     }

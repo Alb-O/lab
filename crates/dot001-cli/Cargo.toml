@@ -10,6 +10,7 @@ dot001-tracer = { path = "../dot001-tracer", optional = true }
 dot001-diff = { path = "../dot001-diff", optional = true }
 dot001-parser = { path = "../dot001-parser" }
 dot001-editor = { path = "../dot001-editor", optional = true }
+dot001-error = { path = "../dot001-error" }
 clap = { version = "4.5.42", features = ["derive"] }
 anyhow = "1"
 env_logger = "0.11.8"

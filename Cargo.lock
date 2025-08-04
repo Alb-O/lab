@@ -454,6 +454,7 @@ dependencies = [
  "clap",
  "dot001-diff",
  "dot001-editor",
+ "dot001-error",
  "dot001-parser",
  "dot001-tracer",
  "env_logger",
@@ -468,6 +469,7 @@ version = "0.1.0"
 dependencies = [
  "bdiff",
  "blake3",
+ "dot001-error",
  "dot001-parser",
  "dot001-tracer",
  "hex",
@@ -480,15 +482,25 @@ dependencies = [
 name = "dot001-editor"
 version = "0.1.0"
 dependencies = [
+ "dot001-error",
  "dot001-parser",
  "dot001-tracer",
  "thiserror 1.0.69",
 ]
 
 [[package]]
+name = "dot001-error"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "dot001-parser"
 version = "0.1.0"
 dependencies = [
+ "dot001-error",
  "log",
  "memmap2",
  "tempfile",
@@ -501,6 +513,7 @@ dependencies = [
 name = "dot001-tracer"
 version = "0.1.0"
 dependencies = [
+ "dot001-error",
  "dot001-parser",
  "log",
  "pathdiff",

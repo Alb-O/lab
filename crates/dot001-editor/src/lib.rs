@@ -6,7 +6,7 @@
 /// ```rust,no_run
 /// use dot001_editor::BlendEditor;
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     BlendEditor::update_libpath_and_save("file.blend", 42, "//libs/other.blend")?;
+///     BlendEditor::update_libpath_and_save("file.blend", 42, "//libs/other.blend", false)?;
 ///     Ok(())
 /// }
 /// ```
@@ -30,28 +30,10 @@
 /// - Test modified files in Blender before production use
 /// - Validate results after operations
 pub mod commands;
+use dot001_error::{Dot001Error, EditorErrorKind, Result};
 use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 use std::path::Path;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum EditorError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Blend file error: {0}")]
-    BlendFile(#[from] dot001_parser::BlendError),
-    #[error("Block not found: {0}")]
-    BlockNotFound(usize),
-    #[error("Block has no ID structure (not a named datablock)")]
-    NoIdStructure,
-    #[error("Name too long (max 64 characters after type prefix): {0}")]
-    NameTooLong(String),
-    #[error("Invalid characters in name (only ASCII printable allowed): {0}")]
-    InvalidCharacters(String),
-}
-
-pub type Result<T> = std::result::Result<T, EditorError>;
 
 /// Experimental blend file editor
 ///
@@ -68,7 +50,7 @@ impl BlendEditor {
     /// ```rust,no_run
     /// use dot001_editor::BlendEditor;
     /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     BlendEditor::update_libpath_and_save("file.blend", 42, "//libs/other.blend")?;
+    ///     BlendEditor::update_libpath_and_save("file.blend", 42, "//libs/other.blend", false)?;
     ///     Ok(())
     /// }
     /// ```
@@ -124,17 +106,26 @@ impl BlendEditor {
 pub(crate) fn validate_new_name(name: &str) -> Result<()> {
     // Check length (64 chars max after 2-char type prefix)
     if name.len() > 64 {
-        return Err(EditorError::NameTooLong(name.to_string()));
+        return Err(Dot001Error::editor(
+            format!("Name too long (max 64 characters after type prefix): {name}"),
+            EditorErrorKind::NameTooLong,
+        ));
     }
 
     // Check for valid ASCII printable characters only
     if !name.chars().all(|c| c.is_ascii() && !c.is_ascii_control()) {
-        return Err(EditorError::InvalidCharacters(name.to_string()));
+        return Err(Dot001Error::editor(
+            format!("Invalid characters in name (only ASCII printable allowed): {name}"),
+            EditorErrorKind::InvalidCharacters,
+        ));
     }
 
     // Don't allow empty names
     if name.trim().is_empty() {
-        return Err(EditorError::InvalidCharacters("Empty name".to_string()));
+        return Err(Dot001Error::editor(
+            "Empty name".to_string(),
+            EditorErrorKind::InvalidCharacters,
+        ));
     }
 
     Ok(())

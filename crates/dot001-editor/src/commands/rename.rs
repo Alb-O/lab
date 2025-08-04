@@ -1,4 +1,5 @@
-use crate::{EditorError, Result, validate_new_name};
+use crate::{Result, validate_new_name};
+use dot001_error::{Dot001Error, EditorErrorKind};
 use dot001_parser::BlendFile;
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::NameResolver;
@@ -20,7 +21,10 @@ impl RenameCommand {
         let mut reader = std::io::BufReader::new(file);
         let mut blend_file = BlendFile::new(&mut reader)?;
         if block_index >= blend_file.blocks.len() {
-            return Err(EditorError::BlockNotFound(block_index));
+            return Err(Dot001Error::editor(
+                format!("Block not found at index: {block_index}"),
+                EditorErrorKind::BlockNotFound,
+            ));
         }
         let block_code = {
             let block = &blend_file.blocks[block_index];
@@ -29,8 +33,11 @@ impl RenameCommand {
                 .to_string()
         };
         #[cfg(feature = "tracer_integration")]
-        let _current_name = NameResolver::resolve_name(block_index, &mut blend_file)
-            .ok_or(EditorError::NoIdStructure)?;
+        let _current_name =
+            NameResolver::resolve_name(block_index, &mut blend_file).ok_or(Dot001Error::editor(
+                "No ID structure found in block".to_string(),
+                EditorErrorKind::NoIdStructure,
+            ))?;
 
         #[cfg(not(feature = "tracer_integration"))]
         let _current_name = format!("Block{}", block_index); // Fallback without tracer
@@ -38,9 +45,12 @@ impl RenameCommand {
         let block_data_offset = block.data_offset;
         let mut block_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&block_data)?;
-        let name_offset = reader
-            .get_field_offset("ID", "name")
-            .map_err(|_| EditorError::NoIdStructure)?;
+        let name_offset = reader.get_field_offset("ID", "name").map_err(|_| {
+            Dot001Error::editor(
+                "No ID structure found in block".to_string(),
+                EditorErrorKind::NoIdStructure,
+            )
+        })?;
         let prefixed_name = format!("{block_code}{new_name}");
         let mut name_bytes = [0u8; 66];
         let name_bytes_to_copy = std::cmp::min(prefixed_name.len(), 65);
@@ -49,7 +59,7 @@ impl RenameCommand {
         let start_offset = name_offset;
         let end_offset = start_offset + 66;
         if end_offset > block_data.len() {
-            return Err(EditorError::Io(std::io::Error::new(
+            return Err(Dot001Error::from(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Name field extends beyond block data",
             )));
@@ -70,7 +80,10 @@ impl RenameCommand {
     ) -> Result<()> {
         validate_new_name(new_name)?;
         if block_index >= blend_file.blocks.len() {
-            return Err(EditorError::BlockNotFound(block_index));
+            return Err(Dot001Error::editor(
+                format!("Block not found at index: {block_index}"),
+                EditorErrorKind::BlockNotFound,
+            ));
         }
         let block_code = {
             let block = &blend_file.blocks[block_index];
@@ -79,16 +92,22 @@ impl RenameCommand {
                 .to_string()
         };
         #[cfg(feature = "tracer_integration")]
-        let _current_name = NameResolver::resolve_name(block_index, blend_file)
-            .ok_or(EditorError::NoIdStructure)?;
+        let _current_name =
+            NameResolver::resolve_name(block_index, blend_file).ok_or(Dot001Error::editor(
+                "No ID structure found in block".to_string(),
+                EditorErrorKind::NoIdStructure,
+            ))?;
 
         #[cfg(not(feature = "tracer_integration"))]
         let _current_name = format!("Block{}", block_index); // Fallback without tracer
         let mut block_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&block_data)?;
-        let name_offset = reader
-            .get_field_offset("ID", "name")
-            .map_err(|_| EditorError::NoIdStructure)?;
+        let name_offset = reader.get_field_offset("ID", "name").map_err(|_| {
+            Dot001Error::editor(
+                "No ID structure found in block".to_string(),
+                EditorErrorKind::NoIdStructure,
+            )
+        })?;
         let prefixed_name = format!("{block_code}{new_name}");
         let mut name_bytes = [0u8; 66];
         let name_bytes_to_copy = std::cmp::min(prefixed_name.len(), 65);
@@ -97,7 +116,7 @@ impl RenameCommand {
         let start_offset = name_offset;
         let end_offset = start_offset + 66;
         if end_offset > block_data.len() {
-            return Err(EditorError::Io(std::io::Error::new(
+            return Err(Dot001Error::from(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Name field extends beyond block data",
             )));

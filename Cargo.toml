@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/dot001-error",
     "crates/dot001-parser",
     "crates/dot001-tracer",
     "crates/dot001-cli",

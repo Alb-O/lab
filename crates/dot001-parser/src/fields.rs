@@ -1,4 +1,4 @@
-use crate::{BlendError, DnaCollection, Result};
+use crate::{DnaCollection, Dot001Error, Result};
 
 /// Utilities for reading structured data from block data using DNA information
 pub struct FieldReader<'a> {
@@ -35,11 +35,14 @@ impl<'a> FieldReader<'a> {
     /// Read a 32-bit unsigned integer
     pub fn read_u32(&self, offset: usize) -> Result<u32> {
         if offset + 4 > self.data.len() {
-            return Err(BlendError::InvalidField(format!(
-                "Offset {} + 4 exceeds data length {}",
-                offset,
-                self.data.len()
-            )));
+            return Err(Dot001Error::blend_file(
+                format!(
+                    "Offset {} + 4 exceeds data length {}",
+                    offset,
+                    self.data.len()
+                ),
+                crate::error::BlendFileErrorKind::InvalidField,
+            ));
         }
 
         let bytes = [
@@ -61,11 +64,14 @@ impl<'a> FieldReader<'a> {
     /// Read a 64-bit unsigned integer
     pub fn read_u64(&self, offset: usize) -> Result<u64> {
         if offset + 8 > self.data.len() {
-            return Err(BlendError::InvalidField(format!(
-                "Offset {} + 8 exceeds data length {}",
-                offset,
-                self.data.len()
-            )));
+            return Err(Dot001Error::blend_file(
+                format!(
+                    "Offset {} + 8 exceeds data length {}",
+                    offset,
+                    self.data.len()
+                ),
+                crate::error::BlendFileErrorKind::InvalidField,
+            ));
         }
 
         let mut bytes = [0u8; 8];
@@ -87,16 +93,22 @@ impl<'a> FieldReader<'a> {
             .structs
             .iter()
             .find(|s| s.type_name == struct_name)
-            .ok_or_else(|| BlendError::InvalidField(format!("Struct {struct_name} not found")))?;
+            .ok_or_else(|| {
+                Dot001Error::blend_file(
+                    format!("Struct {struct_name} not found"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
+            })?;
 
         let field = struct_def
             .fields
             .iter()
             .find(|f| f.name.name_only == field_name)
             .ok_or_else(|| {
-                BlendError::InvalidField(format!(
-                    "Field {field_name} not found in struct {struct_name}"
-                ))
+                Dot001Error::blend_file(
+                    format!("Field {field_name} not found in struct {struct_name}"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
             })?;
 
         self.read_pointer(field.offset)
@@ -109,16 +121,22 @@ impl<'a> FieldReader<'a> {
             .structs
             .iter()
             .find(|s| s.type_name == struct_name)
-            .ok_or_else(|| BlendError::InvalidField(format!("Struct {struct_name} not found")))?;
+            .ok_or_else(|| {
+                Dot001Error::blend_file(
+                    format!("Struct {struct_name} not found"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
+            })?;
 
         let field = struct_def
             .fields
             .iter()
             .find(|f| f.name.name_only == field_name)
             .ok_or_else(|| {
-                BlendError::InvalidField(format!(
-                    "Field {field_name} not found in struct {struct_name}"
-                ))
+                Dot001Error::blend_file(
+                    format!("Field {field_name} not found in struct {struct_name}"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
             })?;
 
         self.read_u32(field.offset)
@@ -134,16 +152,22 @@ impl<'a> FieldReader<'a> {
             .structs
             .iter()
             .find(|s| s.type_name == struct_name)
-            .ok_or_else(|| BlendError::InvalidField(format!("Struct {struct_name} not found")))?;
+            .ok_or_else(|| {
+                Dot001Error::blend_file(
+                    format!("Struct {struct_name} not found"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
+            })?;
 
         let field = struct_def
             .fields
             .iter()
             .find(|f| f.name.name_only == field_name)
             .ok_or_else(|| {
-                BlendError::InvalidField(format!(
-                    "Field {field_name} not found in struct {struct_name}"
-                ))
+                Dot001Error::blend_file(
+                    format!("Field {field_name} not found in struct {struct_name}"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
             })?;
 
         Ok(field.offset)
@@ -156,16 +180,22 @@ impl<'a> FieldReader<'a> {
             .structs
             .iter()
             .find(|s| s.type_name == struct_name)
-            .ok_or_else(|| BlendError::InvalidField(format!("Struct {struct_name} not found")))?;
+            .ok_or_else(|| {
+                Dot001Error::blend_file(
+                    format!("Struct {struct_name} not found"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
+            })?;
 
         let field = struct_def
             .fields
             .iter()
             .find(|f| f.name.name_only == field_name)
             .ok_or_else(|| {
-                BlendError::InvalidField(format!(
-                    "Field {field_name} not found in struct {struct_name}"
-                ))
+                Dot001Error::blend_file(
+                    format!("Field {field_name} not found in struct {struct_name}"),
+                    crate::error::BlendFileErrorKind::InvalidField,
+                )
             })?;
 
         // Read the raw bytes from the field
@@ -173,12 +203,15 @@ impl<'a> FieldReader<'a> {
         let size = field.size;
 
         if start + size > self.data.len() {
-            return Err(BlendError::InvalidField(format!(
-                "Field data exceeds block bounds: offset {} + size {} > {}",
-                start,
-                size,
-                self.data.len()
-            )));
+            return Err(Dot001Error::blend_file(
+                format!(
+                    "Field data exceeds block bounds: offset {} + size {} > {}",
+                    start,
+                    size,
+                    self.data.len()
+                ),
+                crate::error::BlendFileErrorKind::InvalidField,
+            ));
         }
 
         let bytes = &self.data[start..start + size];
@@ -186,7 +219,11 @@ impl<'a> FieldReader<'a> {
         // Convert bytes to string, handling null termination
         let string_bytes: Vec<u8> = bytes.iter().take_while(|&&b| b != 0).copied().collect();
 
-        String::from_utf8(string_bytes)
-            .map_err(|e| BlendError::InvalidField(format!("Invalid UTF-8 in field: {e}")))
+        String::from_utf8(string_bytes).map_err(|e| {
+            Dot001Error::blend_file(
+                format!("Invalid UTF-8 in field: {e}"),
+                crate::error::BlendFileErrorKind::InvalidField,
+            )
+        })
     }
 }

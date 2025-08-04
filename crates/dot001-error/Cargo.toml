@@ -1,0 +1,17 @@
+[package]
+name = "dot001-error"
+version = "0.1.0"
+edition = "2021"
+license = "gpl-3.0-or-later"
+authors = ["Albert O'Shea"]
+description = "Unified error handling for the dot001 toolkit"
+keywords = ["blender", "blend", "error", "3d"]
+categories = ["development-tools", "graphics"]
+
+[dependencies]
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]

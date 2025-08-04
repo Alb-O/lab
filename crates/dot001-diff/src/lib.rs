@@ -27,27 +27,15 @@
 
 pub mod provenance;
 
+use dot001_error::{DiffErrorKind, Dot001Error, Result};
 use dot001_parser::BlendFile;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek};
-use thiserror::Error;
 
 pub use provenance::{
     DataBlockCorrelation, DataBlockInfo, DataChangeClass, MeshAnalysisResult, ProvenanceAnalyzer,
     ProvenanceGraph,
 };
-
-#[derive(Error, Debug)]
-pub enum DiffError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Blend file error: {0}")]
-    BlendFile(#[from] dot001_parser::BlendError),
-    #[error("Block not found: {0}")]
-    BlockNotFound(usize),
-}
-
-pub type Result<T> = std::result::Result<T, DiffError>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BlockChangeType {
@@ -488,4 +476,27 @@ struct MeshContent {
     totpoly: u32, // Number of polygons
     totloop: u32, // Number of loops
                   // TODO: Add vertex coordinates, edge indices, face data, etc.
+}
+
+/// Helper functions for creating unified diff errors
+impl BlendDiffer {
+    /// Create a unified diff error for incompatible files
+    pub fn incompatible_files_error<M: Into<String>>(message: M) -> Dot001Error {
+        Dot001Error::diff(message.into(), DiffErrorKind::IncompatibleFiles)
+    }
+
+    /// Create a unified diff error for analysis failures
+    pub fn analysis_failed_error<M: Into<String>>(message: M) -> Dot001Error {
+        Dot001Error::diff(message.into(), DiffErrorKind::AnalysisFailed)
+    }
+
+    /// Create a unified diff error for insufficient data
+    pub fn insufficient_data_error<M: Into<String>>(message: M) -> Dot001Error {
+        Dot001Error::diff(message.into(), DiffErrorKind::InsufficientData)
+    }
+
+    /// Create a unified diff error for mesh comparison failures
+    pub fn mesh_comparison_error<M: Into<String>>(message: M) -> Dot001Error {
+        Dot001Error::diff(message.into(), DiffErrorKind::MeshComparisonFailed)
+    }
 }

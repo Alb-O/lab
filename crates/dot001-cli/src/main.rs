@@ -4,6 +4,7 @@ mod diff_formatter;
 mod util;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use dot001_error::{CliErrorKind, Dot001Error};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -124,8 +125,7 @@ enum Commands {
 
 #[cfg(feature = "trace")]
 fn main() -> dot001_tracer::Result<()> {
-    use dot001_parser::BlendError;
-    run_main().map_err(|e| BlendError::Io(std::io::Error::other(e.to_string())))
+    run_main().map_err(|e| Dot001Error::from(std::io::Error::other(e.to_string())))
 }
 
 #[cfg(not(feature = "trace"))]
@@ -229,4 +229,34 @@ fn run_main() -> anyhow::Result<()> {
         ),
     }?;
     Ok(())
+}
+
+/// Helper functions for creating unified CLI errors
+pub fn create_cli_error<M: Into<String>>(message: M, kind: CliErrorKind) -> Dot001Error {
+    Dot001Error::cli(message.into(), kind)
+}
+
+/// Create an invalid arguments error
+pub fn invalid_arguments_error<M: Into<String>>(message: M) -> Dot001Error {
+    create_cli_error(message, CliErrorKind::InvalidArguments)
+}
+
+/// Create a missing argument error
+pub fn missing_argument_error<M: Into<String>>(message: M) -> Dot001Error {
+    create_cli_error(message, CliErrorKind::MissingArgument)
+}
+
+/// Create an execution failed error
+pub fn execution_failed_error<M: Into<String>>(message: M) -> Dot001Error {
+    create_cli_error(message, CliErrorKind::ExecutionFailed)
+}
+
+/// Create an output format error
+pub fn output_format_error<M: Into<String>>(message: M) -> Dot001Error {
+    create_cli_error(message, CliErrorKind::OutputFormatError)
+}
+
+/// Convert anyhow::Error to unified CLI error
+pub fn to_cli_error(err: anyhow::Error) -> Dot001Error {
+    create_cli_error(err.to_string(), CliErrorKind::ExecutionFailed)
 }
