@@ -1,5 +1,6 @@
 use crate::{EditorError, Result, validate_new_name};
 use dot001_parser::BlendFile;
+#[cfg(feature = "tracer_integration")]
 use dot001_tracer::NameResolver;
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -27,8 +28,12 @@ impl RenameCommand {
                 .trim_end_matches('\0')
                 .to_string()
         };
+        #[cfg(feature = "tracer_integration")]
         let _current_name = NameResolver::resolve_name(block_index, &mut blend_file)
             .ok_or(EditorError::NoIdStructure)?;
+
+        #[cfg(not(feature = "tracer_integration"))]
+        let _current_name = format!("Block{}", block_index); // Fallback without tracer
         let block = &blend_file.blocks[block_index];
         let block_data_offset = block.data_offset;
         let mut block_data = blend_file.read_block_data(block_index)?;
@@ -73,8 +78,12 @@ impl RenameCommand {
                 .trim_end_matches('\0')
                 .to_string()
         };
+        #[cfg(feature = "tracer_integration")]
         let _current_name = NameResolver::resolve_name(block_index, blend_file)
             .ok_or(EditorError::NoIdStructure)?;
+
+        #[cfg(not(feature = "tracer_integration"))]
+        let _current_name = format!("Block{}", block_index); // Fallback without tracer
         let mut block_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&block_data)?;
         let name_offset = reader

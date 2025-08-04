@@ -1,5 +1,4 @@
 use dot001_parser::ParseOptions;
-use dot001_tracer::Result;
 use std::path::PathBuf;
 
 pub fn cmd_rename(
@@ -9,7 +8,7 @@ pub fn cmd_rename(
     dry_run: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     use dot001_editor::BlendEditor;
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
     if block_index >= blend_file.blocks.len() {
@@ -26,7 +25,14 @@ pub fn cmd_rename(
             .trim_end_matches('\0')
             .to_string()
     };
-    match dot001_tracer::NameResolver::resolve_name(block_index, &mut blend_file) {
+    #[cfg(feature = "trace")]
+    let current_name_opt =
+        { dot001_tracer::NameResolver::resolve_name(block_index, &mut blend_file) };
+
+    #[cfg(not(feature = "trace"))]
+    let current_name_opt = Some(format!("Block{}", block_index));
+
+    match current_name_opt {
         Some(current_name) => {
             if dry_run {
                 println!("Would rename {block_code} block '{current_name}' to '{new_name}'");
@@ -34,24 +40,34 @@ pub fn cmd_rename(
                 println!("Renaming {block_code} block '{current_name}' to '{new_name}'");
                 match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
                     Ok(()) => {
-                        let mut updated_blend_file =
-                            crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
-                        match dot001_tracer::NameResolver::resolve_name(
-                            block_index,
-                            &mut updated_blend_file,
-                        ) {
-                            Some(updated_name) => {
-                                if updated_name == new_name {
-                                    println!("Success: Block renamed to '{updated_name}'");
-                                } else {
-                                    eprintln!(
-                                        "Warning: Name is '{updated_name}', expected '{new_name}'"
-                                    );
+                        #[cfg(feature = "trace")]
+                        {
+                            let mut updated_blend_file = crate::util::load_blend_file(
+                                &file_path,
+                                options,
+                                no_auto_decompress,
+                            )?;
+                            match dot001_tracer::NameResolver::resolve_name(
+                                block_index,
+                                &mut updated_blend_file,
+                            ) {
+                                Some(updated_name) => {
+                                    if updated_name == new_name {
+                                        println!("Success: Block renamed to '{updated_name}'");
+                                    } else {
+                                        eprintln!(
+                                            "Warning: Name is '{updated_name}', expected '{new_name}'"
+                                        );
+                                    }
+                                }
+                                None => {
+                                    eprintln!("Warning: Could not verify name change");
                                 }
                             }
-                            None => {
-                                eprintln!("Warning: Could not verify name change");
-                            }
+                        }
+                        #[cfg(not(feature = "trace"))]
+                        {
+                            println!("Success: Block renamed (verification unavailable without trace feature)");
                         }
                     }
                     Err(e) => {

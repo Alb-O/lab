@@ -1,4 +1,5 @@
 mod commands;
+#[cfg(feature = "diff")]
 mod diff_formatter;
 mod util;
 
@@ -40,6 +41,7 @@ enum OutputFormat {
 #[derive(Subcommand)]
 enum Commands {
     /// Update the filepath of a Library (LI) block
+    #[cfg(feature = "editor")]
     LibPath {
         file: PathBuf,
         #[arg(short, long)]
@@ -54,12 +56,11 @@ enum Commands {
         )]
         no_validate: bool,
     },
-    Info {
-        file: PathBuf,
-    },
-    Blocks {
-        file: PathBuf,
-    },
+    #[cfg(feature = "info")]
+    Info { file: PathBuf },
+    #[cfg(feature = "blocks")]
+    Blocks { file: PathBuf },
+    #[cfg(feature = "trace")]
     Dependencies {
         file: PathBuf,
         #[arg(short, long)]
@@ -72,6 +73,7 @@ enum Commands {
         )]
         ascii: bool,
     },
+    #[cfg(feature = "diff")]
     Diff {
         file1: PathBuf,
         file2: PathBuf,
@@ -85,6 +87,7 @@ enum Commands {
         )]
         ascii: bool,
     },
+    #[cfg(feature = "editor")]
     Rename {
         file: PathBuf,
         #[arg(short, long)]
@@ -94,6 +97,7 @@ enum Commands {
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
     },
+    #[cfg(feature = "diff")]
     MeshDiff {
         file1: PathBuf,
         file2: PathBuf,
@@ -104,6 +108,7 @@ enum Commands {
         #[arg(long, help = "Output detailed analysis as JSON")]
         json: bool,
     },
+    #[cfg(feature = "trace")]
     Filter {
         file: PathBuf,
         #[arg(short, long, help = "Filter expressions (format: [+/-][recursion]key=value_regex)", action = clap::ArgAction::Append)]
@@ -117,10 +122,22 @@ enum Commands {
     },
 }
 
+#[cfg(feature = "trace")]
 fn main() -> dot001_tracer::Result<()> {
+    use dot001_parser::BlendError;
+    run_main().map_err(|e| BlendError::Io(std::io::Error::other(e.to_string())))
+}
+
+#[cfg(not(feature = "trace"))]
+fn main() -> anyhow::Result<()> {
+    run_main()
+}
+
+fn run_main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let parse_options = util::create_parse_options(&cli);
     match cli.command {
+        #[cfg(feature = "editor")]
         Commands::LibPath {
             file,
             block_index,
@@ -128,10 +145,13 @@ fn main() -> dot001_tracer::Result<()> {
             dry_run,
             no_validate,
         } => commands::cmd_libpath(file, block_index, new_path, dry_run, no_validate),
+        #[cfg(feature = "info")]
         Commands::Info { file } => commands::cmd_info(file, &parse_options, cli.no_auto_decompress),
+        #[cfg(feature = "blocks")]
         Commands::Blocks { file } => {
             commands::cmd_blocks(file, &parse_options, cli.no_auto_decompress)
         }
+        #[cfg(feature = "trace")]
         Commands::Dependencies {
             file,
             block_index,
@@ -145,6 +165,7 @@ fn main() -> dot001_tracer::Result<()> {
             &parse_options,
             cli.no_auto_decompress,
         ),
+        #[cfg(feature = "diff")]
         Commands::Diff {
             file1,
             file2,
@@ -160,6 +181,7 @@ fn main() -> dot001_tracer::Result<()> {
             &parse_options,
             cli.no_auto_decompress,
         ),
+        #[cfg(feature = "editor")]
         Commands::Rename {
             file,
             block_index,
@@ -173,6 +195,7 @@ fn main() -> dot001_tracer::Result<()> {
             &parse_options,
             cli.no_auto_decompress,
         ),
+        #[cfg(feature = "diff")]
         Commands::MeshDiff {
             file1,
             file2,
@@ -188,6 +211,7 @@ fn main() -> dot001_tracer::Result<()> {
             &parse_options,
             cli.no_auto_decompress,
         ),
+        #[cfg(feature = "trace")]
         Commands::Filter {
             file,
             filter,
@@ -203,5 +227,6 @@ fn main() -> dot001_tracer::Result<()> {
             &parse_options,
             cli.no_auto_decompress,
         ),
-    }
+    }?;
+    Ok(())
 }

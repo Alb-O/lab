@@ -1,5 +1,6 @@
 use crate::{DiffError, Result};
 use dot001_parser::{BlendFile, DnaCollection};
+#[cfg(feature = "tracer_integration")]
 use dot001_tracer::{BlockExpander, MeshExpander};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -96,8 +97,26 @@ impl ProvenanceAnalyzer {
         me_block_index: usize,
         file: &mut BlendFile<R>,
     ) -> Result<ProvenanceGraph> {
-        // Use MeshExpander to get pointer dependencies
-        let mesh_expander = MeshExpander;
+        #[cfg(feature = "tracer_integration")]
+        {
+            // Use MeshExpander to get pointer dependencies
+            let mesh_expander = MeshExpander;
+            self.extract_me_provenance_with_tracer(me_block_index, file, mesh_expander)
+        }
+        #[cfg(not(feature = "tracer_integration"))]
+        {
+            // Fallback implementation without tracer
+            self.extract_me_provenance_fallback(me_block_index, file)
+        }
+    }
+
+    #[cfg(feature = "tracer_integration")]
+    fn extract_me_provenance_with_tracer<R: Read + Seek>(
+        &self,
+        me_block_index: usize,
+        file: &mut BlendFile<R>,
+        mesh_expander: MeshExpander,
+    ) -> Result<ProvenanceGraph> {
         let referenced_blocks = mesh_expander
             .expand_block(me_block_index, file)
             .map_err(DiffError::BlendFile)?;
@@ -166,6 +185,51 @@ impl ProvenanceAnalyzer {
         if self.verbose {
             log::debug!(
                 "ME block {} references {} DATA blocks: {:?}",
+                me_block_index,
+                referenced_data_blocks.len(),
+                referenced_data_blocks
+            );
+        }
+
+        Ok(ProvenanceGraph {
+            me_block_index,
+            referenced_data_blocks,
+            data_block_info,
+        })
+    }
+
+    #[cfg(not(feature = "tracer_integration"))]
+    fn extract_me_provenance_fallback<R: Read + Seek>(
+        &self,
+        me_block_index: usize,
+        file: &mut BlendFile<R>,
+    ) -> Result<ProvenanceGraph> {
+        let mut referenced_data_blocks = HashSet::new();
+        let mut data_block_info = HashMap::new();
+
+        // Without tracer, use a heuristic approach: look for DATA blocks near the ME block
+        let search_range = 20;
+        let start = me_block_index.saturating_sub(search_range);
+        let end = (me_block_index + search_range).min(file.blocks.len());
+
+        for block_idx in start..end {
+            if block_idx == me_block_index {
+                continue;
+            }
+
+            if let Some(block) = file.blocks.get(block_idx) {
+                let block_code = String::from_utf8_lossy(&block.header.code);
+                if block_code.trim_end_matches('\0') == "DATA" && block.header.size > 8 {
+                    referenced_data_blocks.insert(block_idx);
+                    let info = self.analyze_data_block(block_idx, file)?;
+                    data_block_info.insert(block_idx, info);
+                }
+            }
+        }
+
+        if self.verbose {
+            log::debug!(
+                "ME block {} (fallback mode) found {} nearby DATA blocks: {:?}",
                 me_block_index,
                 referenced_data_blocks.len(),
                 referenced_data_blocks

@@ -1,6 +1,5 @@
 use crate::commands::NameResolver;
 use dot001_parser::ParseOptions;
-use dot001_tracer::Result;
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -12,7 +11,7 @@ pub fn cmd_filter(
     json: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
     let mut filter_triples: Vec<(String, String, String)> = Vec::new();
     for expr in &filter_expressions {

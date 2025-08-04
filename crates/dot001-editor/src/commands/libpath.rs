@@ -1,5 +1,6 @@
 use crate::{EditorError, Result};
 use dot001_parser::BlendFile;
+#[cfg(feature = "tracer_integration")]
 use dot001_tracer::bpath::BlendPath;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom, Write};
@@ -23,8 +24,48 @@ impl LibPathCommand {
         {
             normalized_path = format!("//{normalized_path}");
         }
-        // Validate and normalize the new path using BlendPath
+        // Validate and normalize the new path
+        #[cfg(feature = "tracer_integration")]
         let blend_path = BlendPath::new(normalized_path.as_bytes());
+
+        #[cfg(not(feature = "tracer_integration"))]
+        let blend_path = {
+            // Simple validation without tracer
+            if !no_validate {
+                if normalized_path.starts_with("//") {
+                    // Blendfile-relative path
+                    let rel_path = &normalized_path[2..];
+                    let blend_file_path = file_path.as_ref();
+                    let blend_dir = blend_file_path.parent().ok_or_else(|| {
+                        EditorError::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "Blend file has no parent directory",
+                        ))
+                    })?;
+                    let abs_path = blend_dir.join(rel_path);
+                    if !abs_path.exists() {
+                        return Err(EditorError::Io(std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            format!("Target library file does not exist: {}", abs_path.display()),
+                        )));
+                    }
+                } else if Path::new(&normalized_path).is_absolute() {
+                    if !Path::new(&normalized_path).exists() {
+                        return Err(EditorError::Io(std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            format!("Target library file does not exist: {}", normalized_path),
+                        )));
+                    }
+                } else {
+                    return Err(EditorError::InvalidCharacters(
+                        "Library path must be absolute or blendfile-relative".to_string(),
+                    ));
+                }
+            }
+            normalized_path.as_bytes()
+        };
+
+        #[cfg(feature = "tracer_integration")]
         if !no_validate {
             if blend_path.is_blendfile_relative() {
                 // Resolve relative to blend file location
@@ -107,8 +148,13 @@ impl LibPathCommand {
         let name_size = field.size;
         // Prepare the new path bytes, null-terminated and sized for Blender
         let mut path_bytes = vec![0u8; name_size];
-        let copy_len = std::cmp::min(blend_path.as_bytes().len(), name_size.saturating_sub(1));
-        path_bytes[..copy_len].copy_from_slice(&blend_path.as_bytes()[..copy_len]);
+        #[cfg(feature = "tracer_integration")]
+        let path_slice = blend_path.as_bytes();
+        #[cfg(not(feature = "tracer_integration"))]
+        let path_slice = blend_path;
+
+        let copy_len = std::cmp::min(path_slice.len(), name_size.saturating_sub(1));
+        path_bytes[..copy_len].copy_from_slice(&path_slice[..copy_len]);
         // Check if the new path is the same as the current one
         if !no_validate {
             let current_name = &block_data[name_offset..(name_offset + name_size)];

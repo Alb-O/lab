@@ -1,12 +1,11 @@
 use dot001_parser::ParseOptions;
-use dot001_tracer::Result;
 use std::path::PathBuf;
 
 pub fn cmd_info(
     file_path: PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
     println!("File: {}", file_path.display());
     println!("Header:");
