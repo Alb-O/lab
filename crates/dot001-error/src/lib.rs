@@ -13,8 +13,6 @@
 //! - **Convertible**: Seamless conversion between error types
 //! - **User-Focused**: Clear messages for end users, detailed info for developers
 
-pub mod conversions;
-
 use std::path::PathBuf;
 use thiserror::Error;
 
