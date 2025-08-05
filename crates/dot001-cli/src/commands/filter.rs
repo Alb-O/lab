@@ -197,11 +197,12 @@ pub fn parse_filter_expression(
         }
     }
     let parts: Vec<&str> = key_value.splitn(2, '=').collect();
-    if parts.len() != 2 {
-        return Err("Filter expression must contain '=' to separate key and value".into());
-    }
-    let key = parts[0].to_string();
-    let value = parts[1].to_string();
+    let (key, value) = if parts.len() == 2 {
+        (parts[0].to_string(), parts[1].to_string())
+    } else {
+        // If no '=' is found, default to name matching
+        ("name".to_string(), key_value.to_string())
+    };
     if key.is_empty() {
         return Err("Filter key cannot be empty".into());
     }

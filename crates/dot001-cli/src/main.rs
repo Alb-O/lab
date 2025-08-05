@@ -49,14 +49,14 @@ enum Commands {
     /// Update the filepath of a Library (LI) block
     #[cfg(feature = "editor")]
     LibPath {
+        #[arg(index = 1)]
         file: PathBuf,
         #[arg(
-            short,
-            long,
+            index = 2,
             help = "Block index or datablock name (e.g., '5' or 'Cube')"
         )]
         block_index: String,
-        #[arg(short, long)]
+        #[arg(index = 3)]
         new_path: String,
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
@@ -67,15 +67,21 @@ enum Commands {
         no_validate: bool,
     },
     #[cfg(feature = "info")]
-    Info { file: PathBuf },
+    Info {
+        #[arg(index = 1)]
+        file: PathBuf,
+    },
     #[cfg(feature = "blocks")]
-    Blocks { file: PathBuf },
+    Blocks {
+        #[arg(index = 1)]
+        file: PathBuf,
+    },
     #[cfg(feature = "trace")]
     Dependencies {
+        #[arg(index = 1)]
         file: PathBuf,
         #[arg(
-            short,
-            long,
+            index = 2,
             help = "Block index or datablock name (e.g., '5' or 'Cube')"
         )]
         block_index: String,
@@ -89,7 +95,9 @@ enum Commands {
     },
     #[cfg(feature = "diff")]
     Diff {
+        #[arg(index = 1)]
         file1: PathBuf,
+        #[arg(index = 2)]
         file2: PathBuf,
         #[arg(long, help = "Show only modified blocks, not all differences")]
         only_modified: bool,
@@ -103,21 +111,23 @@ enum Commands {
     },
     #[cfg(feature = "editor")]
     Rename {
+        #[arg(index = 1)]
         file: PathBuf,
         #[arg(
-            short,
-            long,
+            index = 2,
             help = "Block index or datablock name (e.g., '5' or 'Cube')"
         )]
         block_index: String,
-        #[arg(short, long)]
+        #[arg(index = 3)]
         new_name: String,
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
     },
     #[cfg(feature = "diff")]
     MeshDiff {
+        #[arg(index = 1)]
         file1: PathBuf,
+        #[arg(index = 2)]
         file2: PathBuf,
         #[arg(
             long,
@@ -134,9 +144,10 @@ enum Commands {
     },
     #[cfg(feature = "trace")]
     Filter {
+        #[arg(index = 1)]
         file: PathBuf,
-        #[arg(long, help = "Filter expressions (format: [+/-][recursion]key=value_regex)", action = clap::ArgAction::Append)]
-        filter: Vec<String>,
+        #[arg(index = 2, help = "Filter expressions (format: [+/-][recursion]key=value_regex or just 'name' for name matching)", action = clap::ArgAction::Append)]
+        filters: Vec<String>,
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
         format: OutputFormat,
         #[arg(
@@ -151,10 +162,10 @@ enum Commands {
     /// Analyze and reconstruct broken library links
     #[cfg(feature = "trace")]
     ReconstructLink {
+        #[arg(index = 1)]
         file: PathBuf,
         #[arg(
-            short,
-            long,
+            index = 2,
             help = "Block index or datablock name (e.g., '5' or 'Cube')"
         )]
         block_index: String,
@@ -303,13 +314,13 @@ fn run_main() -> Result<(), Dot001Error> {
         #[cfg(feature = "trace")]
         Commands::Filter {
             file,
-            filter,
+            filters,
             format,
             verbose_details,
             json,
         } => commands::cmd_filter(
             file,
-            filter,
+            filters,
             format,
             verbose_details,
             json,
