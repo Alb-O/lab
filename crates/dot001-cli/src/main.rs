@@ -32,6 +32,10 @@ struct Cli {
     /// Enable verbose logging (can be used multiple times: -v, -vv, -vvv)
     #[arg(short = 'v', long = "verbose", global = true, action = clap::ArgAction::Count)]
     verbose: u8,
+
+    /// Quiet mode: suppress explanatory output, show only raw results
+    #[arg(short = 'q', long = "quiet", global = true)]
+    quiet: bool,
 }
 
 #[derive(Clone, ValueEnum, Debug)]
@@ -228,6 +232,8 @@ fn run_main() -> Result<(), Dot001Error> {
     );
 
     let parse_options = util::create_parse_options(&cli);
+    let output = util::OutputHandler::new(cli.quiet);
+
     match cli.command {
         #[cfg(feature = "editor")]
         Commands::LibPath {
@@ -244,12 +250,15 @@ fn run_main() -> Result<(), Dot001Error> {
             no_validate,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
         #[cfg(feature = "info")]
-        Commands::Info { file } => commands::cmd_info(file, &parse_options, cli.no_auto_decompress),
+        Commands::Info { file } => {
+            commands::cmd_info(file, &parse_options, cli.no_auto_decompress, &output)
+        }
         #[cfg(feature = "blocks")]
         Commands::Blocks { file } => {
-            commands::cmd_blocks(file, &parse_options, cli.no_auto_decompress)
+            commands::cmd_blocks(file, &parse_options, cli.no_auto_decompress, &output)
         }
         #[cfg(feature = "trace")]
         Commands::Dependencies {
@@ -264,6 +273,7 @@ fn run_main() -> Result<(), Dot001Error> {
             ascii,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
         #[cfg(feature = "diff")]
         Commands::Diff {
@@ -280,6 +290,7 @@ fn run_main() -> Result<(), Dot001Error> {
             ascii,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
         #[cfg(feature = "editor")]
         Commands::Rename {
@@ -294,6 +305,7 @@ fn run_main() -> Result<(), Dot001Error> {
             dry_run,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
         #[cfg(feature = "diff")]
         Commands::MeshDiff {
@@ -310,6 +322,7 @@ fn run_main() -> Result<(), Dot001Error> {
             json,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
         #[cfg(feature = "trace")]
         Commands::Filter {
@@ -326,6 +339,7 @@ fn run_main() -> Result<(), Dot001Error> {
             json,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
         #[cfg(feature = "trace")]
         Commands::ReconstructLink {
@@ -340,6 +354,7 @@ fn run_main() -> Result<(), Dot001Error> {
             target_name,
             &parse_options,
             cli.no_auto_decompress,
+            &output,
         ),
     }?;
     Ok(())

@@ -1,3 +1,4 @@
+use crate::util::OutputHandler;
 use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
 use log::{error, info};
@@ -10,6 +11,7 @@ pub fn cmd_rename(
     dry_run: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
     use dot001_editor::BlendEditor;
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
@@ -56,21 +58,23 @@ pub fn cmd_rename(
                             ) {
                                 Some(updated_name) => {
                                     if updated_name == new_name {
-                                        println!("Success: Block renamed to '{updated_name}'");
+                                        output.print_result_fmt(format_args!(
+                                            "Success: Block renamed to '{updated_name}'"
+                                        ));
                                     } else {
-                                        eprintln!(
+                                        output.print_error(&format!(
                                             "Warning: Name is '{updated_name}', expected '{new_name}'"
-                                        );
+                                        ));
                                     }
                                 }
                                 None => {
-                                    eprintln!("Warning: Could not verify name change");
+                                    output.print_error("Warning: Could not verify name change");
                                 }
                             }
                         }
                         #[cfg(not(feature = "trace"))]
                         {
-                            println!(
+                            output.print_result(
                                 "Success: Block renamed (verification unavailable without trace feature)"
                             );
                         }

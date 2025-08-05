@@ -1,3 +1,4 @@
+use crate::util::OutputHandler;
 use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
 use log::error;
@@ -11,6 +12,7 @@ pub fn cmd_diff(
     ascii: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
     let mut blend_file1 = crate::util::load_blend_file(&file1_path, options, no_auto_decompress)?;
     let mut blend_file2 = crate::util::load_blend_file(&file2_path, options, no_auto_decompress)?;
@@ -18,18 +20,33 @@ pub fn cmd_diff(
     let diff_result = differ
         .diff(&mut blend_file1, &mut blend_file2)
         .map_err(|e| std::io::Error::other(format!("Diff error: {e}")))?;
-    println!(
+    output.print_info_fmt(format_args!(
         "Comparing {} vs {}",
         file1_path.display(),
         file2_path.display()
-    );
-    println!("Summary:");
-    println!("  Total blocks: {}", diff_result.summary.total_blocks);
-    println!("  Modified: {}", diff_result.summary.modified_blocks);
-    println!("  Added: {}", diff_result.summary.added_blocks);
-    println!("  Removed: {}", diff_result.summary.removed_blocks);
-    println!("  Unchanged: {}", diff_result.summary.unchanged_blocks);
-    println!();
+    ));
+    output.print_info("Summary:");
+    output.print_result_fmt(format_args!(
+        "  Total blocks: {}",
+        diff_result.summary.total_blocks
+    ));
+    output.print_result_fmt(format_args!(
+        "  Modified: {}",
+        diff_result.summary.modified_blocks
+    ));
+    output.print_result_fmt(format_args!(
+        "  Added: {}",
+        diff_result.summary.added_blocks
+    ));
+    output.print_result_fmt(format_args!(
+        "  Removed: {}",
+        diff_result.summary.removed_blocks
+    ));
+    output.print_result_fmt(format_args!(
+        "  Unchanged: {}",
+        diff_result.summary.unchanged_blocks
+    ));
+    output.print_result("");
     match format {
         crate::OutputFormat::Tree => {
             crate::diff_formatter::DiffFormatter::display_tree(
@@ -41,7 +58,7 @@ pub fn cmd_diff(
             )?;
         }
         crate::OutputFormat::Json => match serde_json::to_string_pretty(&diff_result) {
-            Ok(json) => println!("{json}"),
+            Ok(json) => output.print_result(&json),
             Err(e) => error!("Failed to serialize diff result to JSON: {e}"),
         },
         crate::OutputFormat::Flat => {

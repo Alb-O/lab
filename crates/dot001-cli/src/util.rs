@@ -8,6 +8,46 @@ use owo_colors::OwoColorize;
 use regex::Regex;
 use std::path::PathBuf;
 
+/// Output handler that respects quiet mode
+pub struct OutputHandler {
+    quiet: bool,
+}
+
+impl OutputHandler {
+    pub fn new(quiet: bool) -> Self {
+        Self { quiet }
+    }
+
+    /// Print explanatory text (suppressed in quiet mode)
+    pub fn print_info(&self, text: &str) {
+        if !self.quiet {
+            println!("{text}");
+        }
+    }
+
+    /// Print formatted explanatory text (suppressed in quiet mode)
+    pub fn print_info_fmt(&self, args: std::fmt::Arguments) {
+        if !self.quiet {
+            println!("{args}");
+        }
+    }
+
+    /// Print raw results (always shown)
+    pub fn print_result(&self, text: &str) {
+        println!("{text}");
+    }
+
+    /// Print formatted raw results (always shown)
+    pub fn print_result_fmt(&self, args: std::fmt::Arguments) {
+        println!("{args}");
+    }
+
+    /// Print to stderr (always shown)
+    pub fn print_error(&self, text: &str) {
+        eprintln!("{text}");
+    }
+}
+
 // Colorization helpers
 pub fn should_use_colors() -> bool {
     atty::is(atty::Stream::Stdout)

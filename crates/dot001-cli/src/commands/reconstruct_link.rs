@@ -1,3 +1,4 @@
+use crate::util::OutputHandler;
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
@@ -13,6 +14,7 @@ pub fn cmd_reconstruct_link(
     target_name: Option<String>,
     parse_options: &ParseOptions,
     no_auto_decompress: bool,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
     let mut blend_file =
         crate::util::load_blend_file(&file_path, parse_options, no_auto_decompress)?;
@@ -23,7 +25,9 @@ pub fn cmd_reconstruct_link(
         return Ok(());
     };
 
-    println!("Analyzing library link for block {block_index}...");
+    output.print_info_fmt(format_args!(
+        "Analyzing library link for block {block_index}..."
+    ));
 
     let block_data = blend_file.read_block_data(block_index)?;
     let field_reader = blend_file.create_field_reader(&block_data)?;
@@ -32,7 +36,7 @@ pub fn cmd_reconstruct_link(
     let link_info = read_id_link_info(&field_reader)?;
 
     if link_info.lib_ptr == 0 {
-        println!("This is a local asset (lib pointer is NULL), not a library link.");
+        output.print_result("This is a local asset (lib pointer is NULL), not a library link.");
         return Ok(());
     }
 
@@ -47,18 +51,21 @@ pub fn cmd_reconstruct_link(
         .read_field_string("Library", "name")
         .map_err(|e| execution_failed_error(format!("Error reading library name field: {e}")))?;
 
-    println!("Current link status:");
-    println!("  ID Name: '{}'", link_info.name);
-    println!("  Library Path: '{lib_filepath}'");
-    println!("  Library Block Index: {lib_block_index}");
+    output.print_info("Current link status:");
+    output.print_result_fmt(format_args!("  ID Name: '{}'", link_info.name));
+    output.print_result_fmt(format_args!("  Library Path: '{lib_filepath}'"));
+    output.print_result_fmt(format_args!("  Library Block Index: {lib_block_index}"));
 
     if let Some(target) = &target_name {
-        println!("  Target Name: '{target}'");
+        output.print_info_fmt(format_args!("  Target Name: '{target}'"));
     }
 
     // Resolve library file path
     let lib_file_path = resolve_library_path(&lib_filepath, &file_path)?;
-    println!("  Resolved Library Path: '{}'", lib_file_path.display());
+    output.print_result_fmt(format_args!(
+        "  Resolved Library Path: '{}'",
+        lib_file_path.display()
+    ));
 
     if !lib_file_path.exists() {
         return Err(execution_failed_error(
@@ -69,28 +76,38 @@ pub fn cmd_reconstruct_link(
     // Analyze library file for available assets
     let available_collections = find_collections_in_library(&lib_file_path)?;
 
-    println!("\nAvailable collections in library:");
+    output.print_info("\nAvailable collections in library:");
     for (idx, name) in &available_collections {
-        println!("  Block {idx}: '{name}'");
+        output.print_result_fmt(format_args!("  Block {idx}: '{name}'"));
     }
 
     // Determine target collection
     let target_collection = determine_target_collection(&available_collections, target_name)?;
-    println!("\nReconstructing pointer to: '{target_collection}'");
+    output.print_info_fmt(format_args!(
+        "\nReconstructing pointer to: '{target_collection}'"
+    ));
 
     if dry_run {
-        println!(
+        output.print_result_fmt(format_args!(
             "[DRY RUN] Would update ID name from '{}' to '{target_collection}'",
             link_info.name
-        );
+        ));
         return Ok(());
     }
 
     // Perform the reconstruction
-    reconstruct_id_name(&file_path, &mut blend_file, block_index, &target_collection)?;
+    reconstruct_id_name(
+        &file_path,
+        &mut blend_file,
+        block_index,
+        &target_collection,
+        output,
+    )?;
 
-    println!("SUCCESS: Pointer reconstructed! ID name updated to '{target_collection}'");
-    println!("The library link should now resolve correctly.");
+    output.print_result_fmt(format_args!(
+        "SUCCESS: Pointer reconstructed! ID name updated to '{target_collection}'"
+    ));
+    output.print_result("The library link should now resolve correctly.");
 
     Ok(())
 }
@@ -213,8 +230,9 @@ fn reconstruct_id_name<R: std::io::Read + std::io::Seek>(
     blend_file: &mut BlendFile<R>,
     block_index: usize,
     target_name: &str,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
-    println!("Performing pointer reconstruction...");
+    output.print_info("Performing pointer reconstruction...");
 
     // Read block data and get field offset
     let mut block_data = blend_file.read_block_data(block_index)?;

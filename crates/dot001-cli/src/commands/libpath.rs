@@ -1,3 +1,4 @@
+use crate::util::OutputHandler;
 use dot001_editor::BlendEditor;
 use dot001_error::{CliErrorKind, Dot001Error};
 use dot001_parser::ParseOptions;
@@ -12,6 +13,7 @@ pub fn cmd_libpath(
     no_validate: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
 
@@ -22,12 +24,16 @@ pub fn cmd_libpath(
     };
 
     if dry_run {
-        println!("[dry-run] Would update library path in block {block_index} to: {new_path}");
+        output.print_result_fmt(format_args!(
+            "[dry-run] Would update library path in block {block_index} to: {new_path}"
+        ));
         return Ok(());
     }
     match BlendEditor::update_libpath_and_save(&file_path, block_index, &new_path, no_validate) {
         Ok(()) => {
-            println!("Successfully updated library path in block {block_index} to: {new_path}");
+            output.print_result_fmt(format_args!(
+                "Successfully updated library path in block {block_index} to: {new_path}"
+            ));
             Ok(())
         }
         Err(e) => {

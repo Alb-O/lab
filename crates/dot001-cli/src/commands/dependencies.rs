@@ -1,4 +1,5 @@
 use crate::commands::{DependencyTracer, NameResolver};
+use crate::util::OutputHandler;
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
 use dot001_tracer::DependencyNode;
@@ -13,6 +14,7 @@ pub fn cmd_dependencies(
     ascii: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
     info!("Loading blend file: {}", file_path.display());
     debug!("Target block identifier: '{block_identifier}', format: {format:?}, ascii: {ascii}");
@@ -55,9 +57,9 @@ pub fn cmd_dependencies(
                 deps.len()
             );
             if deps.is_empty() {
-                println!("  No dependencies found");
+                output.print_result("  No dependencies found");
             } else {
-                println!("  Found {} dependencies:", deps.len());
+                output.print_info_fmt(format_args!("  Found {} dependencies:", deps.len()));
                 for (i, &dep_index) in deps.iter().enumerate() {
                     if let Some(block) = blend_file.get_block(dep_index) {
                         // Copy code bytes to avoid borrowing issues
@@ -67,7 +69,12 @@ pub fn cmd_dependencies(
                             std::str::from_utf8(&code_bytes[..code_len]).unwrap_or("????");
                         let display_name =
                             NameResolver::get_display_name(dep_index, &mut blend_file, code_str);
-                        println!("    {}: Block {} ({})", i + 1, dep_index, display_name);
+                        output.print_result_fmt(format_args!(
+                            "    {}: Block {} ({})",
+                            i + 1,
+                            dep_index,
+                            display_name
+                        ));
                     }
                 }
             }
@@ -92,17 +99,20 @@ pub fn cmd_dependencies(
             };
             let formatting = TreeFormatting::dir_tree(format_chars);
             match tree_display.to_string_with_format(&formatting) {
-                Ok(output) => println!("{output}"),
+                Ok(tree_output) => output.print_result(&tree_output),
                 Err(e) => error!("Failed to format dependency tree: {e}"),
             }
-            println!("Summary:");
-            println!("  Total dependencies: {}", tree.total_dependencies);
-            println!("  Maximum depth: {}", tree.max_depth);
+            output.print_info("Summary:");
+            output.print_result_fmt(format_args!(
+                "  Total dependencies: {}",
+                tree.total_dependencies
+            ));
+            output.print_result_fmt(format_args!("  Maximum depth: {}", tree.max_depth));
         }
         crate::OutputFormat::Json => {
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
             match serde_json::to_string_pretty(&tree) {
-                Ok(json) => println!("{json}"),
+                Ok(json) => output.print_result(&json),
                 Err(e) => error!("Failed to serialize dependency tree to JSON: {e}"),
             }
         }

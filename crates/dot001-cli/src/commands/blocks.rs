@@ -1,5 +1,6 @@
 #[cfg(feature = "trace")]
 use crate::commands::NameResolver;
+use crate::util::OutputHandler;
 use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
 use std::path::PathBuf;
@@ -8,9 +9,10 @@ pub fn cmd_blocks(
     file_path: PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
+    output: &OutputHandler,
 ) -> Result<(), Dot001Error> {
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
-    println!("Blocks in {}:", file_path.display());
+    output.print_info_fmt(format_args!("Blocks in {}:", file_path.display()));
     let block_info: Vec<(usize, String, u32, u64)> = (0..blend_file.blocks_len())
         .filter_map(|i| {
             blend_file.get_block(i).map(|block| {
@@ -27,7 +29,9 @@ pub fn cmd_blocks(
         #[cfg(not(feature = "trace"))]
         let display_name = format!("{code_str}");
 
-        println!("  {i}: {display_name} (size: {size}, addr: 0x{address:x})");
+        output.print_result_fmt(format_args!(
+            "  {i}: {display_name} (size: {size}, addr: 0x{address:x})"
+        ));
     }
     Ok(())
 }
