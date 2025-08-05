@@ -2,6 +2,8 @@ use crate::commands::NameResolver;
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
 use log::error;
+use owo_colors::OwoColorize;
+use regex::Regex;
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -99,30 +101,36 @@ pub fn cmd_filter(
                         )
                     };
                     let name = NameResolver::resolve_name(i, &mut blend_file);
+                    let colored_index = colorize_index(i);
+                    let colored_code = colorize_code(&code_str);
+
                     if verbose_details {
                         println!(
-                            "Block {i}: {code_str} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
+                            "Block {colored_index}: {colored_code} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
                         );
                         if let Some(name) = &name {
                             if !name.is_empty() {
-                                println!("  Name: {name}");
+                                let highlighted_name =
+                                    highlight_matches(name, &filter_slice_triples);
+                                println!("  Name: {highlighted_name}");
                             }
                         }
                     } else if let Some(name) = &name {
                         if !name.is_empty() {
-                            println!("{i}: {code_str} ({name})");
+                            let highlighted_name = highlight_matches(name, &filter_slice_triples);
+                            println!("{colored_index}: {colored_code} ({highlighted_name})");
                         } else {
-                            println!("{i}: {code_str}");
+                            println!("{colored_index}: {colored_code}");
                         }
                     } else {
-                        println!("{i}: {code_str}");
+                        println!("{colored_index}: {colored_code}");
                     }
                 }
             }
             crate::OutputFormat::Tree => {
                 // Build a tree using text_trees
                 let indices_vec: Vec<usize> = filtered_indices.iter().copied().collect();
-                let tree = build_filter_tree(&indices_vec, &mut blend_file);
+                let tree = build_filter_tree(&indices_vec, &mut blend_file, &filter_slice_triples);
                 let format_chars = FormatCharacters::box_chars();
                 let formatting = TreeFormatting::dir_tree(format_chars);
                 match tree.to_string_with_format(&formatting) {
@@ -137,6 +145,7 @@ pub fn cmd_filter(
     fn build_filter_tree<R: std::io::Read + std::io::Seek>(
         indices: &[usize],
         blend_file: &mut BlendFile<R>,
+        filter_expressions: &[(&str, &str, &str)],
     ) -> StringTreeNode {
         let mut sorted_indices: Vec<_> = indices.to_vec();
         sorted_indices.sort();
@@ -156,14 +165,18 @@ pub fn cmd_filter(
                     ))
                 }?;
                 let name = NameResolver::resolve_name(i, blend_file);
+                let colored_index = colorize_index(i);
+                let colored_code = colorize_code(&code_str);
+
                 let label = if let Some(name) = name {
                     if !name.is_empty() {
-                        format!("{i}: {code_str} ({name})")
+                        let highlighted_name = highlight_matches(&name, filter_expressions);
+                        format!("{colored_index}: {colored_code} ({highlighted_name})")
                     } else {
-                        format!("{i}: {code_str}")
+                        format!("{colored_index}: {colored_code}")
                     }
                 } else {
-                    format!("{i}: {code_str}")
+                    format!("{colored_index}: {colored_code}")
                 };
                 Some(StringTreeNode::new(label))
             })
@@ -171,6 +184,58 @@ pub fn cmd_filter(
         StringTreeNode::with_child_nodes("Filtered Blocks".to_string(), children.into_iter())
     }
     Ok(())
+}
+
+fn should_use_colors() -> bool {
+    atty::is(atty::Stream::Stdout)
+}
+
+fn colorize_index(index: usize) -> String {
+    if should_use_colors() {
+        index.to_string().green().to_string()
+    } else {
+        index.to_string()
+    }
+}
+
+fn colorize_code(code: &str) -> String {
+    if should_use_colors() {
+        code.blue().to_string()
+    } else {
+        code.to_string()
+    }
+}
+
+fn highlight_matches(text: &str, filter_expressions: &[(&str, &str, &str)]) -> String {
+    if !should_use_colors() {
+        return text.to_string();
+    }
+
+    let mut result = text.to_string();
+
+    // Apply highlighting for name matches
+    for (_, key, value) in filter_expressions {
+        if *key == "name" && !value.is_empty() {
+            // Try to use the value as a regex first, fall back to literal match
+            let pattern = if let Ok(regex) = Regex::new(&format!("(?i){value}")) {
+                regex
+            } else {
+                // If the value is not a valid regex, escape it for literal matching
+                match Regex::new(&format!("(?i){}", regex::escape(value))) {
+                    Ok(regex) => regex,
+                    Err(_) => continue, // Skip this filter if we can't create a regex
+                }
+            };
+
+            result = pattern
+                .replace_all(&result, |caps: &regex::Captures| {
+                    caps[0].to_string().red().to_string()
+                })
+                .to_string();
+        }
+    }
+
+    result
 }
 
 pub fn parse_filter_expression(
