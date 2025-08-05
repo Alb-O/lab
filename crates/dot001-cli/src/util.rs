@@ -6,6 +6,7 @@ use dot001_tracer::NameResolver;
 use log::warn;
 use owo_colors::OwoColorize;
 use regex::Regex;
+use std::fmt;
 use std::path::PathBuf;
 
 /// Command execution context containing common parameters
@@ -75,6 +76,16 @@ impl OutputHandler {
     pub fn print_error(&self, text: &str) {
         eprintln!("{text}");
     }
+
+    /// Print a block reference with automatic colorization
+    pub fn print_block_ref(&self, block_ref: &BlockRef) {
+        self.print_result(&block_ref.to_string());
+    }
+
+    /// Print a block display with automatic colorization
+    pub fn print_block_display(&self, block_display: &BlockDisplay) {
+        self.print_result(&block_display.to_string());
+    }
 }
 
 // Colorization helpers
@@ -136,6 +147,113 @@ pub fn highlight_matches(text: &str, filter_expressions: &[(&str, &str, &str)]) 
     }
 
     result
+}
+
+/// Semantic representation of a block reference for display purposes
+#[derive(Debug, Clone)]
+pub struct BlockRef {
+    pub index: usize,
+    pub code: String,
+    pub name: Option<String>,
+}
+
+impl BlockRef {
+    pub fn new(index: usize, code: String) -> Self {
+        Self {
+            index,
+            code,
+            name: None,
+        }
+    }
+
+    pub fn with_name(index: usize, code: String, name: String) -> Self {
+        Self {
+            index,
+            code,
+            name: Some(name),
+        }
+    }
+
+    pub fn from_blend_file<R: std::io::Read + std::io::Seek>(
+        index: usize,
+        blend_file: &mut BlendFile<R>,
+    ) -> Option<Self> {
+        let block = blend_file.get_block(index)?;
+        let code = String::from_utf8_lossy(&block.header.code)
+            .trim_end_matches('\0')
+            .to_string();
+        let name = NameResolver::resolve_name(index, blend_file);
+
+        Some(if let Some(name) = name {
+            Self::with_name(index, code, name)
+        } else {
+            Self::new(index, code)
+        })
+    }
+}
+
+impl fmt::Display for BlockRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let colored_index = colorize_index(self.index);
+        let colored_code = colorize_code(&self.code);
+
+        if let Some(name) = &self.name {
+            let colored_name = colorize_name(name);
+            write!(f, "{colored_index}: {colored_code} ({colored_name})")
+        } else {
+            write!(f, "{colored_index}: {colored_code}")
+        }
+    }
+}
+
+/// Semantic representation of a block display (without index) for display purposes
+#[derive(Debug, Clone)]
+pub struct BlockDisplay {
+    pub code: String,
+    pub name: Option<String>,
+}
+
+impl BlockDisplay {
+    pub fn new(code: String) -> Self {
+        Self { code, name: None }
+    }
+
+    pub fn with_name(code: String, name: String) -> Self {
+        Self {
+            code,
+            name: Some(name),
+        }
+    }
+
+    pub fn from_blend_file<R: std::io::Read + std::io::Seek>(
+        index: usize,
+        blend_file: &mut BlendFile<R>,
+    ) -> Option<Self> {
+        let block = blend_file.get_block(index)?;
+        let code = String::from_utf8_lossy(&block.header.code)
+            .trim_end_matches('\0')
+            .to_string();
+        let name = NameResolver::resolve_name(index, blend_file);
+
+        Some(if let Some(name) = name {
+            Self::with_name(code, name)
+        } else {
+            Self::new(code)
+        })
+    }
+}
+
+impl fmt::Display for BlockDisplay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let colored_code = colorize_code(&self.code);
+
+        if let Some(name) = &self.name {
+            let colored_name = colorize_name(name);
+            write!(f, "{colored_code} ({colored_name})")
+        } else {
+            write!(f, "{colored_code}")
+        }
+    }
 }
 
 pub fn create_parse_options(cli: &crate::Cli) -> ParseOptions {
@@ -251,24 +369,20 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
     warn!("Multiple blocks found with name '{identifier}':");
     eprintln!();
     for (i, block_match) in matches.iter().enumerate() {
-        let colored_index = colorize_index(block_match.index);
-        let colored_code = colorize_code(&block_match.block_code);
-        let colored_name = colorize_name(&block_match.name);
-        eprintln!(
-            "  {}: Block {} ({}) - \"{}\"",
-            i + 1,
-            colored_index,
-            colored_code,
-            colored_name
+        let block_ref = BlockRef::with_name(
+            block_match.index,
+            block_match.block_code.clone(),
+            block_match.name.clone(),
         );
+        eprintln!("  {}: Block {}", i + 1, block_ref);
     }
     eprintln!();
     eprintln!("Please re-run the command using a specific block index:");
     for block_match in matches {
         let colored_index = colorize_index(block_match.index);
-        let colored_code = colorize_code(&block_match.block_code);
-        let colored_name = colorize_name(&block_match.name);
-        eprintln!("  --block-index {colored_index} (for {colored_code} \"{colored_name}\")");
+        let block_display =
+            BlockDisplay::with_name(block_match.block_code.clone(), block_match.name.clone());
+        eprintln!("  --block-index {colored_index} (for {block_display})");
     }
 }
 
