@@ -9,7 +9,7 @@ keywords = ["blender", "blend", "error", "3d"]
 categories = ["development-tools", "graphics"]
 
 [dependencies]
-thiserror = "2.0.12"
+thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
