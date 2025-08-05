@@ -9,7 +9,7 @@ pub fn cmd_filter(
     file_path: PathBuf,
     filter_expressions: Vec<String>,
     format: crate::OutputFormat,
-    verbose: bool,
+    verbose_details: bool,
     json: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
@@ -99,7 +99,7 @@ pub fn cmd_filter(
                         )
                     };
                     let name = NameResolver::resolve_name(i, &mut blend_file);
-                    if verbose {
+                    if verbose_details {
                         println!(
                             "Block {i}: {code_str} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
                         );

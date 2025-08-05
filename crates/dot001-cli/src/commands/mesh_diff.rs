@@ -7,7 +7,7 @@ pub fn cmd_mesh_diff(
     file1_path: PathBuf,
     file2_path: PathBuf,
     mesh_identifier: Option<&str>,
-    verbose: bool,
+    verbose_provenance: bool,
     json: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
@@ -16,7 +16,7 @@ pub fn cmd_mesh_diff(
     let mut blend_file2 = crate::util::load_blend_file(&file2_path, options, no_auto_decompress)?;
     let differ = dot001_diff::BlendDiffer::new()
         .with_provenance_analysis(true)
-        .with_provenance_config(|analyzer| analyzer.with_verbose(verbose));
+        .with_provenance_config(|analyzer| analyzer.with_verbose(verbose_provenance));
     println!("Enhanced Mesh Diff Analysis");
     println!("==========================");
     println!("File 1: {}", file1_path.display());

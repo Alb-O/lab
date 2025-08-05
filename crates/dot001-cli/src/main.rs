@@ -124,8 +124,11 @@ enum Commands {
             help = "ME block index or mesh name to analyze (e.g., '5' or 'Cube')"
         )]
         mesh_index: Option<String>,
-        #[arg(long, help = "Enable verbose provenance logging")]
-        verbose: bool,
+        #[arg(
+            long = "verbose-provenance",
+            help = "Enable verbose provenance logging"
+        )]
+        verbose_provenance: bool,
         #[arg(long, help = "Output detailed analysis as JSON")]
         json: bool,
     },
@@ -136,8 +139,11 @@ enum Commands {
         filter: Vec<String>,
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
         format: OutputFormat,
-        #[arg(long, help = "Show detailed information about each filtered block")]
-        verbose: bool,
+        #[arg(
+            long = "verbose-details",
+            help = "Show detailed information about each filtered block"
+        )]
+        verbose_details: bool,
         #[arg(long, help = "Output as JSON")]
         json: bool,
     },
@@ -283,13 +289,13 @@ fn run_main() -> Result<(), Dot001Error> {
             file1,
             file2,
             mesh_index,
-            verbose,
+            verbose_provenance,
             json,
         } => commands::cmd_mesh_diff(
             file1,
             file2,
             mesh_index.as_deref(),
-            verbose,
+            verbose_provenance,
             json,
             &parse_options,
             cli.no_auto_decompress,
@@ -299,13 +305,13 @@ fn run_main() -> Result<(), Dot001Error> {
             file,
             filter,
             format,
-            verbose,
+            verbose_details,
             json,
         } => commands::cmd_filter(
             file,
             filter,
             format,
-            verbose,
+            verbose_details,
             json,
             &parse_options,
             cli.no_auto_decompress,
