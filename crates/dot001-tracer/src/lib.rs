@@ -49,6 +49,7 @@ pub use expanders::{
     LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander,
     SceneExpander, SoundExpander, TextureExpander,
 };
+use log::{debug, trace};
 pub use name_resolver::NameResolver;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -203,6 +204,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
 
     /// Register all standard block expanders for comprehensive dependency analysis
     pub fn with_default_expanders(mut self) -> Self {
+        debug!("Registering standard block expanders");
         // Register all the standard expanders
         self.register_expander(*b"SC\0\0", Box::new(SceneExpander));
         self.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
@@ -217,6 +219,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         self.register_expander(*b"NT\0\0", Box::new(NodeTreeExpander));
         self.register_expander(*b"LA\0\0", Box::new(LampExpander));
         self.register_expander(*b"TE\0\0", Box::new(TextureExpander));
+        debug!("Registered {} block expanders", self.expanders.len());
         self
     }
 
@@ -225,6 +228,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         start_block_index: usize,
         blend_file: &mut BlendFile<R>,
     ) -> Result<Vec<usize>> {
+        debug!("Starting dependency trace from block {start_block_index}");
         self.visited.clear();
         self.visiting.clear();
         let mut result = Vec::new();
@@ -258,6 +262,11 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
 
                 if let Some(expander) = self.expanders.get(&block.header.code) {
                     let deps = expander.expand_block(block_index, blend_file)?;
+                    trace!(
+                        "Block {} expanded to {} dependencies",
+                        block_index,
+                        deps.dependencies.len()
+                    );
                     for dep in deps.dependencies {
                         // Skip if filtered out
                         if let Some(allowed) = &self.allowed {
@@ -281,6 +290,10 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
                 result.push(block_index);
             }
         }
+        debug!(
+            "Dependency trace completed, found {} total dependencies",
+            result.len()
+        );
         Ok(result)
     }
 

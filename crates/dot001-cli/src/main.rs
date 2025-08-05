@@ -5,6 +5,7 @@ mod util;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use dot001_error::{CliErrorKind, Dot001Error};
+use log::{debug, info};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -27,9 +28,13 @@ struct Cli {
     /// Disable automatic decompression of compressed files
     #[arg(long, global = true)]
     no_auto_decompress: bool,
+
+    /// Enable verbose logging (can be used multiple times: -v, -vv, -vvv)
+    #[arg(short = 'v', long = "verbose", global = true, action = clap::ArgAction::Count)]
+    verbose: u8,
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, ValueEnum, Debug)]
 enum OutputFormat {
     /// Simple flat list of dependencies
     Flat,
@@ -145,8 +150,47 @@ fn main() -> Result<(), Dot001Error> {
     run_main()
 }
 
+/// Initialize logging based on verbosity level
+fn init_logging(verbose: u8) {
+    let log_level = match verbose {
+        0 => log::LevelFilter::Warn,  // Default: only warnings and errors
+        1 => log::LevelFilter::Info,  // -v: info level
+        2 => log::LevelFilter::Debug, // -vv: debug level
+        _ => log::LevelFilter::Trace, // -vvv+: trace level (everything)
+    };
+
+    env_logger::Builder::from_default_env()
+        .filter_level(log_level)
+        .format_timestamp(None)
+        .format_module_path(false)
+        .format_target(false)
+        .format(|buf, record| {
+            use std::io::Write;
+            let level_style = match record.level() {
+                log::Level::Error => "\x1b[31mERROR\x1b[0m", // Red
+                log::Level::Warn => "\x1b[33mWARN\x1b[0m",   // Yellow
+                log::Level::Info => "\x1b[32mINFO\x1b[0m",   // Green
+                log::Level::Debug => "\x1b[36mDEBUG\x1b[0m", // Cyan
+                log::Level::Trace => "\x1b[35mTRACE\x1b[0m", // Magenta
+            };
+
+            writeln!(buf, "[{}] {}", level_style, record.args())
+        })
+        .init();
+}
+
 fn run_main() -> Result<(), Dot001Error> {
     let cli = Cli::parse();
+
+    // Initialize logging based on verbosity level
+    init_logging(cli.verbose);
+
+    info!("dot001-cli starting with verbosity level: {}", cli.verbose);
+    debug!(
+        "Parse options: max_in_memory={}MB, no_auto_decompress={}",
+        cli.max_in_memory, cli.no_auto_decompress
+    );
+
     let parse_options = util::create_parse_options(&cli);
     match cli.command {
         #[cfg(feature = "editor")]

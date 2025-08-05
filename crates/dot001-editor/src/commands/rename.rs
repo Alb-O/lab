@@ -3,6 +3,7 @@ use dot001_error::{Dot001Error, EditorErrorKind};
 use dot001_parser::BlendFile;
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::NameResolver;
+use log::{debug, info};
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -16,7 +17,14 @@ impl RenameCommand {
         block_index: usize,
         new_name: &str,
     ) -> Result<()> {
+        info!(
+            "Starting ID block rename: file={}, block={}, new_name='{}'",
+            file_path.as_ref().display(),
+            block_index,
+            new_name
+        );
         validate_new_name(new_name)?;
+        debug!("Name validation passed for '{new_name}'");
         let file = std::fs::File::open(&file_path)?;
         let mut reader = std::io::BufReader::new(file);
         let mut blend_file = BlendFile::new(&mut reader)?;

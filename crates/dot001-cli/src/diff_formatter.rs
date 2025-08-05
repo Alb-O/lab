@@ -19,6 +19,7 @@ use dot001_tracer::{
     LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander,
     SceneExpander, SoundExpander, TextureExpander,
 };
+use log::info;
 use std::io::{Read, Seek};
 
 /// Formatter for diff results with multiple output formats
@@ -28,6 +29,7 @@ impl DiffFormatter {
     /// Display diff results in flat format
     pub fn display_flat(diff: &BlendDiff, only_modified: bool) {
         if only_modified {
+            info!("Showing only modified blocks");
             println!("Modified blocks:");
             for block_diff in &diff.block_diffs {
                 if block_diff.change_type == BlockChangeType::Modified {
@@ -41,6 +43,7 @@ impl DiffFormatter {
                 }
             }
         } else {
+            info!("Showing all differences");
             println!("All differences:");
             for block_diff in &diff.block_diffs {
                 match block_diff.change_type {
@@ -85,6 +88,7 @@ impl DiffFormatter {
         ascii: bool,
         show_names: bool,
     ) -> dot001_tracer::Result<()> {
+        info!("Building hierarchical diff tree");
         println!("Hierarchical diff tree:");
 
         // Get all modified block indices

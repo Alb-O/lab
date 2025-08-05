@@ -42,6 +42,7 @@ pub use fields::FieldReader;
 pub use header::BlendFileHeader;
 pub use reflect::PointerTraversal;
 
+use log::{debug, info, trace, warn};
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
@@ -86,6 +87,7 @@ impl<R: Read + Seek> BlendFile<R> {
     }
 
     pub fn new(mut reader: R) -> Result<Self> {
+        trace!("Starting BlendFile parsing");
         // Check if file is zstd compressed by reading magic bytes
         let mut magic_bytes = [0u8; 4];
         reader.read_exact(&mut magic_bytes)?;
@@ -93,13 +95,19 @@ impl<R: Read + Seek> BlendFile<R> {
 
         // Zstandard magic number is 0x28B52FFD (little endian: FD 2F B5 28)
         if magic_bytes == [0x28, 0xB5, 0x2F, 0xFD] {
+            warn!("Attempted to parse zstd-compressed file without decompression");
             return Err(Dot001Error::blend_file(
                 "Zstandard-compressed blend files require decompression first. Use 'zstd -d' to decompress the file.",
                 BlendFileErrorKind::UnsupportedCompression,
             ));
         }
 
+        debug!("Reading blend file header");
         let header = BlendFileHeader::read(&mut reader)?;
+        trace!(
+            "Header parsed successfully: version={}, pointer_size={}",
+            header.version, header.pointer_size
+        );
 
         let mut blend_file = BlendFile {
             reader,
@@ -110,10 +118,18 @@ impl<R: Read + Seek> BlendFile<R> {
             address_index: HashMap::new(),
         };
 
+        debug!("Reading file blocks");
         blend_file.read_blocks()?;
+        debug!("Reading DNA structures");
         blend_file.read_dna()?;
+        debug!("Building block indices");
         blend_file.build_block_index();
 
+        info!(
+            "BlendFile parsing completed: {} blocks, {} expanders indexed",
+            blend_file.blocks.len(),
+            blend_file.block_index.len()
+        );
         Ok(blend_file)
     }
 
@@ -121,6 +137,7 @@ impl<R: Read + Seek> BlendFile<R> {
         self.reader
             .seek(SeekFrom::Start(self.header.header_size() as u64))?;
 
+        let mut block_count = 0;
         loop {
             // Record the header start offset before reading the BlockHeader
             let header_offset = self.reader.stream_position()?;
@@ -128,6 +145,7 @@ impl<R: Read + Seek> BlendFile<R> {
             let data_offset = self.reader.stream_position()?;
 
             if &block_header.code == b"ENDB" {
+                trace!("Found ENDB marker, finished reading {block_count} blocks");
                 break;
             }
 
@@ -138,11 +156,17 @@ impl<R: Read + Seek> BlendFile<R> {
                 header_offset,
             };
             self.blocks.push(block);
+            block_count += 1;
+
+            if block_count % 1000 == 0 {
+                trace!("Read {block_count} blocks so far");
+            }
 
             // Seek past the block's data to the next header
             self.reader.seek(SeekFrom::Current(block_size as i64))?;
         }
 
+        debug!("Read {block_count} total blocks");
         Ok(())
     }
 

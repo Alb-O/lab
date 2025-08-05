@@ -1,5 +1,6 @@
 use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
+use log::info;
 use std::path::PathBuf;
 
 pub fn cmd_rename(
@@ -39,9 +40,9 @@ pub fn cmd_rename(
     match current_name_opt {
         Some(current_name) => {
             if dry_run {
-                println!("Would rename {block_code} block '{current_name}' to '{new_name}'");
+                info!("Would rename {block_code} block '{current_name}' to '{new_name}'");
             } else {
-                println!("Renaming {block_code} block '{current_name}' to '{new_name}'");
+                info!("Renaming {block_code} block '{current_name}' to '{new_name}'");
                 match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
                     Ok(()) => {
                         #[cfg(feature = "trace")]

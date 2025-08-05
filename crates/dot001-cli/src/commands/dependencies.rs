@@ -2,6 +2,7 @@ use crate::commands::{DependencyTracer, NameResolver};
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
 use dot001_tracer::DependencyNode;
+use log::{debug, info, warn};
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -13,8 +14,21 @@ pub fn cmd_dependencies(
     options: &ParseOptions,
     no_auto_decompress: bool,
 ) -> Result<(), Dot001Error> {
+    info!("Loading blend file: {}", file_path.display());
+    debug!("Target block index: {block_index}, format: {format:?}, ascii: {ascii}");
+
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
+
+    info!(
+        "Blend file loaded successfully, total blocks: {}",
+        blend_file.blocks_len()
+    );
     if block_index >= blend_file.blocks_len() {
+        warn!(
+            "Block index {} is out of range (max: {})",
+            block_index,
+            blend_file.blocks_len() - 1
+        );
         eprintln!(
             "Error: Block index {} is out of range (max: {})",
             block_index,
@@ -23,19 +37,31 @@ pub fn cmd_dependencies(
         return Ok(());
     }
     let mut tracer = DependencyTracer::new().with_default_expanders();
+    debug!("Created dependency tracer with default expanders");
+
     let Some(start_block) = blend_file.get_block(block_index) else {
+        warn!("Failed to get block at index {block_index}");
         eprintln!("Error: Block index {block_index} is out of range");
         return Ok(());
     };
     let start_code = String::from_utf8_lossy(&start_block.header.code);
+    info!(
+        "Starting dependency analysis for block {} ({})",
+        block_index,
+        start_code.trim_end_matches('\0')
+    );
     match format {
         crate::OutputFormat::Flat => {
-            println!(
-                "Tracing dependencies for block {} ({}):",
+            info!(
+                "Tracing dependencies for block {} ({})",
                 block_index,
                 start_code.trim_end_matches('\0')
             );
             let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
+            info!(
+                "Dependency tracing completed, found {} dependencies",
+                deps.len()
+            );
             if deps.is_empty() {
                 println!("  No dependencies found");
             } else {
@@ -55,12 +81,17 @@ pub fn cmd_dependencies(
             }
         }
         crate::OutputFormat::Tree => {
-            println!(
-                "Dependency tree for block {} ({}):",
+            info!(
+                "Building dependency tree for block {} ({})",
                 block_index,
                 start_code.trim_end_matches('\0')
             );
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
+            info!(
+                "Dependency tree built: {} total nodes, max depth: {}",
+                tree.total_dependencies + 1,
+                tree.max_depth
+            );
             let tree_display = build_text_tree(&tree.root, &mut blend_file, true);
             let format_chars = if ascii {
                 FormatCharacters::ascii()
