@@ -84,6 +84,7 @@ fn test_slash_absolute_rhs() {
 }
 
 #[test]
+#[cfg(windows)]
 fn test_strip_root_windows() {
     let p = Path::new("C:/Program Files/Blender");
     let stripped = strip_root(p);
@@ -91,6 +92,15 @@ fn test_strip_root_windows() {
     let p = Path::new("C:\\Program Files\\Blender");
     let stripped = strip_root(p);
     assert_eq!(stripped, PathBuf::from("C/Program Files/Blender"));
+}
+
+#[test]
+#[cfg(unix)]
+fn test_strip_root_unix() {
+    // On Unix, test stripping the root directory "/"
+    let p = Path::new("/usr/share/blender");
+    let stripped = strip_root(p);
+    assert_eq!(stripped, PathBuf::from("usr/share/blender"));
 }
 
 #[test]
