@@ -169,6 +169,13 @@ impl DnaCollection {
         }
 
         let names_count = read_u32(reader, header.is_little_endian)?;
+        // Validate count to prevent excessive memory allocation
+        if names_count > 1_000_000 {
+            return Err(Dot001Error::blend_file(
+                format!("Unreasonably large names count: {names_count}"),
+                crate::error::BlendFileErrorKind::DnaError,
+            ));
+        }
         let mut names = Vec::with_capacity(names_count as usize);
 
         for _ in 0..names_count {
@@ -186,6 +193,13 @@ impl DnaCollection {
         find_and_seek_to_marker(reader, b"TYPE", "names section")?;
 
         let types_count = read_u32(reader, header.is_little_endian)?;
+        // Validate count to prevent excessive memory allocation
+        if types_count > 1_000_000 {
+            return Err(Dot001Error::blend_file(
+                format!("Unreasonably large types count: {types_count}"),
+                crate::error::BlendFileErrorKind::DnaError,
+            ));
+        }
         let mut types = Vec::with_capacity(types_count as usize);
 
         for _ in 0..types_count {
@@ -222,6 +236,13 @@ impl DnaCollection {
         find_and_seek_to_marker(reader, b"STRC", "type lengths section")?;
 
         let struct_count = read_u32(reader, header.is_little_endian)?;
+        // Validate count to prevent excessive memory allocation
+        if struct_count > 100_000 {
+            return Err(Dot001Error::blend_file(
+                format!("Unreasonably large struct count: {struct_count}"),
+                crate::error::BlendFileErrorKind::DnaError,
+            ));
+        }
         let mut structs = Vec::with_capacity(struct_count as usize);
 
         for _ in 0..struct_count {

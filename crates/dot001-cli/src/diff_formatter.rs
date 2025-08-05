@@ -223,17 +223,20 @@ impl DiffFormatter {
             "├── "
         };
 
-        let size_info = match (node.block_diff.size_before, node.block_diff.size_after) {
+        match (node.block_diff.size_before, node.block_diff.size_after) {
             (Some(before), Some(after)) if before != after => {
-                format!(" (size: {before} → {after})")
+                println!(
+                    "{}{}Block {} ({}) (size: {before} → {after})",
+                    prefix, current_prefix, node.block_diff.block_index, node.display_name
+                );
             }
-            _ => "".to_string(),
-        };
-
-        println!(
-            "{}{}Block {} ({}){}",
-            prefix, current_prefix, node.block_diff.block_index, node.display_name, size_info
-        );
+            _ => {
+                println!(
+                    "{}{}Block {} ({})",
+                    prefix, current_prefix, node.block_diff.block_index, node.display_name
+                );
+            }
+        }
 
         let child_prefix = if ascii {
             if is_last { "    " } else { "│   " }
@@ -245,12 +248,10 @@ impl DiffFormatter {
 
         for (j, child) in node.children.iter().enumerate() {
             let child_is_last = j == node.children.len() - 1;
-            Self::display_hierarchy_node(
-                child,
-                &format!("{prefix}{child_prefix}"),
-                child_is_last,
-                ascii,
-            );
+            let mut new_prefix = String::with_capacity(prefix.len() + child_prefix.len());
+            new_prefix.push_str(prefix);
+            new_prefix.push_str(child_prefix);
+            Self::display_hierarchy_node(child, &new_prefix, child_is_last, ascii);
         }
     }
 

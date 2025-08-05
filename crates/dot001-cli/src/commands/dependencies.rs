@@ -42,11 +42,13 @@ pub fn cmd_dependencies(
                 println!("  Found {} dependencies:", deps.len());
                 for (i, &dep_index) in deps.iter().enumerate() {
                     if let Some(block) = blend_file.get_block(dep_index) {
-                        let code_str = String::from_utf8_lossy(&block.header.code)
-                            .trim_end_matches('\0')
-                            .to_string();
+                        // Copy code bytes to avoid borrowing issues
+                        let code_bytes = block.header.code;
+                        let code_len = code_bytes.iter().position(|&b| b == 0).unwrap_or(4);
+                        let code_str =
+                            std::str::from_utf8(&code_bytes[..code_len]).unwrap_or("????");
                         let display_name =
-                            NameResolver::get_display_name(dep_index, &mut blend_file, &code_str);
+                            NameResolver::get_display_name(dep_index, &mut blend_file, code_str);
                         println!("    {}: Block {} ({})", i + 1, dep_index, display_name);
                     }
                 }
@@ -95,6 +97,7 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     } else {
         node.block_code.clone()
     };
+    // Use format! for this complex label - the readability benefit outweighs minor perf cost
     let label = format!(
         "Block {} ({}) - size: {}, addr: 0x{:x}",
         node.block_index, display_code, node.block_size, node.block_address

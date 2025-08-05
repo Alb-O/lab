@@ -44,11 +44,10 @@ impl NameResolver {
                 // Remove type prefix if present (e.g., "MECube" -> "Cube", "OBCube" -> "Cube")
                 // Blender names often start with a 2-character type code
                 if name.len() > 2 {
-                    let potential_name = &name[2..];
-                    // Only strip prefix if it looks like a type code (2 uppercase letters)
                     let prefix = &name[0..2];
+                    // Only strip prefix if it looks like a type code (2 uppercase letters)
                     if prefix.chars().all(|c| c.is_ascii_uppercase()) {
-                        Some(potential_name.to_string())
+                        Some(name[2..].to_string())
                     } else {
                         Some(name.to_string())
                     }
@@ -71,7 +70,14 @@ impl NameResolver {
         block_code: &str,
     ) -> String {
         match Self::resolve_name(block_index, blend_file) {
-            Some(name) => format!("{block_code} ({name})"),
+            Some(name) => {
+                let mut display_name = String::with_capacity(block_code.len() + name.len() + 3);
+                display_name.push_str(block_code);
+                display_name.push_str(" (");
+                display_name.push_str(&name);
+                display_name.push(')');
+                display_name
+            }
             None => block_code.to_string(),
         }
     }

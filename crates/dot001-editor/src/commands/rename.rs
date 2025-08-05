@@ -27,7 +27,12 @@ impl RenameCommand {
             ));
         }
         let block_code = {
-            let block = blend_file.get_block(block_index).unwrap();
+            let Some(block) = blend_file.get_block(block_index) else {
+                return Err(Dot001Error::editor(
+                    format!("Block not found at index: {block_index}"),
+                    EditorErrorKind::BlockNotFound,
+                ));
+            };
             String::from_utf8_lossy(&block.header.code)
                 .trim_end_matches('\0')
                 .to_string()
@@ -41,7 +46,12 @@ impl RenameCommand {
 
         #[cfg(not(feature = "tracer_integration"))]
         let _current_name = format!("Block{}", block_index); // Fallback without tracer
-        let block = blend_file.get_block(block_index).unwrap();
+        let Some(block) = blend_file.get_block(block_index) else {
+            return Err(Dot001Error::editor(
+                format!("Block not found at index: {block_index}"),
+                EditorErrorKind::BlockNotFound,
+            ));
+        };
         let block_data_offset = block.data_offset;
         let mut block_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&block_data)?;
@@ -86,7 +96,12 @@ impl RenameCommand {
             ));
         }
         let block_code = {
-            let block = blend_file.get_block(block_index).unwrap();
+            let Some(block) = blend_file.get_block(block_index) else {
+                return Err(Dot001Error::editor(
+                    format!("Block not found at index: {block_index}"),
+                    EditorErrorKind::BlockNotFound,
+                ));
+            };
             String::from_utf8_lossy(&block.header.code)
                 .trim_end_matches('\0')
                 .to_string()

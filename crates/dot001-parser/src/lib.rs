@@ -51,6 +51,9 @@ pub trait ReadSeekSend: Read + Seek + Send {}
 // Blanket implementation for all types that implement the required traits
 impl<T: Read + Seek + Send> ReadSeekSend for T {}
 
+/// Maximum block size allowed for memory allocation safety (100MB)
+const MAX_BLOCK_SIZE: u32 = 100_000_000;
+
 /// Main parser for .blend files
 pub struct BlendFile<R: Read + Seek> {
     reader: R,
@@ -204,6 +207,13 @@ impl<R: Read + Seek> BlendFile<R> {
             )
         })?;
 
+        // Validate block size to prevent excessive memory allocation
+        if block.header.size > MAX_BLOCK_SIZE {
+            return Err(Dot001Error::blend_file(
+                format!("Block size too large: {} bytes", block.header.size),
+                BlendFileErrorKind::SizeLimitExceeded,
+            ));
+        }
         let mut data = vec![0u8; block.header.size as usize];
         self.reader.seek(SeekFrom::Start(block.data_offset))?;
         self.reader.read_exact(&mut data)?;

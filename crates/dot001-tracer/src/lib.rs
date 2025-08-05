@@ -127,6 +127,27 @@ impl<'a, R: Read + Seek> Default for DependencyTracer<'a, R> {
 }
 
 impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
+    /// Helper to efficiently convert block code bytes to string
+    fn block_code_to_string(code: &[u8; 4]) -> String {
+        // Most block codes are ASCII, so we can avoid UTF-8 validation in common cases
+        if code.iter().all(|&b| b.is_ascii() || b == 0) {
+            // Fast path: convert ASCII directly
+            let mut result = String::with_capacity(4);
+            for &byte in code {
+                if byte == 0 {
+                    break;
+                }
+                result.push(byte as char);
+            }
+            result
+        } else {
+            // Fallback to UTF-8 conversion for non-ASCII codes
+            String::from_utf8_lossy(code)
+                .trim_end_matches('\0')
+                .to_string()
+        }
+    }
+
     pub fn new() -> Self {
         DependencyTracer {
             expanders: HashMap::new(),
@@ -293,9 +314,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         if self.visited.contains(&block_index) {
             // Return a placeholder node for already visited blocks
             if let Some(block) = blend_file.get_block(block_index) {
-                let block_code = String::from_utf8_lossy(&block.header.code)
-                    .trim_end_matches('\0')
-                    .to_string();
+                let block_code = Self::block_code_to_string(&block.header.code);
                 return Ok(DependencyNode {
                     block_index,
                     block_code,
@@ -329,9 +348,7 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
                 ))
             })?;
 
-            let block_code = String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string();
+            let block_code = Self::block_code_to_string(&block.header.code);
             (
                 block_code,
                 block.header.size,
