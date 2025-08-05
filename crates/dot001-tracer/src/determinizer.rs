@@ -103,10 +103,7 @@ impl Determinizer {
         block_index: usize,
         blend_file: &mut BlendFile<R>,
         name_resolver: Option<&dyn NameResolverTrait<R>>,
-    ) -> String
-    where
-        R: Read + Seek,
-    {
+    ) -> String {
         // Copy block info first to avoid borrowing conflicts
         let (code, address) = if let Some(block) = blend_file.get_block(block_index) {
             (block.header.code, block.header.old_address)

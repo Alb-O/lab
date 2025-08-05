@@ -41,9 +41,9 @@ pub use dot001_parser::BlendFile;
 pub use dot001_parser::Result;
 
 pub use determinizer::{Determinizer, NameResolverTrait};
+use dot001_error::Dot001Error;
 /// New unified result type - preferred for new code
 pub use dot001_error::Result as UnifiedResult;
-use dot001_error::{Dot001Error, TracerErrorKind};
 pub use expanders::{
     CacheFileExpander, CollectionExpander, DataBlockExpander, ImageExpander, LampExpander,
     LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander,
@@ -305,10 +305,9 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         // Extract block info before mutable operations
         let (block_code, block_size, block_address, expander_code) = {
             let block = blend_file.get_block(block_index).ok_or_else(|| {
-                Dot001Error::tracer(
-                    format!("Invalid block index: {block_index}"),
-                    TracerErrorKind::BlockExpansionFailed,
-                )
+                Dot001Error::tracer_block_expansion_failed(format!(
+                    "Invalid block index: {block_index}"
+                ))
             })?;
 
             let block_code = String::from_utf8_lossy(&block.header.code)
@@ -388,25 +387,27 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
 }
 
 /// Helper functions for creating unified errors with tracer context
+/// These methods are now deprecated in favor of the standardized helpers in dot001-error
+#[deprecated(note = "Use Dot001Error::tracer_* helpers from dot001-error crate instead")]
 impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
     /// Create a unified tracer error for dependency resolution failures
     pub fn dependency_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::tracer(message.into(), TracerErrorKind::DependencyResolutionFailed)
+        Dot001Error::tracer_dependency_failed(message)
     }
 
     /// Create a unified tracer error for name resolution failures
     pub fn name_resolution_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::tracer(message.into(), TracerErrorKind::NameResolutionFailed)
+        Dot001Error::tracer_name_resolution_failed(message)
     }
 
     /// Create a unified tracer error for block expansion failures
     pub fn block_expansion_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::tracer(message.into(), TracerErrorKind::BlockExpansionFailed)
+        Dot001Error::tracer_block_expansion_failed(message)
     }
 
     /// Create a unified tracer error for circular dependency detection
     pub fn circular_dependency_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::tracer(message.into(), TracerErrorKind::CircularDependency)
+        Dot001Error::tracer_circular_dependency(message)
     }
 }
 
@@ -418,7 +419,7 @@ pub fn to_tracer_error(unified_err: Dot001Error) -> Dot001Error {
             file_path,
             block_index,
             ..
-        } => Dot001Error::tracer(message, TracerErrorKind::DependencyResolutionFailed)
+        } => Dot001Error::tracer_dependency_failed(message)
             .with_file_path(file_path.unwrap_or_default())
             .with_block_index(block_index.unwrap_or(0)),
         other => other,

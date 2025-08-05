@@ -576,6 +576,116 @@ impl Dot001Error {
     }
 }
 
+/// Standardized error helper functions for consistent error creation across crates.
+/// These functions replace ad hoc error creation patterns and ensure consistent
+/// user/debug messages across the dot001 toolkit.
+impl Dot001Error {
+    // === Parser Domain Helpers ===
+
+    /// Create a parser error for invalid file headers
+    pub fn parser_invalid_header<M: Into<String>>(message: M) -> Self {
+        Self::blend_file(message, BlendFileErrorKind::InvalidHeader)
+    }
+
+    /// Create a parser error for missing DNA blocks
+    pub fn parser_no_dna<M: Into<String>>(message: M) -> Self {
+        Self::blend_file(message, BlendFileErrorKind::NoDnaFound)
+    }
+
+    /// Create a parser error for invalid block indices
+    pub fn parser_invalid_block<M: Into<String>>(message: M) -> Self {
+        Self::blend_file(message, BlendFileErrorKind::InvalidBlockIndex)
+    }
+
+    /// Create a parser error for DNA parsing failures
+    pub fn parser_dna_error<M: Into<String>>(message: M) -> Self {
+        Self::blend_file(message, BlendFileErrorKind::DnaError)
+    }
+
+    /// Create a parser error for field access failures
+    pub fn parser_invalid_field<M: Into<String>>(message: M) -> Self {
+        Self::blend_file(message, BlendFileErrorKind::InvalidField)
+    }
+
+    // === Tracer Domain Helpers ===
+
+    /// Create a tracer error for dependency resolution failures
+    pub fn tracer_dependency_failed<M: Into<String>>(message: M) -> Self {
+        Self::tracer(message, TracerErrorKind::DependencyResolutionFailed)
+    }
+
+    /// Create a tracer error for name resolution failures
+    pub fn tracer_name_resolution_failed<M: Into<String>>(message: M) -> Self {
+        Self::tracer(message, TracerErrorKind::NameResolutionFailed)
+    }
+
+    /// Create a tracer error for block expansion failures
+    pub fn tracer_block_expansion_failed<M: Into<String>>(message: M) -> Self {
+        Self::tracer(message, TracerErrorKind::BlockExpansionFailed)
+    }
+
+    /// Create a tracer error for circular dependency detection
+    pub fn tracer_circular_dependency<M: Into<String>>(message: M) -> Self {
+        Self::tracer(message, TracerErrorKind::CircularDependency)
+    }
+
+    // === Diff Domain Helpers ===
+
+    /// Create a diff error for incompatible files
+    pub fn diff_incompatible_files<M: Into<String>>(message: M) -> Self {
+        Self::diff(message, DiffErrorKind::IncompatibleFiles)
+    }
+
+    /// Create a diff error for analysis failures
+    pub fn diff_analysis_failed<M: Into<String>>(message: M) -> Self {
+        Self::diff(message, DiffErrorKind::AnalysisFailed)
+    }
+
+    /// Create a diff error for insufficient data
+    pub fn diff_insufficient_data<M: Into<String>>(message: M) -> Self {
+        Self::diff(message, DiffErrorKind::InsufficientData)
+    }
+
+    /// Create a diff error for mesh comparison failures
+    pub fn diff_mesh_comparison_failed<M: Into<String>>(message: M) -> Self {
+        Self::diff(message, DiffErrorKind::MeshComparisonFailed)
+    }
+
+    // === Editor Domain Helpers ===
+
+    /// Create an editor error for missing blocks
+    pub fn editor_block_not_found<M: Into<String>>(message: M) -> Self {
+        Self::editor(message, EditorErrorKind::BlockNotFound)
+    }
+
+    /// Create an editor error for invalid names
+    pub fn editor_invalid_name<M: Into<String>>(message: M) -> Self {
+        Self::editor(message, EditorErrorKind::InvalidName)
+    }
+
+    /// Create an editor error for missing ID structures
+    pub fn editor_no_id_structure<M: Into<String>>(message: M) -> Self {
+        Self::editor(message, EditorErrorKind::NoIdStructure)
+    }
+
+    // === CLI Domain Helpers ===
+
+    /// Create a CLI error for invalid arguments
+    pub fn cli_invalid_arguments<M: Into<String>>(message: M) -> Self {
+        Self::cli(message, CliErrorKind::InvalidArguments)
+    }
+
+    /// Create a CLI error for missing required arguments
+    pub fn cli_missing_argument<M: Into<String>>(message: M) -> Self {
+        Self::cli(message, CliErrorKind::MissingArgument)
+    }
+
+    /// Create a CLI error for execution failures
+    pub fn cli_execution_failed<M: Into<String>>(message: M) -> Self {
+        Self::cli(message, CliErrorKind::ExecutionFailed)
+    }
+}
+
 /// Convert from std::io::Error
 impl From<std::io::Error> for Dot001Error {
     fn from(err: std::io::Error) -> Self {

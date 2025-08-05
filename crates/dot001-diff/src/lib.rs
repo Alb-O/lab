@@ -27,7 +27,7 @@
 
 pub mod provenance;
 
-use dot001_error::{DiffErrorKind, Dot001Error, Result};
+use dot001_error::{Dot001Error, Result};
 use dot001_parser::BlendFile;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek};
@@ -479,24 +479,26 @@ struct MeshContent {
 }
 
 /// Helper functions for creating unified diff errors
+/// These methods are now deprecated in favor of the standardized helpers in dot001-error
+#[deprecated(note = "Use Dot001Error::diff_* helpers from dot001-error crate instead")]
 impl BlendDiffer {
     /// Create a unified diff error for incompatible files
     pub fn incompatible_files_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::diff(message.into(), DiffErrorKind::IncompatibleFiles)
+        Dot001Error::diff_incompatible_files(message)
     }
 
     /// Create a unified diff error for analysis failures
     pub fn analysis_failed_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::diff(message.into(), DiffErrorKind::AnalysisFailed)
+        Dot001Error::diff_analysis_failed(message)
     }
 
     /// Create a unified diff error for insufficient data
     pub fn insufficient_data_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::diff(message.into(), DiffErrorKind::InsufficientData)
+        Dot001Error::diff_insufficient_data(message)
     }
 
     /// Create a unified diff error for mesh comparison failures
     pub fn mesh_comparison_error<M: Into<String>>(message: M) -> Dot001Error {
-        Dot001Error::diff(message.into(), DiffErrorKind::MeshComparisonFailed)
+        Dot001Error::diff_mesh_comparison_failed(message)
     }
 }

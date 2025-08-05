@@ -188,9 +188,12 @@ Prioritized improvement plan
 - ✅ Updated `NodeTreeExpander` to use new ExpandResult structure.
 - Risk: low; additive change. Benefit: unlocks file dependency reporting.
 
-6) Standardize error helpers
-- In `dot001-error`, add functions to build common errors with context.
-- Replace ad hoc error creation in `dot001-tracer` and `dot001-diff`.
+6) ✅ **COMPLETED** Standardize error helpers
+- ✅ Added comprehensive standardized error helper functions in `dot001-error` crate for all domains.
+- ✅ Created domain-specific helpers: `parser_*`, `tracer_*`, `diff_*`, `editor_*`, and `cli_*` functions.
+- ✅ Updated `dot001-tracer` and `dot001-diff` to use standardized helpers with deprecation warnings.
+- ✅ Replaced ad hoc error creation with consistent, centralized error constructors.
+- ✅ Ensured consistent user/debug messages across the entire dot001 toolkit.
 - Risk: low. Benefit: consistent messages and reduced duplication.
 
 7) Testing investments and fixtures

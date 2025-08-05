@@ -1,4 +1,4 @@
-use dot001_error::{Dot001Error, Result as UnifiedResult, TracerErrorKind};
+use dot001_error::{Dot001Error, Result as UnifiedResult};
 use dot001_parser::{BlendFile, BlendFileBlock, PointerTraversal, Result};
 use regex::Regex;
 use std::collections::HashSet;
@@ -365,20 +365,16 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
     let mut spec = FilterSpec { rules: Vec::new() };
     for (modif, key, val) in triples {
         let mut chars = modif.chars();
-        let sign = chars.next().ok_or_else(|| {
-            Dot001Error::tracer(
-                "Empty filter modifier".to_string(),
-                TracerErrorKind::DependencyResolutionFailed,
-            )
-        })?;
+        let sign = chars
+            .next()
+            .ok_or_else(|| Dot001Error::tracer_dependency_failed("Empty filter modifier"))?;
         let include = match sign {
             '+' => true,
             '-' => false,
             _ => {
-                return Err(Dot001Error::tracer(
-                    format!("Invalid filter modifier: {modif}"),
-                    TracerErrorKind::DependencyResolutionFailed,
-                ))
+                return Err(Dot001Error::tracer_dependency_failed(format!(
+                    "Invalid filter modifier: {modif}"
+                )))
             }
         };
         // Recursion parse
@@ -390,10 +386,9 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
                 Some(usize::MAX)
             } else {
                 let n = rest.parse::<usize>().map_err(|_| {
-                    Dot001Error::tracer(
-                        format!("Invalid recursion level: {rest}"),
-                        TracerErrorKind::DependencyResolutionFailed,
-                    )
+                    Dot001Error::tracer_dependency_failed(format!(
+                        "Invalid recursion level: {rest}"
+                    ))
                 })?;
                 Some(n)
             }
@@ -402,16 +397,10 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
         };
 
         let key_regex = Regex::new(key).map_err(|e| {
-            Dot001Error::tracer(
-                format!("Invalid key regex: {e}"),
-                TracerErrorKind::DependencyResolutionFailed,
-            )
+            Dot001Error::tracer_dependency_failed(format!("Invalid key regex: {e}"))
         })?;
         let value_regex = Regex::new(val).map_err(|e| {
-            Dot001Error::tracer(
-                format!("Invalid value regex: {e}"),
-                TracerErrorKind::DependencyResolutionFailed,
-            )
+            Dot001Error::tracer_dependency_failed(format!("Invalid value regex: {e}"))
         })?;
 
         spec.rules.push(FilterRule {

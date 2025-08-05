@@ -43,12 +43,7 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
                     let path_str = filepath.trim_end_matches('\0').trim();
                     if !path_str.is_empty() {
                         // Convert Blender's path format (which might use '//' prefix for relative paths)
-                        let cleaned_path = if path_str.starts_with("//") {
-                            // Relative path in Blender format - convert to standard relative path
-                            &path_str[2..]
-                        } else {
-                            path_str
-                        };
+                        let cleaned_path = path_str.strip_prefix("//").unwrap_or(path_str);
                         external_refs.push(PathBuf::from(cleaned_path));
                     }
                 }
