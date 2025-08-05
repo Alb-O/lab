@@ -11,8 +11,7 @@ pub fn cmd_rename(
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
     use dot001_editor::BlendEditor;
-    let mut blend_file =
-        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
     let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
@@ -45,11 +44,7 @@ pub fn cmd_rename(
                     Ok(()) => {
                         #[cfg(feature = "trace")]
                         {
-                            let mut updated_blend_file = crate::util::load_blend_file(
-                                &file_path,
-                                ctx.parse_options,
-                                ctx.no_auto_decompress,
-                            )?;
+                            let mut updated_blend_file = ctx.load_blend_file(&file_path)?;
                             match dot001_tracer::NameResolver::resolve_name(
                                 block_index,
                                 &mut updated_blend_file,

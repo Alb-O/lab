@@ -14,8 +14,7 @@ pub fn cmd_reconstruct_link(
     target_name: Option<String>,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
-    let mut blend_file =
-        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
     let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)

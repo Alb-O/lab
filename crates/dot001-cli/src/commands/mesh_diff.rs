@@ -11,10 +11,8 @@ pub fn cmd_mesh_diff(
     json: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
-    let mut blend_file1 =
-        crate::util::load_blend_file(&file1_path, ctx.parse_options, ctx.no_auto_decompress)?;
-    let mut blend_file2 =
-        crate::util::load_blend_file(&file2_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file1 = ctx.load_blend_file(&file1_path)?;
+    let mut blend_file2 = ctx.load_blend_file(&file2_path)?;
     let differ = dot001_diff::BlendDiffer::new()
         .with_provenance_analysis(true)
         .with_provenance_config(|analyzer| analyzer.with_verbose(verbose_provenance));

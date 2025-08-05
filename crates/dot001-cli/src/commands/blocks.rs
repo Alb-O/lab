@@ -5,8 +5,7 @@ use dot001_error::Dot001Error;
 use std::path::PathBuf;
 
 pub fn cmd_blocks(file_path: PathBuf, ctx: &CommandContext) -> Result<(), Dot001Error> {
-    let mut blend_file =
-        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file = ctx.load_blend_file(&file_path)?;
     ctx.output
         .print_info_fmt(format_args!("Blocks in {}:", file_path.display()));
     let block_info: Vec<(usize, String, u32, u64)> = (0..blend_file.blocks_len())

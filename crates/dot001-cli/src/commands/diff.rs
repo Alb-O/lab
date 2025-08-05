@@ -11,10 +11,8 @@ pub fn cmd_diff(
     ascii: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
-    let mut blend_file1 =
-        crate::util::load_blend_file(&file1_path, ctx.parse_options, ctx.no_auto_decompress)?;
-    let mut blend_file2 =
-        crate::util::load_blend_file(&file2_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file1 = ctx.load_blend_file(&file1_path)?;
+    let mut blend_file2 = ctx.load_blend_file(&file2_path)?;
     let differ = dot001_diff::BlendDiffer::new();
     let diff_result = differ
         .diff(&mut blend_file1, &mut blend_file2)

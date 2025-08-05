@@ -17,8 +17,7 @@ pub fn cmd_dependencies(
     info!("Loading blend file: {}", file_path.display());
     debug!("Target block identifier: '{block_identifier}', format: {format:?}, ascii: {ascii}");
 
-    let mut blend_file =
-        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     info!(
         "Blend file loaded successfully, total blocks: {}",

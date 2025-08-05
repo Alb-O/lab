@@ -14,8 +14,7 @@ pub fn cmd_filter(
     json: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
-    let mut blend_file =
-        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
+    let mut blend_file = ctx.load_blend_file(&file_path)?;
     let mut filter_triples: Vec<(String, String, String)> = Vec::new();
     for expr in &filter_expressions {
         match parse_filter_expression(expr) {
