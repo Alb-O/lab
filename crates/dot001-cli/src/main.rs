@@ -79,6 +79,8 @@ enum Commands {
     Blocks {
         #[arg(index = 1)]
         file: PathBuf,
+        #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
+        show_data: bool,
     },
     #[cfg(feature = "trace")]
     Dependencies {
@@ -247,7 +249,7 @@ fn run_main() -> Result<(), Dot001Error> {
         #[cfg(feature = "info")]
         Commands::Info { file } => commands::cmd_info(file, &ctx),
         #[cfg(feature = "blocks")]
-        Commands::Blocks { file } => commands::cmd_blocks(file, &ctx),
+        Commands::Blocks { file, show_data } => commands::cmd_blocks(file, show_data, &ctx),
         #[cfg(feature = "trace")]
         Commands::Dependencies {
             file,
