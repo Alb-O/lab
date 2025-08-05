@@ -1,8 +1,6 @@
-use crate::BlockExpander;
-use crate::ExpandResult;
+use crate::{bpath::BlendPath, BlockExpander, ExpandResult};
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
-use std::path::PathBuf;
 
 /// Expander for Library (LI) blocks
 ///
@@ -29,9 +27,8 @@ impl<R: Read + Seek> BlockExpander<R> for LibraryExpander {
         if let Ok(filepath) = reader.read_field_string("Library", "filepath") {
             let path_str = filepath.trim_end_matches('\0').trim();
             if !path_str.is_empty() {
-                // Convert Blender's path format (which might use '//' prefix for relative paths)
-                let cleaned_path = path_str.strip_prefix("//").unwrap_or(path_str);
-                external_refs.push(PathBuf::from(cleaned_path));
+                let blend_path = BlendPath::new(path_str.as_bytes());
+                external_refs.push(blend_path.to_pathbuf_stripped());
             }
         }
 
@@ -40,8 +37,8 @@ impl<R: Read + Seek> BlockExpander<R> for LibraryExpander {
             if let Ok(name) = reader.read_field_string("Library", "name") {
                 let path_str = name.trim_end_matches('\0').trim();
                 if !path_str.is_empty() {
-                    let cleaned_path = path_str.strip_prefix("//").unwrap_or(path_str);
-                    external_refs.push(PathBuf::from(cleaned_path));
+                    let blend_path = BlendPath::new(path_str.as_bytes());
+                    external_refs.push(blend_path.to_pathbuf_stripped());
                 }
             }
         }

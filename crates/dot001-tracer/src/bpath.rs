@@ -58,6 +58,22 @@ impl BlendPath {
         }
     }
 
+    /// Convert to PathBuf, stripping blendfile-relative prefix if present.
+    /// This is useful for external asset tracking where we want the relative path
+    /// without the Blender-specific "//" prefix.
+    pub fn to_pathbuf_stripped(&self) -> PathBuf {
+        let path_bytes = if self.is_blendfile_relative() {
+            &self.0[2..] // Strip "//" prefix
+        } else {
+            &self.0[..]
+        };
+
+        match std::str::from_utf8(path_bytes) {
+            Ok(s) => PathBuf::from(s),
+            Err(_) => PathBuf::from(String::from_utf8_lossy(path_bytes).into_owned()),
+        }
+    }
+
     pub fn absolute(&self, root: Option<&Path>) -> BlendPath {
         if self.is_absolute() {
             return self.clone();
