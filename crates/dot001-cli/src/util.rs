@@ -98,6 +98,14 @@ pub fn colorize_code(code: &str) -> String {
     }
 }
 
+pub fn colorize_name(name: &str) -> String {
+    if should_use_colors() {
+        name.yellow().to_string()
+    } else {
+        name.to_string()
+    }
+}
+
 pub fn highlight_matches(text: &str, filter_expressions: &[(&str, &str, &str)]) -> String {
     if !should_use_colors() {
         return text.to_string();
@@ -245,12 +253,13 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
     for (i, block_match) in matches.iter().enumerate() {
         let colored_index = colorize_index(block_match.index);
         let colored_code = colorize_code(&block_match.block_code);
+        let colored_name = colorize_name(&block_match.name);
         eprintln!(
             "  {}: Block {} ({}) - \"{}\"",
             i + 1,
             colored_index,
             colored_code,
-            block_match.name
+            colored_name
         );
     }
     eprintln!();
@@ -258,10 +267,8 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
     for block_match in matches {
         let colored_index = colorize_index(block_match.index);
         let colored_code = colorize_code(&block_match.block_code);
-        eprintln!(
-            "  --block-index {} (for {} \"{}\")",
-            colored_index, colored_code, block_match.name
-        );
+        let colored_name = colorize_name(&block_match.name);
+        eprintln!("  --block-index {colored_index} (for {colored_code} \"{colored_name}\")");
     }
 }
 

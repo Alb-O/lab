@@ -1,6 +1,6 @@
 #[cfg(feature = "trace")]
 use crate::commands::NameResolver;
-use crate::util::{CommandContext, colorize_code, colorize_index};
+use crate::util::{CommandContext, colorize_code, colorize_index, colorize_name};
 use dot001_error::Dot001Error;
 use std::path::PathBuf;
 
@@ -33,7 +33,10 @@ pub fn cmd_blocks(
         #[cfg(feature = "trace")]
         let display_name = {
             match NameResolver::resolve_name(i, &mut blend_file) {
-                Some(name) if !name.is_empty() => format!("{colored_code} ({name})"),
+                Some(name) if !name.is_empty() => {
+                    let colored_name = colorize_name(&name);
+                    format!("{colored_code} ({colored_name})")
+                }
                 _ => colored_code.clone(),
             }
         };

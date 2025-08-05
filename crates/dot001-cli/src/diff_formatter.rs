@@ -12,6 +12,7 @@
 //! This formatter prioritizes accuracy over visual hierarchy, showing only relationships
 //! that can be proven through dependency tracing.
 
+use crate::util::{colorize_code, colorize_name};
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
 use dot001_tracer::{BlendFile, DependencyTracer, NameResolver};
 use dot001_tracer::{
@@ -136,14 +137,17 @@ impl DiffFormatter {
                     // This could be a parent block - check its dependencies
                     let deps = tracer.trace_dependencies(block_diff.block_index, blend_file)?;
 
+                    let colored_code = colorize_code(&block_diff.block_code);
                     let display_name = if show_names {
-                        NameResolver::get_display_name(
-                            block_diff.block_index,
-                            blend_file,
-                            &block_diff.block_code,
-                        )
+                        match NameResolver::resolve_name(block_diff.block_index, blend_file) {
+                            Some(name) if !name.is_empty() => {
+                                let colored_name = colorize_name(&name);
+                                format!("{colored_code} ({colored_name})")
+                            }
+                            _ => colored_code.clone(),
+                        }
                     } else {
-                        block_diff.block_code.clone()
+                        colored_code
                     };
 
                     let mut node = HierarchyNode {
@@ -157,14 +161,18 @@ impl DiffFormatter {
                         if let Some(child_diff) =
                             modified_blocks.iter().find(|d| d.block_index == dep_index)
                         {
+                            let child_colored_code = colorize_code(&child_diff.block_code);
                             let child_display_name = if show_names {
-                                NameResolver::get_display_name(
-                                    child_diff.block_index,
-                                    blend_file,
-                                    &child_diff.block_code,
-                                )
+                                match NameResolver::resolve_name(child_diff.block_index, blend_file)
+                                {
+                                    Some(name) if !name.is_empty() => {
+                                        let colored_name = colorize_name(&name);
+                                        format!("{child_colored_code} ({colored_name})")
+                                    }
+                                    _ => child_colored_code.clone(),
+                                }
                             } else {
-                                child_diff.block_code.clone()
+                                child_colored_code
                             };
 
                             node.children.push(HierarchyNode {
@@ -190,14 +198,17 @@ impl DiffFormatter {
         // Add remaining blocks as top-level items
         for block_diff in modified_blocks {
             if !processed_indices.contains(&block_diff.block_index) {
+                let colored_code = colorize_code(&block_diff.block_code);
                 let display_name = if show_names {
-                    NameResolver::get_display_name(
-                        block_diff.block_index,
-                        blend_file,
-                        &block_diff.block_code,
-                    )
+                    match NameResolver::resolve_name(block_diff.block_index, blend_file) {
+                        Some(name) if !name.is_empty() => {
+                            let colored_name = colorize_name(&name);
+                            format!("{colored_code} ({colored_name})")
+                        }
+                        _ => colored_code.clone(),
+                    }
                 } else {
-                    block_diff.block_code.clone()
+                    colored_code
                 };
 
                 hierarchy.push(HierarchyNode {

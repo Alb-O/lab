@@ -1,4 +1,4 @@
-use crate::util::CommandContext;
+use crate::util::{CommandContext, colorize_code, colorize_index, colorize_name};
 use dot001_error::Dot001Error;
 use log::error;
 use std::path::PathBuf;
@@ -39,13 +39,19 @@ pub fn cmd_mesh_diff(
                         Err(e) => error!("Failed to serialize to JSON: {e}"),
                     }
                 } else {
-                    let me_name = dot001_tracer::NameResolver::get_display_name(
-                        me_index,
-                        &mut blend_file1,
-                        "ME",
-                    );
+                    let colored_index = colorize_index(me_index);
+                    let colored_code = colorize_code("ME");
+                    let me_display =
+                        match dot001_tracer::NameResolver::resolve_name(me_index, &mut blend_file1)
+                        {
+                            Some(name) if !name.is_empty() => {
+                                let colored_name = colorize_name(&name);
+                                format!("{colored_code} ({colored_name})")
+                            }
+                            _ => colored_code,
+                        };
                     ctx.output.print_info_fmt(format_args!(
-                        "Analysis for ME block {me_index} ({me_name}):"
+                        "Analysis for ME block {colored_index} ({me_display}):"
                     ));
                     ctx.output.print_result_fmt(format_args!(
                         "  Classification: {:?}",
@@ -109,15 +115,22 @@ pub fn cmd_mesh_diff(
             match differ.analyze_mesh_block(me_index, &mut blend_file1, &mut blend_file2) {
                 Ok(analysis) => {
                     if !json {
-                        let me_name = dot001_tracer::NameResolver::get_display_name(
+                        let colored_index = colorize_index(me_index);
+                        let colored_code = colorize_code("ME");
+                        let me_display = match dot001_tracer::NameResolver::resolve_name(
                             me_index,
                             &mut blend_file1,
-                            "ME",
-                        );
+                        ) {
+                            Some(name) if !name.is_empty() => {
+                                let colored_name = colorize_name(&name);
+                                format!("{colored_code} ({colored_name})")
+                            }
+                            _ => colored_code,
+                        };
                         ctx.output.print_result_fmt(format_args!(
                             "ME block {} ({}): {} ({})",
-                            me_index,
-                            me_name,
+                            colored_index,
+                            me_display,
                             if analysis.is_true_edit {
                                 "TRUE EDIT"
                             } else {

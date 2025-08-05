@@ -1,5 +1,5 @@
 use crate::commands::{DependencyTracer, NameResolver};
-use crate::util::CommandContext;
+use crate::util::{CommandContext, colorize_code, colorize_index, colorize_name};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::DependencyNode;
@@ -66,12 +66,20 @@ pub fn cmd_dependencies(
                         let code_len = code_bytes.iter().position(|&b| b == 0).unwrap_or(4);
                         let code_str =
                             std::str::from_utf8(&code_bytes[..code_len]).unwrap_or("????");
+                        let colored_index = colorize_index(dep_index);
+                        let colored_code = colorize_code(code_str);
                         let display_name =
-                            NameResolver::get_display_name(dep_index, &mut blend_file, code_str);
+                            match NameResolver::resolve_name(dep_index, &mut blend_file) {
+                                Some(name) if !name.is_empty() => {
+                                    let colored_name = colorize_name(&name);
+                                    format!("{colored_code} ({colored_name})")
+                                }
+                                _ => colored_code,
+                            };
                         ctx.output.print_result_fmt(format_args!(
                             "    {}: Block {} ({})",
                             i + 1,
-                            dep_index,
+                            colored_index,
                             display_name
                         ));
                     }
@@ -125,15 +133,23 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     blend_file: &mut BlendFile<R>,
     show_names: bool,
 ) -> StringTreeNode {
+    let colored_code = colorize_code(&node.block_code);
     let display_code = if show_names {
-        NameResolver::get_display_name(node.block_index, blend_file, &node.block_code)
+        match NameResolver::resolve_name(node.block_index, blend_file) {
+            Some(name) if !name.is_empty() => {
+                let colored_name = colorize_name(&name);
+                format!("{colored_code} ({colored_name})")
+            }
+            _ => colored_code.clone(),
+        }
     } else {
-        node.block_code.clone()
+        colored_code
     };
     // Use format! for this complex label - the readability benefit outweighs minor perf cost
+    let colored_index = colorize_index(node.block_index);
     let label = format!(
         "Block {} ({}) - size: {}, addr: 0x{:x}",
-        node.block_index, display_code, node.block_size, node.block_address
+        colored_index, display_code, node.block_size, node.block_address
     );
     if node.children.is_empty() {
         StringTreeNode::new(label)

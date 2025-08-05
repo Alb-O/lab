@@ -1,4 +1,4 @@
-use crate::util::CommandContext;
+use crate::util::{CommandContext, colorize_code, colorize_name};
 use dot001_error::Dot001Error;
 use log::{error, info};
 use std::path::PathBuf;
@@ -36,10 +36,17 @@ pub fn cmd_rename(
 
     match current_name_opt {
         Some(current_name) => {
+            let colored_code = colorize_code(&block_code);
+            let colored_current_name = colorize_name(&current_name);
+            let colored_new_name = colorize_name(&new_name);
             if dry_run {
-                info!("Would rename {block_code} block '{current_name}' to '{new_name}'");
+                info!(
+                    "Would rename {colored_code} block '{colored_current_name}' to '{colored_new_name}'"
+                );
             } else {
-                info!("Renaming {block_code} block '{current_name}' to '{new_name}'");
+                info!(
+                    "Renaming {colored_code} block '{colored_current_name}' to '{colored_new_name}'"
+                );
                 match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
                     Ok(()) => {
                         #[cfg(feature = "trace")]
@@ -51,12 +58,15 @@ pub fn cmd_rename(
                             ) {
                                 Some(updated_name) => {
                                     if updated_name == new_name {
+                                        let colored_updated_name = colorize_name(&updated_name);
                                         ctx.output.print_result_fmt(format_args!(
-                                            "Success: Block renamed to '{updated_name}'"
+                                            "Success: Block renamed to '{colored_updated_name}'"
                                         ));
                                     } else {
+                                        let colored_updated_name = colorize_name(&updated_name);
+                                        let colored_expected_name = colorize_name(&new_name);
                                         ctx.output.print_error(&format!(
-                                            "Warning: Name is '{updated_name}', expected '{new_name}'"
+                                            "Warning: Name is '{colored_updated_name}', expected '{colored_expected_name}'"
                                         ));
                                     }
                                 }

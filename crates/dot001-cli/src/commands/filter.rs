@@ -1,5 +1,7 @@
 use crate::commands::NameResolver;
-use crate::util::{CommandContext, colorize_code, colorize_index, highlight_matches};
+use crate::util::{
+    CommandContext, colorize_code, colorize_index, colorize_name, highlight_matches,
+};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use log::error;
@@ -111,15 +113,18 @@ pub fn cmd_filter(
                         ));
                         if let Some(name) = &name {
                             if !name.is_empty() {
+                                let colored_name = colorize_name(name);
                                 let highlighted_name =
-                                    highlight_matches(name, &filter_slice_triples);
+                                    highlight_matches(&colored_name, &filter_slice_triples);
                                 ctx.output
                                     .print_result_fmt(format_args!("  Name: {highlighted_name}"));
                             }
                         }
                     } else if let Some(name) = &name {
                         if !name.is_empty() {
-                            let highlighted_name = highlight_matches(name, &filter_slice_triples);
+                            let colored_name = colorize_name(name);
+                            let highlighted_name =
+                                highlight_matches(&colored_name, &filter_slice_triples);
                             ctx.output.print_result_fmt(format_args!(
                                 "{colored_index}: {colored_code} ({highlighted_name})"
                             ));
@@ -176,7 +181,8 @@ pub fn cmd_filter(
 
                 let label = if let Some(name) = name {
                     if !name.is_empty() {
-                        let highlighted_name = highlight_matches(&name, filter_expressions);
+                        let colored_name = colorize_name(&name);
+                        let highlighted_name = highlight_matches(&colored_name, filter_expressions);
                         format!("{colored_index}: {colored_code} ({highlighted_name})")
                     } else {
                         format!("{colored_index}: {colored_code}")
