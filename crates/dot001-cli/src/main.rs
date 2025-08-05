@@ -50,8 +50,12 @@ enum Commands {
     #[cfg(feature = "editor")]
     LibPath {
         file: PathBuf,
-        #[arg(short, long)]
-        block_index: usize,
+        #[arg(
+            short,
+            long,
+            help = "Block index or datablock name (e.g., '5' or 'Cube')"
+        )]
+        block_index: String,
         #[arg(short, long)]
         new_path: String,
         #[arg(long, help = "Preview changes without modifying the file")]
@@ -69,8 +73,12 @@ enum Commands {
     #[cfg(feature = "trace")]
     Dependencies {
         file: PathBuf,
-        #[arg(short, long)]
-        block_index: usize,
+        #[arg(
+            short,
+            long,
+            help = "Block index or datablock name (e.g., '5' or 'Cube')"
+        )]
+        block_index: String,
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
         format: OutputFormat,
         #[arg(
@@ -96,8 +104,12 @@ enum Commands {
     #[cfg(feature = "editor")]
     Rename {
         file: PathBuf,
-        #[arg(short, long)]
-        block_index: usize,
+        #[arg(
+            short,
+            long,
+            help = "Block index or datablock name (e.g., '5' or 'Cube')"
+        )]
+        block_index: String,
         #[arg(short, long)]
         new_name: String,
         #[arg(long, help = "Preview changes without modifying the file")]
@@ -107,8 +119,11 @@ enum Commands {
     MeshDiff {
         file1: PathBuf,
         file2: PathBuf,
-        #[arg(long, help = "ME block index to analyze")]
-        mesh_index: Option<usize>,
+        #[arg(
+            long,
+            help = "ME block index or mesh name to analyze (e.g., '5' or 'Cube')"
+        )]
+        mesh_index: Option<String>,
         #[arg(long, help = "Enable verbose provenance logging")]
         verbose: bool,
         #[arg(long, help = "Output detailed analysis as JSON")]
@@ -131,8 +146,12 @@ enum Commands {
     #[cfg(feature = "trace")]
     ReconstructLink {
         file: PathBuf,
-        #[arg(short, long)]
-        block_index: usize,
+        #[arg(
+            short,
+            long,
+            help = "Block index or datablock name (e.g., '5' or 'Cube')"
+        )]
+        block_index: String,
         #[arg(long, help = "Preview reconstruction without modifying the file")]
         dry_run: bool,
         #[arg(long, help = "Target asset name to link to")]
@@ -200,7 +219,15 @@ fn run_main() -> Result<(), Dot001Error> {
             new_path,
             dry_run,
             no_validate,
-        } => commands::cmd_libpath(file, block_index, new_path, dry_run, no_validate),
+        } => commands::cmd_libpath(
+            file,
+            &block_index,
+            new_path,
+            dry_run,
+            no_validate,
+            &parse_options,
+            cli.no_auto_decompress,
+        ),
         #[cfg(feature = "info")]
         Commands::Info { file } => commands::cmd_info(file, &parse_options, cli.no_auto_decompress),
         #[cfg(feature = "blocks")]
@@ -215,7 +242,7 @@ fn run_main() -> Result<(), Dot001Error> {
             ascii,
         } => commands::cmd_dependencies(
             file,
-            block_index,
+            &block_index,
             format,
             ascii,
             &parse_options,
@@ -245,7 +272,7 @@ fn run_main() -> Result<(), Dot001Error> {
             dry_run,
         } => commands::cmd_rename(
             file,
-            block_index,
+            &block_index,
             new_name,
             dry_run,
             &parse_options,
@@ -261,7 +288,7 @@ fn run_main() -> Result<(), Dot001Error> {
         } => commands::cmd_mesh_diff(
             file1,
             file2,
-            mesh_index,
+            mesh_index.as_deref(),
             verbose,
             json,
             &parse_options,
@@ -291,7 +318,7 @@ fn run_main() -> Result<(), Dot001Error> {
             target_name,
         } => commands::cmd_reconstruct_link(
             file,
-            block_index,
+            &block_index,
             dry_run,
             target_name,
             &parse_options,

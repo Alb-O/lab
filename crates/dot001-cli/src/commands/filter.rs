@@ -1,6 +1,7 @@
 use crate::commands::NameResolver;
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
+use log::error;
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -21,7 +22,7 @@ pub fn cmd_filter(
                 filter_triples.push((modifier, key, value));
             }
             Err(e) => {
-                eprintln!("Error parsing filter expression '{expr}': {e}");
+                error!("Failed to parse filter expression '{expr}': {e}");
                 std::process::exit(1);
             }
         }
@@ -65,7 +66,7 @@ pub fn cmd_filter(
         match serde_json::to_string_pretty(&filtered_blocks) {
             Ok(json_str) => println!("{json_str}"),
             Err(e) => {
-                eprintln!("Error serializing to JSON: {e}");
+                error!("Failed to serialize filter results to JSON: {e}");
                 std::process::exit(1);
             }
         }
@@ -126,7 +127,7 @@ pub fn cmd_filter(
                 let formatting = TreeFormatting::dir_tree(format_chars);
                 match tree.to_string_with_format(&formatting) {
                     Ok(output) => println!("{output}"),
-                    Err(e) => eprintln!("Error formatting tree: {e}"),
+                    Err(e) => error!("Failed to format filter results tree: {e}"),
                 }
             }
             crate::OutputFormat::Json => return Ok(()),

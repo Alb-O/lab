@@ -1,11 +1,11 @@
 use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
-use log::info;
+use log::{error, info};
 use std::path::PathBuf;
 
 pub fn cmd_rename(
     file_path: PathBuf,
-    block_index: usize,
+    block_identifier: &str,
     new_name: String,
     dry_run: bool,
     options: &ParseOptions,
@@ -13,17 +13,15 @@ pub fn cmd_rename(
 ) -> Result<(), Dot001Error> {
     use dot001_editor::BlendEditor;
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
-    if block_index >= blend_file.blocks_len() {
-        eprintln!(
-            "Error: Block index {} is out of range (max: {})",
-            block_index,
-            blend_file.blocks_len() - 1
-        );
+
+    // Resolve the block identifier to a specific block index
+    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
+    else {
         return Ok(());
-    }
+    };
     let block_code = {
         let Some(block) = blend_file.get_block(block_index) else {
-            eprintln!("Error: Block index {block_index} is out of range");
+            error!("Block index {block_index} is out of range");
             return Ok(());
         };
         String::from_utf8_lossy(&block.header.code)
@@ -78,13 +76,13 @@ pub fn cmd_rename(
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error: Failed to rename block: {e}");
+                        error!("Failed to rename block: {e}");
                     }
                 }
             }
         }
         None => {
-            eprintln!("Error: Block {block_index} is not a named datablock");
+            error!("Block {block_index} is not a named datablock");
         }
     }
     Ok(())

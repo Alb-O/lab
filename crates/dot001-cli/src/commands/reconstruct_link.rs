@@ -8,24 +8,22 @@ use std::path::PathBuf;
 /// Reconstruct broken library links by updating ID names to match available assets
 pub fn cmd_reconstruct_link(
     file_path: PathBuf,
-    block_index: usize,
+    block_identifier: &str,
     dry_run: bool,
     target_name: Option<String>,
-    _parse_options: &ParseOptions,
-    _no_auto_decompress: bool,
+    parse_options: &ParseOptions,
+    no_auto_decompress: bool,
 ) -> Result<(), Dot001Error> {
-    let file = File::open(&file_path)?;
-    let reader = BufReader::new(file);
-    let mut blend_file = BlendFile::new(reader)?;
+    let mut blend_file =
+        crate::util::load_blend_file(&file_path, parse_options, no_auto_decompress)?;
+
+    // Resolve the block identifier to a specific block index
+    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
+    else {
+        return Ok(());
+    };
 
     println!("Analyzing library link for block {block_index}...");
-
-    // Validate block exists and read data
-    if block_index >= blend_file.blocks_len() {
-        return Err(invalid_arguments_error(format!(
-            "Block index {block_index} out of range"
-        )));
-    }
 
     let block_data = blend_file.read_block_data(block_index)?;
     let field_reader = blend_file.create_field_reader(&block_data)?;
@@ -210,9 +208,9 @@ fn determine_target_collection(
 }
 
 /// Perform the actual ID name reconstruction
-fn reconstruct_id_name(
+fn reconstruct_id_name<R: std::io::Read + std::io::Seek>(
     file_path: &PathBuf,
-    blend_file: &mut BlendFile<BufReader<File>>,
+    blend_file: &mut BlendFile<R>,
     block_index: usize,
     target_name: &str,
 ) -> Result<(), Dot001Error> {

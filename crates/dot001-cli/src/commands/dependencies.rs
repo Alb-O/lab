@@ -2,20 +2,20 @@ use crate::commands::{DependencyTracer, NameResolver};
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
 use dot001_tracer::DependencyNode;
-use log::{debug, info, warn};
+use log::{debug, error, info};
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
 pub fn cmd_dependencies(
     file_path: PathBuf,
-    block_index: usize,
+    block_identifier: &str,
     format: crate::OutputFormat,
     ascii: bool,
     options: &ParseOptions,
     no_auto_decompress: bool,
 ) -> Result<(), Dot001Error> {
     info!("Loading blend file: {}", file_path.display());
-    debug!("Target block index: {block_index}, format: {format:?}, ascii: {ascii}");
+    debug!("Target block identifier: '{block_identifier}', format: {format:?}, ascii: {ascii}");
 
     let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
 
@@ -23,25 +23,17 @@ pub fn cmd_dependencies(
         "Blend file loaded successfully, total blocks: {}",
         blend_file.blocks_len()
     );
-    if block_index >= blend_file.blocks_len() {
-        warn!(
-            "Block index {} is out of range (max: {})",
-            block_index,
-            blend_file.blocks_len() - 1
-        );
-        eprintln!(
-            "Error: Block index {} is out of range (max: {})",
-            block_index,
-            blend_file.blocks_len() - 1
-        );
+
+    // Resolve the block identifier to a specific block index
+    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
+    else {
         return Ok(());
-    }
+    };
     let mut tracer = DependencyTracer::new().with_default_expanders();
     debug!("Created dependency tracer with default expanders");
 
     let Some(start_block) = blend_file.get_block(block_index) else {
-        warn!("Failed to get block at index {block_index}");
-        eprintln!("Error: Block index {block_index} is out of range");
+        error!("Block index {block_index} is out of range");
         return Ok(());
     };
     let start_code = String::from_utf8_lossy(&start_block.header.code);
@@ -101,7 +93,7 @@ pub fn cmd_dependencies(
             let formatting = TreeFormatting::dir_tree(format_chars);
             match tree_display.to_string_with_format(&formatting) {
                 Ok(output) => println!("{output}"),
-                Err(e) => eprintln!("Error formatting tree: {e}"),
+                Err(e) => error!("Failed to format dependency tree: {e}"),
             }
             println!("Summary:");
             println!("  Total dependencies: {}", tree.total_dependencies);
@@ -111,7 +103,7 @@ pub fn cmd_dependencies(
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
             match serde_json::to_string_pretty(&tree) {
                 Ok(json) => println!("{json}"),
-                Err(e) => eprintln!("Error serializing to JSON: {e}"),
+                Err(e) => error!("Failed to serialize dependency tree to JSON: {e}"),
             }
         }
     }

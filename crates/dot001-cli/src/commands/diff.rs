@@ -1,5 +1,6 @@
 use dot001_error::Dot001Error;
 use dot001_parser::ParseOptions;
+use log::error;
 use std::path::PathBuf;
 
 pub fn cmd_diff(
@@ -41,7 +42,7 @@ pub fn cmd_diff(
         }
         crate::OutputFormat::Json => match serde_json::to_string_pretty(&diff_result) {
             Ok(json) => println!("{json}"),
-            Err(e) => eprintln!("Error serializing to JSON: {e}"),
+            Err(e) => error!("Failed to serialize diff result to JSON: {e}"),
         },
         crate::OutputFormat::Flat => {
             crate::diff_formatter::DiffFormatter::display_flat(&diff_result, only_modified);
