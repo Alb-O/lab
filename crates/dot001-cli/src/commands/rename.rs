@@ -21,7 +21,10 @@ pub fn cmd_rename(
         return Ok(());
     }
     let block_code = {
-        let block = blend_file.get_block(block_index).unwrap();
+        let Some(block) = blend_file.get_block(block_index) else {
+            eprintln!("Error: Block index {block_index} is out of range");
+            return Ok(());
+        };
         String::from_utf8_lossy(&block.header.code)
             .trim_end_matches('\0')
             .to_string()
@@ -68,7 +71,9 @@ pub fn cmd_rename(
                         }
                         #[cfg(not(feature = "trace"))]
                         {
-                            println!("Success: Block renamed (verification unavailable without trace feature)");
+                            println!(
+                                "Success: Block renamed (verification unavailable without trace feature)"
+                            );
                         }
                     }
                     Err(e) => {

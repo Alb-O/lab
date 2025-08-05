@@ -22,21 +22,11 @@ pub fn cmd_dependencies(
         );
         return Ok(());
     }
-    let mut tracer = DependencyTracer::new();
-    tracer.register_expander(*b"SC\0\0", Box::new(crate::commands::SceneExpander));
-    tracer.register_expander(*b"OB\0\0", Box::new(crate::commands::ObjectExpander));
-    tracer.register_expander(*b"ME\0\0", Box::new(crate::commands::MeshExpander));
-    tracer.register_expander(*b"GR\0\0", Box::new(crate::commands::CollectionExpander));
-    tracer.register_expander(*b"MA\0\0", Box::new(crate::commands::MaterialExpander));
-    tracer.register_expander(*b"TE\0\0", Box::new(crate::commands::TextureExpander));
-    tracer.register_expander(*b"IM\0\0", Box::new(crate::commands::ImageExpander));
-    tracer.register_expander(*b"LI\0\0", Box::new(crate::commands::LibraryExpander));
-    tracer.register_expander(*b"CF\0\0", Box::new(crate::commands::CacheFileExpander));
-    tracer.register_expander(*b"SO\0\0", Box::new(crate::commands::SoundExpander));
-    tracer.register_expander(*b"LA\0\0", Box::new(crate::commands::LampExpander));
-    tracer.register_expander(*b"NT\0\0", Box::new(crate::commands::NodeTreeExpander));
-    tracer.register_expander(*b"DATA", Box::new(crate::commands::DataBlockExpander));
-    let start_block = blend_file.get_block(block_index).unwrap();
+    let mut tracer = DependencyTracer::new().with_default_expanders();
+    let Some(start_block) = blend_file.get_block(block_index) else {
+        eprintln!("Error: Block index {block_index} is out of range");
+        return Ok(());
+    };
     let start_code = String::from_utf8_lossy(&start_block.header.code);
     match format {
         crate::OutputFormat::Flat => {

@@ -216,11 +216,7 @@ impl DiffFormatter {
 
     fn display_hierarchy_node(node: &HierarchyNode, prefix: &str, is_last: bool, ascii: bool) {
         let current_prefix = if ascii {
-            if is_last {
-                "└── "
-            } else {
-                "├── "
-            }
+            if is_last { "└── " } else { "├── " }
         } else if is_last {
             "└── "
         } else {
@@ -240,11 +236,7 @@ impl DiffFormatter {
         );
 
         let child_prefix = if ascii {
-            if is_last {
-                "    "
-            } else {
-                "│   "
-            }
+            if is_last { "    " } else { "│   " }
         } else if is_last {
             "    "
         } else {

@@ -1,5 +1,5 @@
 //! Extra integration tests for BlendPath, make_absolute, and strip_root
-use dot001_tracer::bpath::{strip_root, BlendPath};
+use dot001_tracer::bpath::{BlendPath, strip_root};
 use std::path::{Path, PathBuf};
 
 #[test]

@@ -90,7 +90,10 @@ impl<R: Read + Seek> BlendFile<R> {
 
         // Zstandard magic number is 0x28B52FFD (little endian: FD 2F B5 28)
         if magic_bytes == [0x28, 0xB5, 0x2F, 0xFD] {
-            return Err(Dot001Error::blend_file("Zstandard-compressed blend files require decompression first. Use 'zstd -d' to decompress the file.", BlendFileErrorKind::UnsupportedCompression));
+            return Err(Dot001Error::blend_file(
+                "Zstandard-compressed blend files require decompression first. Use 'zstd -d' to decompress the file.",
+                BlendFileErrorKind::UnsupportedCompression,
+            ));
         }
 
         let header = BlendFileHeader::read(&mut reader)?;
@@ -157,7 +160,8 @@ impl<R: Read + Seek> BlendFile<R> {
     }
 
     fn build_block_index(&mut self) {
-        self.block_index.reserve(32);
+        const INITIAL_BLOCK_INDEX_CAPACITY: usize = 32;
+        self.block_index.reserve(INITIAL_BLOCK_INDEX_CAPACITY);
         self.address_index.reserve(self.blocks.len());
 
         for (i, block) in self.blocks.iter().enumerate() {
@@ -310,7 +314,7 @@ pub fn parse_from_reader<R: Read + Seek + Send + 'static>(
     options: Option<&ParseOptions>,
 ) -> Result<(BlendFile<Box<dyn ReadSeekSend>>, DecompressionMode)> {
     use compression::{
-        create_reader, detect_compression, CompressionKind, Decompressor, ZstdDecompressor,
+        CompressionKind, Decompressor, ZstdDecompressor, create_reader, detect_compression,
     };
 
     let default_options = ParseOptions::default();

@@ -1,4 +1,4 @@
-use crate::{Result, validate_new_name};
+use crate::{validate_new_name, Result};
 use dot001_error::{Dot001Error, EditorErrorKind};
 use dot001_parser::BlendFile;
 #[cfg(feature = "tracer_integration")]

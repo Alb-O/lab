@@ -1,5 +1,5 @@
-use crate::expand_result::ExpandResult;
 use crate::BlockExpander;
+use crate::expand_result::ExpandResult;
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 

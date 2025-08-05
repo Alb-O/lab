@@ -38,7 +38,9 @@ pub fn cmd_filter(
         for &i in &filtered_indices {
             // Copy block fields by value to avoid borrow conflicts
             let (code_str, size, count, old_address, block_offset) = {
-                let block = blend_file.get_block(i).unwrap();
+                let Some(block) = blend_file.get_block(i) else {
+                    continue; // Skip invalid block indices
+                };
                 (
                     String::from_utf8_lossy(&block.header.code)
                         .trim_end_matches('\0')
@@ -82,7 +84,9 @@ pub fn cmd_filter(
                 sorted_indices.sort();
                 for &i in &sorted_indices {
                     let (code_str, size, count, old_address, block_offset) = {
-                        let block = blend_file.get_block(i).unwrap();
+                        let Some(block) = blend_file.get_block(i) else {
+                            continue; // Skip invalid block indices
+                        };
                         (
                             String::from_utf8_lossy(&block.header.code)
                                 .trim_end_matches('\0')
@@ -137,10 +141,10 @@ pub fn cmd_filter(
         sorted_indices.sort();
         let children: Vec<StringTreeNode> = sorted_indices
             .iter()
-            .map(|&i| {
+            .filter_map(|&i| {
                 let (code_str, _size, _count, _old_address, _block_offset) = {
-                    let block = blend_file.get_block(i).unwrap();
-                    (
+                    let block = blend_file.get_block(i)?;
+                    Some((
                         String::from_utf8_lossy(&block.header.code)
                             .trim_end_matches('\0')
                             .to_string(),
@@ -148,8 +152,8 @@ pub fn cmd_filter(
                         block.header.count,
                         block.header.old_address,
                         block.header_offset,
-                    )
-                };
+                    ))
+                }?;
                 let name = NameResolver::resolve_name(i, blend_file);
                 let label = if let Some(name) = name {
                     if !name.is_empty() {
@@ -160,7 +164,7 @@ pub fn cmd_filter(
                 } else {
                     format!("{i}: {code_str}")
                 };
-                StringTreeNode::new(label)
+                Some(StringTreeNode::new(label))
             })
             .collect();
         StringTreeNode::with_child_nodes("Filtered Blocks".to_string(), children.into_iter())

@@ -34,8 +34,4 @@ pub use rename::cmd_rename;
 
 // Re-export expanders and NameResolver for dependencies.rs
 #[cfg(feature = "trace")]
-pub use dot001_tracer::{
-    CacheFileExpander, CollectionExpander, DataBlockExpander, DependencyTracer, ImageExpander,
-    LampExpander, LibraryExpander, MaterialExpander, MeshExpander, NameResolver, NodeTreeExpander,
-    ObjectExpander, SceneExpander, SoundExpander, TextureExpander,
-};
+pub use dot001_tracer::{DependencyTracer, NameResolver};

@@ -577,7 +577,7 @@ impl ProvenanceAnalyzer {
         let after_provenance = self.extract_me_provenance(me_block_index, after_file).ok();
 
         let data_correlations =
-            if let (Some(ref before), Some(ref after)) = (&before_provenance, &after_provenance) {
+            if let (Some(before), Some(after)) = (&before_provenance, &after_provenance) {
                 self.correlate_data_blocks(before, after)
             } else {
                 Vec::new()

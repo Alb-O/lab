@@ -180,6 +180,25 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         self.expanders.insert(code, expander);
     }
 
+    /// Register all standard block expanders for comprehensive dependency analysis
+    pub fn with_default_expanders(mut self) -> Self {
+        // Register all the standard expanders
+        self.register_expander(*b"SC\0\0", Box::new(SceneExpander));
+        self.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
+        self.register_expander(*b"ME\0\0", Box::new(MeshExpander));
+        self.register_expander(*b"MA\0\0", Box::new(MaterialExpander));
+        self.register_expander(*b"IM\0\0", Box::new(ImageExpander));
+        self.register_expander(*b"SO\0\0", Box::new(SoundExpander));
+        self.register_expander(*b"LI\0\0", Box::new(LibraryExpander));
+        self.register_expander(*b"CF\0\0", Box::new(CacheFileExpander));
+        self.register_expander(*b"GR\0\0", Box::new(CollectionExpander));
+        self.register_expander(*b"DATA", Box::new(DataBlockExpander));
+        self.register_expander(*b"NT\0\0", Box::new(NodeTreeExpander));
+        self.register_expander(*b"LA\0\0", Box::new(LampExpander));
+        self.register_expander(*b"TE\0\0", Box::new(TextureExpander));
+        self
+    }
+
     pub fn trace_dependencies(
         &mut self,
         start_block_index: usize,

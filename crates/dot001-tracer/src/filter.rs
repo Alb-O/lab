@@ -91,7 +91,10 @@ impl FilterEngine {
 
         // First pass: evaluate rules against all blocks, enqueue recursive includes as needed.
         for (i, mark) in marks.iter_mut().enumerate() {
-            let meta = Self::meta_view(blend.get_block(i).unwrap());
+            let Some(block) = blend.get_block(i) else {
+                continue; // Skip invalid block indices
+            };
+            let meta = Self::meta_view(block);
             let data = Self::data_view_minimal(blend, i)?;
 
             let mut matched_include: Option<usize> = None;
@@ -212,7 +215,12 @@ impl FilterEngine {
         let mut pairs: Vec<(String, String)> = Vec::with_capacity(8);
         // Copy header primitives without holding an immutable borrow across &mut calls
         let (code_bytes, size_v, count_v, sdna_v, old_addr_v) = {
-            let h = &blend.get_block(block_index).unwrap().header;
+            let Some(block) = blend.get_block(block_index) else {
+                return Err(Dot001Error::parser_invalid_block(format!(
+                    "Block index {block_index} out of range"
+                )));
+            };
+            let h = &block.header;
             (h.code, h.size, h.count, h.sdna_index, h.old_address)
         };
 
@@ -283,8 +291,12 @@ impl FilterEngine {
 
         // Then add specialized heuristics for complex cases that need custom logic
         let code = {
-            let h = &blend.get_block(block_index).unwrap().header;
-            h.code
+            let Some(block) = blend.get_block(block_index) else {
+                return Err(Dot001Error::parser_invalid_block(format!(
+                    "Block index {block_index} out of range"
+                )));
+            };
+            block.header.code
         };
 
         // Object and Mesh: materials arrays require special handling
@@ -321,9 +333,10 @@ impl FilterEngine {
                     let lr = blend.create_field_reader(&lb_data)?;
                     if let Ok(first) = lr.read_field_pointer("ListBase", "first") {
                         // Traverse a few nodes and collect id pointers
+                        const MAX_FILTER_ITERATIONS: usize = 256;
                         let mut cur = first;
                         let mut guard = 0usize;
-                        while cur != 0 && guard < 256 {
+                        while cur != 0 && guard < MAX_FILTER_ITERATIONS {
                             guard += 1;
                             let nidx_opt = blend.find_block_by_address(cur);
                             if let Some(nidx) = nidx_opt {
@@ -374,7 +387,7 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
             _ => {
                 return Err(Dot001Error::tracer_dependency_failed(format!(
                     "Invalid filter modifier: {modif}"
-                )))
+                )));
             }
         };
         // Recursion parse

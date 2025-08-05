@@ -1,14 +1,14 @@
 [package]
 name = "dot001-checkpoint"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Checkpointing library for Blender projects using titor"
 authors = ["Albert O'Shea"]
 
 [dependencies]
 titor = "0.2.0"
-thiserror = "1.0"
+thiserror = "2.0.12"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.0", features = ["full"] }
 num_cpus = "1.0"

@@ -102,12 +102,17 @@ impl BlendEditor {
     }
 }
 
+/// Maximum length for block names (including type prefix)
+const MAX_BLOCK_NAME_LENGTH: usize = 64;
+
 /// Validate that a new name meets safety requirements
 pub(crate) fn validate_new_name(name: &str) -> Result<()> {
-    // Check length (64 chars max after 2-char type prefix)
-    if name.len() > 64 {
+    // Check length
+    if name.len() > MAX_BLOCK_NAME_LENGTH {
         return Err(Dot001Error::editor(
-            format!("Name too long (max 64 characters after type prefix): {name}"),
+            format!(
+                "Name too long (max {MAX_BLOCK_NAME_LENGTH} characters after type prefix): {name}"
+            ),
             EditorErrorKind::NameTooLong,
         ));
     }
