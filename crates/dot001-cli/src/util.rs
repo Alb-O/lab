@@ -4,7 +4,62 @@ use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, DecompressionPolicy, ParseOptions};
 use dot001_tracer::NameResolver;
 use log::warn;
+use owo_colors::OwoColorize;
+use regex::Regex;
 use std::path::PathBuf;
+
+// Colorization helpers
+pub fn should_use_colors() -> bool {
+    atty::is(atty::Stream::Stdout)
+}
+
+pub fn colorize_index(index: usize) -> String {
+    if should_use_colors() {
+        index.to_string().green().to_string()
+    } else {
+        index.to_string()
+    }
+}
+
+pub fn colorize_code(code: &str) -> String {
+    if should_use_colors() {
+        code.blue().to_string()
+    } else {
+        code.to_string()
+    }
+}
+
+pub fn highlight_matches(text: &str, filter_expressions: &[(&str, &str, &str)]) -> String {
+    if !should_use_colors() {
+        return text.to_string();
+    }
+
+    let mut result = text.to_string();
+
+    // Apply highlighting for name matches
+    for (_, key, value) in filter_expressions {
+        if *key == "name" && !value.is_empty() {
+            // Try to use the value as a regex first, fall back to literal match
+            let pattern = if let Ok(regex) = Regex::new(&format!("(?i){value}")) {
+                regex
+            } else {
+                // If the value is not a valid regex, escape it for literal matching
+                match Regex::new(&format!("(?i){}", regex::escape(value))) {
+                    Ok(regex) => regex,
+                    Err(_) => continue, // Skip this filter if we can't create a regex
+                }
+            };
+
+            result = pattern
+                .replace_all(&result, |caps: &regex::Captures| {
+                    caps[0].to_string().red().to_string()
+                })
+                .to_string();
+        }
+    }
+
+    result
+}
 
 pub fn create_parse_options(cli: &crate::Cli) -> ParseOptions {
     let mut policy = DecompressionPolicy {
@@ -119,20 +174,24 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
     warn!("Multiple blocks found with name '{identifier}':");
     eprintln!();
     for (i, block_match) in matches.iter().enumerate() {
+        let colored_index = colorize_index(block_match.index);
+        let colored_code = colorize_code(&block_match.block_code);
         eprintln!(
             "  {}: Block {} ({}) - \"{}\"",
             i + 1,
-            block_match.index,
-            block_match.block_code,
+            colored_index,
+            colored_code,
             block_match.name
         );
     }
     eprintln!();
     eprintln!("Please re-run the command using a specific block index:");
     for block_match in matches {
+        let colored_index = colorize_index(block_match.index);
+        let colored_code = colorize_code(&block_match.block_code);
         eprintln!(
             "  --block-index {} (for {} \"{}\")",
-            block_match.index, block_match.block_code, block_match.name
+            colored_index, colored_code, block_match.name
         );
     }
 }

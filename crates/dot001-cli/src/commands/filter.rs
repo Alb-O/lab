@@ -1,9 +1,8 @@
 use crate::commands::NameResolver;
+use crate::util::{colorize_code, colorize_index, highlight_matches};
 use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, ParseOptions};
 use log::error;
-use owo_colors::OwoColorize;
-use regex::Regex;
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -184,58 +183,6 @@ pub fn cmd_filter(
         StringTreeNode::with_child_nodes("Filtered Blocks".to_string(), children.into_iter())
     }
     Ok(())
-}
-
-fn should_use_colors() -> bool {
-    atty::is(atty::Stream::Stdout)
-}
-
-fn colorize_index(index: usize) -> String {
-    if should_use_colors() {
-        index.to_string().green().to_string()
-    } else {
-        index.to_string()
-    }
-}
-
-fn colorize_code(code: &str) -> String {
-    if should_use_colors() {
-        code.blue().to_string()
-    } else {
-        code.to_string()
-    }
-}
-
-fn highlight_matches(text: &str, filter_expressions: &[(&str, &str, &str)]) -> String {
-    if !should_use_colors() {
-        return text.to_string();
-    }
-
-    let mut result = text.to_string();
-
-    // Apply highlighting for name matches
-    for (_, key, value) in filter_expressions {
-        if *key == "name" && !value.is_empty() {
-            // Try to use the value as a regex first, fall back to literal match
-            let pattern = if let Ok(regex) = Regex::new(&format!("(?i){value}")) {
-                regex
-            } else {
-                // If the value is not a valid regex, escape it for literal matching
-                match Regex::new(&format!("(?i){}", regex::escape(value))) {
-                    Ok(regex) => regex,
-                    Err(_) => continue, // Skip this filter if we can't create a regex
-                }
-            };
-
-            result = pattern
-                .replace_all(&result, |caps: &regex::Captures| {
-                    caps[0].to_string().red().to_string()
-                })
-                .to_string();
-        }
-    }
-
-    result
 }
 
 pub fn parse_filter_expression(
