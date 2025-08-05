@@ -233,6 +233,7 @@ fn run_main() -> Result<(), Dot001Error> {
 
     let parse_options = util::create_parse_options(&cli);
     let output = util::OutputHandler::new(cli.quiet);
+    let ctx = util::CommandContext::new(&parse_options, cli.no_auto_decompress, &output);
 
     match cli.command {
         #[cfg(feature = "editor")]
@@ -242,39 +243,18 @@ fn run_main() -> Result<(), Dot001Error> {
             new_path,
             dry_run,
             no_validate,
-        } => commands::cmd_libpath(
-            file,
-            &block_index,
-            new_path,
-            dry_run,
-            no_validate,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
-        ),
+        } => commands::cmd_libpath(file, &block_index, new_path, dry_run, no_validate, &ctx),
         #[cfg(feature = "info")]
-        Commands::Info { file } => {
-            commands::cmd_info(file, &parse_options, cli.no_auto_decompress, &output)
-        }
+        Commands::Info { file } => commands::cmd_info(file, &ctx),
         #[cfg(feature = "blocks")]
-        Commands::Blocks { file } => {
-            commands::cmd_blocks(file, &parse_options, cli.no_auto_decompress, &output)
-        }
+        Commands::Blocks { file } => commands::cmd_blocks(file, &ctx),
         #[cfg(feature = "trace")]
         Commands::Dependencies {
             file,
             block_index,
             format,
             ascii,
-        } => commands::cmd_dependencies(
-            file,
-            &block_index,
-            format,
-            ascii,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
-        ),
+        } => commands::cmd_dependencies(file, &block_index, format, ascii, &ctx),
         #[cfg(feature = "diff")]
         Commands::Diff {
             file1,
@@ -282,31 +262,14 @@ fn run_main() -> Result<(), Dot001Error> {
             only_modified,
             format,
             ascii,
-        } => commands::cmd_diff(
-            file1,
-            file2,
-            only_modified,
-            format,
-            ascii,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
-        ),
+        } => commands::cmd_diff(file1, file2, only_modified, format, ascii, &ctx),
         #[cfg(feature = "editor")]
         Commands::Rename {
             file,
             block_index,
             new_name,
             dry_run,
-        } => commands::cmd_rename(
-            file,
-            &block_index,
-            new_name,
-            dry_run,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
-        ),
+        } => commands::cmd_rename(file, &block_index, new_name, dry_run, &ctx),
         #[cfg(feature = "diff")]
         Commands::MeshDiff {
             file1,
@@ -320,9 +283,7 @@ fn run_main() -> Result<(), Dot001Error> {
             mesh_index.as_deref(),
             verbose_provenance,
             json,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
+            &ctx,
         ),
         #[cfg(feature = "trace")]
         Commands::Filter {
@@ -331,31 +292,14 @@ fn run_main() -> Result<(), Dot001Error> {
             format,
             verbose_details,
             json,
-        } => commands::cmd_filter(
-            file,
-            filters,
-            format,
-            verbose_details,
-            json,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
-        ),
+        } => commands::cmd_filter(file, filters, format, verbose_details, json, &ctx),
         #[cfg(feature = "trace")]
         Commands::ReconstructLink {
             file,
             block_index,
             dry_run,
             target_name,
-        } => commands::cmd_reconstruct_link(
-            file,
-            &block_index,
-            dry_run,
-            target_name,
-            &parse_options,
-            cli.no_auto_decompress,
-            &output,
-        ),
+        } => commands::cmd_reconstruct_link(file, &block_index, dry_run, target_name, &ctx),
     }?;
     Ok(())
 }

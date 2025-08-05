@@ -8,6 +8,35 @@ use owo_colors::OwoColorize;
 use regex::Regex;
 use std::path::PathBuf;
 
+/// Command execution context containing common parameters
+pub struct CommandContext<'a> {
+    pub parse_options: &'a ParseOptions,
+    pub no_auto_decompress: bool,
+    pub output: &'a OutputHandler,
+}
+
+impl<'a> CommandContext<'a> {
+    pub fn new(
+        parse_options: &'a ParseOptions,
+        no_auto_decompress: bool,
+        output: &'a OutputHandler,
+    ) -> Self {
+        Self {
+            parse_options,
+            no_auto_decompress,
+            output,
+        }
+    }
+
+    /// Load a blend file using the context's parse options and decompression settings
+    pub fn load_blend_file(
+        &self,
+        path: &PathBuf,
+    ) -> Result<BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, Dot001Error> {
+        load_blend_file(path, self.parse_options, self.no_auto_decompress)
+    }
+}
+
 /// Output handler that respects quiet mode
 pub struct OutputHandler {
     quiet: bool,

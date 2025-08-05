@@ -1,6 +1,5 @@
-use crate::util::OutputHandler;
+use crate::util::CommandContext;
 use dot001_error::Dot001Error;
-use dot001_parser::ParseOptions;
 use log::{error, info};
 use std::path::PathBuf;
 
@@ -9,12 +8,11 @@ pub fn cmd_rename(
     block_identifier: &str,
     new_name: String,
     dry_run: bool,
-    options: &ParseOptions,
-    no_auto_decompress: bool,
-    output: &OutputHandler,
+    ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
     use dot001_editor::BlendEditor;
-    let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
+    let mut blend_file =
+        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
 
     // Resolve the block identifier to a specific block index
     let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
@@ -49,8 +47,8 @@ pub fn cmd_rename(
                         {
                             let mut updated_blend_file = crate::util::load_blend_file(
                                 &file_path,
-                                options,
-                                no_auto_decompress,
+                                ctx.parse_options,
+                                ctx.no_auto_decompress,
                             )?;
                             match dot001_tracer::NameResolver::resolve_name(
                                 block_index,
@@ -58,23 +56,24 @@ pub fn cmd_rename(
                             ) {
                                 Some(updated_name) => {
                                     if updated_name == new_name {
-                                        output.print_result_fmt(format_args!(
+                                        ctx.output.print_result_fmt(format_args!(
                                             "Success: Block renamed to '{updated_name}'"
                                         ));
                                     } else {
-                                        output.print_error(&format!(
+                                        ctx.output.print_error(&format!(
                                             "Warning: Name is '{updated_name}', expected '{new_name}'"
                                         ));
                                     }
                                 }
                                 None => {
-                                    output.print_error("Warning: Could not verify name change");
+                                    ctx.output
+                                        .print_error("Warning: Could not verify name change");
                                 }
                             }
                         }
                         #[cfg(not(feature = "trace"))]
                         {
-                            output.print_result(
+                            ctx.output.print_result(
                                 "Success: Block renamed (verification unavailable without trace feature)"
                             );
                         }

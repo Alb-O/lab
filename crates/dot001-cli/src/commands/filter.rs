@@ -1,7 +1,7 @@
 use crate::commands::NameResolver;
-use crate::util::{OutputHandler, colorize_code, colorize_index, highlight_matches};
+use crate::util::{CommandContext, colorize_code, colorize_index, highlight_matches};
 use dot001_error::Dot001Error;
-use dot001_parser::{BlendFile, ParseOptions};
+use dot001_parser::BlendFile;
 use log::error;
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
@@ -12,11 +12,10 @@ pub fn cmd_filter(
     format: crate::OutputFormat,
     verbose_details: bool,
     json: bool,
-    options: &ParseOptions,
-    no_auto_decompress: bool,
-    output: &OutputHandler,
+    ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
-    let mut blend_file = crate::util::load_blend_file(&file_path, options, no_auto_decompress)?;
+    let mut blend_file =
+        crate::util::load_blend_file(&file_path, ctx.parse_options, ctx.no_auto_decompress)?;
     let mut filter_triples: Vec<(String, String, String)> = Vec::new();
     for expr in &filter_expressions {
         match parse_filter_expression(expr) {
@@ -66,7 +65,7 @@ pub fn cmd_filter(
             }));
         }
         match serde_json::to_string_pretty(&filtered_blocks) {
-            Ok(json_str) => output.print_result(&json_str),
+            Ok(json_str) => ctx.output.print_result(&json_str),
             Err(e) => {
                 error!("Failed to serialize filter results to JSON: {e}");
                 std::process::exit(1);
@@ -74,16 +73,16 @@ pub fn cmd_filter(
         }
         return Ok(());
     } else {
-        output.print_info_fmt(format_args!(
+        ctx.output.print_info_fmt(format_args!(
             "Filtered blocks from {}:",
             file_path.display()
         ));
-        output.print_info_fmt(format_args!(
+        ctx.output.print_info_fmt(format_args!(
             "Total blocks: {}, Filtered: {}",
             blend_file.blocks_len(),
             filtered_indices.len()
         ));
-        output.print_info("");
+        ctx.output.print_info("");
         match format {
             crate::OutputFormat::Flat => {
                 let mut sorted_indices: Vec<_> = filtered_indices.into_iter().collect();
@@ -108,28 +107,30 @@ pub fn cmd_filter(
                     let colored_code = colorize_code(&code_str);
 
                     if verbose_details {
-                        output.print_result_fmt(format_args!(
+                        ctx.output.print_result_fmt(format_args!(
                             "Block {colored_index}: {colored_code} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
                         ));
                         if let Some(name) = &name {
                             if !name.is_empty() {
                                 let highlighted_name =
                                     highlight_matches(name, &filter_slice_triples);
-                                output.print_result_fmt(format_args!("  Name: {highlighted_name}"));
+                                ctx.output
+                                    .print_result_fmt(format_args!("  Name: {highlighted_name}"));
                             }
                         }
                     } else if let Some(name) = &name {
                         if !name.is_empty() {
                             let highlighted_name = highlight_matches(name, &filter_slice_triples);
-                            output.print_result_fmt(format_args!(
+                            ctx.output.print_result_fmt(format_args!(
                                 "{colored_index}: {colored_code} ({highlighted_name})"
                             ));
                         } else {
-                            output
+                            ctx.output
                                 .print_result_fmt(format_args!("{colored_index}: {colored_code}"));
                         }
                     } else {
-                        output.print_result_fmt(format_args!("{colored_index}: {colored_code}"));
+                        ctx.output
+                            .print_result_fmt(format_args!("{colored_index}: {colored_code}"));
                     }
                 }
             }
@@ -140,7 +141,7 @@ pub fn cmd_filter(
                 let format_chars = FormatCharacters::box_chars();
                 let formatting = TreeFormatting::dir_tree(format_chars);
                 match tree.to_string_with_format(&formatting) {
-                    Ok(tree_output) => output.print_result(&tree_output),
+                    Ok(tree_output) => ctx.output.print_result(&tree_output),
                     Err(e) => error!("Failed to format filter results tree: {e}"),
                 }
             }
