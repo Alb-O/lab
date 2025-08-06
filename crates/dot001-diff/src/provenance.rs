@@ -3,12 +3,14 @@ use dot001_error::Dot001Error;
 use dot001_parser::{BlendFile, DnaCollection};
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::{BlockExpander, MeshExpander};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Seek};
 
 /// Provenance graph for tracking ME block dependencies
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProvenanceGraph {
     /// Root ME block index
     pub me_block_index: usize,
@@ -19,7 +21,8 @@ pub struct ProvenanceGraph {
 }
 
 /// Information about a DATA block referenced by an ME block
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DataBlockInfo {
     pub block_index: usize,
     pub size: u32,
@@ -32,7 +35,8 @@ pub struct DataBlockInfo {
 }
 
 /// Enhanced change classification for DATA blocks
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DataChangeClass {
     /// Content changed (numeric/semantic data differs)
     ContentChange,
@@ -45,7 +49,8 @@ pub enum DataChangeClass {
 }
 
 /// Correlation between before and after DATA blocks
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DataBlockCorrelation {
     pub before_index: Option<usize>,
     pub after_index: Option<usize>,
@@ -55,7 +60,8 @@ pub struct DataBlockCorrelation {
 }
 
 /// ME-level analysis result
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MeshAnalysisResult {
     pub me_block_index: usize,
     pub before_provenance: Option<ProvenanceGraph>,

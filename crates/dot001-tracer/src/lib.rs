@@ -51,6 +51,7 @@ pub use expanders::{
 };
 use log::{debug, trace};
 pub use name_resolver::NameResolver;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Seek};
@@ -61,7 +62,8 @@ pub mod filter;
 use crate::filter::{FilterEngine, FilterSpec};
 
 /// Represents a block in the dependency tree
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DependencyNode {
     /// Block index in the blend file
     pub block_index: usize,
@@ -76,7 +78,8 @@ pub struct DependencyNode {
 }
 
 /// Hierarchical dependency tree
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DependencyTree {
     /// Root node representing the starting block
     pub root: DependencyNode,

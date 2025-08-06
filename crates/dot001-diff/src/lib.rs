@@ -29,6 +29,7 @@ pub mod provenance;
 
 use dot001_error::Result;
 use dot001_parser::BlendFile;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek};
 
@@ -37,7 +38,8 @@ pub use provenance::{
     ProvenanceGraph,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BlockChangeType {
     /// Content of the block has been modified
     Modified,
@@ -49,7 +51,8 @@ pub enum BlockChangeType {
     Added,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BlockDiff {
     pub block_index: usize,
     pub block_code: String,
@@ -59,13 +62,15 @@ pub struct BlockDiff {
     pub size_after: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BlendDiff {
     pub block_diffs: Vec<BlockDiff>,
     pub summary: DiffSummary,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DiffSummary {
     pub total_blocks: usize,
     pub modified_blocks: usize,

@@ -31,7 +31,7 @@ macro_rules! simple_expander {
                 &self,
                 block_index: usize,
                 blend_file: &mut dot001_parser::BlendFile<R>,
-            ) -> dot001_parser::Result<crate::ExpandResult> {
+            ) -> dot001_parser::Result<$crate::ExpandResult> {
                 let mut dependencies = Vec::new();
 
                 // Add single pointer field dependencies
@@ -94,7 +94,7 @@ macro_rules! custom_expander {
                 &self,
                 $block_index: usize,
                 $blend_file: &mut dot001_parser::BlendFile<R>,
-            ) -> dot001_parser::Result<crate::ExpandResult> {
+            ) -> dot001_parser::Result<$crate::ExpandResult> {
                 let dependencies: Vec<usize> = $custom_logic;
                 Ok(crate::ExpandResult::new(dependencies))
             }
@@ -137,7 +137,7 @@ macro_rules! hybrid_expander {
                 &self,
                 $block_index: usize,
                 $blend_file: &mut dot001_parser::BlendFile<R>,
-            ) -> dot001_parser::Result<crate::ExpandResult> {
+            ) -> dot001_parser::Result<$crate::ExpandResult> {
                 let mut $dependencies = Vec::new();
 
                 // Add single pointer field dependencies

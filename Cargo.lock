@@ -498,6 +498,7 @@ dependencies = [
  "dot001-parser",
  "dot001-tracer",
  "log",
+ "serde",
 ]
 
 [[package]]

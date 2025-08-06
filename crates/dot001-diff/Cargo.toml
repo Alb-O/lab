@@ -17,8 +17,9 @@ bdiff = "0.1.0"
 blake3 = "1.5"
 hex = "0.4"
 log = "0.4"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
-default = ["tracer_integration"]
+default = ["tracer_integration", "serde"]
 tracer_integration = ["dep:dot001-tracer"]
+serde = ["dep:serde"]
