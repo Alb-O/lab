@@ -21,7 +21,7 @@ regex = "1.11"
 atty = "0.2"
 
 [features]
-default = ["info", "blocks", "trace", "diff", "editor"]
+default = ["info", "blocks", "trace"]
 info = []
 blocks = []
 trace = ["dep:dot001-tracer"]
