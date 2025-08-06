@@ -134,7 +134,7 @@ pub fn cmd_dependencies(
             };
             let formatting = TreeFormatting::dir_tree(format_chars);
             match tree_display.to_string_with_format(&formatting) {
-                Ok(tree_output) => ctx.output.print_result(&tree_output),
+                Ok(tree_output) => ctx.output.print_result(tree_output.trim_end()),
                 Err(e) => error!("Failed to format dependency tree: {e}"),
             }
             ctx.output.print_info("Summary:");
