@@ -197,6 +197,48 @@ impl BlockFormatter for CompactFormatter {
     }
 }
 
+/// Simple template: "[1238] DNA1 d[4]" (no size, address, or Block prefix)
+pub struct SimpleFormatter {
+    pub address: Option<u64>,
+    pub offset: Option<u64>,
+}
+
+impl SimpleFormatter {
+    pub fn new() -> Self {
+        Self {
+            address: None,
+            offset: None,
+        }
+    }
+
+    pub fn with_address(mut self, address: u64) -> Self {
+        self.address = Some(address);
+        self
+    }
+
+    pub fn with_offset(mut self, offset: u64) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+}
+
+impl BlockFormatter for SimpleFormatter {
+    fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
+        let basic = BasicFormatter.format(block, options);
+        let mut parts = vec![basic];
+
+        if let Some(addr) = self.address {
+            parts.push(format!("addr: 0x{addr:x}"));
+        }
+
+        if let Some(offset) = self.offset {
+            parts.push(format!("offset: 0x{offset:x}"));
+        }
+
+        parts.join(" • ")
+    }
+}
+
 /// Detailed template: "Block [1238] DNA1 d[4] • size: 131,128 bytes • addr: 0x7ff6649f6a10"
 pub struct DetailedFormatter {
     pub size: Option<u64>,

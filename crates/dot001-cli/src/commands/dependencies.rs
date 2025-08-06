@@ -1,4 +1,7 @@
-use crate::block_display::{BlockDisplay, BlockInfo, DetailedFormatter};
+use crate::DisplayTemplate;
+use crate::block_display::{
+    BlockDisplay, BlockInfo, CompactFormatter, DetailedFormatter, SimpleFormatter,
+};
 use crate::commands::DependencyTracer;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
@@ -16,7 +19,7 @@ fn should_filter_block<R: std::io::Read + std::io::Seek>(
     if show_data {
         return false; // Don't filter anything if show_data is true
     }
-    
+
     if let Some(block) = blend_file.get_block(block_index) {
         let code_str = String::from_utf8_lossy(&block.header.code);
         let code = code_str.trim_end_matches('\0');
@@ -31,6 +34,7 @@ pub fn cmd_dependencies(
     format: crate::OutputFormat,
     ascii: bool,
     show_data: bool,
+    template: DisplayTemplate,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
     info!("Loading blend file: {}", file_path.display());
@@ -69,35 +73,53 @@ pub fn cmd_dependencies(
                 start_code.trim_end_matches('\0')
             );
             let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
-            
+
             // Filter out DATA blocks if show_data is false
             let filtered_deps: Vec<usize> = deps
                 .iter()
                 .filter(|&&dep_index| !should_filter_block(dep_index, &mut blend_file, show_data))
                 .copied()
                 .collect();
-            
+
             info!(
                 "Dependency tracing completed, found {} dependencies ({} after filtering)",
                 deps.len(),
                 filtered_deps.len()
             );
-            
+
             if filtered_deps.is_empty() {
                 ctx.output.print_result("  No dependencies found");
             } else {
-                ctx.output
-                    .print_info_fmt(format_args!("  Found {} dependencies:", filtered_deps.len()));
+                ctx.output.print_info_fmt(format_args!(
+                    "  Found {} dependencies:",
+                    filtered_deps.len()
+                ));
                 for (i, &dep_index) in filtered_deps.iter().enumerate() {
-                    if let Some(_block) = blend_file.get_block(dep_index) {
-                        // We don't need the code_str anymore since BlockInfo handles it
+                    if let Some(block) = blend_file.get_block(dep_index) {
+                        let size = block.header.size;
+                        let address = block.header.old_address;
+
                         let block_info = BlockInfo::from_blend_file(dep_index, &mut blend_file)
                             .unwrap_or_else(|_| BlockInfo::new(dep_index, "????".to_string()));
-                        ctx.output.print_result_fmt(format_args!(
-                            "    {}: Block {}",
-                            i + 1,
-                            block_info.display()
-                        ));
+
+                        let display = match template {
+                            DisplayTemplate::Simple => {
+                                let formatter = SimpleFormatter::new();
+                                BlockDisplay::new(block_info).with_formatter(formatter)
+                            }
+                            DisplayTemplate::Detailed => {
+                                let formatter = DetailedFormatter::new()
+                                    .with_size(size as u64)
+                                    .with_address(address);
+                                BlockDisplay::new(block_info).with_formatter(formatter)
+                            }
+                            DisplayTemplate::Compact => {
+                                BlockDisplay::new(block_info).with_formatter(CompactFormatter)
+                            }
+                        };
+
+                        ctx.output
+                            .print_result_fmt(format_args!("    {}: {}", i + 1, display));
                     }
                 }
             }
@@ -114,7 +136,8 @@ pub fn cmd_dependencies(
                 tree.total_dependencies + 1,
                 tree.max_depth
             );
-            let tree_display = build_text_tree(&tree.root, &mut blend_file, true, show_data);
+            let tree_display =
+                build_text_tree(&tree.root, &mut blend_file, true, show_data, &template);
             let format_chars = if ascii {
                 FormatCharacters::ascii()
             } else {
@@ -149,24 +172,31 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     blend_file: &mut BlendFile<R>,
     show_names: bool,
     show_data: bool,
+    template: &DisplayTemplate,
 ) -> StringTreeNode {
-    let block_info = BlockInfo::from_blend_file(node.block_index, blend_file)
+    let mut block_info = BlockInfo::from_blend_file(node.block_index, blend_file)
         .unwrap_or_else(|_| BlockInfo::new(node.block_index, node.block_code.clone()));
 
-    let detailed_formatter = DetailedFormatter::new()
-        .with_size(node.block_size as u64)
-        .with_address(node.block_address);
+    if !show_names {
+        block_info.name = None;
+    }
 
-    let display = if show_names {
-        BlockDisplay::new(block_info).with_formatter(detailed_formatter)
-    } else {
-        let mut info = block_info;
-        info.name = None;
-        BlockDisplay::new(info).with_formatter(detailed_formatter)
+    let display = match template {
+        DisplayTemplate::Simple => {
+            let formatter = SimpleFormatter::new();
+            BlockDisplay::new(block_info).with_formatter(formatter)
+        }
+        DisplayTemplate::Detailed => {
+            let formatter = DetailedFormatter::new()
+                .with_size(node.block_size as u64)
+                .with_address(node.block_address);
+            BlockDisplay::new(block_info).with_formatter(formatter)
+        }
+        DisplayTemplate::Compact => BlockDisplay::new(block_info).with_formatter(CompactFormatter),
     };
 
     let label = display.to_string();
-    
+
     if node.children.is_empty() {
         StringTreeNode::new(label)
     } else {
@@ -176,10 +206,10 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
             .iter()
             .filter(|child| !should_filter_block(child.block_index, blend_file, show_data))
             .collect();
-            
+
         let child_nodes: Vec<StringTreeNode> = filtered_children
             .iter()
-            .map(|child| build_text_tree(child, blend_file, show_names, show_data))
+            .map(|child| build_text_tree(child, blend_file, show_names, show_data, template))
             .collect();
         StringTreeNode::with_child_nodes(label, child_nodes.into_iter())
     }

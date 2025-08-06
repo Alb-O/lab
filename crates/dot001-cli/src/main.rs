@@ -49,6 +49,16 @@ enum OutputFormat {
     Json,
 }
 
+#[derive(Clone, ValueEnum, Debug)]
+enum DisplayTemplate {
+    /// Simple template with basic information
+    Simple,
+    /// Detailed template with size and address information
+    Detailed,
+    /// Compact template without block indices
+    Compact,
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// Update the filepath of a linked library file (LI block)
@@ -84,6 +94,8 @@ enum Commands {
         file: PathBuf,
         #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
         show_data: bool,
+        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Simple, help = "Block display template")]
+        template: DisplayTemplate,
     },
     /// Trace and display dependencies for a specific block
     #[cfg(feature = "trace")]
@@ -104,6 +116,8 @@ enum Commands {
         ascii: bool,
         #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
         show_data: bool,
+        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Simple, help = "Block display template")]
+        template: DisplayTemplate,
     },
     /// Compare two blend files and show differences
     #[cfg(feature = "diff")]
@@ -259,7 +273,11 @@ fn run_main() -> Result<(), Dot001Error> {
         #[cfg(feature = "info")]
         Commands::Info { file } => commands::cmd_info(file, &ctx),
         #[cfg(feature = "blocks")]
-        Commands::Blocks { file, show_data } => commands::cmd_blocks(file, show_data, &ctx),
+        Commands::Blocks {
+            file,
+            show_data,
+            template,
+        } => commands::cmd_blocks(file, show_data, template, &ctx),
         #[cfg(feature = "trace")]
         Commands::Dependencies {
             file,
@@ -267,7 +285,10 @@ fn run_main() -> Result<(), Dot001Error> {
             format,
             ascii,
             show_data,
-        } => commands::cmd_dependencies(file, &block_index, format, ascii, show_data, &ctx),
+            template,
+        } => {
+            commands::cmd_dependencies(file, &block_index, format, ascii, show_data, template, &ctx)
+        }
         #[cfg(feature = "diff")]
         Commands::Diff {
             file1,
