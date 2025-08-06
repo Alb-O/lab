@@ -7,8 +7,12 @@ members = [
     "crates/dot001-diff",
     "crates/dot001-editor",
     "crates/dot001-checkpoint",
+    "lib",
 ]
 resolver = "2"
+
+[workspace.dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [workspace.package]
 # Minimum supported Rust version; aligns with edition 2024 features

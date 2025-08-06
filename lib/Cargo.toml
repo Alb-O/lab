@@ -1,0 +1,23 @@
+[package]
+name = "dot001"
+version = "0.1.0"
+edition = "2021"
+rust-version.workspace = true
+
+[dependencies]
+dot001-parser = { path = "../crates/dot001-parser" }
+dot001-tracer = { path = "../crates/dot001-tracer" }
+dot001-error = { path = "../crates/dot001-error" }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "parser_bench"
+harness = false
+path = "../benches/parser_bench.rs"
+
+[[bench]]
+name = "tracer_bench"
+harness = false
+path = "../benches/tracer_bench.rs"
