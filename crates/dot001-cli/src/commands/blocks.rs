@@ -1,7 +1,5 @@
 use crate::DisplayTemplate;
-use crate::block_display::{
-    BlockDisplay, BlockInfo, CompactFormatter, DetailedFormatter, SimpleFormatter,
-};
+use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use std::path::PathBuf;
@@ -33,21 +31,8 @@ pub fn cmd_blocks(
         let block_info = BlockInfo::from_blend_file(i, &mut blend_file)
             .unwrap_or_else(|_| BlockInfo::new(i, "????".to_string()));
 
-        let display = match template {
-            DisplayTemplate::Simple => {
-                let formatter = SimpleFormatter::new();
-                BlockDisplay::new(block_info).with_formatter(formatter)
-            }
-            DisplayTemplate::Detailed => {
-                let formatter = DetailedFormatter::new()
-                    .with_size(size as u64)
-                    .with_address(address);
-                BlockDisplay::new(block_info).with_formatter(formatter)
-            }
-            DisplayTemplate::Compact => {
-                BlockDisplay::new(block_info).with_formatter(CompactFormatter)
-            }
-        };
+        let display =
+            create_display_for_template(block_info, &template, Some(size as u64), Some(address));
         ctx.output.print_result_fmt(format_args!("  {display}"));
     }
     Ok(())

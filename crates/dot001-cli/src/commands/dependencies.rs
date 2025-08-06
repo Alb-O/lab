@@ -1,7 +1,5 @@
 use crate::DisplayTemplate;
-use crate::block_display::{
-    BlockDisplay, BlockInfo, CompactFormatter, DetailedFormatter, SimpleFormatter,
-};
+use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::commands::DependencyTracer;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
@@ -102,21 +100,12 @@ pub fn cmd_dependencies(
                         let block_info = BlockInfo::from_blend_file(dep_index, &mut blend_file)
                             .unwrap_or_else(|_| BlockInfo::new(dep_index, "????".to_string()));
 
-                        let display = match template {
-                            DisplayTemplate::Simple => {
-                                let formatter = SimpleFormatter::new();
-                                BlockDisplay::new(block_info).with_formatter(formatter)
-                            }
-                            DisplayTemplate::Detailed => {
-                                let formatter = DetailedFormatter::new()
-                                    .with_size(size as u64)
-                                    .with_address(address);
-                                BlockDisplay::new(block_info).with_formatter(formatter)
-                            }
-                            DisplayTemplate::Compact => {
-                                BlockDisplay::new(block_info).with_formatter(CompactFormatter)
-                            }
-                        };
+                        let display = create_display_for_template(
+                            block_info,
+                            &template,
+                            Some(size as u64),
+                            Some(address),
+                        );
 
                         ctx.output
                             .print_result_fmt(format_args!("    {}: {}", i + 1, display));
@@ -181,19 +170,12 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
         block_info.name = None;
     }
 
-    let display = match template {
-        DisplayTemplate::Simple => {
-            let formatter = SimpleFormatter::new();
-            BlockDisplay::new(block_info).with_formatter(formatter)
-        }
-        DisplayTemplate::Detailed => {
-            let formatter = DetailedFormatter::new()
-                .with_size(node.block_size as u64)
-                .with_address(node.block_address);
-            BlockDisplay::new(block_info).with_formatter(formatter)
-        }
-        DisplayTemplate::Compact => BlockDisplay::new(block_info).with_formatter(CompactFormatter),
-    };
+    let display = create_display_for_template(
+        block_info,
+        template,
+        Some(node.block_size as u64),
+        Some(node.block_address),
+    );
 
     let label = display.to_string();
 

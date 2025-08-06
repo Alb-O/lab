@@ -1,5 +1,6 @@
 // Block display formatting and rendering logic
 
+use crate::DisplayTemplate;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::NameResolver;
@@ -211,11 +212,13 @@ impl SimpleFormatter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_address(mut self, address: u64) -> Self {
         self.address = Some(address);
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_offset(mut self, offset: u64) -> Self {
         self.offset = Some(offset);
         self
@@ -386,5 +389,57 @@ impl std::ops::Deref for BlockDisplay {
 
     fn deref(&self) -> &Self::Target {
         self.render()
+    }
+}
+
+/// Helper function to create a formatter based on template and optional size/address
+///
+/// Note: This function creates formatters but doesn't apply them to BlockDisplay.
+/// Use this when you need a formatter instance that can be customized before use.
+#[allow(dead_code)]
+pub fn create_formatter_for_template(
+    template: &DisplayTemplate,
+    size: Option<u64>,
+    address: Option<u64>,
+) -> Box<dyn BlockFormatter> {
+    match template {
+        DisplayTemplate::Simple => Box::new(SimpleFormatter::new()),
+        DisplayTemplate::Detailed => {
+            let mut formatter = DetailedFormatter::new();
+            if let Some(s) = size {
+                formatter = formatter.with_size(s);
+            }
+            if let Some(addr) = address {
+                formatter = formatter.with_address(addr);
+            }
+            Box::new(formatter)
+        }
+        DisplayTemplate::Compact => Box::new(CompactFormatter),
+    }
+}
+
+/// Helper function to create a BlockDisplay with appropriate formatter for template
+pub fn create_display_for_template(
+    block_info: BlockInfo,
+    template: &DisplayTemplate,
+    size: Option<u64>,
+    address: Option<u64>,
+) -> BlockDisplay {
+    match template {
+        DisplayTemplate::Simple => {
+            let formatter = SimpleFormatter::new();
+            BlockDisplay::new(block_info).with_formatter(formatter)
+        }
+        DisplayTemplate::Detailed => {
+            let mut formatter = DetailedFormatter::new();
+            if let Some(s) = size {
+                formatter = formatter.with_size(s);
+            }
+            if let Some(addr) = address {
+                formatter = formatter.with_address(addr);
+            }
+            BlockDisplay::new(block_info).with_formatter(formatter)
+        }
+        DisplayTemplate::Compact => BlockDisplay::new(block_info).with_formatter(CompactFormatter),
     }
 }
