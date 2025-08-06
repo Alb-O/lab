@@ -1,3 +1,4 @@
+use crate::DisplayTemplate;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use log::error;
@@ -8,6 +9,7 @@ pub fn cmd_diff(
     file2_path: PathBuf,
     only_modified: bool,
     format: crate::OutputFormat,
+    template: DisplayTemplate,
     ascii: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
@@ -50,8 +52,8 @@ pub fn cmd_diff(
                 &diff_result,
                 &mut blend_file1,
                 only_modified,
+                template,
                 ascii,
-                true,
             )?;
         }
         crate::OutputFormat::Json => match serde_json::to_string_pretty(&diff_result) {

@@ -1,4 +1,5 @@
-use crate::block_display::{BlockDisplay, BlockInfo, CompactFormatter};
+use crate::DisplayTemplate;
+use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use log::error;
@@ -9,6 +10,7 @@ pub fn cmd_mesh_diff(
     file2_path: PathBuf,
     mesh_identifier: Option<&str>,
     verbose_provenance: bool,
+    template: DisplayTemplate,
     json: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
@@ -42,8 +44,18 @@ pub fn cmd_mesh_diff(
                 } else {
                     let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
                         .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
-                    let me_display =
-                        BlockDisplay::new(block_info.clone()).with_formatter(CompactFormatter);
+
+                    let (size, address) = blend_file1
+                        .get_block(me_index)
+                        .map(|block| (block.header.size as u64, block.header.old_address))
+                        .unwrap_or((0, 0));
+
+                    let me_display = create_display_for_template(
+                        block_info.clone(),
+                        &template,
+                        Some(size),
+                        Some(address),
+                    );
                     ctx.output.print_info_fmt(format_args!(
                         "Analysis for ME block {} ({}):",
                         block_info.index, me_display
@@ -112,8 +124,18 @@ pub fn cmd_mesh_diff(
                     if !json {
                         let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
                             .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
-                        let me_display =
-                            BlockDisplay::new(block_info.clone()).with_formatter(CompactFormatter);
+
+                        let (size, address) = blend_file1
+                            .get_block(me_index)
+                            .map(|block| (block.header.size as u64, block.header.old_address))
+                            .unwrap_or((0, 0));
+
+                        let me_display = create_display_for_template(
+                            block_info.clone(),
+                            &template,
+                            Some(size),
+                            Some(address),
+                        );
                         ctx.output.print_result_fmt(format_args!(
                             "ME block {} ({}): {} ({})",
                             block_info.index,

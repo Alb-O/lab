@@ -1,4 +1,5 @@
-use crate::block_display::{BlockDisplay, BlockInfo, CompactFormatter, colorize_name};
+use crate::DisplayTemplate;
+use crate::block_display::{BlockInfo, colorize_name, create_display_for_template};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use log::{error, info};
@@ -8,6 +9,7 @@ pub fn cmd_rename(
     file_path: PathBuf,
     block_identifier: &str,
     new_name: String,
+    template: DisplayTemplate,
     dry_run: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
@@ -39,7 +41,14 @@ pub fn cmd_rename(
         Some(current_name) => {
             let block_info =
                 BlockInfo::with_name(block_index, block_code.clone(), current_name.clone());
-            let block_display = BlockDisplay::new(block_info).with_formatter(CompactFormatter);
+
+            let (size, address) = blend_file
+                .get_block(block_index)
+                .map(|block| (block.header.size as u64, block.header.old_address))
+                .unwrap_or((0, 0));
+
+            let block_display =
+                create_display_for_template(block_info, &template, Some(size), Some(address));
             let _colored_current_name = colorize_name(&current_name);
             let colored_new_name = colorize_name(&new_name);
             if dry_run {

@@ -1,4 +1,5 @@
-use crate::block_display::{BlockDisplay, BlockInfo, DetailedFormatter, highlight_matches};
+use crate::DisplayTemplate;
+use crate::block_display::{BlockInfo, create_display_for_template, highlight_matches};
 use crate::commands::NameResolver;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
@@ -11,7 +12,8 @@ pub fn cmd_filter(
     file_path: PathBuf,
     filter_expressions: Vec<String>,
     format: crate::OutputFormat,
-    verbose_details: bool,
+    template: DisplayTemplate,
+    show_data: bool,
     json: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
@@ -34,7 +36,21 @@ pub fn cmd_filter(
         .collect();
     let filter_spec = dot001_tracer::filter::build_filter_spec(&filter_slice_triples)?;
     let filter_engine = dot001_tracer::filter::FilterEngine::new();
-    let filtered_indices = filter_engine.apply(&filter_spec, &mut blend_file)?;
+    let mut filtered_indices = filter_engine.apply(&filter_spec, &mut blend_file)?;
+
+    // Filter out DATA blocks by default unless show_data is true
+    if !show_data {
+        filtered_indices.retain(|&i| {
+            if let Some(block) = blend_file.get_block(i) {
+                let code_str = String::from_utf8_lossy(&block.header.code)
+                    .trim_end_matches('\0')
+                    .to_string();
+                code_str != "DATA"
+            } else {
+                true // Keep if we can't read the block
+            }
+        });
+    }
     if json || matches!(format, crate::OutputFormat::Json) {
         let mut filtered_blocks: Vec<serde_json::Value> = Vec::new();
         for &i in &filtered_indices {
@@ -88,7 +104,7 @@ pub fn cmd_filter(
                 let mut sorted_indices: Vec<_> = filtered_indices.into_iter().collect();
                 sorted_indices.sort();
                 for &i in &sorted_indices {
-                    let (_code_str, size, count, old_address, block_offset) = {
+                    let (_code_str, size, count, old_address, _block_offset) = {
                         let Some(block) = blend_file.get_block(i) else {
                             continue; // Skip invalid block indices
                         };
@@ -105,37 +121,36 @@ pub fn cmd_filter(
                     let block_info = BlockInfo::from_blend_file(i, &mut blend_file)
                         .unwrap_or_else(|_| BlockInfo::new(i, "????".to_string()));
 
-                    if verbose_details {
-                        let detailed_formatter = DetailedFormatter::new()
-                            .with_size(size as u64)
-                            .with_address(old_address)
-                            .with_offset(block_offset);
-                        let display = BlockDisplay::new(block_info.clone())
-                            .with_formatter(detailed_formatter);
-                        ctx.output
-                            .print_result_fmt(format_args!("  {display} • count: {count}"));
-                        if let Some(name) = &block_info.name {
-                            if !name.is_empty() {
-                                let highlighted_name =
-                                    highlight_matches(name, &filter_slice_triples);
-                                ctx.output
-                                    .print_result_fmt(format_args!("  Name: {highlighted_name}"));
-                            }
+                    let display = create_display_for_template(
+                        block_info.clone(),
+                        &template,
+                        Some(size as u64),
+                        Some(old_address),
+                    );
+                    ctx.output
+                        .print_result_fmt(format_args!("  {display} • count: {count}"));
+
+                    // Show highlighted name if available and we have name filters
+                    if let Some(name) = &block_info.name {
+                        if !name.is_empty()
+                            && filter_slice_triples.iter().any(|(_, k, _)| *k == "name")
+                        {
+                            let highlighted_name = highlight_matches(name, &filter_slice_triples);
+                            ctx.output
+                                .print_result_fmt(format_args!("    Name: {highlighted_name}"));
                         }
-                    } else {
-                        let filter_patterns: Vec<(String, String, String)> = filter_slice_triples
-                            .iter()
-                            .map(|(m, k, v)| (m.to_string(), k.to_string(), v.to_string()))
-                            .collect();
-                        let display = block_info.display().with_highlighting(filter_patterns);
-                        ctx.output.print_result(&display.to_string());
                     }
                 }
             }
             crate::OutputFormat::Tree => {
                 // Build a tree using text_trees
                 let indices_vec: Vec<usize> = filtered_indices.iter().copied().collect();
-                let tree = build_filter_tree(&indices_vec, &mut blend_file, &filter_slice_triples);
+                let tree = build_filter_tree(
+                    &indices_vec,
+                    &mut blend_file,
+                    &filter_slice_triples,
+                    &template,
+                );
                 let format_chars = FormatCharacters::box_chars();
                 let formatting = TreeFormatting::dir_tree(format_chars);
                 match tree.to_string_with_format(&formatting) {
@@ -151,13 +166,14 @@ pub fn cmd_filter(
         indices: &[usize],
         blend_file: &mut BlendFile<R>,
         filter_expressions: &[(&str, &str, &str)],
+        template: &DisplayTemplate,
     ) -> StringTreeNode {
         let mut sorted_indices: Vec<_> = indices.to_vec();
         sorted_indices.sort();
         let children: Vec<StringTreeNode> = sorted_indices
             .iter()
             .filter_map(|&i| {
-                let (_code_str, _size, _count, _old_address, _block_offset) = {
+                let (_code_str, size, _count, old_address, _block_offset) = {
                     let block = blend_file.get_block(i)?;
                     Some((
                         String::from_utf8_lossy(&block.header.code)
@@ -174,11 +190,12 @@ pub fn cmd_filter(
                     Err(_) => return None,
                 };
 
-                let filter_patterns: Vec<(String, String, String)> = filter_expressions
-                    .iter()
-                    .map(|(m, k, v)| (m.to_string(), k.to_string(), v.to_string()))
-                    .collect();
-                let display = block_info.display().with_highlighting(filter_patterns);
+                let display = create_display_for_template(
+                    block_info,
+                    template,
+                    Some(size as u64),
+                    Some(old_address),
+                );
                 let label = display.to_string();
                 Some(StringTreeNode::new(label))
             })

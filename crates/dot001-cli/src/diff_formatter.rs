@@ -12,7 +12,8 @@
 //! This formatter prioritizes accuracy over visual hierarchy, showing only relationships
 //! that can be proven through dependency tracing.
 
-use crate::block_display::{BlockDisplay, BlockInfo, CompactFormatter};
+use crate::DisplayTemplate;
+use crate::block_display::{BlockInfo, create_display_for_template};
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
 use dot001_tracer::{BlendFile, DependencyTracer};
 use dot001_tracer::{
@@ -86,8 +87,8 @@ impl DiffFormatter {
         diff: &BlendDiff,
         blend_file: &mut BlendFile<R>,
         _only_modified: bool,
+        template: DisplayTemplate,
         ascii: bool,
-        show_names: bool,
     ) -> dot001_tracer::Result<()> {
         info!("Building hierarchical diff tree");
         println!("Hierarchical diff tree:");
@@ -106,7 +107,7 @@ impl DiffFormatter {
 
         // Try to build evidence-based hierarchical relationships
         let hierarchy =
-            Self::build_evidence_based_hierarchy(&modified_blocks, blend_file, show_names)?;
+            Self::build_evidence_based_hierarchy(&modified_blocks, blend_file, &template)?;
 
         // Display the hierarchy
         Self::display_hierarchy(&hierarchy, ascii);
@@ -118,7 +119,7 @@ impl DiffFormatter {
     fn build_evidence_based_hierarchy<R: Read + Seek>(
         modified_blocks: &[&BlockDiff],
         blend_file: &mut BlendFile<R>,
-        show_names: bool,
+        template: &DisplayTemplate,
     ) -> dot001_tracer::Result<Vec<HierarchyNode>> {
         let mut tracer = DependencyTracer::new();
         Self::register_tracer_expanders(&mut tracer);
@@ -141,13 +142,19 @@ impl DiffFormatter {
                         .unwrap_or_else(|_| {
                             BlockInfo::new(block_diff.block_index, block_diff.block_code.clone())
                         });
-                    let mut block_info_display = block_info;
-                    if !show_names {
-                        block_info_display.name = None;
-                    }
-                    let display_name = BlockDisplay::new(block_info_display)
-                        .with_formatter(CompactFormatter)
-                        .to_string();
+
+                    let (size, address) = blend_file
+                        .get_block(block_diff.block_index)
+                        .map(|block| (block.header.size as u64, block.header.old_address))
+                        .unwrap_or((0, 0));
+
+                    let display = create_display_for_template(
+                        block_info,
+                        template,
+                        Some(size),
+                        Some(address),
+                    );
+                    let display_name = display.to_string();
 
                     let mut node = HierarchyNode {
                         block_diff: (*block_diff).clone(),
@@ -168,13 +175,19 @@ impl DiffFormatter {
                                             child_diff.block_code.clone(),
                                         )
                                     });
-                            let mut child_block_info_display = child_block_info;
-                            if !show_names {
-                                child_block_info_display.name = None;
-                            }
-                            let child_display_name = BlockDisplay::new(child_block_info_display)
-                                .with_formatter(CompactFormatter)
-                                .to_string();
+
+                            let (child_size, child_address) = blend_file
+                                .get_block(child_diff.block_index)
+                                .map(|block| (block.header.size as u64, block.header.old_address))
+                                .unwrap_or((0, 0));
+
+                            let child_display = create_display_for_template(
+                                child_block_info,
+                                template,
+                                Some(child_size),
+                                Some(child_address),
+                            );
+                            let child_display_name = child_display.to_string();
 
                             node.children.push(HierarchyNode {
                                 block_diff: (*child_diff).clone(),
@@ -203,13 +216,15 @@ impl DiffFormatter {
                     .unwrap_or_else(|_| {
                         BlockInfo::new(block_diff.block_index, block_diff.block_code.clone())
                     });
-                let mut block_info_display = block_info;
-                if !show_names {
-                    block_info_display.name = None;
-                }
-                let display_name = BlockDisplay::new(block_info_display)
-                    .with_formatter(CompactFormatter)
-                    .to_string();
+
+                let (size, address) = blend_file
+                    .get_block(block_diff.block_index)
+                    .map(|block| (block.header.size as u64, block.header.old_address))
+                    .unwrap_or((0, 0));
+
+                let display =
+                    create_display_for_template(block_info, template, Some(size), Some(address));
+                let display_name = display.to_string();
 
                 hierarchy.push(HierarchyNode {
                     block_diff: (*block_diff).clone(),

@@ -130,6 +130,8 @@ enum Commands {
         only_modified: bool,
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
         format: OutputFormat,
+        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Compact, help = "Block display template")]
+        template: DisplayTemplate,
         #[arg(
             long,
             help = "Use ASCII characters instead of Unicode box characters for tree output"
@@ -148,6 +150,8 @@ enum Commands {
         block_index: String,
         #[arg(index = 3)]
         new_name: String,
+        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Compact, help = "Block display template")]
+        template: DisplayTemplate,
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
     },
@@ -168,6 +172,8 @@ enum Commands {
             help = "Enable verbose provenance logging"
         )]
         verbose_provenance: bool,
+        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Compact, help = "Block display template")]
+        template: DisplayTemplate,
         #[arg(long, help = "Output detailed analysis as JSON")]
         json: bool,
     },
@@ -180,11 +186,10 @@ enum Commands {
         filters: Vec<String>,
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
         format: OutputFormat,
-        #[arg(
-            long = "verbose-details",
-            help = "Show detailed information about each filtered block"
-        )]
-        verbose_details: bool,
+        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Simple, help = "Block display template")]
+        template: DisplayTemplate,
+        #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
+        show_data: bool,
         #[arg(long, help = "Output as JSON")]
         json: bool,
     },
@@ -295,27 +300,31 @@ fn run_main() -> Result<(), Dot001Error> {
             file2,
             only_modified,
             format,
+            template,
             ascii,
-        } => commands::cmd_diff(file1, file2, only_modified, format, ascii, &ctx),
+        } => commands::cmd_diff(file1, file2, only_modified, format, template, ascii, &ctx),
         #[cfg(feature = "editor")]
         Commands::Rename {
             file,
             block_index,
             new_name,
+            template,
             dry_run,
-        } => commands::cmd_rename(file, &block_index, new_name, dry_run, &ctx),
+        } => commands::cmd_rename(file, &block_index, new_name, template, dry_run, &ctx),
         #[cfg(feature = "diff")]
         Commands::MeshDiff {
             file1,
             file2,
             mesh_index,
             verbose_provenance,
+            template,
             json,
         } => commands::cmd_mesh_diff(
             file1,
             file2,
             mesh_index.as_deref(),
             verbose_provenance,
+            template,
             json,
             &ctx,
         ),
@@ -324,9 +333,10 @@ fn run_main() -> Result<(), Dot001Error> {
             file,
             filters,
             format,
-            verbose_details,
+            template,
+            show_data,
             json,
-        } => commands::cmd_filter(file, filters, format, verbose_details, json, &ctx),
+        } => commands::cmd_filter(file, filters, format, template, show_data, json, &ctx),
         #[cfg(feature = "trace")]
         Commands::LibLink {
             file,
