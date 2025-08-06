@@ -173,7 +173,7 @@ enum Commands {
         json: bool,
     },
 
-    /// Analyze and reconstruct broken library links
+    /// Analyze and reconstruct broken library linked data-blocks
     #[cfg(feature = "trace")]
     ReconstructLink {
         #[arg(index = 1)]

@@ -6,7 +6,7 @@ use std::io::{Read, Seek};
 /// Expander for NodeTree blocks (both NT and DATA blocks containing bNodeTree structures)
 ///
 /// Node trees are used in materials, textures, lamps, etc. for procedural shading.
-/// This expander handles the dependencies from node trees to their referenced data blocks,
+/// This expander handles the dependencies from node trees to their referenced data-blocks,
 /// particularly images used in Image Texture nodes.
 pub struct NodeTreeExpander;
 

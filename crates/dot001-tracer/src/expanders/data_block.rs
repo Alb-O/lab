@@ -21,7 +21,7 @@ impl<R: Read + Seek> BlockExpander<R> for DataBlockExpander {
     ) -> Result<ExpandResult> {
         let mut dependencies = Vec::new();
 
-        // Read the data block
+        // Read the data-block
         let data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&data)?;
 

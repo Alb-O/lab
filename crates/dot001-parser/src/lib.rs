@@ -19,7 +19,7 @@
 //!
 //! The parser follows a layered approach:
 //! 1. **Header parsing**: Extracts file metadata and version information
-//! 2. **Block enumeration**: Maps all data blocks and builds address index
+//! 2. **Block enumeration**: Maps all data-blocks and builds address index
 //! 3. **DNA parsing**: Reads data structure definitions
 //! 4. **Field access**: Provides structured access to block data
 //!

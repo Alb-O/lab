@@ -371,7 +371,7 @@ impl ProvenanceAnalyzer {
         data: &[u8],
         _file: &mut BlendFile<R>,
     ) -> Option<(Option<String>, Option<usize>, Option<usize>)> {
-        // Heuristic inference of data block structure
+        // Heuristic inference of data-block structure
 
         // Common patterns for mesh data
         let size = data.len();
