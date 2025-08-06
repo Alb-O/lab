@@ -175,7 +175,7 @@ enum Commands {
 
     /// Analyze and reconstruct broken library linked data-blocks
     #[cfg(feature = "trace")]
-    ReconstructLink {
+    LibLink {
         #[arg(index = 1)]
         file: PathBuf,
         #[arg(
@@ -304,12 +304,12 @@ fn run_main() -> Result<(), Dot001Error> {
             json,
         } => commands::cmd_filter(file, filters, format, verbose_details, json, &ctx),
         #[cfg(feature = "trace")]
-        Commands::ReconstructLink {
+        Commands::LibLink {
             file,
             block_index,
             dry_run,
             target_name,
-        } => commands::cmd_reconstruct_link(file, &block_index, dry_run, target_name, &ctx),
+        } => commands::cmd_lib_link(file, &block_index, dry_run, target_name, &ctx),
     };
 
     if let Err(e) = result {

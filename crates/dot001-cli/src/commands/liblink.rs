@@ -8,7 +8,7 @@ use std::io::{BufReader, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 /// Reconstruct broken library links by updating ID names to match available assets
-pub fn cmd_reconstruct_link(
+pub fn cmd_lib_link(
     file_path: PathBuf,
     block_identifier: &str,
     dry_run: bool,
