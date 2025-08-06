@@ -1,5 +1,5 @@
 use crate::commands::NameResolver;
-use crate::util::{BlockInfo, CommandContext, highlight_matches};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, DetailedFormatter, highlight_matches};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use log::error;
@@ -105,10 +105,14 @@ pub fn cmd_filter(
                         .unwrap_or_else(|_| BlockInfo::new(i, "????".to_string()));
 
                     if verbose_details {
-                        ctx.output.print_result_fmt(format_args!(
-                            "Block {} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})",
-                            block_info.display()
-                        ));
+                        let detailed_formatter = DetailedFormatter::new()
+                            .with_size(size as u64)
+                            .with_address(old_address)
+                            .with_offset(block_offset);
+                        let display = BlockDisplay::new(block_info.clone())
+                            .with_formatter(detailed_formatter);
+                        ctx.output
+                            .print_result_fmt(format_args!("  {display} • count: {count}"));
                         if let Some(name) = &block_info.name {
                             if !name.is_empty() {
                                 let highlighted_name =

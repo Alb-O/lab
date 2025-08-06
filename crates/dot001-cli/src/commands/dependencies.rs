@@ -1,5 +1,5 @@
 use crate::commands::DependencyTracer;
-use crate::util::{BlockDisplay, BlockInfo, CommandContext, DisplayOptions, SimpleFormatter};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, DetailedFormatter};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::DependencyNode;
@@ -123,19 +123,19 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     let block_info = BlockInfo::from_blend_file(node.block_index, blend_file)
         .unwrap_or_else(|_| BlockInfo::new(node.block_index, node.block_code.clone()));
 
-    let display_options = if show_names {
-        DisplayOptions::default()
+    let detailed_formatter = DetailedFormatter::new()
+        .with_size(node.block_size as u64)
+        .with_address(node.block_address);
+
+    let display = if show_names {
+        BlockDisplay::new(block_info).with_formatter(detailed_formatter)
     } else {
-        DisplayOptions::default().with_show_name(false)
+        let mut info = block_info;
+        info.name = None;
+        BlockDisplay::new(info).with_formatter(detailed_formatter)
     };
 
-    let display_code = BlockDisplay::new(block_info.clone())
-        .with_formatter(SimpleFormatter)
-        .with_options(display_options);
-    let label = format!(
-        "Block {} ({}) - size: {}, addr: 0x{:x}",
-        block_info.index, display_code, node.block_size, node.block_address
-    );
+    let label = display.to_string();
     if node.children.is_empty() {
         StringTreeNode::new(label)
     } else {

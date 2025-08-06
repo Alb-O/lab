@@ -204,16 +204,6 @@ impl DisplayOptions {
             use_colors: should_use_colors(),
         }
     }
-
-    pub fn with_show_name(mut self, show_name: bool) -> Self {
-        self.show_name = show_name;
-        self
-    }
-
-    pub fn with_show_index(mut self, show_index: bool) -> Self {
-        self.show_index = show_index;
-        self
-    }
 }
 
 /// Trait for block formatting strategies
@@ -221,16 +211,31 @@ pub trait BlockFormatter: Send + Sync {
     fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String;
 }
 
-/// Simple formatter: "ME (CubeMesh)" or "ME"
-pub struct SimpleFormatter;
+/// Template-based formatters with standardized display patterns
+///
+/// Basic template: "1220: GR | CollectionNew3"
+pub struct BasicFormatter;
 
-impl BlockFormatter for SimpleFormatter {
+impl BlockFormatter for BasicFormatter {
     fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
         let code = if options.use_colors {
             colorize_code(&block.code)
         } else {
             block.code.clone()
         };
+
+        let mut parts = Vec::new();
+
+        if options.show_index {
+            let index = if options.use_colors {
+                colorize_index(block.index)
+            } else {
+                block.index.to_string()
+            };
+            parts.push(format!("{index}: {code}"));
+        } else {
+            parts.push(code);
+        }
 
         if options.show_name {
             if let Some(name) = &block.name {
@@ -239,34 +244,88 @@ impl BlockFormatter for SimpleFormatter {
                 } else {
                     name.clone()
                 };
-                format!("{code} ({name_str})")
-            } else {
-                code
+                parts.push(name_str);
             }
-        } else {
-            code
         }
+
+        parts.join(" | ")
     }
 }
 
-/// Indexed formatter: "42: ME (CubeMesh)" or "42: ME"
-pub struct IndexedFormatter;
+/// Compact template: "GR | CollectionNew3" (no index)
+pub struct CompactFormatter;
 
-impl BlockFormatter for IndexedFormatter {
+impl BlockFormatter for CompactFormatter {
     fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
-        let index = if options.use_colors {
-            colorize_index(block.index)
-        } else {
-            block.index.to_string()
-        };
+        let mut opts = options.clone();
+        opts.show_index = false;
+        BasicFormatter.format(block, &opts)
+    }
+}
 
-        let simple = SimpleFormatter.format(block, options);
+/// Detailed template: "Block 1238: DNA1 | d[4] • size: 131,128 bytes • addr: 0x7ff6649f6a10"
+pub struct DetailedFormatter {
+    pub size: Option<u64>,
+    pub address: Option<u64>,
+    pub offset: Option<u64>,
+}
 
-        if options.show_index {
-            format!("{index}: {simple}")
-        } else {
-            simple
+impl DetailedFormatter {
+    pub fn new() -> Self {
+        Self {
+            size: None,
+            address: None,
+            offset: None,
         }
+    }
+
+    pub fn with_size(mut self, size: u64) -> Self {
+        self.size = Some(size);
+        self
+    }
+
+    pub fn with_address(mut self, address: u64) -> Self {
+        self.address = Some(address);
+        self
+    }
+
+    pub fn with_offset(mut self, offset: u64) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+}
+
+impl BlockFormatter for DetailedFormatter {
+    fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
+        let basic = BasicFormatter.format(block, options);
+        let mut parts = vec![format!("Block {basic}")];
+
+        if let Some(size) = self.size {
+            parts.push(format!("size: {}", format_bytes(size)));
+        }
+
+        if let Some(addr) = self.address {
+            parts.push(format!("addr: 0x{addr:x}"));
+        }
+
+        if let Some(offset) = self.offset {
+            parts.push(format!("offset: 0x{offset:x}"));
+        }
+
+        parts.join(" • ")
+    }
+}
+
+/// Helper function to format byte sizes in human-readable format
+fn format_bytes(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{bytes} bytes")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1}K", bytes as f64 / 1024.0)
+    } else if bytes < 1024 * 1024 * 1024 {
+        format!("{:.1}M", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.1}G", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
 
@@ -311,7 +370,7 @@ impl BlockDisplay {
     pub fn new(block: BlockInfo) -> Self {
         Self {
             block,
-            formatter: Box::new(IndexedFormatter),
+            formatter: Box::new(BasicFormatter),
             options: DisplayOptions::default(),
             cached: OnceCell::new(),
         }
@@ -319,12 +378,6 @@ impl BlockDisplay {
 
     pub fn with_formatter<F: BlockFormatter + 'static>(mut self, formatter: F) -> Self {
         self.formatter = Box::new(formatter);
-        self.cached = OnceCell::new(); // Clear cache
-        self
-    }
-
-    pub fn with_options(mut self, options: DisplayOptions) -> Self {
-        self.options = options;
         self.cached = OnceCell::new(); // Clear cache
         self
     }
@@ -497,7 +550,7 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
             block_match.block_code.clone(),
             block_match.name.clone(),
         );
-        let block_display = BlockDisplay::new(block_info).with_formatter(SimpleFormatter);
+        let block_display = BlockDisplay::new(block_info).with_formatter(CompactFormatter);
         eprintln!("  --block-index {colored_index} (for {block_display})");
     }
 }

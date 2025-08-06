@@ -12,7 +12,7 @@
 //! This formatter prioritizes accuracy over visual hierarchy, showing only relationships
 //! that can be proven through dependency tracing.
 
-use crate::util::{BlockDisplay, BlockInfo, DisplayOptions, SimpleFormatter};
+use crate::util::{BlockDisplay, BlockInfo, CompactFormatter};
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
 use dot001_tracer::{BlendFile, DependencyTracer};
 use dot001_tracer::{
@@ -141,16 +141,12 @@ impl DiffFormatter {
                         .unwrap_or_else(|_| {
                             BlockInfo::new(block_diff.block_index, block_diff.block_code.clone())
                         });
-                    let options = if show_names {
-                        DisplayOptions::default().with_show_index(false)
-                    } else {
-                        DisplayOptions::default()
-                            .with_show_index(false)
-                            .with_show_name(false)
-                    };
-                    let display_name = BlockDisplay::new(block_info)
-                        .with_formatter(SimpleFormatter)
-                        .with_options(options)
+                    let mut block_info_display = block_info;
+                    if !show_names {
+                        block_info_display.name = None;
+                    }
+                    let display_name = BlockDisplay::new(block_info_display)
+                        .with_formatter(CompactFormatter)
                         .to_string();
 
                     let mut node = HierarchyNode {
@@ -172,16 +168,12 @@ impl DiffFormatter {
                                             child_diff.block_code.clone(),
                                         )
                                     });
-                            let child_options = if show_names {
-                                DisplayOptions::default().with_show_index(false)
-                            } else {
-                                DisplayOptions::default()
-                                    .with_show_index(false)
-                                    .with_show_name(false)
-                            };
-                            let child_display_name = BlockDisplay::new(child_block_info)
-                                .with_formatter(SimpleFormatter)
-                                .with_options(child_options)
+                            let mut child_block_info_display = child_block_info;
+                            if !show_names {
+                                child_block_info_display.name = None;
+                            }
+                            let child_display_name = BlockDisplay::new(child_block_info_display)
+                                .with_formatter(CompactFormatter)
                                 .to_string();
 
                             node.children.push(HierarchyNode {
@@ -211,16 +203,12 @@ impl DiffFormatter {
                     .unwrap_or_else(|_| {
                         BlockInfo::new(block_diff.block_index, block_diff.block_code.clone())
                     });
-                let options = if show_names {
-                    DisplayOptions::default().with_show_index(false)
-                } else {
-                    DisplayOptions::default()
-                        .with_show_index(false)
-                        .with_show_name(false)
-                };
-                let display_name = BlockDisplay::new(block_info)
-                    .with_formatter(SimpleFormatter)
-                    .with_options(options)
+                let mut block_info_display = block_info;
+                if !show_names {
+                    block_info_display.name = None;
+                }
+                let display_name = BlockDisplay::new(block_info_display)
+                    .with_formatter(CompactFormatter)
                     .to_string();
 
                 hierarchy.push(HierarchyNode {

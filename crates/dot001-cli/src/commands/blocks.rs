@@ -1,4 +1,4 @@
-use crate::util::{BlockInfo, CommandContext};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, DetailedFormatter};
 use dot001_error::Dot001Error;
 use std::path::PathBuf;
 
@@ -28,10 +28,11 @@ pub fn cmd_blocks(
         let block_info = BlockInfo::from_blend_file(i, &mut blend_file)
             .unwrap_or_else(|_| BlockInfo::new(i, "????".to_string()));
 
-        ctx.output.print_result_fmt(format_args!(
-            "  {} (size: {size}, addr: 0x{address:x})",
-            block_info.display()
-        ));
+        let detailed_formatter = DetailedFormatter::new()
+            .with_size(size as u64)
+            .with_address(address);
+        let display = BlockDisplay::new(block_info).with_formatter(detailed_formatter);
+        ctx.output.print_result_fmt(format_args!("  {display}"));
     }
     Ok(())
 }

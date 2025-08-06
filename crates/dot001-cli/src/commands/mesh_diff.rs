@@ -1,4 +1,4 @@
-use crate::util::{BlockDisplay, BlockInfo, CommandContext, SimpleFormatter};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, CompactFormatter};
 use dot001_error::Dot001Error;
 use log::error;
 use std::path::PathBuf;
@@ -42,7 +42,7 @@ pub fn cmd_mesh_diff(
                     let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
                         .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
                     let me_display =
-                        BlockDisplay::new(block_info.clone()).with_formatter(SimpleFormatter);
+                        BlockDisplay::new(block_info.clone()).with_formatter(CompactFormatter);
                     ctx.output.print_info_fmt(format_args!(
                         "Analysis for ME block {} ({}):",
                         block_info.index, me_display
@@ -112,7 +112,7 @@ pub fn cmd_mesh_diff(
                         let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
                             .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
                         let me_display =
-                            BlockDisplay::new(block_info.clone()).with_formatter(SimpleFormatter);
+                            BlockDisplay::new(block_info.clone()).with_formatter(CompactFormatter);
                         ctx.output.print_result_fmt(format_args!(
                             "ME block {} ({}): {} ({})",
                             block_info.index,
