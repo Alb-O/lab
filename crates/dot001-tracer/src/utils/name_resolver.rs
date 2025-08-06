@@ -1,4 +1,4 @@
-use crate::determinizer::NameResolverTrait;
+use super::determinizer::NameResolverTrait;
 use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 

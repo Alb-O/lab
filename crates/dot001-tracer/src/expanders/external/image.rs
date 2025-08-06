@@ -24,7 +24,7 @@ external_expander! {
                                 if let Ok(filepath) = reader.read_field_string("Image", "filepath") {
                                     let path_str = filepath.trim_end_matches('\0').trim();
                                     if !path_str.is_empty() {
-                                        let blend_path = crate::bpath::BlendPath::new(path_str.as_bytes());
+                                        let blend_path = crate::utils::bpath::BlendPath::new(path_str.as_bytes());
                                         external_refs.push(blend_path.to_pathbuf_stripped());
                                     }
                                 }

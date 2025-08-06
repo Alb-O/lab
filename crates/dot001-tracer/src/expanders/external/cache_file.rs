@@ -1,4 +1,4 @@
-use crate::{BlockExpander, ExpandResult, bpath::BlendPath};
+use crate::{BlockExpander, ExpandResult, utils::bpath::BlendPath};
 use dot001_parser::{BlendFile, Result};
 use std::io::{Read, Seek};
 
