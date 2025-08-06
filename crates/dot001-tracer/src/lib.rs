@@ -32,6 +32,7 @@ pub mod bpath;
 // dot001-tracer/src/lib.rs
 
 pub mod expand_result;
+pub mod expander_macro;
 pub mod expanders;
 pub use expand_result::ExpandResult;
 pub mod determinizer;
