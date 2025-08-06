@@ -187,8 +187,12 @@ enum Commands {
     },
 }
 
-fn main() -> Result<(), Dot001Error> {
-    run_main()
+fn main() {
+    if let Err(e) = run_main() {
+        use log::error;
+        error!("{}", e.user_message());
+        std::process::exit(1);
+    }
 }
 
 /// Initialize logging based on verbosity level
@@ -236,7 +240,8 @@ fn run_main() -> Result<(), Dot001Error> {
     let output = util::OutputHandler::new(cli.quiet);
     let ctx = util::CommandContext::new(&parse_options, cli.no_auto_decompress, &output);
 
-    let result = match cli.command {
+    // Propagate the result; main() maps error to exit code and user message
+    match cli.command {
         #[cfg(feature = "editor")]
         Commands::LibPath {
             file,
@@ -342,15 +347,7 @@ fn run_main() -> Result<(), Dot001Error> {
             dry_run,
             target_name,
         } => commands::cmd_lib_link(file, &block_index, dry_run, target_name, &ctx),
-    };
-
-    if let Err(e) = result {
-        use log::error;
-        error!("{}", e.user_message());
-        std::process::exit(1);
     }
-
-    Ok(())
 }
 
 /// Helper functions for creating unified CLI errors

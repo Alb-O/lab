@@ -488,7 +488,6 @@ dependencies = [
  "hex",
  "log",
  "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -499,7 +498,6 @@ dependencies = [
  "dot001-parser",
  "dot001-tracer",
  "log",
- "thiserror",
 ]
 
 [[package]]
@@ -518,7 +516,6 @@ dependencies = [
  "log",
  "memmap2",
  "tempfile",
- "thiserror",
  "twox-hash",
  "zstd",
 ]

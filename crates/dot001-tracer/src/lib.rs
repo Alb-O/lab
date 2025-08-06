@@ -189,6 +189,10 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         let engine = FilterEngine::new();
         let allowed = engine.apply(spec, blend_file)?;
         self.allowed = Some(allowed);
+        debug!(
+            "Applied filter spec; allowed set size: {}",
+            self.allowed.as_ref().map(|s| s.len()).unwrap_or(0)
+        );
         Ok(())
     }
 
@@ -204,20 +208,46 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
     /// Register all standard block expanders for comprehensive dependency analysis
     pub fn with_default_expanders(mut self) -> Self {
         debug!("Registering standard block expanders");
-        // Register all the standard expanders
-        self.register_expander(*b"SC\0\0", Box::new(SceneExpander));
-        self.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
-        self.register_expander(*b"ME\0\0", Box::new(MeshExpander));
-        self.register_expander(*b"MA\0\0", Box::new(MaterialExpander));
-        self.register_expander(*b"IM\0\0", Box::new(ImageExpander));
-        self.register_expander(*b"SO\0\0", Box::new(SoundExpander));
-        self.register_expander(*b"LI\0\0", Box::new(LibraryExpander));
-        self.register_expander(*b"CF\0\0", Box::new(CacheFileExpander));
-        self.register_expander(*b"GR\0\0", Box::new(CollectionExpander));
-        self.register_expander(*b"DATA", Box::new(DataBlockExpander));
-        self.register_expander(*b"NT\0\0", Box::new(NodeTreeExpander));
-        self.register_expander(*b"LA\0\0", Box::new(LampExpander));
-        self.register_expander(*b"TE\0\0", Box::new(TextureExpander));
+        type Maker<'a, R> = fn() -> Box<dyn BlockExpander<R> + 'a>;
+
+        // Registry of (code, constructor) pairs
+        const CODES: &[[u8; 4]] = &[
+            *b"SC\0\0", // Scene
+            *b"OB\0\0", // Object
+            *b"ME\0\0", // Mesh
+            *b"MA\0\0", // Material
+            *b"IM\0\0", // Image
+            *b"SO\0\0", // Sound
+            *b"LI\0\0", // Library
+            *b"CF\0\0", // CacheFile
+            *b"GR\0\0", // Collection/Group
+            *b"DATA",   // Generic data block
+            *b"NT\0\0", // Node tree
+            *b"LA\0\0", // Lamp
+            *b"TE\0\0", // Texture
+        ];
+
+        // Constructors corresponding to CODES order
+        let makers: &[Maker<'a, R>] = &[
+            || Box::new(SceneExpander),
+            || Box::new(ObjectExpander),
+            || Box::new(MeshExpander),
+            || Box::new(MaterialExpander),
+            || Box::new(ImageExpander),
+            || Box::new(SoundExpander),
+            || Box::new(LibraryExpander),
+            || Box::new(CacheFileExpander),
+            || Box::new(CollectionExpander),
+            || Box::new(DataBlockExpander),
+            || Box::new(NodeTreeExpander),
+            || Box::new(LampExpander),
+            || Box::new(TextureExpander),
+        ];
+
+        debug!("Registering {} expanders", CODES.len());
+        for (code, make) in CODES.iter().copied().zip(makers.iter().copied()) {
+            self.register_expander(code, make());
+        }
         debug!("Registered {} block expanders", self.expanders.len());
         self
     }
@@ -433,5 +463,3 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         self.determinizer.as_ref()
     }
 }
-
-

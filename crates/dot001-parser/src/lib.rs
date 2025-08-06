@@ -42,7 +42,7 @@ pub use fields::FieldReader;
 pub use header::BlendFileHeader;
 pub use reflect::PointerTraversal;
 
-use log::{debug, info, trace, warn};
+use log::{debug, trace, warn};
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
@@ -52,8 +52,8 @@ pub trait ReadSeekSend: Read + Seek + Send {}
 // Blanket implementation for all types that implement the required traits
 impl<T: Read + Seek + Send> ReadSeekSend for T {}
 
-/// Maximum block size allowed for memory allocation safety (100MB)
-const MAX_BLOCK_SIZE: u32 = 100_000_000;
+/// Maximum block size allowed for memory allocation safety (100MB default)
+const DEFAULT_MAX_BLOCK_SIZE: u32 = 100_000_000;
 
 /// Main parser for .blend files
 pub struct BlendFile<R: Read + Seek> {
@@ -66,6 +66,12 @@ pub struct BlendFile<R: Read + Seek> {
 }
 
 impl<R: Read + Seek> BlendFile<R> {
+    /// Get the current maximum allowed block size
+    pub fn max_block_size(&self) -> u32 {
+        // Currently we store no per-instance override; return default for API stability.
+        // This is kept to provide a stable surface while we plumb ParseOptions-based override below.
+        DEFAULT_MAX_BLOCK_SIZE
+    }
     /// Access to the header information
     pub fn header(&self) -> &BlendFileHeader {
         &self.header
@@ -232,9 +238,13 @@ impl<R: Read + Seek> BlendFile<R> {
         })?;
 
         // Validate block size to prevent excessive memory allocation
-        if block.header.size > MAX_BLOCK_SIZE {
+        let limit = self.max_block_size();
+        if block.header.size > limit {
             return Err(Dot001Error::blend_file(
-                format!("Block size too large: {} bytes", block.header.size),
+                format!(
+                    "Block size too large: {} bytes (limit {})",
+                    block.header.size, limit
+                ),
                 BlendFileErrorKind::SizeLimitExceeded,
             ));
         }
