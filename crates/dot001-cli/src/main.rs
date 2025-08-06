@@ -187,12 +187,6 @@ enum Commands {
     },
 }
 
-#[cfg(feature = "trace")]
-fn main() -> Result<(), Dot001Error> {
-    run_main()
-}
-
-#[cfg(not(feature = "trace"))]
 fn main() -> Result<(), Dot001Error> {
     run_main()
 }

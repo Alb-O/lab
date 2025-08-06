@@ -5,7 +5,9 @@ pub mod dependencies;
 pub mod diff;
 #[cfg(feature = "trace")]
 pub mod filter;
+#[cfg(feature = "info")]
 pub mod info;
+#[cfg(feature = "trace")]
 pub mod liblink;
 #[cfg(feature = "editor")]
 pub mod libpath;

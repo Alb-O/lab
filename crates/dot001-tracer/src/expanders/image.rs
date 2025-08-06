@@ -1,5 +1,5 @@
 use crate::{BlockExpander, ExpandResult, bpath::BlendPath};
-use dot001_parser::{BlendFile, Result};
+use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 
 /// Expander for Image (IM) blocks
@@ -15,7 +15,7 @@ impl<R: Read + Seek> BlockExpander<R> for ImageExpander {
         &self,
         block_index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<ExpandResult> {
+    ) -> dot001_error::Result<ExpandResult> {
         let dependencies = Vec::new();
         let mut external_refs = Vec::new();
 

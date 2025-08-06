@@ -102,10 +102,12 @@ pub fn cmd_dependencies(
                     &filtered_deps,
                     &template,
                     |index, _metadata, display, ctx| {
-                        let position = filtered_deps.iter().position(|&x| x == index).unwrap_or(0) + 1;
-                        ctx.output.print_result_fmt(format_args!("    {position}: {display}"));
+                        let position =
+                            filtered_deps.iter().position(|&x| x == index).unwrap_or(0) + 1;
+                        ctx.output
+                            .print_result_fmt(format_args!("    {position}: {display}"));
                         Ok(())
-                    }
+                    },
                 )?;
             }
         }
