@@ -102,6 +102,8 @@ enum Commands {
             help = "Use ASCII characters instead of Unicode box characters for tree output"
         )]
         ascii: bool,
+        #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
+        show_data: bool,
     },
     /// Compare two blend files and show differences
     #[cfg(feature = "diff")]
@@ -264,7 +266,8 @@ fn run_main() -> Result<(), Dot001Error> {
             block_index,
             format,
             ascii,
-        } => commands::cmd_dependencies(file, &block_index, format, ascii, &ctx),
+            show_data,
+        } => commands::cmd_dependencies(file, &block_index, format, ascii, show_data, &ctx),
         #[cfg(feature = "diff")]
         Commands::Diff {
             file1,

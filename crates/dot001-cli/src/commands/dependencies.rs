@@ -8,11 +8,29 @@ use log::{debug, error, info};
 use std::path::PathBuf;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
+fn should_filter_block<R: std::io::Read + std::io::Seek>(
+    block_index: usize,
+    blend_file: &mut BlendFile<R>,
+    show_data: bool,
+) -> bool {
+    if show_data {
+        return false; // Don't filter anything if show_data is true
+    }
+    
+    if let Some(block) = blend_file.get_block(block_index) {
+        let code_str = String::from_utf8_lossy(&block.header.code);
+        let code = code_str.trim_end_matches('\0');
+        return code == "DATA";
+    }
+    false
+}
+
 pub fn cmd_dependencies(
     file_path: PathBuf,
     block_identifier: &str,
     format: crate::OutputFormat,
     ascii: bool,
+    show_data: bool,
     ctx: &CommandContext,
 ) -> Result<(), Dot001Error> {
     info!("Loading blend file: {}", file_path.display());
@@ -51,16 +69,26 @@ pub fn cmd_dependencies(
                 start_code.trim_end_matches('\0')
             );
             let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
+            
+            // Filter out DATA blocks if show_data is false
+            let filtered_deps: Vec<usize> = deps
+                .iter()
+                .filter(|&&dep_index| !should_filter_block(dep_index, &mut blend_file, show_data))
+                .copied()
+                .collect();
+            
             info!(
-                "Dependency tracing completed, found {} dependencies",
-                deps.len()
+                "Dependency tracing completed, found {} dependencies ({} after filtering)",
+                deps.len(),
+                filtered_deps.len()
             );
-            if deps.is_empty() {
+            
+            if filtered_deps.is_empty() {
                 ctx.output.print_result("  No dependencies found");
             } else {
                 ctx.output
-                    .print_info_fmt(format_args!("  Found {} dependencies:", deps.len()));
-                for (i, &dep_index) in deps.iter().enumerate() {
+                    .print_info_fmt(format_args!("  Found {} dependencies:", filtered_deps.len()));
+                for (i, &dep_index) in filtered_deps.iter().enumerate() {
                     if let Some(_block) = blend_file.get_block(dep_index) {
                         // We don't need the code_str anymore since BlockInfo handles it
                         let block_info = BlockInfo::from_blend_file(dep_index, &mut blend_file)
@@ -86,7 +114,7 @@ pub fn cmd_dependencies(
                 tree.total_dependencies + 1,
                 tree.max_depth
             );
-            let tree_display = build_text_tree(&tree.root, &mut blend_file, true);
+            let tree_display = build_text_tree(&tree.root, &mut blend_file, true, show_data);
             let format_chars = if ascii {
                 FormatCharacters::ascii()
             } else {
@@ -120,6 +148,7 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     node: &DependencyNode,
     blend_file: &mut BlendFile<R>,
     show_names: bool,
+    show_data: bool,
 ) -> StringTreeNode {
     let block_info = BlockInfo::from_blend_file(node.block_index, blend_file)
         .unwrap_or_else(|_| BlockInfo::new(node.block_index, node.block_code.clone()));
@@ -137,13 +166,20 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     };
 
     let label = display.to_string();
+    
     if node.children.is_empty() {
         StringTreeNode::new(label)
     } else {
-        let child_nodes: Vec<StringTreeNode> = node
+        // Filter out DATA block children if show_data is false
+        let filtered_children: Vec<&DependencyNode> = node
             .children
             .iter()
-            .map(|child| build_text_tree(child, blend_file, show_names))
+            .filter(|child| !should_filter_block(child.block_index, blend_file, show_data))
+            .collect();
+            
+        let child_nodes: Vec<StringTreeNode> = filtered_children
+            .iter()
+            .map(|child| build_text_tree(child, blend_file, show_names, show_data))
             .collect();
         StringTreeNode::with_child_nodes(label, child_nodes.into_iter())
     }
