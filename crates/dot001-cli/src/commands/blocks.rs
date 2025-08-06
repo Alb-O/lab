@@ -1,4 +1,5 @@
-use crate::util::{BlockDisplay, BlockInfo, CommandContext, DetailedFormatter};
+use crate::block_display::{BlockDisplay, BlockInfo, DetailedFormatter};
+use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use std::path::PathBuf;
 

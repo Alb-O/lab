@@ -1,5 +1,6 @@
+use crate::block_display::{BlockDisplay, BlockInfo, DetailedFormatter, highlight_matches};
 use crate::commands::NameResolver;
-use crate::util::{BlockDisplay, BlockInfo, CommandContext, DetailedFormatter, highlight_matches};
+use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use log::error;

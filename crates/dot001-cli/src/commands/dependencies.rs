@@ -1,5 +1,6 @@
+use crate::block_display::{BlockDisplay, BlockInfo, DetailedFormatter};
 use crate::commands::DependencyTracer;
-use crate::util::{BlockDisplay, BlockInfo, CommandContext, DetailedFormatter};
+use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::DependencyNode;

@@ -1,3 +1,4 @@
+mod block_display;
 mod commands;
 #[cfg(feature = "diff")]
 mod diff_formatter;

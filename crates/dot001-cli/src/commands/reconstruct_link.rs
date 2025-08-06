@@ -1,4 +1,5 @@
-use crate::util::{BlockInfo, CommandContext};
+use crate::block_display::BlockInfo;
+use crate::util::CommandContext;
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;

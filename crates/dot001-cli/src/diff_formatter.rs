@@ -12,7 +12,7 @@
 //! This formatter prioritizes accuracy over visual hierarchy, showing only relationships
 //! that can be proven through dependency tracing.
 
-use crate::util::{BlockDisplay, BlockInfo, CompactFormatter};
+use crate::block_display::{BlockDisplay, BlockInfo, CompactFormatter};
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
 use dot001_tracer::{BlendFile, DependencyTracer};
 use dot001_tracer::{
