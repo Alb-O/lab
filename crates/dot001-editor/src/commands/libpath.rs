@@ -33,9 +33,8 @@ impl LibPathCommand {
         let blend_path = {
             // Simple validation without tracer
             if !no_validate {
-                if normalized_path.starts_with("//") {
+                if let Some(rel_path) = normalized_path.strip_prefix("//") {
                     // Blendfile-relative path
-                    let rel_path = &normalized_path[2..];
                     let blend_file_path = file_path.as_ref();
                     let blend_dir = blend_file_path.parent().ok_or_else(|| {
                         Dot001Error::from(std::io::Error::new(
@@ -54,7 +53,7 @@ impl LibPathCommand {
                     if !Path::new(&normalized_path).exists() {
                         return Err(Dot001Error::from(std::io::Error::new(
                             std::io::ErrorKind::NotFound,
-                            format!("Target library file does not exist: {}", normalized_path),
+                            format!("Target library file does not exist: {normalized_path}"),
                         )));
                     }
                 } else {

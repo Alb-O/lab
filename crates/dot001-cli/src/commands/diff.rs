@@ -16,7 +16,7 @@ pub fn cmd_diff(
 ) -> Result<(), Dot001Error> {
     let mut blend_file1 = ctx.load_blend_file(&file1_path)?;
     let mut blend_file2 = ctx.load_blend_file(&file2_path)?;
-    
+
     // Use modern policy-based diff engine instead of legacy hardcoded logic
     let differ = dot001_diff::PolicyDiffEngine::with_default_policies();
     let diff_result = differ

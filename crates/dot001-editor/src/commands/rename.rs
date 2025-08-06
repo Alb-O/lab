@@ -51,7 +51,7 @@ impl RenameCommand {
             ))?;
 
         #[cfg(not(feature = "tracer_integration"))]
-        let _current_name = format!("Block{}", block_index); // Fallback without tracer
+        let _current_name = format!("Block{block_index}"); // Fallback without tracer
         let Some(block) = blend_file.get_block(block_index) else {
             return Err(Dot001Error::editor(
                 format!("Block not found at index: {block_index}"),
@@ -118,7 +118,7 @@ impl RenameCommand {
             ))?;
 
         #[cfg(not(feature = "tracer_integration"))]
-        let _current_name = format!("Block{}", block_index); // Fallback without tracer
+        let _current_name = format!("Block{block_index}"); // Fallback without tracer
         let mut block_data = blend_file.read_block_data(block_index)?;
         let reader = blend_file.create_field_reader(&block_data)?;
         let name_offset = reader.get_field_offset("ID", "name").map_err(|_| {
