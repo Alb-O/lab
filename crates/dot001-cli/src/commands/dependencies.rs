@@ -5,7 +5,7 @@ use crate::commands::DependencyTracer;
 use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
-use dot001_parser::BlendFile;
+use dot001_parser::{BlendFile, block_code_to_string, is_data_block_code};
 use dot001_tracer::DependencyNode;
 use log::{debug, error, info};
 use std::path::PathBuf;
@@ -21,9 +21,8 @@ fn should_filter_block<R: std::io::Read + std::io::Seek>(
     }
 
     if let Some(block) = blend_file.get_block(block_index) {
-        let code_str = String::from_utf8_lossy(&block.header.code);
-        let code = code_str.trim_end_matches('\0');
-        return code == "DATA";
+        let code = block_code_to_string(block.header.code);
+        return is_data_block_code(&code);
     }
     false
 }
@@ -62,18 +61,17 @@ pub fn cmd_dependencies(
         error!("Block index {block_index} is out of range");
         return Ok(());
     };
-    let start_code = String::from_utf8_lossy(&start_block.header.code);
     info!(
         "Starting dependency analysis for block {} ({})",
         block_index,
-        start_code.trim_end_matches('\0')
+        block_code_to_string(start_block.header.code)
     );
     match format {
         crate::OutputFormat::Flat => {
             info!(
                 "Tracing dependencies for block {} ({})",
                 block_index,
-                start_code.trim_end_matches('\0')
+                block_code_to_string(start_block.header.code)
             );
             let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
 
@@ -115,7 +113,7 @@ pub fn cmd_dependencies(
             info!(
                 "Building dependency tree for block {} ({})",
                 block_index,
-                start_code.trim_end_matches('\0')
+                block_code_to_string(start_block.header.code)
             );
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
             info!(

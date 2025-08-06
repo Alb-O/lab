@@ -3,6 +3,7 @@ use crate::block_display::{BlockInfo, colorize_name, create_display_for_template
 use crate::block_ops::CommandHelper;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
+use dot001_parser::block_code_to_string;
 use log::{error, info};
 use std::path::PathBuf;
 
@@ -30,9 +31,7 @@ pub fn cmd_rename(
             error!("Block index {block_index} is out of range");
             return Ok(());
         };
-        String::from_utf8_lossy(&block.header.code)
-            .trim_end_matches('\0')
-            .to_string()
+        block_code_to_string(block.header.code)
     };
     #[cfg(feature = "trace")]
     let current_name_opt =

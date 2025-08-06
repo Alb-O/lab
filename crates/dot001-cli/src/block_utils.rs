@@ -1,7 +1,9 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
 use dot001_error::Dot001Error;
-use dot001_parser::BlendFile;
+use dot001_parser::{
+    BlendFile, DataBlockVisibility, block_code_to_string, is_block_visible, is_data_block_code,
+};
 use std::io::{Read, Seek};
 
 /// Block information with metadata commonly needed for display
@@ -29,7 +31,7 @@ impl BlockWithMetadata {
 
     /// Check if this block is a DATA block
     pub fn is_data_block(&self) -> bool {
-        self.code == "DATA"
+        is_data_block_code(&self.code)
     }
 
     /// Check if this block matches a specific code
@@ -53,9 +55,7 @@ impl BlockUtils {
                 .get_block(index)
                 .ok_or_else(|| Dot001Error::io(format!("Block index {index} is out of range")))?;
 
-            let code = String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string();
+            let code = block_code_to_string(block.header.code);
 
             (
                 block.header.size as u64,
@@ -107,18 +107,15 @@ impl BlockUtils {
         blend_file: &BlendFile<R>,
         show_data: bool,
     ) {
-        if !show_data {
-            indices.retain(|&i| {
-                if let Some(block) = blend_file.get_block(i) {
-                    let code_str = String::from_utf8_lossy(&block.header.code)
-                        .trim_end_matches('\0')
-                        .to_string();
-                    code_str != "DATA"
-                } else {
-                    true // Keep if we can't read the block
-                }
-            });
-        }
+        let policy = DataBlockVisibility::from_flag(show_data);
+        indices.retain(|&i| {
+            if let Some(block) = blend_file.get_block(i) {
+                let code_str = block_code_to_string(block.header.code);
+                is_block_visible(&code_str, policy)
+            } else {
+                true // Keep if we can't read the block
+            }
+        });
     }
 
     /// Filter a HashSet of block indices, removing DATA blocks unless show_data is true
@@ -127,18 +124,15 @@ impl BlockUtils {
         blend_file: &BlendFile<R>,
         show_data: bool,
     ) {
-        if !show_data {
-            indices.retain(|&i| {
-                if let Some(block) = blend_file.get_block(i) {
-                    let code_str = String::from_utf8_lossy(&block.header.code)
-                        .trim_end_matches('\0')
-                        .to_string();
-                    code_str != "DATA"
-                } else {
-                    true // Keep if we can't read the block
-                }
-            });
-        }
+        let policy = DataBlockVisibility::from_flag(show_data);
+        indices.retain(|&i| {
+            if let Some(block) = blend_file.get_block(i) {
+                let code_str = block_code_to_string(block.header.code);
+                is_block_visible(&code_str, policy)
+            } else {
+                true // Keep if we can't read the block
+            }
+        });
     }
 
     /// Extract basic block code from a block index
@@ -146,11 +140,9 @@ impl BlockUtils {
         index: usize,
         blend_file: &BlendFile<R>,
     ) -> Option<String> {
-        blend_file.get_block(index).map(|block| {
-            String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string()
-        })
+        blend_file
+            .get_block(index)
+            .map(|block| block_code_to_string(block.header.code))
     }
 }
 

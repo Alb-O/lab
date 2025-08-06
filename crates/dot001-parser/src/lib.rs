@@ -32,14 +32,19 @@ pub mod dna;
 pub mod error;
 pub mod fields;
 pub mod header;
+pub mod policy;
 pub mod reflect;
 
-pub use block::{BlendFileBlock, BlockHeader};
+pub use block::{BlendFileBlock, BlockHeader, block_code_to_string};
 pub use compression::{CompressionKind, DecompressionMode, DecompressionPolicy, ParseOptions};
 pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
 pub use error::{BlendFileErrorKind, Dot001Error, Result};
 pub use fields::FieldReader;
 pub use header::BlendFileHeader;
+pub use policy::{
+    DataBlockCompareMode, DataBlockVisibility, is_block_visible, is_data_block_code,
+    is_data_size_change_significant,
+};
 pub use reflect::PointerTraversal;
 
 use log::{debug, trace, warn};

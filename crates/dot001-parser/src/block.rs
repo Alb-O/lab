@@ -77,6 +77,13 @@ impl BlockHeader {
         })
     }
 
+    /// Convert block code to string, handling null termination
+    pub fn code_string(&self) -> String {
+        String::from_utf8_lossy(&self.code)
+            .trim_end_matches('\0')
+            .to_string()
+    }
+
     pub fn is_end_block(&self) -> bool {
         &self.code == b"ENDB"
     }
@@ -84,6 +91,13 @@ impl BlockHeader {
     pub fn is_dna_block(&self) -> bool {
         &self.code == b"DNA1"
     }
+}
+
+/// Convert a block code byte array to string, handling null termination
+pub fn block_code_to_string(code: [u8; 4]) -> String {
+    String::from_utf8_lossy(&code)
+        .trim_end_matches('\0')
+        .to_string()
 }
 
 fn read_u32<R: Read>(reader: &mut R, is_little_endian: bool) -> Result<u32> {

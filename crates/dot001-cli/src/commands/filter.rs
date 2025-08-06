@@ -6,7 +6,6 @@ use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
-use log::error;
 use std::path::PathBuf;
 use text_trees::StringTreeNode;
 
@@ -27,8 +26,9 @@ pub fn cmd_filter(
                 filter_triples.push((modifier, key, value));
             }
             Err(e) => {
-                error!("Failed to parse filter expression '{expr}': {e}");
-                std::process::exit(1);
+                return Err(crate::invalid_arguments_error(format!(
+                    "Failed to parse filter expression '{expr}': {e}"
+                )));
             }
         }
     }
