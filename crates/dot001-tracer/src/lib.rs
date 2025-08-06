@@ -38,12 +38,11 @@ pub mod determinizer;
 pub mod name_resolver;
 
 pub use dot001_parser::BlendFile;
-pub use dot001_parser::Result;
 
 pub use determinizer::{Determinizer, NameResolverTrait};
 use dot001_error::Dot001Error;
-/// New unified result type - preferred for new code
-pub use dot001_error::Result as UnifiedResult;
+/// Canonical result type for this crate
+pub use dot001_error::Result;
 pub use expanders::{
     CacheFileExpander, CollectionExpander, DataBlockExpander, ImageExpander, LampExpander,
     LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander,
@@ -435,20 +434,4 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
     }
 }
 
-/// Helper functions for creating unified errors with tracer context
-/// These methods are now deprecated in favor of the standardized helpers in dot001-error
 
-/// Convert unified errors to tracer context
-pub fn to_tracer_error(unified_err: Dot001Error) -> Dot001Error {
-    match unified_err {
-        Dot001Error::BlendFile {
-            message,
-            file_path,
-            block_index,
-            ..
-        } => Dot001Error::tracer_dependency_failed(message)
-            .with_file_path(file_path.unwrap_or_default())
-            .with_block_index(block_index.unwrap_or(0)),
-        other => other,
-    }
-}

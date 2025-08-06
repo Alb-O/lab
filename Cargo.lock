@@ -533,7 +533,6 @@ dependencies = [
  "pathdiff",
  "regex",
  "serde",
- "thiserror",
 ]
 
 [[package]]

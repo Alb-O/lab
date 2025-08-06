@@ -125,7 +125,7 @@ impl<R: Read + Seek> BlendFile<R> {
         debug!("Building block indices");
         blend_file.build_block_index();
 
-        info!(
+        debug!(
             "BlendFile parsing completed: {} blocks, {} expanders indexed",
             blend_file.blocks.len(),
             blend_file.block_index.len()

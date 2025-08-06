@@ -9,3 +9,7 @@ members = [
     "crates/dot001-checkpoint",
 ]
 resolver = "2"
+
+[workspace.package]
+# Minimum supported Rust version; aligns with edition 2024 features
+rust-version = "1.85"
