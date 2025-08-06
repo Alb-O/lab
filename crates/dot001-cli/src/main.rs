@@ -71,11 +71,13 @@ enum Commands {
         )]
         no_validate: bool,
     },
+    /// Display blend file header information and statistics
     #[cfg(feature = "info")]
     Info {
         #[arg(index = 1)]
         file: PathBuf,
     },
+    /// List all blocks in a blend file with their details
     #[cfg(feature = "blocks")]
     Blocks {
         #[arg(index = 1)]
@@ -83,6 +85,7 @@ enum Commands {
         #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
         show_data: bool,
     },
+    /// Trace and display dependencies for a specific block
     #[cfg(feature = "trace")]
     Dependencies {
         #[arg(index = 1)]
@@ -100,6 +103,7 @@ enum Commands {
         )]
         ascii: bool,
     },
+    /// Compare two blend files and show differences
     #[cfg(feature = "diff")]
     Diff {
         #[arg(index = 1)]
@@ -116,6 +120,7 @@ enum Commands {
         )]
         ascii: bool,
     },
+    /// Rename a datablock in a blend file
     #[cfg(feature = "editor")]
     Rename {
         #[arg(index = 1)]
@@ -130,6 +135,7 @@ enum Commands {
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
     },
+    /// Perform enhanced mesh comparison between two blend files
     #[cfg(feature = "diff")]
     MeshDiff {
         #[arg(index = 1)]
@@ -149,6 +155,7 @@ enum Commands {
         #[arg(long, help = "Output detailed analysis as JSON")]
         json: bool,
     },
+    /// Filter and search blocks based on various criteria
     #[cfg(feature = "trace")]
     Filter {
         #[arg(index = 1)]
