@@ -218,7 +218,7 @@ impl ProvenanceAnalyzer {
         // Without tracer, use a heuristic approach: look for DATA blocks near the ME block
         let search_range = 20;
         let start = me_block_index.saturating_sub(search_range);
-        let end = (me_block_index + search_range).min(file.blocks.len());
+        let end = (me_block_index + search_range).min(file.blocks_len());
 
         for block_idx in start..end {
             if block_idx == me_block_index {

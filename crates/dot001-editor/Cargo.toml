@@ -13,6 +13,6 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 log = "0.4"
 
 [features]
-default = ["tracer_integration"]
+default = []
 tracer_integration = ["dep:dot001-tracer"]
 serde = ["dep:serde"]
