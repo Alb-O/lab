@@ -1,6 +1,6 @@
 use crate::block_display::BlockInfo;
 use crate::block_ops::CommandHelper;
-use crate::output_utils::CommandSummary;
+use crate::output_utils::{CommandSummary, OutputUtils};
 use crate::util::CommandContext;
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
 use dot001_error::Dot001Error;
@@ -83,11 +83,14 @@ pub fn cmd_lib_link(
     let available_collections = find_collections_in_library(&lib_file_path)?;
 
     ctx.output.print_info("\nAvailable collections in library:");
-    for (idx, name) in &available_collections {
-        let block_info = BlockInfo::with_name(*idx, "GR".to_string(), name.clone());
-        ctx.output
-            .print_result_fmt(format_args!("  {}", block_info.display()));
-    }
+    let collection_displays: Vec<String> = available_collections
+        .iter()
+        .map(|(idx, name)| {
+            let block_info = BlockInfo::with_name(*idx, "GR".to_string(), name.clone());
+            block_info.display().to_string()
+        })
+        .collect();
+    OutputUtils::print_list(ctx, &collection_displays);
 
     // Determine target collection
     let target_collection = determine_target_collection(&available_collections, target_name)?;

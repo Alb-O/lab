@@ -21,13 +21,10 @@ pub fn cmd_mesh_diff(
     let differ = dot001_diff::BlendDiffer::new()
         .with_provenance_analysis(true)
         .with_provenance_config(|analyzer| analyzer.with_verbose(verbose_provenance));
-    ctx.output.print_info("Enhanced Mesh Diff Analysis");
-    ctx.output.print_info("==========================");
-    ctx.output
-        .print_info_fmt(format_args!("File 1: {}", file1_path.display()));
-    ctx.output
-        .print_info_fmt(format_args!("File 2: {}", file2_path.display()));
-    ctx.output.print_info("");
+    CommandSummary::new("Enhanced Mesh Diff Analysis")
+        .add_item("File 1", file1_path.display().to_string())
+        .add_item("File 2", file2_path.display().to_string())
+        .print(ctx);
 
     if let Some(mesh_id) = mesh_identifier {
         // Resolve the mesh identifier to a specific ME block index

@@ -14,6 +14,7 @@
 
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
+use crate::util::CommandContext;
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
 use dot001_tracer::{BlendFile, DependencyTracer};
 use dot001_tracer::{
@@ -29,50 +30,50 @@ pub struct DiffFormatter;
 
 impl DiffFormatter {
     /// Display diff results in flat format
-    pub fn display_flat(diff: &BlendDiff, only_modified: bool) {
+    pub fn display_flat(diff: &BlendDiff, only_modified: bool, ctx: &CommandContext) {
         if only_modified {
             info!("Showing only modified blocks");
-            println!("Modified blocks:");
+            ctx.output.print_info("Modified blocks:");
             for block_diff in &diff.block_diffs {
                 if block_diff.change_type == BlockChangeType::Modified {
-                    println!(
+                    ctx.output.print_result_fmt(format_args!(
                         "  Block {}: {} (size: {} -> {})",
                         block_diff.block_index,
                         block_diff.block_code,
                         block_diff.size_before.unwrap_or(0),
                         block_diff.size_after.unwrap_or(0)
-                    );
+                    ));
                 }
             }
         } else {
             info!("Showing all differences");
-            println!("All differences:");
+            ctx.output.print_info("All differences:");
             for block_diff in &diff.block_diffs {
                 match block_diff.change_type {
                     BlockChangeType::Modified => {
-                        println!(
+                        ctx.output.print_result_fmt(format_args!(
                             "  M Block {}: {} (size: {} -> {})",
                             block_diff.block_index,
                             block_diff.block_code,
                             block_diff.size_before.unwrap_or(0),
                             block_diff.size_after.unwrap_or(0)
-                        );
+                        ));
                     }
                     BlockChangeType::Added => {
-                        println!(
+                        ctx.output.print_result_fmt(format_args!(
                             "  + Block {}: {} (size: {})",
                             block_diff.block_index,
                             block_diff.block_code,
                             block_diff.size_after.unwrap_or(0)
-                        );
+                        ));
                     }
                     BlockChangeType::Removed => {
-                        println!(
+                        ctx.output.print_result_fmt(format_args!(
                             "  - Block {}: {} (size: {})",
                             block_diff.block_index,
                             block_diff.block_code,
                             block_diff.size_before.unwrap_or(0)
-                        );
+                        ));
                     }
                     BlockChangeType::Unchanged => {
                         // Skip unchanged blocks unless explicitly requested
@@ -89,9 +90,10 @@ impl DiffFormatter {
         _only_modified: bool,
         template: DisplayTemplate,
         ascii: bool,
+        ctx: &CommandContext,
     ) -> dot001_tracer::Result<()> {
         info!("Building hierarchical diff tree");
-        println!("Hierarchical diff tree:");
+        ctx.output.print_info("Hierarchical diff tree:");
 
         // Get all modified block indices
         let modified_blocks: Vec<&BlockDiff> = diff
@@ -101,7 +103,7 @@ impl DiffFormatter {
             .collect();
 
         if modified_blocks.is_empty() {
-            println!("  No modifications found");
+            ctx.output.print_result("  No modifications found");
             return Ok(());
         }
 
@@ -253,6 +255,8 @@ impl DiffFormatter {
             "├── "
         };
 
+        // For hierarchical display, we'll use println! to maintain formatting
+        // This is acceptable since hierarchical display has complex indentation
         match (node.block_diff.size_before, node.block_diff.size_after) {
             (Some(before), Some(after)) if before != after => {
                 println!(

@@ -1,6 +1,6 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
-use crate::block_ops::CommandHelper;
+use crate::block_ops::{BatchProcessor, CommandHelper};
 use crate::commands::DependencyTracer;
 use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
@@ -97,25 +97,16 @@ pub fn cmd_dependencies(
                     "  Found {} dependencies:",
                     filtered_deps.len()
                 ));
-                for (i, &dep_index) in filtered_deps.iter().enumerate() {
-                    if let Some(block) = blend_file.get_block(dep_index) {
-                        let size = block.header.size;
-                        let address = block.header.old_address;
-
-                        let block_info = BlockInfo::from_blend_file(dep_index, &mut blend_file)
-                            .unwrap_or_else(|_| BlockInfo::new(dep_index, "????".to_string()));
-
-                        let display = create_display_for_template(
-                            block_info,
-                            &template,
-                            Some(size as u64),
-                            Some(address),
-                        );
-
-                        ctx.output
-                            .print_result_fmt(format_args!("    {}: {}", i + 1, display));
+                let mut processor = BatchProcessor::new(&mut blend_file, ctx);
+                processor.process_blocks(
+                    &filtered_deps,
+                    &template,
+                    |index, _metadata, display, ctx| {
+                        let position = filtered_deps.iter().position(|&x| x == index).unwrap_or(0) + 1;
+                        ctx.output.print_result_fmt(format_args!("    {position}: {display}"));
+                        Ok(())
                     }
-                }
+                )?;
             }
         }
         crate::OutputFormat::Tree => {

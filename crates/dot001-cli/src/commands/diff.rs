@@ -40,6 +40,7 @@ pub fn cmd_diff(
                 only_modified,
                 template,
                 ascii,
+                ctx,
             )?;
         }
         crate::OutputFormat::Json => {
@@ -48,7 +49,7 @@ pub fn cmd_diff(
             });
         }
         crate::OutputFormat::Flat => {
-            crate::diff_formatter::DiffFormatter::display_flat(&diff_result, only_modified);
+            crate::diff_formatter::DiffFormatter::display_flat(&diff_result, only_modified, ctx);
         }
     }
     Ok(())
