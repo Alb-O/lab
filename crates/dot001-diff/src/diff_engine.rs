@@ -148,9 +148,7 @@ impl<R1: Read + Seek, R2: Read + Seek> DiffEngine for PolicyDiffEngine<R1, R2> {
         // Handle blocks only in first file (removed)
         for index in &only_in_first {
             if let Some(block) = file1.get_block(*index) {
-                let block_code_str = String::from_utf8_lossy(&block.header.code)
-                    .trim_end_matches('\0')
-                    .to_string();
+                let block_code_str = dot001_parser::block_code_to_string(block.header.code);
 
                 block_diffs.push(BlockDiff {
                     block_index: *index,
@@ -166,9 +164,7 @@ impl<R1: Read + Seek, R2: Read + Seek> DiffEngine for PolicyDiffEngine<R1, R2> {
         // Handle blocks only in second file (added)
         for index in &only_in_second {
             if let Some(block) = file2.get_block(*index) {
-                let block_code_str = String::from_utf8_lossy(&block.header.code)
-                    .trim_end_matches('\0')
-                    .to_string();
+                let block_code_str = dot001_parser::block_code_to_string(block.header.code);
 
                 block_diffs.push(BlockDiff {
                     block_index: *index,

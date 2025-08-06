@@ -120,9 +120,7 @@ impl LibPathCommand {
             ));
         }
         let block = blend_file.get_block(block_index).unwrap();
-        let block_code = String::from_utf8_lossy(&block.header.code)
-            .trim_end_matches('\0')
-            .to_string();
+        let block_code = dot001_parser::block_code_to_string(block.header.code);
         if block_code != "LI" {
             return Err(Dot001Error::editor(
                 "Block is not a linked library file (LI block)".to_string(),

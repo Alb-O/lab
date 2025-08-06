@@ -161,9 +161,7 @@ pub fn resolve_block_identifier<R: std::io::Read + std::io::Seek>(
             // Case-insensitive name matching
             if name.to_lowercase() == identifier.to_lowercase() {
                 let block_code = if let Some(block) = blend_file.get_block(block_index) {
-                    String::from_utf8_lossy(&block.header.code)
-                        .trim_end_matches('\0')
-                        .to_string()
+                    dot001_parser::block_code_to_string(block.header.code)
                 } else {
                     "????".to_string()
                 };
@@ -263,8 +261,7 @@ pub fn resolve_typed_block_or_exit<R: std::io::Read + std::io::Seek>(
             BlockResolution::Single(index) => {
                 // Verify the block type
                 if let Some(block) = blend_file.get_block(index) {
-                    let code_str = String::from_utf8_lossy(&block.header.code);
-                    let code = code_str.trim_end_matches('\0');
+                    let code = dot001_parser::block_code_to_string(block.header.code);
                     if code == expected_type {
                         log::info!(
                             "Resolved '{identifier}' to {expected_type} block at index {index}"

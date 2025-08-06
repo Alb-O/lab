@@ -41,9 +41,7 @@ impl RenameCommand {
                     EditorErrorKind::BlockNotFound,
                 ));
             };
-            String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string()
+            dot001_parser::block_code_to_string(block.header.code)
         };
         #[cfg(feature = "tracer_integration")]
         let _current_name =
@@ -110,9 +108,7 @@ impl RenameCommand {
                     EditorErrorKind::BlockNotFound,
                 ));
             };
-            String::from_utf8_lossy(&block.header.code)
-                .trim_end_matches('\0')
-                .to_string()
+            dot001_parser::block_code_to_string(block.header.code)
         };
         #[cfg(feature = "tracer_integration")]
         let _current_name =

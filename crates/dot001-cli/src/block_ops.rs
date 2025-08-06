@@ -189,9 +189,7 @@ impl ValidationHelper {
             ));
         };
 
-        let actual_type = String::from_utf8_lossy(&block.header.code)
-            .trim_end_matches('\0')
-            .to_string();
+        let actual_type = dot001_parser::block_code_to_string(block.header.code);
 
         if actual_type != expected_type {
             return Err(Dot001Error::cli(

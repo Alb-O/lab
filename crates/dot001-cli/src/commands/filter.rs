@@ -51,9 +51,7 @@ pub fn cmd_filter(
                     continue; // Skip invalid block indices
                 };
                 (
-                    String::from_utf8_lossy(&block.header.code)
-                        .trim_end_matches('\0')
-                        .to_string(),
+                    dot001_parser::block_code_to_string(block.header.code),
                     block.header.size,
                     block.header.count,
                     block.header.old_address,
@@ -95,9 +93,7 @@ pub fn cmd_filter(
                             continue; // Skip invalid block indices
                         };
                         (
-                            String::from_utf8_lossy(&block.header.code)
-                                .trim_end_matches('\0')
-                                .to_string(),
+                            dot001_parser::block_code_to_string(block.header.code),
                             block.header.size,
                             block.header.count,
                             block.header.old_address,
@@ -158,9 +154,7 @@ pub fn cmd_filter(
                 let (_code_str, size, _count, old_address, _block_offset) = {
                     let block = blend_file.get_block(i)?;
                     Some((
-                        String::from_utf8_lossy(&block.header.code)
-                            .trim_end_matches('\0')
-                            .to_string(),
+                        dot001_parser::block_code_to_string(block.header.code),
                         block.header.size,
                         block.header.count,
                         block.header.old_address,

@@ -135,8 +135,8 @@ impl ProvenanceAnalyzer {
         // Filter for DATA blocks and collect info
         for &block_idx in &referenced_blocks {
             if let Some(block) = file.get_block(block_idx) {
-                let block_code = String::from_utf8_lossy(&block.header.code);
-                if block_code.trim_end_matches('\0') == "DATA" {
+                let block_code = dot001_parser::block_code_to_string(block.header.code);
+                if block_code == "DATA" {
                     referenced_data_blocks.insert(block_idx);
 
                     let info = self.analyze_data_block(block_idx, file)?;
@@ -161,8 +161,8 @@ impl ProvenanceAnalyzer {
                 }
 
                 if let Some(block) = file.get_block(block_idx) {
-                    let block_code = String::from_utf8_lossy(&block.header.code);
-                    if block_code.trim_end_matches('\0') == "DATA" {
+                    let block_code = dot001_parser::block_code_to_string(block.header.code);
+                    if block_code == "DATA" {
                         // Be more restrictive: only include smaller DATA blocks that are likely mesh data
                         // Large blocks are more likely to be unrelated (textures, etc.)
                         if block.header.size > 8 && block.header.size < 10_000 {
@@ -226,8 +226,8 @@ impl ProvenanceAnalyzer {
             }
 
             if let Some(block) = file.get_block(block_idx) {
-                let block_code = String::from_utf8_lossy(&block.header.code);
-                if block_code.trim_end_matches('\0') == "DATA" && block.header.size > 8 {
+                let block_code = dot001_parser::block_code_to_string(block.header.code);
+                if block_code == "DATA" && block.header.size > 8 {
                     referenced_data_blocks.insert(block_idx);
                     let info = self.analyze_data_block(block_idx, file)?;
                     data_block_info.insert(block_idx, info);

@@ -192,9 +192,7 @@ impl FilterEngine {
     }
 
     fn meta_view(block: &BlendFileBlock) -> BlockMetaView {
-        let code_str = String::from_utf8_lossy(&block.header.code)
-            .trim_end_matches('\0')
-            .to_string();
+        let code_str = dot001_parser::block_code_to_string(block.header.code);
         BlockMetaView {
             header_offset: block.header_offset,
             data_offset: block.data_offset,

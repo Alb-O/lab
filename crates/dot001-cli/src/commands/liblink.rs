@@ -178,8 +178,8 @@ fn find_collections_in_library(
     let collection_indices: Vec<usize> = (0..lib_blend_file.blocks_len())
         .filter_map(|index| {
             lib_blend_file.get_block(index).and_then(|block| {
-                let block_code = String::from_utf8_lossy(&block.header.code);
-                if block_code.trim_end_matches('\0') == "GR" {
+                let block_code = dot001_parser::block_code_to_string(block.header.code);
+                if block_code == "GR" {
                     Some(index)
                 } else {
                     None
