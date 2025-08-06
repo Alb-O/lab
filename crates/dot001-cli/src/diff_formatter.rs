@@ -12,7 +12,7 @@
 //! This formatter prioritizes accuracy over visual hierarchy, showing only relationships
 //! that can be proven through dependency tracing.
 
-use crate::util::BlockDisplay;
+use crate::util::{BlockDisplay, BlockInfo, DisplayOptions, SimpleFormatter};
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
 use dot001_tracer::{BlendFile, DependencyTracer};
 use dot001_tracer::{
@@ -137,13 +137,21 @@ impl DiffFormatter {
                     // This could be a parent block - check its dependencies
                     let deps = tracer.trace_dependencies(block_diff.block_index, blend_file)?;
 
-                    let display_name = if show_names {
-                        BlockDisplay::from_blend_file(block_diff.block_index, blend_file)
-                            .unwrap_or_else(|| BlockDisplay::new(block_diff.block_code.clone()))
-                            .to_string()
+                    let block_info = BlockInfo::from_blend_file(block_diff.block_index, blend_file)
+                        .unwrap_or_else(|_| {
+                            BlockInfo::new(block_diff.block_index, block_diff.block_code.clone())
+                        });
+                    let options = if show_names {
+                        DisplayOptions::default().with_show_index(false)
                     } else {
-                        BlockDisplay::new(block_diff.block_code.clone()).to_string()
+                        DisplayOptions::default()
+                            .with_show_index(false)
+                            .with_show_name(false)
                     };
+                    let display_name = BlockDisplay::new(block_info)
+                        .with_formatter(SimpleFormatter)
+                        .with_options(options)
+                        .to_string();
 
                     let mut node = HierarchyNode {
                         block_diff: (*block_diff).clone(),
@@ -156,15 +164,25 @@ impl DiffFormatter {
                         if let Some(child_diff) =
                             modified_blocks.iter().find(|d| d.block_index == dep_index)
                         {
-                            let child_display_name = if show_names {
-                                BlockDisplay::from_blend_file(child_diff.block_index, blend_file)
-                                    .unwrap_or_else(|| {
-                                        BlockDisplay::new(child_diff.block_code.clone())
-                                    })
-                                    .to_string()
+                            let child_block_info =
+                                BlockInfo::from_blend_file(child_diff.block_index, blend_file)
+                                    .unwrap_or_else(|_| {
+                                        BlockInfo::new(
+                                            child_diff.block_index,
+                                            child_diff.block_code.clone(),
+                                        )
+                                    });
+                            let child_options = if show_names {
+                                DisplayOptions::default().with_show_index(false)
                             } else {
-                                BlockDisplay::new(child_diff.block_code.clone()).to_string()
+                                DisplayOptions::default()
+                                    .with_show_index(false)
+                                    .with_show_name(false)
                             };
+                            let child_display_name = BlockDisplay::new(child_block_info)
+                                .with_formatter(SimpleFormatter)
+                                .with_options(child_options)
+                                .to_string();
 
                             node.children.push(HierarchyNode {
                                 block_diff: (*child_diff).clone(),
@@ -189,13 +207,21 @@ impl DiffFormatter {
         // Add remaining blocks as top-level items
         for block_diff in modified_blocks {
             if !processed_indices.contains(&block_diff.block_index) {
-                let display_name = if show_names {
-                    BlockDisplay::from_blend_file(block_diff.block_index, blend_file)
-                        .unwrap_or_else(|| BlockDisplay::new(block_diff.block_code.clone()))
-                        .to_string()
+                let block_info = BlockInfo::from_blend_file(block_diff.block_index, blend_file)
+                    .unwrap_or_else(|_| {
+                        BlockInfo::new(block_diff.block_index, block_diff.block_code.clone())
+                    });
+                let options = if show_names {
+                    DisplayOptions::default().with_show_index(false)
                 } else {
-                    BlockDisplay::new(block_diff.block_code.clone()).to_string()
+                    DisplayOptions::default()
+                        .with_show_index(false)
+                        .with_show_name(false)
                 };
+                let display_name = BlockDisplay::new(block_info)
+                    .with_formatter(SimpleFormatter)
+                    .with_options(options)
+                    .to_string();
 
                 hierarchy.push(HierarchyNode {
                     block_diff: (*block_diff).clone(),

@@ -1,4 +1,4 @@
-use crate::util::{BlockRef, CommandContext};
+use crate::util::{BlockInfo, CommandContext};
 use dot001_error::Dot001Error;
 use std::path::PathBuf;
 
@@ -25,11 +25,12 @@ pub fn cmd_blocks(
         })
         .collect();
     for (i, _code_str, size, address) in block_info {
-        let block_ref = BlockRef::from_blend_file(i, &mut blend_file)
-            .unwrap_or_else(|| BlockRef::new(i, "????".to_string()));
+        let block_info = BlockInfo::from_blend_file(i, &mut blend_file)
+            .unwrap_or_else(|_| BlockInfo::new(i, "????".to_string()));
 
         ctx.output.print_result_fmt(format_args!(
-            "  {block_ref} (size: {size}, addr: 0x{address:x})"
+            "  {} (size: {size}, addr: 0x{address:x})",
+            block_info.display()
         ));
     }
     Ok(())

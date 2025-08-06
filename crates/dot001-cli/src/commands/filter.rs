@@ -1,5 +1,5 @@
 use crate::commands::NameResolver;
-use crate::util::{BlockRef, CommandContext, highlight_matches};
+use crate::util::{BlockInfo, CommandContext, highlight_matches};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use log::error;
@@ -101,14 +101,15 @@ pub fn cmd_filter(
                             block.header_offset,
                         )
                     };
-                    let block_ref = BlockRef::from_blend_file(i, &mut blend_file)
-                        .unwrap_or_else(|| BlockRef::new(i, "????".to_string()));
+                    let block_info = BlockInfo::from_blend_file(i, &mut blend_file)
+                        .unwrap_or_else(|_| BlockInfo::new(i, "????".to_string()));
 
                     if verbose_details {
                         ctx.output.print_result_fmt(format_args!(
-                            "Block {block_ref} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
+                            "Block {} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})",
+                            block_info.display()
                         ));
-                        if let Some(name) = &block_ref.name {
+                        if let Some(name) = &block_info.name {
                             if !name.is_empty() {
                                 let highlighted_name =
                                     highlight_matches(name, &filter_slice_triples);
@@ -117,21 +118,12 @@ pub fn cmd_filter(
                             }
                         }
                     } else {
-                        let display = if let Some(name) = &block_ref.name {
-                            if !name.is_empty() {
-                                let highlighted_name =
-                                    highlight_matches(name, &filter_slice_triples);
-                                format!(
-                                    "{}: {} ({})",
-                                    block_ref.index, block_ref.code, highlighted_name
-                                )
-                            } else {
-                                block_ref.to_string()
-                            }
-                        } else {
-                            block_ref.to_string()
-                        };
-                        ctx.output.print_result(&display);
+                        let filter_patterns: Vec<(String, String, String)> = filter_slice_triples
+                            .iter()
+                            .map(|(m, k, v)| (m.to_string(), k.to_string(), v.to_string()))
+                            .collect();
+                        let display = block_info.display().with_highlighting(filter_patterns);
+                        ctx.output.print_result(&display.to_string());
                     }
                 }
             }
@@ -172,21 +164,17 @@ pub fn cmd_filter(
                         block.header_offset,
                     ))
                 }?;
-                let block_ref = BlockRef::from_blend_file(i, blend_file)?;
-
-                let label = if let Some(name) = &block_ref.name {
-                    if !name.is_empty() {
-                        let highlighted_name = highlight_matches(name, filter_expressions);
-                        format!(
-                            "{}: {} ({})",
-                            block_ref.index, block_ref.code, highlighted_name
-                        )
-                    } else {
-                        block_ref.to_string()
-                    }
-                } else {
-                    block_ref.to_string()
+                let block_info = match BlockInfo::from_blend_file(i, blend_file) {
+                    Ok(info) => info,
+                    Err(_) => return None,
                 };
+
+                let filter_patterns: Vec<(String, String, String)> = filter_expressions
+                    .iter()
+                    .map(|(m, k, v)| (m.to_string(), k.to_string(), v.to_string()))
+                    .collect();
+                let display = block_info.display().with_highlighting(filter_patterns);
+                let label = display.to_string();
                 Some(StringTreeNode::new(label))
             })
             .collect();

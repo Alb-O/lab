@@ -6,6 +6,7 @@ use dot001_tracer::NameResolver;
 use log::warn;
 use owo_colors::OwoColorize;
 use regex::Regex;
+use std::cell::OnceCell;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -139,15 +140,15 @@ pub fn highlight_matches(text: &str, filter_expressions: &[(&str, &str, &str)]) 
     result
 }
 
-/// Semantic representation of a block reference for display purposes
+/// Pure data structure representing a block - no display logic
 #[derive(Debug, Clone)]
-pub struct BlockRef {
+pub struct BlockInfo {
     pub index: usize,
     pub code: String,
     pub name: Option<String>,
 }
 
-impl BlockRef {
+impl BlockInfo {
     pub fn new(index: usize, code: String) -> Self {
         Self {
             index,
@@ -167,14 +168,19 @@ impl BlockRef {
     pub fn from_blend_file<R: std::io::Read + std::io::Seek>(
         index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Option<Self> {
-        let block = blend_file.get_block(index)?;
+    ) -> Result<Self, dot001_error::Dot001Error> {
+        let block = blend_file.get_block(index).ok_or_else(|| {
+            dot001_error::Dot001Error::blend_file(
+                format!("Block index {index} out of range"),
+                dot001_error::BlendFileErrorKind::InvalidBlockIndex,
+            )
+        })?;
         let code = String::from_utf8_lossy(&block.header.code)
             .trim_end_matches('\0')
             .to_string();
         let name = NameResolver::resolve_name(index, blend_file);
 
-        Some(if let Some(name) = name {
+        Ok(if let Some(name) = name {
             Self::with_name(index, code, name)
         } else {
             Self::new(index, code)
@@ -182,67 +188,183 @@ impl BlockRef {
     }
 }
 
-impl fmt::Display for BlockRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let colored_index = colorize_index(self.index);
-        let colored_code = colorize_code(&self.code);
+/// Centralized display configuration
+#[derive(Debug, Clone)]
+pub struct DisplayOptions {
+    pub show_index: bool,
+    pub show_name: bool,
+    pub use_colors: bool,
+}
 
-        if let Some(name) = &self.name {
-            let colored_name = colorize_name(name);
-            write!(f, "{colored_index}: {colored_code} ({colored_name})")
+impl DisplayOptions {
+    pub fn default() -> Self {
+        Self {
+            show_index: true,
+            show_name: true,
+            use_colors: should_use_colors(),
+        }
+    }
+
+    pub fn with_show_name(mut self, show_name: bool) -> Self {
+        self.show_name = show_name;
+        self
+    }
+
+    pub fn with_show_index(mut self, show_index: bool) -> Self {
+        self.show_index = show_index;
+        self
+    }
+}
+
+/// Trait for block formatting strategies
+pub trait BlockFormatter: Send + Sync {
+    fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String;
+}
+
+/// Simple formatter: "ME (CubeMesh)" or "ME"
+pub struct SimpleFormatter;
+
+impl BlockFormatter for SimpleFormatter {
+    fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
+        let code = if options.use_colors {
+            colorize_code(&block.code)
         } else {
-            write!(f, "{colored_index}: {colored_code}")
+            block.code.clone()
+        };
+
+        if options.show_name {
+            if let Some(name) = &block.name {
+                let name_str = if options.use_colors {
+                    colorize_name(name)
+                } else {
+                    name.clone()
+                };
+                format!("{code} ({name_str})")
+            } else {
+                code
+            }
+        } else {
+            code
         }
     }
 }
 
-/// Semantic representation of a block display (without index) for display purposes
-#[derive(Debug, Clone)]
+/// Indexed formatter: "42: ME (CubeMesh)" or "42: ME"
+pub struct IndexedFormatter;
+
+impl BlockFormatter for IndexedFormatter {
+    fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
+        let index = if options.use_colors {
+            colorize_index(block.index)
+        } else {
+            block.index.to_string()
+        };
+
+        let simple = SimpleFormatter.format(block, options);
+
+        if options.show_index {
+            format!("{index}: {simple}")
+        } else {
+            simple
+        }
+    }
+}
+
+/// Highlighting wrapper formatter
+pub struct HighlightFormatter {
+    inner: Box<dyn BlockFormatter>,
+    patterns: Vec<(String, String, String)>,
+}
+
+impl HighlightFormatter {
+    pub fn new(inner: Box<dyn BlockFormatter>, patterns: Vec<(String, String, String)>) -> Self {
+        Self { inner, patterns }
+    }
+}
+
+impl BlockFormatter for HighlightFormatter {
+    fn format(&self, block: &BlockInfo, options: &DisplayOptions) -> String {
+        let base_format = self.inner.format(block, options);
+
+        if options.use_colors && !self.patterns.is_empty() {
+            let filter_slice_triples: Vec<(&str, &str, &str)> = self
+                .patterns
+                .iter()
+                .map(|(m, k, v)| (m.as_str(), k.as_str(), v.as_str()))
+                .collect();
+            highlight_matches(&base_format, &filter_slice_triples)
+        } else {
+            base_format
+        }
+    }
+}
+
+/// Main display wrapper with lazy evaluation and caching
 pub struct BlockDisplay {
-    pub code: String,
-    pub name: Option<String>,
+    block: BlockInfo,
+    formatter: Box<dyn BlockFormatter>,
+    options: DisplayOptions,
+    cached: OnceCell<String>,
 }
 
 impl BlockDisplay {
-    pub fn new(code: String) -> Self {
-        Self { code, name: None }
-    }
-
-    pub fn with_name(code: String, name: String) -> Self {
+    pub fn new(block: BlockInfo) -> Self {
         Self {
-            code,
-            name: Some(name),
+            block,
+            formatter: Box::new(IndexedFormatter),
+            options: DisplayOptions::default(),
+            cached: OnceCell::new(),
         }
     }
 
-    pub fn from_blend_file<R: std::io::Read + std::io::Seek>(
-        index: usize,
-        blend_file: &mut BlendFile<R>,
-    ) -> Option<Self> {
-        let block = blend_file.get_block(index)?;
-        let code = String::from_utf8_lossy(&block.header.code)
-            .trim_end_matches('\0')
-            .to_string();
-        let name = NameResolver::resolve_name(index, blend_file);
+    pub fn with_formatter<F: BlockFormatter + 'static>(mut self, formatter: F) -> Self {
+        self.formatter = Box::new(formatter);
+        self.cached = OnceCell::new(); // Clear cache
+        self
+    }
 
-        Some(if let Some(name) = name {
-            Self::with_name(code, name)
-        } else {
-            Self::new(code)
-        })
+    pub fn with_options(mut self, options: DisplayOptions) -> Self {
+        self.options = options;
+        self.cached = OnceCell::new(); // Clear cache
+        self
+    }
+
+    pub fn with_highlighting(self, patterns: Vec<(String, String, String)>) -> Self {
+        // Move current formatter into highlight wrapper
+        let highlighted = HighlightFormatter::new(self.formatter, patterns);
+        Self {
+            block: self.block,
+            formatter: Box::new(highlighted),
+            options: self.options,
+            cached: OnceCell::new(),
+        }
+    }
+
+    fn render(&self) -> &String {
+        self.cached
+            .get_or_init(|| self.formatter.format(&self.block, &self.options))
     }
 }
 
 impl fmt::Display for BlockDisplay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let colored_code = colorize_code(&self.code);
+        write!(f, "{}", self.render())
+    }
+}
 
-        if let Some(name) = &self.name {
-            let colored_name = colorize_name(name);
-            write!(f, "{colored_code} ({colored_name})")
-        } else {
-            write!(f, "{colored_code}")
-        }
+impl std::ops::Deref for BlockDisplay {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.render()
+    }
+}
+
+// Helper functions for easier migration
+impl BlockInfo {
+    /// Create a BlockDisplay from this BlockInfo with default formatting
+    pub fn display(&self) -> BlockDisplay {
+        BlockDisplay::new(self.clone())
     }
 }
 
@@ -359,19 +481,23 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
     warn!("Multiple blocks found with name '{identifier}':");
     eprintln!();
     for (i, block_match) in matches.iter().enumerate() {
-        let block_ref = BlockRef::with_name(
+        let block_info = BlockInfo::with_name(
             block_match.index,
             block_match.block_code.clone(),
             block_match.name.clone(),
         );
-        eprintln!("  {}: Block {}", i + 1, block_ref);
+        eprintln!("  {}: Block {}", i + 1, block_info.display());
     }
     eprintln!();
     eprintln!("Please re-run the command using a specific block index:");
     for block_match in matches {
         let colored_index = colorize_index(block_match.index);
-        let block_display =
-            BlockDisplay::with_name(block_match.block_code.clone(), block_match.name.clone());
+        let block_info = BlockInfo::with_name(
+            block_match.index,
+            block_match.block_code.clone(),
+            block_match.name.clone(),
+        );
+        let block_display = BlockDisplay::new(block_info).with_formatter(SimpleFormatter);
         eprintln!("  --block-index {colored_index} (for {block_display})");
     }
 }

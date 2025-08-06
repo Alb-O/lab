@@ -1,4 +1,4 @@
-use crate::util::{BlockDisplay, BlockRef, CommandContext};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, SimpleFormatter};
 use dot001_error::Dot001Error;
 use log::error;
 use std::path::PathBuf;
@@ -39,13 +39,13 @@ pub fn cmd_mesh_diff(
                         Err(e) => error!("Failed to serialize to JSON: {e}"),
                     }
                 } else {
-                    let block_ref = BlockRef::from_blend_file(me_index, &mut blend_file1)
-                        .unwrap_or_else(|| BlockRef::new(me_index, "ME".to_string()));
-                    let me_display = BlockDisplay::from_blend_file(me_index, &mut blend_file1)
-                        .unwrap_or_else(|| BlockDisplay::new("ME".to_string()));
+                    let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
+                        .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
+                    let me_display =
+                        BlockDisplay::new(block_info.clone()).with_formatter(SimpleFormatter);
                     ctx.output.print_info_fmt(format_args!(
                         "Analysis for ME block {} ({}):",
-                        block_ref.index, me_display
+                        block_info.index, me_display
                     ));
                     ctx.output.print_result_fmt(format_args!(
                         "  Classification: {:?}",
@@ -109,13 +109,13 @@ pub fn cmd_mesh_diff(
             match differ.analyze_mesh_block(me_index, &mut blend_file1, &mut blend_file2) {
                 Ok(analysis) => {
                     if !json {
-                        let block_ref = BlockRef::from_blend_file(me_index, &mut blend_file1)
-                            .unwrap_or_else(|| BlockRef::new(me_index, "ME".to_string()));
-                        let me_display = BlockDisplay::from_blend_file(me_index, &mut blend_file1)
-                            .unwrap_or_else(|| BlockDisplay::new("ME".to_string()));
+                        let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
+                            .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
+                        let me_display =
+                            BlockDisplay::new(block_info.clone()).with_formatter(SimpleFormatter);
                         ctx.output.print_result_fmt(format_args!(
                             "ME block {} ({}): {} ({})",
-                            block_ref.index,
+                            block_info.index,
                             me_display,
                             if analysis.is_true_edit {
                                 "TRUE EDIT"

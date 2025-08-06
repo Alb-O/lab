@@ -1,4 +1,4 @@
-use crate::util::{BlockDisplay, CommandContext, colorize_name};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, SimpleFormatter, colorize_name};
 use dot001_error::Dot001Error;
 use log::{error, info};
 use std::path::PathBuf;
@@ -36,7 +36,9 @@ pub fn cmd_rename(
 
     match current_name_opt {
         Some(current_name) => {
-            let block_display = BlockDisplay::with_name(block_code.clone(), current_name.clone());
+            let block_info =
+                BlockInfo::with_name(block_index, block_code.clone(), current_name.clone());
+            let block_display = BlockDisplay::new(block_info).with_formatter(SimpleFormatter);
             let _colored_current_name = colorize_name(&current_name);
             let colored_new_name = colorize_name(&new_name);
             if dry_run {

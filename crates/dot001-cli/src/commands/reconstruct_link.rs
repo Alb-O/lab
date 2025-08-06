@@ -1,4 +1,4 @@
-use crate::util::CommandContext;
+use crate::util::{BlockInfo, CommandContext};
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
@@ -80,8 +80,9 @@ pub fn cmd_reconstruct_link(
 
     ctx.output.print_info("\nAvailable collections in library:");
     for (idx, name) in &available_collections {
+        let block_info = BlockInfo::with_name(*idx, "GR".to_string(), name.clone());
         ctx.output
-            .print_result_fmt(format_args!("  Block {idx}: '{name}'"));
+            .print_result_fmt(format_args!("  {}", block_info.display()));
     }
 
     // Determine target collection

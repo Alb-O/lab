@@ -1,5 +1,5 @@
 use crate::commands::DependencyTracer;
-use crate::util::{BlockDisplay, BlockRef, CommandContext};
+use crate::util::{BlockDisplay, BlockInfo, CommandContext, DisplayOptions, SimpleFormatter};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::DependencyNode;
@@ -61,13 +61,13 @@ pub fn cmd_dependencies(
                     .print_info_fmt(format_args!("  Found {} dependencies:", deps.len()));
                 for (i, &dep_index) in deps.iter().enumerate() {
                     if let Some(_block) = blend_file.get_block(dep_index) {
-                        // We don't need the code_str anymore since BlockRef handles it
-                        let block_ref = BlockRef::from_blend_file(dep_index, &mut blend_file)
-                            .unwrap_or_else(|| BlockRef::new(dep_index, "????".to_string()));
+                        // We don't need the code_str anymore since BlockInfo handles it
+                        let block_info = BlockInfo::from_blend_file(dep_index, &mut blend_file)
+                            .unwrap_or_else(|_| BlockInfo::new(dep_index, "????".to_string()));
                         ctx.output.print_result_fmt(format_args!(
                             "    {}: Block {}",
                             i + 1,
-                            block_ref
+                            block_info.display()
                         ));
                     }
                 }
@@ -120,17 +120,21 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     blend_file: &mut BlendFile<R>,
     show_names: bool,
 ) -> StringTreeNode {
-    let display_code = if show_names {
-        BlockDisplay::from_blend_file(node.block_index, blend_file)
-            .unwrap_or_else(|| BlockDisplay::new(node.block_code.clone()))
+    let block_info = BlockInfo::from_blend_file(node.block_index, blend_file)
+        .unwrap_or_else(|_| BlockInfo::new(node.block_index, node.block_code.clone()));
+
+    let display_options = if show_names {
+        DisplayOptions::default()
     } else {
-        BlockDisplay::new(node.block_code.clone())
+        DisplayOptions::default().with_show_name(false)
     };
-    let block_ref = BlockRef::from_blend_file(node.block_index, blend_file)
-        .unwrap_or_else(|| BlockRef::new(node.block_index, node.block_code.clone()));
+
+    let display_code = BlockDisplay::new(block_info.clone())
+        .with_formatter(SimpleFormatter)
+        .with_options(display_options);
     let label = format!(
         "Block {} ({}) - size: {}, addr: 0x{:x}",
-        block_ref.index, display_code, node.block_size, node.block_address
+        block_info.index, display_code, node.block_size, node.block_address
     );
     if node.children.is_empty() {
         StringTreeNode::new(label)
