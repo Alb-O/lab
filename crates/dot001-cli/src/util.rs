@@ -76,16 +76,6 @@ impl OutputHandler {
     pub fn print_error(&self, text: &str) {
         eprintln!("{text}");
     }
-
-    /// Print a block reference with automatic colorization
-    pub fn print_block_ref(&self, block_ref: &BlockRef) {
-        self.print_result(&block_ref.to_string());
-    }
-
-    /// Print a block display with automatic colorization
-    pub fn print_block_display(&self, block_display: &BlockDisplay) {
-        self.print_result(&block_display.to_string());
-    }
 }
 
 // Colorization helpers

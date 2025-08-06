@@ -1,7 +1,5 @@
 use crate::commands::NameResolver;
-use crate::util::{
-    CommandContext, colorize_code, colorize_index, colorize_name, highlight_matches,
-};
+use crate::util::{BlockRef, CommandContext, highlight_matches};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use log::error;
@@ -89,7 +87,7 @@ pub fn cmd_filter(
                 let mut sorted_indices: Vec<_> = filtered_indices.into_iter().collect();
                 sorted_indices.sort();
                 for &i in &sorted_indices {
-                    let (code_str, size, count, old_address, block_offset) = {
+                    let (_code_str, size, count, old_address, block_offset) = {
                         let Some(block) = blend_file.get_block(i) else {
                             continue; // Skip invalid block indices
                         };
@@ -103,38 +101,37 @@ pub fn cmd_filter(
                             block.header_offset,
                         )
                     };
-                    let name = NameResolver::resolve_name(i, &mut blend_file);
-                    let colored_index = colorize_index(i);
-                    let colored_code = colorize_code(&code_str);
+                    let block_ref = BlockRef::from_blend_file(i, &mut blend_file)
+                        .unwrap_or_else(|| BlockRef::new(i, "????".to_string()));
 
                     if verbose_details {
                         ctx.output.print_result_fmt(format_args!(
-                            "Block {colored_index}: {colored_code} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
+                            "Block {block_ref} (size: {size}, count: {count}, addr: {old_address:#x}, offset: {block_offset})"
                         ));
-                        if let Some(name) = &name {
+                        if let Some(name) = &block_ref.name {
                             if !name.is_empty() {
-                                let colored_name = colorize_name(name);
                                 let highlighted_name =
-                                    highlight_matches(&colored_name, &filter_slice_triples);
+                                    highlight_matches(name, &filter_slice_triples);
                                 ctx.output
                                     .print_result_fmt(format_args!("  Name: {highlighted_name}"));
                             }
                         }
-                    } else if let Some(name) = &name {
-                        if !name.is_empty() {
-                            let colored_name = colorize_name(name);
-                            let highlighted_name =
-                                highlight_matches(&colored_name, &filter_slice_triples);
-                            ctx.output.print_result_fmt(format_args!(
-                                "{colored_index}: {colored_code} ({highlighted_name})"
-                            ));
-                        } else {
-                            ctx.output
-                                .print_result_fmt(format_args!("{colored_index}: {colored_code}"));
-                        }
                     } else {
-                        ctx.output
-                            .print_result_fmt(format_args!("{colored_index}: {colored_code}"));
+                        let display = if let Some(name) = &block_ref.name {
+                            if !name.is_empty() {
+                                let highlighted_name =
+                                    highlight_matches(name, &filter_slice_triples);
+                                format!(
+                                    "{}: {} ({})",
+                                    block_ref.index, block_ref.code, highlighted_name
+                                )
+                            } else {
+                                block_ref.to_string()
+                            }
+                        } else {
+                            block_ref.to_string()
+                        };
+                        ctx.output.print_result(&display);
                     }
                 }
             }
@@ -163,7 +160,7 @@ pub fn cmd_filter(
         let children: Vec<StringTreeNode> = sorted_indices
             .iter()
             .filter_map(|&i| {
-                let (code_str, _size, _count, _old_address, _block_offset) = {
+                let (_code_str, _size, _count, _old_address, _block_offset) = {
                     let block = blend_file.get_block(i)?;
                     Some((
                         String::from_utf8_lossy(&block.header.code)
@@ -175,20 +172,20 @@ pub fn cmd_filter(
                         block.header_offset,
                     ))
                 }?;
-                let name = NameResolver::resolve_name(i, blend_file);
-                let colored_index = colorize_index(i);
-                let colored_code = colorize_code(&code_str);
+                let block_ref = BlockRef::from_blend_file(i, blend_file)?;
 
-                let label = if let Some(name) = name {
+                let label = if let Some(name) = &block_ref.name {
                     if !name.is_empty() {
-                        let colored_name = colorize_name(&name);
-                        let highlighted_name = highlight_matches(&colored_name, filter_expressions);
-                        format!("{colored_index}: {colored_code} ({highlighted_name})")
+                        let highlighted_name = highlight_matches(name, filter_expressions);
+                        format!(
+                            "{}: {} ({})",
+                            block_ref.index, block_ref.code, highlighted_name
+                        )
                     } else {
-                        format!("{colored_index}: {colored_code}")
+                        block_ref.to_string()
                     }
                 } else {
-                    format!("{colored_index}: {colored_code}")
+                    block_ref.to_string()
                 };
                 Some(StringTreeNode::new(label))
             })

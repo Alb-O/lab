@@ -1,5 +1,5 @@
-use crate::commands::{DependencyTracer, NameResolver};
-use crate::util::{CommandContext, colorize_code, colorize_index, colorize_name};
+use crate::commands::DependencyTracer;
+use crate::util::{BlockDisplay, BlockRef, CommandContext};
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::DependencyNode;
@@ -60,27 +60,14 @@ pub fn cmd_dependencies(
                 ctx.output
                     .print_info_fmt(format_args!("  Found {} dependencies:", deps.len()));
                 for (i, &dep_index) in deps.iter().enumerate() {
-                    if let Some(block) = blend_file.get_block(dep_index) {
-                        // Copy code bytes to avoid borrowing issues
-                        let code_bytes = block.header.code;
-                        let code_len = code_bytes.iter().position(|&b| b == 0).unwrap_or(4);
-                        let code_str =
-                            std::str::from_utf8(&code_bytes[..code_len]).unwrap_or("????");
-                        let colored_index = colorize_index(dep_index);
-                        let colored_code = colorize_code(code_str);
-                        let display_name =
-                            match NameResolver::resolve_name(dep_index, &mut blend_file) {
-                                Some(name) if !name.is_empty() => {
-                                    let colored_name = colorize_name(&name);
-                                    format!("{colored_code} ({colored_name})")
-                                }
-                                _ => colored_code,
-                            };
+                    if let Some(_block) = blend_file.get_block(dep_index) {
+                        // We don't need the code_str anymore since BlockRef handles it
+                        let block_ref = BlockRef::from_blend_file(dep_index, &mut blend_file)
+                            .unwrap_or_else(|| BlockRef::new(dep_index, "????".to_string()));
                         ctx.output.print_result_fmt(format_args!(
-                            "    {}: Block {} ({})",
+                            "    {}: Block {}",
                             i + 1,
-                            colored_index,
-                            display_name
+                            block_ref
                         ));
                     }
                 }
@@ -133,23 +120,17 @@ pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
     blend_file: &mut BlendFile<R>,
     show_names: bool,
 ) -> StringTreeNode {
-    let colored_code = colorize_code(&node.block_code);
     let display_code = if show_names {
-        match NameResolver::resolve_name(node.block_index, blend_file) {
-            Some(name) if !name.is_empty() => {
-                let colored_name = colorize_name(&name);
-                format!("{colored_code} ({colored_name})")
-            }
-            _ => colored_code.clone(),
-        }
+        BlockDisplay::from_blend_file(node.block_index, blend_file)
+            .unwrap_or_else(|| BlockDisplay::new(node.block_code.clone()))
     } else {
-        colored_code
+        BlockDisplay::new(node.block_code.clone())
     };
-    // Use format! for this complex label - the readability benefit outweighs minor perf cost
-    let colored_index = colorize_index(node.block_index);
+    let block_ref = BlockRef::from_blend_file(node.block_index, blend_file)
+        .unwrap_or_else(|| BlockRef::new(node.block_index, node.block_code.clone()));
     let label = format!(
         "Block {} ({}) - size: {}, addr: 0x{:x}",
-        colored_index, display_code, node.block_size, node.block_address
+        block_ref.index, display_code, node.block_size, node.block_address
     );
     if node.children.is_empty() {
         StringTreeNode::new(label)

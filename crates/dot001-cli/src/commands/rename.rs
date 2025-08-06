@@ -1,4 +1,4 @@
-use crate::util::{CommandContext, colorize_code, colorize_name};
+use crate::util::{BlockDisplay, CommandContext, colorize_name};
 use dot001_error::Dot001Error;
 use log::{error, info};
 use std::path::PathBuf;
@@ -36,17 +36,13 @@ pub fn cmd_rename(
 
     match current_name_opt {
         Some(current_name) => {
-            let colored_code = colorize_code(&block_code);
-            let colored_current_name = colorize_name(&current_name);
+            let block_display = BlockDisplay::with_name(block_code.clone(), current_name.clone());
+            let _colored_current_name = colorize_name(&current_name);
             let colored_new_name = colorize_name(&new_name);
             if dry_run {
-                info!(
-                    "Would rename {colored_code} block '{colored_current_name}' to '{colored_new_name}'"
-                );
+                info!("Would rename {block_display} block to '{colored_new_name}'");
             } else {
-                info!(
-                    "Renaming {colored_code} block '{colored_current_name}' to '{colored_new_name}'"
-                );
+                info!("Renaming {block_display} block to '{colored_new_name}'");
                 match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
                     Ok(()) => {
                         #[cfg(feature = "trace")]
