@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Allow unused public API functions
+
 mod block_display;
 mod block_ops;
 mod block_utils;

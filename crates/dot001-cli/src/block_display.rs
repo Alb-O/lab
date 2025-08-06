@@ -268,6 +268,7 @@ impl DetailedFormatter {
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_offset(mut self, offset: u64) -> Self {
         self.offset = Some(offset);
         self
@@ -315,6 +316,7 @@ pub struct HighlightFormatter {
 }
 
 impl HighlightFormatter {
+    #[allow(dead_code)]
     pub fn new(inner: Box<dyn BlockFormatter>, patterns: Vec<(String, String, String)>) -> Self {
         Self { inner, patterns }
     }
@@ -361,6 +363,7 @@ impl BlockDisplay {
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_highlighting(self, patterns: Vec<(String, String, String)>) -> Self {
         // Move current formatter into highlight wrapper
         let highlighted = HighlightFormatter::new(self.formatter, patterns);

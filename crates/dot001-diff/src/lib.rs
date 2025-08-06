@@ -25,6 +25,8 @@
 //! This crate serves as a foundation for future development but should not be
 //! considered complete or production-ready.
 
+pub mod diff_engine;
+pub mod policies;
 pub mod provenance;
 
 use dot001_error::Result;
@@ -33,6 +35,16 @@ use dot001_parser::BlendFile;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek};
 
+/// Trait alias for readable and seekable streams
+pub trait ReadSeek: Read + Seek {}
+
+// Blanket implementation for all types that satisfy the bounds
+impl<T: Read + Seek> ReadSeek for T {}
+
+pub use diff_engine::{DiffEngine, PolicyDiffEngine};
+pub use policies::{
+    BinaryDiffPolicy, BlockDiffPolicy, MeshContentDiffPolicy, PolicyRegistry, SizeBasedDiffPolicy,
+};
 pub use provenance::{
     DataBlockCorrelation, DataBlockInfo, DataChangeClass, MeshAnalysisResult, ProvenanceAnalyzer,
     ProvenanceGraph,
@@ -104,6 +116,11 @@ impl BlendDiffer {
             provenance_analyzer: ProvenanceAnalyzer::new(),
             enable_provenance_analysis: false,
         }
+    }
+
+    /// Create a new BlendDiffer using the policy-based architecture
+    pub fn with_policies<R1: ReadSeek, R2: ReadSeek>() -> PolicyDiffEngine<R1, R2> {
+        PolicyDiffEngine::with_default_policies()
     }
 
     /// Enable enhanced provenance-based analysis for ME blocks

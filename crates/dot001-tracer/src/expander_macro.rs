@@ -2,11 +2,11 @@
 ///
 /// This module provides macros to simplify the creation of block expanders
 /// by generating common patterns for pointer field reading and array traversal.
-
 /// Generate a basic block expander with simple pointer field dependencies
 ///
 /// # Example
 /// ```rust
+/// use dot001_tracer::simple_expander;
 /// simple_expander! {
 ///     ObjectExpander, b"OB\0\0", "Object" => {
 ///         single_fields: ["data"],
@@ -59,7 +59,7 @@ macro_rules! simple_expander {
                     }
                 )*
 
-                Ok(crate::ExpandResult::new(dependencies))
+                Ok($crate::ExpandResult::new(dependencies))
             }
 
             fn can_handle(&self, code: &[u8; 4]) -> bool {
@@ -73,6 +73,7 @@ macro_rules! simple_expander {
 ///
 /// # Example
 /// ```rust
+/// use dot001_tracer::custom_expander;
 /// custom_expander! {
 ///     MaterialExpander, b"MA\0\0" => |block_index, blend_file| {
 ///         let mut dependencies = Vec::new();
@@ -96,7 +97,7 @@ macro_rules! custom_expander {
                 $blend_file: &mut dot001_parser::BlendFile<R>,
             ) -> dot001_parser::Result<$crate::ExpandResult> {
                 let dependencies: Vec<usize> = $custom_logic;
-                Ok(crate::ExpandResult::new(dependencies))
+                Ok($crate::ExpandResult::new(dependencies))
             }
 
             fn can_handle(&self, code: &[u8; 4]) -> bool {
@@ -110,9 +111,11 @@ macro_rules! custom_expander {
 ///
 /// # Example
 /// ```rust
+/// use dot001_tracer::hybrid_expander;
 /// hybrid_expander! {
 ///     MaterialExpander, b"MA\0\0", "Material" => {
 ///         single_fields: ["nodetree"],
+///         array_fields: [],
 ///         custom: |block_index, blend_file, dependencies| {
 ///             // Add custom mtex processing logic
 ///         }
@@ -168,7 +171,7 @@ macro_rules! hybrid_expander {
                 // Execute custom logic
                 $custom_logic
 
-                Ok(crate::ExpandResult::new($dependencies))
+                Ok($crate::ExpandResult::new($dependencies))
             }
 
             fn can_handle(&self, code: &[u8; 4]) -> bool {
@@ -180,8 +183,6 @@ macro_rules! hybrid_expander {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // These are compile-time tests to ensure the macros generate valid code
 
     simple_expander! {
@@ -192,7 +193,7 @@ mod tests {
     }
 
     custom_expander! {
-        TestCustomExpander, b"TC\0\0" => |block_index, blend_file| {
+        TestCustomExpander, b"TC\0\0" => |block_index, _blend_file| {
             vec![block_index] // Just return self for testing
         }
     }

@@ -106,11 +106,21 @@ custom_expander! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BlockExpander;
 
     #[test]
     fn test_scene_expander_macro_can_handle() {
+        use std::io::Cursor;
         let expander = SceneExpanderMacro;
-        assert!(expander.can_handle(b"SC\0\0"));
-        assert!(!expander.can_handle(b"OB\0\0"));
+        assert!(
+            <SceneExpanderMacro as BlockExpander<Cursor<Vec<u8>>>>::can_handle(
+                &expander, b"SC\0\0"
+            )
+        );
+        assert!(
+            !<SceneExpanderMacro as BlockExpander<Cursor<Vec<u8>>>>::can_handle(
+                &expander, b"OB\0\0"
+            )
+        );
     }
 }

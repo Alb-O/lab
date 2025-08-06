@@ -50,11 +50,21 @@ hybrid_expander! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BlockExpander;
 
     #[test]
     fn test_material_expander_macro_can_handle() {
+        use std::io::Cursor;
         let expander = MaterialExpanderMacro;
-        assert!(expander.can_handle(b"MA\0\0"));
-        assert!(!expander.can_handle(b"ME\0\0"));
+        assert!(
+            <MaterialExpanderMacro as BlockExpander<Cursor<Vec<u8>>>>::can_handle(
+                &expander, b"MA\0\0"
+            )
+        );
+        assert!(
+            !<MaterialExpanderMacro as BlockExpander<Cursor<Vec<u8>>>>::can_handle(
+                &expander, b"ME\0\0"
+            )
+        );
     }
 }

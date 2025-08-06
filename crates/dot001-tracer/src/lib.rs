@@ -41,6 +41,7 @@ pub mod name_resolver;
 pub use dot001_parser::BlendFile;
 
 pub use determinizer::{Determinizer, NameResolverTrait};
+// Macros are automatically available at crate root due to #[macro_export]
 use dot001_error::Dot001Error;
 /// Canonical result type for this crate
 pub use dot001_error::Result;
