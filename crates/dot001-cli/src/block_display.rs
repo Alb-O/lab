@@ -3,7 +3,7 @@
 use crate::DisplayTemplate;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
-use dot001_tracer::NameResolver;
+use dot001_parser::NameResolver;
 use owo_colors::OwoColorize;
 use regex::Regex;
 use std::cell::OnceCell;

@@ -2,8 +2,8 @@
 
 use crate::block_display::{BlockDisplay, BlockInfo, CompactFormatter, colorize_index};
 use dot001_error::Dot001Error;
+use dot001_parser::NameResolver;
 use dot001_parser::{BlendFile, DecompressionPolicy, ParseOptions};
-use dot001_tracer::NameResolver;
 use log::warn;
 use std::path::PathBuf;
 

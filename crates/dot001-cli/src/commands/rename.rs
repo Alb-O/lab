@@ -33,12 +33,8 @@ pub fn cmd_rename(
         };
         block_code_to_string(block.header.code)
     };
-    #[cfg(feature = "trace")]
     let current_name_opt =
-        { dot001_tracer::NameResolver::resolve_name(block_index, &mut blend_file) };
-
-    #[cfg(not(feature = "trace"))]
-    let current_name_opt = Some(format!("Block{}", block_index));
+        { dot001_parser::NameResolver::resolve_name(block_index, &mut blend_file) };
 
     match current_name_opt {
         Some(current_name) => {
@@ -60,10 +56,9 @@ pub fn cmd_rename(
                 info!("Renaming {block_display} block to '{colored_new_name}'");
                 match BlendEditor::rename_id_block_and_save(&file_path, block_index, &new_name) {
                     Ok(()) => {
-                        #[cfg(feature = "trace")]
                         {
                             let mut updated_blend_file = ctx.load_blend_file(&file_path)?;
-                            match dot001_tracer::NameResolver::resolve_name(
+                            match dot001_parser::NameResolver::resolve_name(
                                 block_index,
                                 &mut updated_blend_file,
                             ) {

@@ -34,6 +34,9 @@ pub use mesh_diff::cmd_mesh_diff;
 #[cfg(feature = "editor")]
 pub use rename::cmd_rename;
 
-// Re-export expanders and NameResolver for dependencies.rs
+// Re-export tracer components
 #[cfg(feature = "trace")]
-pub use dot001_tracer::{DependencyTracer, NameResolver};
+pub use dot001_tracer::DependencyTracer;
+
+// Re-export NameResolver from parser for lightweight name resolution
+pub use dot001_parser::NameResolver;

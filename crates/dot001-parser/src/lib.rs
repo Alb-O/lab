@@ -32,6 +32,7 @@ pub mod dna;
 pub mod error;
 pub mod fields;
 pub mod header;
+pub mod name_resolver;
 pub mod policy;
 pub mod reflect;
 
@@ -41,6 +42,7 @@ pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
 pub use error::{BlendFileErrorKind, Dot001Error, Result};
 pub use fields::FieldReader;
 pub use header::BlendFileHeader;
+pub use name_resolver::NameResolver;
 pub use policy::{
     DataBlockCompareMode, DataBlockVisibility, is_block_visible, is_data_block_code,
     is_data_size_change_significant,
