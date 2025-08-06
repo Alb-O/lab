@@ -1,5 +1,6 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template, highlight_matches};
+use crate::block_utils::BlockUtils;
 use crate::commands::NameResolver;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
@@ -39,18 +40,7 @@ pub fn cmd_filter(
     let mut filtered_indices = filter_engine.apply(&filter_spec, &mut blend_file)?;
 
     // Filter out DATA blocks by default unless show_data is true
-    if !show_data {
-        filtered_indices.retain(|&i| {
-            if let Some(block) = blend_file.get_block(i) {
-                let code_str = String::from_utf8_lossy(&block.header.code)
-                    .trim_end_matches('\0')
-                    .to_string();
-                code_str != "DATA"
-            } else {
-                true // Keep if we can't read the block
-            }
-        });
-    }
+    BlockUtils::filter_data_blocks_hashset(&mut filtered_indices, &blend_file, show_data);
     if json || matches!(format, crate::OutputFormat::Json) {
         let mut filtered_blocks: Vec<serde_json::Value> = Vec::new();
         for &i in &filtered_indices {

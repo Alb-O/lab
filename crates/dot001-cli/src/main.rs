@@ -1,4 +1,6 @@
 mod block_display;
+mod block_utils;
+mod cli_args;
 mod commands;
 #[cfg(feature = "diff")]
 mod diff_formatter;
@@ -90,53 +92,35 @@ enum Commands {
     /// List all blocks in a blend file with their details
     #[cfg(feature = "blocks")]
     Blocks {
-        #[arg(index = 1)]
-        file: PathBuf,
-        #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
-        show_data: bool,
-        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Simple, help = "Block display template")]
-        template: DisplayTemplate,
+        #[command(flatten)]
+        file: cli_args::FileArgs,
+        #[command(flatten)]
+        display: cli_args::DisplayArgs,
     },
     /// Trace and display dependencies for a specific block
     #[cfg(feature = "trace")]
     Dependencies {
-        #[arg(index = 1)]
-        file: PathBuf,
-        #[arg(
-            index = 2,
-            help = "Block index or datablock name (e.g., '5' or 'Cube')"
-        )]
-        block_index: String,
-        #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
-        format: OutputFormat,
-        #[arg(
-            long,
-            help = "Use ASCII characters instead of Unicode box characters for tree output"
-        )]
-        ascii: bool,
-        #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
-        show_data: bool,
-        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Simple, help = "Block display template")]
-        template: DisplayTemplate,
+        #[command(flatten)]
+        file: cli_args::FileArgs,
+        #[command(flatten)]
+        block_id: cli_args::BlockIdentifierArgs,
+        #[command(flatten)]
+        format_args: cli_args::OutputFormatArgs,
+        #[command(flatten)]
+        display: cli_args::DisplayArgs,
     },
     /// Compare two blend files and show differences
     #[cfg(feature = "diff")]
     Diff {
-        #[arg(index = 1)]
-        file1: PathBuf,
-        #[arg(index = 2)]
-        file2: PathBuf,
+        #[command(flatten)]
+        files: cli_args::TwoFileArgs,
         #[arg(long, help = "Show only modified blocks, not all differences")]
         only_modified: bool,
-        #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
-        format: OutputFormat,
+        #[command(flatten)]
+        format_args: cli_args::OutputFormatArgs,
+        /// Block display template
         #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Compact, help = "Block display template")]
         template: DisplayTemplate,
-        #[arg(
-            long,
-            help = "Use ASCII characters instead of Unicode box characters for tree output"
-        )]
-        ascii: bool,
     },
     /// Rename a datablock in a blend file
     #[cfg(feature = "editor")]
@@ -180,18 +164,16 @@ enum Commands {
     /// Filter and search blocks based on various criteria
     #[cfg(feature = "trace")]
     Filter {
-        #[arg(index = 1)]
-        file: PathBuf,
+        #[command(flatten)]
+        file: cli_args::FileArgs,
         #[arg(index = 2, help = "Filter expressions (format: [+/-][recursion]key=value_regex or just 'name' for name matching)", action = clap::ArgAction::Append)]
         filters: Vec<String>,
-        #[arg(short, long, value_enum, default_value_t = OutputFormat::Flat)]
-        format: OutputFormat,
-        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Simple, help = "Block display template")]
-        template: DisplayTemplate,
-        #[arg(long, help = "Include DATA blocks in output (filtered out by default)")]
-        show_data: bool,
-        #[arg(long, help = "Output as JSON")]
-        json: bool,
+        #[command(flatten)]
+        format_args: cli_args::OutputFormatArgs,
+        #[command(flatten)]
+        display: cli_args::DisplayArgs,
+        #[command(flatten)]
+        json: cli_args::JsonArgs,
     },
 
     /// Analyze and reconstruct broken library linked data-blocks
@@ -278,31 +260,39 @@ fn run_main() -> Result<(), Dot001Error> {
         #[cfg(feature = "info")]
         Commands::Info { file } => commands::cmd_info(file, &ctx),
         #[cfg(feature = "blocks")]
-        Commands::Blocks {
-            file,
-            show_data,
-            template,
-        } => commands::cmd_blocks(file, show_data, template, &ctx),
+        Commands::Blocks { file, display } => {
+            commands::cmd_blocks(file.file, display.show_data, display.template, &ctx)
+        }
         #[cfg(feature = "trace")]
         Commands::Dependencies {
             file,
-            block_index,
-            format,
-            ascii,
-            show_data,
-            template,
-        } => {
-            commands::cmd_dependencies(file, &block_index, format, ascii, show_data, template, &ctx)
-        }
+            block_id,
+            format_args,
+            display,
+        } => commands::cmd_dependencies(
+            file.file,
+            &block_id.block_index,
+            format_args.format,
+            format_args.ascii,
+            display.show_data,
+            display.template,
+            &ctx,
+        ),
         #[cfg(feature = "diff")]
         Commands::Diff {
-            file1,
-            file2,
+            files,
             only_modified,
-            format,
+            format_args,
             template,
-            ascii,
-        } => commands::cmd_diff(file1, file2, only_modified, format, template, ascii, &ctx),
+        } => commands::cmd_diff(
+            files.file1,
+            files.file2,
+            only_modified,
+            format_args.format,
+            template,
+            format_args.ascii,
+            &ctx,
+        ),
         #[cfg(feature = "editor")]
         Commands::Rename {
             file,
@@ -332,11 +322,18 @@ fn run_main() -> Result<(), Dot001Error> {
         Commands::Filter {
             file,
             filters,
-            format,
-            template,
-            show_data,
+            format_args,
+            display,
             json,
-        } => commands::cmd_filter(file, filters, format, template, show_data, json, &ctx),
+        } => commands::cmd_filter(
+            file.file,
+            filters,
+            format_args.format,
+            display.template,
+            display.show_data,
+            json.json,
+            &ctx,
+        ),
         #[cfg(feature = "trace")]
         Commands::LibLink {
             file,
