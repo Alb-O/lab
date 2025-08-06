@@ -1,5 +1,7 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
+use crate::block_ops::CommandHelper;
+use crate::output_utils::{CommandSummary, OutputUtils};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use log::error;
@@ -29,18 +31,19 @@ pub fn cmd_mesh_diff(
 
     if let Some(mesh_id) = mesh_identifier {
         // Resolve the mesh identifier to a specific ME block index
-        let Some(me_index) =
-            crate::util::resolve_typed_block_or_exit(mesh_id, "ME", &mut blend_file1)
-        else {
-            return Ok(());
+        let me_index = {
+            let mut helper = CommandHelper::new(&mut blend_file1, ctx);
+            let Some(index) = helper.resolve_typed_block_or_return(mesh_id, "ME")? else {
+                return Ok(());
+            };
+            index
         };
         match differ.analyze_mesh_block(me_index, &mut blend_file1, &mut blend_file2) {
             Ok(analysis) => {
                 if json {
-                    match serde_json::to_string_pretty(&analysis) {
-                        Ok(json_str) => ctx.output.print_result(&json_str),
-                        Err(e) => error!("Failed to serialize to JSON: {e}"),
-                    }
+                    OutputUtils::try_print_json(&analysis, ctx, "mesh analysis", |data| {
+                        serde_json::to_string_pretty(data)
+                    });
                 } else {
                     let block_info = BlockInfo::from_blend_file(me_index, &mut blend_file1)
                         .unwrap_or_else(|_| BlockInfo::new(me_index, "ME".to_string()));
@@ -60,29 +63,29 @@ pub fn cmd_mesh_diff(
                         "Analysis for ME block {} ({}):",
                         block_info.index, me_display
                     ));
-                    ctx.output.print_result_fmt(format_args!(
-                        "  Classification: {:?}",
-                        analysis.overall_classification
-                    ));
-                    ctx.output.print_result_fmt(format_args!(
-                        "  Is True Edit: {}",
-                        analysis.is_true_edit
-                    ));
-                    ctx.output
-                        .print_result_fmt(format_args!("  Summary: {}", analysis.summary));
-                    ctx.output.print_result("");
+
+                    let mut analysis_summary = CommandSummary::new("Analysis Results")
+                        .add_item(
+                            "Classification",
+                            format!("{:?}", analysis.overall_classification),
+                        )
+                        .add_item("Is True Edit", analysis.is_true_edit.to_string())
+                        .add_item("Summary", analysis.summary.clone());
+
                     if let Some(before) = &analysis.before_provenance {
-                        ctx.output.print_result_fmt(format_args!(
-                            "  Before: {} referenced DATA blocks",
-                            before.referenced_data_blocks.len()
-                        ));
+                        analysis_summary = analysis_summary.add_count(
+                            "Before: Referenced DATA blocks",
+                            before.referenced_data_blocks.len(),
+                        );
                     }
                     if let Some(after) = &analysis.after_provenance {
-                        ctx.output.print_result_fmt(format_args!(
-                            "  After: {} referenced DATA blocks",
-                            after.referenced_data_blocks.len()
-                        ));
+                        analysis_summary = analysis_summary.add_count(
+                            "After: Referenced DATA blocks",
+                            after.referenced_data_blocks.len(),
+                        );
                     }
+
+                    analysis_summary.print(ctx);
                     ctx.output.print_result("  DATA Block Correlations:");
                     for (i, correlation) in analysis.data_correlations.iter().enumerate() {
                         ctx.output.print_result_fmt(format_args!(

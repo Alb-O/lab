@@ -1,4 +1,6 @@
 use crate::block_display::BlockInfo;
+use crate::block_ops::CommandHelper;
+use crate::output_utils::CommandSummary;
 use crate::util::CommandContext;
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
 use dot001_error::Dot001Error;
@@ -18,9 +20,12 @@ pub fn cmd_lib_link(
     let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
-    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
-    else {
-        return Ok(());
+    let block_index = {
+        let mut helper = CommandHelper::new(&mut blend_file, ctx);
+        let Some(index) = helper.resolve_block_or_return(block_identifier)? else {
+            return Ok(());
+        };
+        index
     };
 
     ctx.output.print_info_fmt(format_args!(
@@ -50,25 +55,23 @@ pub fn cmd_lib_link(
         .read_field_string("Library", "name")
         .map_err(|e| execution_failed_error(format!("Error reading library name field: {e}")))?;
 
-    ctx.output.print_info("Current link status:");
-    ctx.output
-        .print_result_fmt(format_args!("  ID Name: '{}'", link_info.name));
-    ctx.output
-        .print_result_fmt(format_args!("  Library Path: '{lib_filepath}'"));
-    ctx.output
-        .print_result_fmt(format_args!("  Library Block Index: {lib_block_index}"));
+    let mut link_summary = CommandSummary::new("Current Link Status")
+        .add_item("ID Name", format!("'{}''", link_info.name))
+        .add_item("Library Path", format!("'{lib_filepath}'"))
+        .add_item("Library Block Index", lib_block_index.to_string());
 
     if let Some(target) = &target_name {
-        ctx.output
-            .print_info_fmt(format_args!("  Target Name: '{target}'"));
+        link_summary = link_summary.add_item("Target Name", format!("'{target}'"));
     }
 
     // Resolve library file path
     let lib_file_path = resolve_library_path(&lib_filepath, &file_path)?;
-    ctx.output.print_result_fmt(format_args!(
-        "  Resolved Library Path: '{}'",
-        lib_file_path.display()
-    ));
+    link_summary = link_summary.add_item(
+        "Resolved Library Path",
+        format!("'{}''", lib_file_path.display()),
+    );
+
+    link_summary.print(ctx);
 
     if !lib_file_path.exists() {
         return Err(execution_failed_error(

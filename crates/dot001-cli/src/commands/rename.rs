@@ -1,5 +1,6 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, colorize_name, create_display_for_template};
+use crate::block_ops::CommandHelper;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use log::{error, info};
@@ -17,9 +18,12 @@ pub fn cmd_rename(
     let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
-    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
-    else {
-        return Ok(());
+    let block_index = {
+        let mut helper = CommandHelper::new(&mut blend_file, ctx);
+        let Some(index) = helper.resolve_block_or_return(block_identifier)? else {
+            return Ok(());
+        };
+        index
     };
     let block_code = {
         let Some(block) = blend_file.get_block(block_index) else {

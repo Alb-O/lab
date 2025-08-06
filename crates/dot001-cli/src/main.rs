@@ -68,13 +68,10 @@ enum Commands {
     /// Update the filepath of a linked library file (LI block)
     #[cfg(feature = "editor")]
     LibPath {
-        #[arg(index = 1)]
-        file: PathBuf,
-        #[arg(
-            index = 2,
-            help = "Block index or datablock name (e.g., '5' or 'Cube')"
-        )]
-        block_index: String,
+        #[command(flatten)]
+        file: cli_args::FileArgs,
+        #[command(flatten)]
+        block_id: cli_args::BlockIdentifierArgs,
         #[arg(index = 3)]
         new_path: String,
         #[arg(long, help = "Preview changes without modifying the file")]
@@ -127,27 +124,22 @@ enum Commands {
     /// Rename a datablock in a blend file
     #[cfg(feature = "editor")]
     Rename {
-        #[arg(index = 1)]
-        file: PathBuf,
-        #[arg(
-            index = 2,
-            help = "Block index or datablock name (e.g., '5' or 'Cube')"
-        )]
-        block_index: String,
+        #[command(flatten)]
+        file: cli_args::FileArgs,
+        #[command(flatten)]
+        block_id: cli_args::BlockIdentifierArgs,
         #[arg(index = 3)]
         new_name: String,
-        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Compact, help = "Block display template")]
-        template: DisplayTemplate,
+        #[command(flatten)]
+        display: cli_args::DisplayArgs,
         #[arg(long, help = "Preview changes without modifying the file")]
         dry_run: bool,
     },
     /// Perform enhanced mesh comparison between two blend files
     #[cfg(feature = "diff")]
     MeshDiff {
-        #[arg(index = 1)]
-        file1: PathBuf,
-        #[arg(index = 2)]
-        file2: PathBuf,
+        #[command(flatten)]
+        files: cli_args::TwoFileArgs,
         #[arg(
             long,
             help = "ME block index or mesh name to analyze (e.g., '5' or 'Cube')"
@@ -158,10 +150,10 @@ enum Commands {
             help = "Enable verbose provenance logging"
         )]
         verbose_provenance: bool,
-        #[arg(short = 't', long, value_enum, default_value_t = DisplayTemplate::Compact, help = "Block display template")]
-        template: DisplayTemplate,
-        #[arg(long, help = "Output detailed analysis as JSON")]
-        json: bool,
+        #[command(flatten)]
+        display: cli_args::DisplayArgs,
+        #[command(flatten)]
+        json: cli_args::JsonArgs,
     },
     /// Filter and search blocks based on various criteria
     #[cfg(feature = "trace")]
@@ -254,11 +246,18 @@ fn run_main() -> Result<(), Dot001Error> {
         #[cfg(feature = "editor")]
         Commands::LibPath {
             file,
-            block_index,
+            block_id,
             new_path,
             dry_run,
             no_validate,
-        } => commands::cmd_libpath(file, &block_index, new_path, dry_run, no_validate, &ctx),
+        } => commands::cmd_libpath(
+            file.file,
+            &block_id.block_index,
+            new_path,
+            dry_run,
+            no_validate,
+            &ctx,
+        ),
         #[cfg(feature = "info")]
         Commands::Info { file } => commands::cmd_info(file, &ctx),
         #[cfg(feature = "blocks")]
@@ -298,26 +297,32 @@ fn run_main() -> Result<(), Dot001Error> {
         #[cfg(feature = "editor")]
         Commands::Rename {
             file,
-            block_index,
+            block_id,
             new_name,
-            template,
+            display,
             dry_run,
-        } => commands::cmd_rename(file, &block_index, new_name, template, dry_run, &ctx),
+        } => commands::cmd_rename(
+            file.file,
+            &block_id.block_index,
+            new_name,
+            display.template,
+            dry_run,
+            &ctx,
+        ),
         #[cfg(feature = "diff")]
         Commands::MeshDiff {
-            file1,
-            file2,
+            files,
             mesh_index,
             verbose_provenance,
-            template,
+            display,
             json,
         } => commands::cmd_mesh_diff(
-            file1,
-            file2,
+            files.file1,
+            files.file2,
             mesh_index.as_deref(),
             verbose_provenance,
-            template,
-            json,
+            display.template,
+            json.json,
             &ctx,
         ),
         #[cfg(feature = "trace")]

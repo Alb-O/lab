@@ -1,3 +1,5 @@
+use crate::block_ops::CommandHelper;
+use crate::output_utils::CommandSummary;
 use crate::util::CommandContext;
 use dot001_editor::BlendEditor;
 use dot001_error::{CliErrorKind, Dot001Error};
@@ -15,22 +17,29 @@ pub fn cmd_libpath(
     let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
-    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
-    else {
-        return Ok(());
+    let block_index = {
+        let mut helper = CommandHelper::new(&mut blend_file, ctx);
+        let Some(index) = helper.resolve_block_or_return(block_identifier)? else {
+            return Ok(());
+        };
+        index
     };
 
     if dry_run {
-        ctx.output.print_result_fmt(format_args!(
-            "[dry-run] Would update library path in block {block_index} to: {new_path}"
-        ));
+        CommandSummary::new("Dry Run")
+            .add_item("Block", block_index.to_string())
+            .add_item("New Path", new_path.clone())
+            .add_item("Action", "Would update library path".to_string())
+            .print(ctx);
         return Ok(());
     }
     match BlendEditor::update_libpath_and_save(&file_path, block_index, &new_path, no_validate) {
         Ok(()) => {
-            ctx.output.print_result_fmt(format_args!(
-                "Successfully updated library path in block {block_index} to: {new_path}"
-            ));
+            CommandSummary::new("Success")
+                .add_item("Block", block_index.to_string())
+                .add_item("New Path", new_path)
+                .add_item("Action", "Updated library path".to_string())
+                .print(ctx);
             Ok(())
         }
         Err(e) => {

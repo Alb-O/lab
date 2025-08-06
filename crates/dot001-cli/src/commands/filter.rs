@@ -147,7 +147,7 @@ pub fn cmd_filter(
     fn build_filter_tree<R: std::io::Read + std::io::Seek>(
         indices: &[usize],
         blend_file: &mut BlendFile<R>,
-        filter_expressions: &[(&str, &str, &str)],
+        _filter_expressions: &[(&str, &str, &str)],
         template: &DisplayTemplate,
     ) -> StringTreeNode {
         let mut sorted_indices: Vec<_> = indices.to_vec();

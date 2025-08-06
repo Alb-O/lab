@@ -2,14 +2,14 @@ use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::block_ops::CommandHelper;
 use crate::commands::DependencyTracer;
-use crate::output_utils::OutputUtils;
+use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use dot001_tracer::DependencyNode;
 use log::{debug, error, info};
 use std::path::PathBuf;
-use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
+use text_trees::StringTreeNode;
 
 fn should_filter_block<R: std::io::Read + std::io::Seek>(
     block_index: usize,
@@ -132,23 +132,13 @@ pub fn cmd_dependencies(
             );
             let tree_display =
                 build_text_tree(&tree.root, &mut blend_file, true, show_data, &template);
-            let format_chars = if ascii {
-                FormatCharacters::ascii()
-            } else {
-                FormatCharacters::box_chars()
-            };
-            let formatting = TreeFormatting::dir_tree(format_chars);
-            match tree_display.to_string_with_format(&formatting) {
-                Ok(tree_output) => ctx.output.print_result(tree_output.trim_end()),
-                Err(e) => error!("Failed to format dependency tree: {e}"),
-            }
-            ctx.output.print_info("Summary:");
-            ctx.output.print_info_fmt(format_args!(
-                "  Total dependencies: {}",
-                tree.total_dependencies
-            ));
-            ctx.output
-                .print_info_fmt(format_args!("  Maximum depth: {}", tree.max_depth));
+            let formatter = TreeFormatter::new(ascii);
+            formatter.print_tree(&tree_display, ctx);
+
+            CommandSummary::new("Summary")
+                .add_count("Total dependencies", tree.total_dependencies)
+                .add_count("Maximum depth", tree.max_depth)
+                .print(ctx);
         }
         crate::OutputFormat::Json => {
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
