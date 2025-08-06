@@ -2,12 +2,13 @@ use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template, highlight_matches};
 use crate::block_utils::BlockUtils;
 use crate::commands::NameResolver;
+use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
 use log::error;
 use std::path::PathBuf;
-use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
+use text_trees::StringTreeNode;
 
 pub fn cmd_filter(
     file_path: PathBuf,
@@ -70,25 +71,20 @@ pub fn cmd_filter(
                 "name": name
             }));
         }
-        match serde_json::to_string_pretty(&filtered_blocks) {
-            Ok(json_str) => ctx.output.print_result(&json_str),
-            Err(e) => {
-                error!("Failed to serialize filter results to JSON: {e}");
-                std::process::exit(1);
-            }
-        }
+        OutputUtils::try_print_json(&filtered_blocks, ctx, "filter results", |data| {
+            serde_json::to_string_pretty(data)
+        });
         return Ok(());
     } else {
         ctx.output.print_info_fmt(format_args!(
             "Filtered blocks from {}:",
             file_path.display()
         ));
-        ctx.output.print_info_fmt(format_args!(
-            "Total blocks: {}, Filtered: {}",
-            blend_file.blocks_len(),
-            filtered_indices.len()
-        ));
-        ctx.output.print_info("");
+
+        CommandSummary::new("Filter Results")
+            .add_count("Total blocks", blend_file.blocks_len())
+            .add_count("Filtered", filtered_indices.len())
+            .print(ctx);
         match format {
             crate::OutputFormat::Flat => {
                 let mut sorted_indices: Vec<_> = filtered_indices.into_iter().collect();
@@ -141,12 +137,8 @@ pub fn cmd_filter(
                     &filter_slice_triples,
                     &template,
                 );
-                let format_chars = FormatCharacters::box_chars();
-                let formatting = TreeFormatting::dir_tree(format_chars);
-                match tree.to_string_with_format(&formatting) {
-                    Ok(tree_output) => ctx.output.print_result(&tree_output),
-                    Err(e) => error!("Failed to format filter results tree: {e}"),
-                }
+                let formatter = TreeFormatter::new(false); // Use Unicode characters
+                formatter.print_tree(&tree, ctx);
             }
             crate::OutputFormat::Json => return Ok(()),
         }

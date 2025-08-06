@@ -1,9 +1,11 @@
 mod block_display;
+mod block_ops;
 mod block_utils;
 mod cli_args;
 mod commands;
 #[cfg(feature = "diff")]
 mod diff_formatter;
+mod output_utils;
 mod util;
 
 use clap::{Parser, Subcommand, ValueEnum};

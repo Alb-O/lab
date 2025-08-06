@@ -1,6 +1,8 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
+use crate::block_ops::CommandHelper;
 use crate::commands::DependencyTracer;
+use crate::output_utils::OutputUtils;
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
 use dot001_parser::BlendFile;
@@ -46,9 +48,12 @@ pub fn cmd_dependencies(
     );
 
     // Resolve the block identifier to a specific block index
-    let Some(block_index) = crate::util::resolve_block_or_exit(block_identifier, &mut blend_file)
-    else {
-        return Ok(());
+    let block_index = {
+        let mut helper = CommandHelper::new(&mut blend_file, ctx);
+        let Some(index) = helper.resolve_block_or_return(block_identifier)? else {
+            return Ok(());
+        };
+        index
     };
     let mut tracer = DependencyTracer::new().with_default_expanders();
     debug!("Created dependency tracer with default expanders");
@@ -147,10 +152,9 @@ pub fn cmd_dependencies(
         }
         crate::OutputFormat::Json => {
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
-            match serde_json::to_string_pretty(&tree) {
-                Ok(json) => ctx.output.print_result(&json),
-                Err(e) => error!("Failed to serialize dependency tree to JSON: {e}"),
-            }
+            OutputUtils::try_print_json(&tree, ctx, "dependency tree", |data| {
+                serde_json::to_string_pretty(data)
+            });
         }
     }
     Ok(())

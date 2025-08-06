@@ -1,7 +1,7 @@
 use crate::DisplayTemplate;
+use crate::output_utils::{CommandSummary, OutputUtils};
 use crate::util::CommandContext;
 use dot001_error::Dot001Error;
-use log::error;
 use std::path::PathBuf;
 
 pub fn cmd_diff(
@@ -24,28 +24,14 @@ pub fn cmd_diff(
         file1_path.display(),
         file2_path.display()
     ));
-    ctx.output.print_info("Summary:");
-    ctx.output.print_result_fmt(format_args!(
-        "  Total blocks: {}",
-        diff_result.summary.total_blocks
-    ));
-    ctx.output.print_result_fmt(format_args!(
-        "  Modified: {}",
-        diff_result.summary.modified_blocks
-    ));
-    ctx.output.print_result_fmt(format_args!(
-        "  Added: {}",
-        diff_result.summary.added_blocks
-    ));
-    ctx.output.print_result_fmt(format_args!(
-        "  Removed: {}",
-        diff_result.summary.removed_blocks
-    ));
-    ctx.output.print_result_fmt(format_args!(
-        "  Unchanged: {}",
-        diff_result.summary.unchanged_blocks
-    ));
-    ctx.output.print_result("");
+
+    CommandSummary::new("Summary")
+        .add_count("Total blocks", diff_result.summary.total_blocks)
+        .add_count("Modified", diff_result.summary.modified_blocks)
+        .add_count("Added", diff_result.summary.added_blocks)
+        .add_count("Removed", diff_result.summary.removed_blocks)
+        .add_count("Unchanged", diff_result.summary.unchanged_blocks)
+        .print(ctx);
     match format {
         crate::OutputFormat::Tree => {
             crate::diff_formatter::DiffFormatter::display_tree(
@@ -56,10 +42,11 @@ pub fn cmd_diff(
                 ascii,
             )?;
         }
-        crate::OutputFormat::Json => match serde_json::to_string_pretty(&diff_result) {
-            Ok(json) => ctx.output.print_result(&json),
-            Err(e) => error!("Failed to serialize diff result to JSON: {e}"),
-        },
+        crate::OutputFormat::Json => {
+            OutputUtils::try_print_json(&diff_result, ctx, "diff result", |data| {
+                serde_json::to_string_pretty(data)
+            });
+        }
         crate::OutputFormat::Flat => {
             crate::diff_formatter::DiffFormatter::display_flat(&diff_result, only_modified);
         }
