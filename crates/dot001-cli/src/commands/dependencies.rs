@@ -97,12 +97,12 @@ pub fn cmd_dependencies(
                 Err(e) => error!("Failed to format dependency tree: {e}"),
             }
             ctx.output.print_info("Summary:");
-            ctx.output.print_result_fmt(format_args!(
+            ctx.output.print_info_fmt(format_args!(
                 "  Total dependencies: {}",
                 tree.total_dependencies
             ));
             ctx.output
-                .print_result_fmt(format_args!("  Maximum depth: {}", tree.max_depth));
+                .print_info_fmt(format_args!("  Maximum depth: {}", tree.max_depth));
         }
         crate::OutputFormat::Json => {
             let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
