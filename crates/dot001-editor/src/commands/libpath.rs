@@ -10,7 +10,7 @@ use std::path::Path;
 pub struct LibPathCommand;
 
 impl LibPathCommand {
-    /// Update the filepath of a Library (LI) block and save changes to file
+    /// Update the filepath of a linked library file (LI block) and save changes to file
     pub fn update_libpath_and_save<P: AsRef<Path>>(
         file_path: P,
         block_index: usize,
@@ -125,7 +125,7 @@ impl LibPathCommand {
             .to_string();
         if block_code != "LI" {
             return Err(Dot001Error::editor(
-                "Block is not a Library (LI) block".to_string(),
+                "Block is not a linked library file (LI block)".to_string(),
                 EditorErrorKind::InvalidCharacters,
             ));
         }

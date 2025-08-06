@@ -1,4 +1,4 @@
-/// Update the filepath of a Library (LI) block and save changes to file
+/// Update the filepath of a linked library file (LI block) and save changes to file
 ///
 /// This function modifies the filepath field of a Library block in the blend file.
 ///
@@ -42,7 +42,7 @@ use std::path::Path;
 pub struct BlendEditor;
 
 impl BlendEditor {
-    /// Update the filepath of a Library (LI) block and save changes to file
+    /// Update the filepath of a linked library file (LI block) and save changes to file
     ///
     /// This function modifies the filepath field of a Library block in the blend file.
     ///

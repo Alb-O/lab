@@ -51,7 +51,7 @@ enum OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Update the filepath of a Library (LI) block
+    /// Update the filepath of a linked library file (LI block)
     #[cfg(feature = "editor")]
     LibPath {
         #[arg(index = 1)]
