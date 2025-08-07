@@ -1,5 +1,9 @@
 use crate::{Result, validate_new_name};
 use dot001_error::{Dot001Error, EditorErrorKind};
+use dot001_events::{
+    event::{EditorEvent, Event},
+    prelude::*,
+};
 use dot001_parser::BlendFile;
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::NameResolver;
@@ -80,6 +84,21 @@ impl RenameCommand {
                 "Name field extends beyond block data",
             )));
         }
+
+        // Emit field modification event
+        #[cfg(feature = "tracer_integration")]
+        let old_name = _current_name;
+        #[cfg(not(feature = "tracer_integration"))]
+        let old_name = _current_name;
+
+        emit_global_sync!(Event::Editor(EditorEvent::BlockEdited {
+            operation: "rename_id".to_string(),
+            block_index,
+            block_type: block_code.clone(),
+            old_value: Some(old_name),
+            new_value: prefixed_name.clone(),
+        }));
+
         block_data[start_offset..end_offset].copy_from_slice(&name_bytes);
         let mut file = OpenOptions::new().read(true).write(true).open(&file_path)?;
         file.seek(SeekFrom::Start(block_data_offset))?;

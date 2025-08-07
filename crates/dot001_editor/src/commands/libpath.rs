@@ -1,5 +1,9 @@
 use crate::Result;
 use dot001_error::{Dot001Error, EditorErrorKind};
+use dot001_events::{
+    event::{EditorEvent, Event},
+    prelude::*,
+};
 use dot001_parser::BlendFile;
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::bpath::BlendPath;
@@ -179,6 +183,22 @@ impl LibPathCommand {
                 ));
             }
         }
+
+        // Emit field modification event
+        let current_name = &block_data[name_offset..(name_offset + name_size)];
+        let old_path = String::from_utf8_lossy(current_name)
+            .trim_end_matches('\0')
+            .to_string();
+        let new_path = String::from_utf8_lossy(path_slice).to_string();
+
+        emit_global_sync!(Event::Editor(EditorEvent::BlockEdited {
+            operation: "update_libpath".to_string(),
+            block_index,
+            block_type: "LI".to_string(),
+            old_value: Some(old_path),
+            new_value: new_path,
+        }));
+
         // Overwrite the name field in the block data
         let end_offset = name_offset + name_size;
         if end_offset > block_data.len() {

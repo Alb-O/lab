@@ -31,6 +31,10 @@
 /// - Validate results after operations
 pub mod commands;
 use dot001_error::{Dot001Error, EditorErrorKind, Result};
+use dot001_events::{
+    event::{EditorEvent, Event},
+    prelude::*,
+};
 use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 use std::path::Path;
@@ -60,12 +64,44 @@ impl BlendEditor {
         new_path: &str,
         no_validate: bool,
     ) -> Result<()> {
-        crate::commands::libpath::LibPathCommand::update_libpath_and_save(
+        let path_str = file_path.as_ref().display().to_string();
+
+        // Emit started event
+        emit_global_sync!(Event::Editor(EditorEvent::Started {
+            operation: "update_libpath".to_string(),
+            target_file: file_path.as_ref().to_path_buf(),
+            block_count: Some(1),
+        }));
+
+        let result = crate::commands::libpath::LibPathCommand::update_libpath_and_save(
             file_path,
             block_index,
             new_path,
             no_validate,
-        )
+        );
+
+        // Emit result event
+        match &result {
+            Ok(()) => {
+                emit_global_sync!(Event::Editor(EditorEvent::Finished {
+                    operation: "update_libpath".to_string(),
+                    blocks_modified: 1,
+                    duration_ms: 0, // TODO: Add timing
+                    success: true,
+                }));
+            }
+            Err(e) => {
+                let events_error = dot001_events::error::Error::editor(
+                    e.user_message(),
+                    dot001_events::error::EditorErrorKind::InvalidName,
+                );
+                emit_global_sync!(Event::Editor(EditorEvent::Error {
+                    error: events_error,
+                }));
+            }
+        }
+
+        result
     }
     /// Rename an ID block and save changes to file
     ///
@@ -85,11 +121,43 @@ impl BlendEditor {
         block_index: usize,
         new_name: &str,
     ) -> Result<()> {
-        crate::commands::rename::RenameCommand::rename_id_block_and_save(
+        let path_str = file_path.as_ref().display().to_string();
+
+        // Emit started event
+        emit_global_sync!(Event::Editor(EditorEvent::Started {
+            operation: "rename_id_block".to_string(),
+            target_file: file_path.as_ref().to_path_buf(),
+            block_count: Some(1),
+        }));
+
+        let result = crate::commands::rename::RenameCommand::rename_id_block_and_save(
             file_path,
             block_index,
             new_name,
-        )
+        );
+
+        // Emit result event
+        match &result {
+            Ok(()) => {
+                emit_global_sync!(Event::Editor(EditorEvent::Finished {
+                    operation: "rename_id_block".to_string(),
+                    blocks_modified: 1,
+                    duration_ms: 0, // TODO: Add timing
+                    success: true,
+                }));
+            }
+            Err(e) => {
+                let events_error = dot001_events::error::Error::editor(
+                    e.user_message(),
+                    dot001_events::error::EditorErrorKind::InvalidName,
+                );
+                emit_global_sync!(Event::Editor(EditorEvent::Error {
+                    error: events_error,
+                }));
+            }
+        }
+
+        result
     }
 
     /// Rename an ID block (in-memory only, for testing)
@@ -107,8 +175,26 @@ const MAX_BLOCK_NAME_LENGTH: usize = 64;
 
 /// Validate that a new name meets safety requirements
 pub(crate) fn validate_new_name(name: &str) -> Result<()> {
+    // Emit validation started event
+    emit_global_sync!(
+        Event::Editor(EditorEvent::ValidationPerformed {
+            validator: "name_validation".to_string(),
+            passed: true, // Will be set to false if validation fails
+            message: Some(format!("Validating name: {name}")),
+        }),
+        Severity::Debug
+    );
+
     // Check length
     if name.len() > MAX_BLOCK_NAME_LENGTH {
+        emit_global_sync!(
+            Event::Editor(EditorEvent::ValidationPerformed {
+                validator: "name_length_check".to_string(),
+                passed: false,
+                message: Some(format!("Name too long: {name}")),
+            }),
+            Severity::Debug
+        );
         return Err(Dot001Error::editor(
             format!(
                 "Name too long (max {MAX_BLOCK_NAME_LENGTH} characters after type prefix): {name}"
@@ -119,6 +205,14 @@ pub(crate) fn validate_new_name(name: &str) -> Result<()> {
 
     // Check for valid ASCII printable characters only
     if !name.chars().all(|c| c.is_ascii() && !c.is_ascii_control()) {
+        emit_global_sync!(
+            Event::Editor(EditorEvent::ValidationPerformed {
+                validator: "name_character_check".to_string(),
+                passed: false,
+                message: Some(format!("Invalid characters in name: {name}")),
+            }),
+            Severity::Debug
+        );
         return Err(Dot001Error::editor(
             format!("Invalid characters in name (only ASCII printable allowed): {name}"),
             EditorErrorKind::InvalidCharacters,
@@ -127,11 +221,29 @@ pub(crate) fn validate_new_name(name: &str) -> Result<()> {
 
     // Don't allow empty names
     if name.trim().is_empty() {
+        emit_global_sync!(
+            Event::Editor(EditorEvent::ValidationPerformed {
+                validator: "name_empty_check".to_string(),
+                passed: false,
+                message: Some("Name cannot be empty".to_string()),
+            }),
+            Severity::Debug
+        );
         return Err(Dot001Error::editor(
             "Empty name".to_string(),
             EditorErrorKind::InvalidCharacters,
         ));
     }
+
+    // Emit validation success
+    emit_global_sync!(
+        Event::Editor(EditorEvent::ValidationPerformed {
+            validator: "name_validation".to_string(),
+            passed: true,
+            message: Some(format!("Name validation passed: {name}")),
+        }),
+        Severity::Debug
+    );
 
     Ok(())
 }
