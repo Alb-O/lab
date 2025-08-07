@@ -89,7 +89,9 @@ impl PointerTraversal {
                     // This is likely a struct version mismatch where field offsets differ between
                     // Blender versions, resulting in garbage count values being read
                     return Err(Error::blend_file(
-                        format!("Array field '{}' has unreasonably large count: {}", array_ptr_field, count),
+                        format!(
+                            "Array field '{array_ptr_field}' has unreasonably large count: {count}"
+                        ),
                         BlendFileErrorKind::InvalidField,
                     ));
                 }

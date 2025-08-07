@@ -36,6 +36,8 @@ pub enum BlendFileErrorKind {
     DecompressionFailed,
     #[error("File size limit exceeded")]
     SizeLimitExceeded,
+    #[error("Invalid range for buffer access")]
+    InvalidRange,
 }
 
 /// Specific kinds of editor errors

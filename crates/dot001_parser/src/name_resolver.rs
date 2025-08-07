@@ -46,7 +46,11 @@ impl NameResolver {
                 let prefix: String = chars.clone().take(2).collect();
                 if prefix.chars().count() == 2 && prefix.chars().all(|c| c.is_ascii_uppercase()) {
                     // Find the byte index after the first two characters
-                    let byte_idx = name.char_indices().nth(2).map(|(i, _)| i).unwrap_or(name.len());
+                    let byte_idx = name
+                        .char_indices()
+                        .nth(2)
+                        .map(|(i, _)| i)
+                        .unwrap_or(name.len());
                     Some(name[byte_idx..].to_string())
                 } else {
                     Some(name.to_string())

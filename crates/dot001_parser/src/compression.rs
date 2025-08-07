@@ -420,6 +420,51 @@ impl Drop for OwnedTempFile {
     }
 }
 
+/// Create a BlendBuf from a BlendRead source for zero-copy parsing
+///
+/// This function chooses the most efficient buffer strategy based on the source type.
+pub fn create_buffer_from_source(source: BlendRead) -> Result<crate::buf::BlendBuf> {
+    match source {
+        BlendRead::File(file) => {
+            // For regular files, try memory mapping if available
+            #[cfg(feature = "mmap")]
+            {
+                use memmap2::Mmap;
+                let mmap = unsafe { Mmap::map(&file)? };
+                Ok(crate::buf::BlendBuf::from_mmap(mmap))
+            }
+            #[cfg(not(feature = "mmap"))]
+            {
+                // Fallback: read entire file into memory
+                let mut file = file;
+                let mut data = Vec::new();
+                file.read_to_end(&mut data)?;
+                Ok(crate::buf::BlendBuf::from_vec(data))
+            }
+        }
+        BlendRead::Memory(arc_vec) => {
+            // Already in memory, use Arc<Vec<u8>> variant
+            Ok(crate::buf::BlendBuf::new(crate::buf::BlendSource::ArcBuf(
+                arc_vec,
+            )))
+        }
+        #[cfg(feature = "mmap")]
+        BlendRead::TempMmap(mmap, _cleanup) => {
+            // Already memory mapped, use it directly
+            Ok(crate::buf::BlendBuf::new(crate::buf::BlendSource::Mmap(
+                mmap,
+            )))
+        }
+        BlendRead::TempFile(mut temp_file, _cleanup) => {
+            // Try to memory map the temp file if possible, otherwise read into memory
+            // For temp files, we need to read into memory since we can't easily memory map them
+            let mut data = Vec::new();
+            temp_file.read_to_end(&mut data)?;
+            Ok(crate::buf::BlendBuf::from_vec(data))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
