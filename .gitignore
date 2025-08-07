@@ -1,4 +1,9 @@
 /target
 /tmp
-/tests/test-blendfiles
-*.local.json
+*.local.*
+
+# .blend files and associated resources
+*.blend
+*.ogg
+blendfiles/**/textures/
+

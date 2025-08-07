@@ -1,0 +1,1 @@
+This directory is storage space for .blend files to test on. All .blend files are ignored in this repo, but you can run `/scripts/blendfiles_downloader.sh` to get a sample suite of .blend files sourced from the official [project.blender.org](https://projects.blender.org) repostitory.
