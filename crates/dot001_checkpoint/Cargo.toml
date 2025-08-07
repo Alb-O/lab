@@ -11,8 +11,8 @@ repository = "https://github.com/Alb-O/dot001"
 titor = "0.2.0"
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.0", features = ["full"] }
-num_cpus = "1.0"
+tokio = { version = "1.47", features = ["full"] }
+num_cpus = "1.17"
 
 [dev-dependencies]
-tempfile = "3.0"
+tempfile = "3.20"

@@ -13,10 +13,12 @@ repository = "https://github.com/Alb-O/dot001"
 
 [dependencies]
 dot001_error = { path = "../dot001_error" }
+dot001_events = { path = "../dot001_events" }
+tokio = { version = "1.47", features = ["rt"] }
 log = "0.4"
 zstd = { version = "0.13", optional = true }
 memmap2 = { version = "0.9", optional = true }
-tempfile = "3.0"
+tempfile = "3.20"
 twox-hash = "2.1"
 
 [features]

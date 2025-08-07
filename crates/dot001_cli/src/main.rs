@@ -12,8 +12,19 @@ mod util;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use dot001_error::{CliErrorKind, Dot001Error};
+use dot001_events::{
+    bus::{EventFilter, Subscriber, init_global_bus},
+    bus_impl::{TokioEventBus, spawn_subscriber_task},
+    event::{CliEvent, Event},
+    format::{Formatter, PlainFormatter, PrettyFormatter},
+    prelude::*,
+};
+
+#[cfg(feature = "json")]
+use dot001_events::format::JsonFormatter;
 use log::{debug, info};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Parser)]
 struct Cli {
@@ -43,6 +54,24 @@ struct Cli {
     /// Quiet mode: suppress explanatory output, show only raw results
     #[arg(short = 'q', long = "quiet", global = true)]
     quiet: bool,
+
+    /// Event output format
+    #[arg(long = "event-format", global = true, value_enum, default_value_t = EventFormat::Pretty)]
+    event_format: EventFormat,
+
+    /// Event domains to show (comma-separated, e.g. "core,parser")
+    #[arg(long = "event-domains", global = true, value_delimiter = ',')]
+    event_domains: Option<Vec<String>>,
+}
+
+#[derive(Clone, ValueEnum, Debug)]
+enum EventFormat {
+    /// Colorized, human-friendly output (default)
+    Pretty,
+    /// Single-line, no color output for piping
+    Plain,
+    /// JSON output for machine consumption
+    Json,
 }
 
 #[derive(Clone, ValueEnum, Debug)]
@@ -219,8 +248,51 @@ enum Commands {
     },
 }
 
-fn main() {
-    if let Err(e) = run_main() {
+/// CLI subscriber that formats and prints events
+struct CliSubscriber {
+    formatter: Box<dyn Formatter + Send + Sync>,
+    quiet: bool,
+}
+
+impl CliSubscriber {
+    fn new(format: EventFormat, quiet: bool) -> Self {
+        let formatter: Box<dyn Formatter + Send + Sync> = match format {
+            EventFormat::Pretty => Box::new(PrettyFormatter::new()),
+            EventFormat::Plain => Box::new(PlainFormatter::new()),
+            #[cfg(feature = "json")]
+            EventFormat::Json => Box::new(JsonFormatter::new()),
+            #[cfg(not(feature = "json"))]
+            EventFormat::Json => {
+                eprintln!("Warning: JSON format requested but not enabled. Using plain format.");
+                Box::new(PlainFormatter::new())
+            }
+        };
+
+        Self { formatter, quiet }
+    }
+}
+
+#[async_trait::async_trait]
+impl Subscriber for CliSubscriber {
+    async fn on_event(&self, event: &dot001_events::event::EventWithMetadata) {
+        // Skip events in quiet mode except for errors
+        if self.quiet && !matches!(event.metadata.severity, Severity::Error) {
+            return;
+        }
+
+        let formatted = self.formatter.format(event);
+
+        // Print to stderr for events, keeping stdout clean for actual output
+        match event.metadata.severity {
+            Severity::Error => eprintln!("{formatted}"),
+            _ => eprintln!("{formatted}"),
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    if let Err(e) = run_main().await {
         use log::error;
         error!("{}", e.user_message());
         std::process::exit(1);
@@ -256,11 +328,50 @@ fn init_logging(verbose: u8) {
         .init();
 }
 
-fn run_main() -> Result<(), Dot001Error> {
+async fn run_main() -> std::result::Result<(), Dot001Error> {
     let cli = Cli::parse();
 
     // Initialize logging based on verbosity level
     init_logging(cli.verbose);
+
+    // Create and initialize the event bus
+    let bus: Arc<dyn EventBus> = Arc::new(TokioEventBus::with_default_capacity());
+
+    // Initialize global bus for ergonomic access
+    if let Err(_) = init_global_bus(bus.clone()) {
+        return Err(execution_failed_error(
+            "Failed to initialize global event bus",
+        ));
+    }
+
+    // Create event filter based on verbosity and domain settings
+    let min_severity = match (cli.quiet, cli.verbose) {
+        (true, _) => Severity::Error,  // -q: only errors
+        (false, 0) => Severity::Info,  // default: info, warn, error
+        (false, 1) => Severity::Debug, // -v: debug, info, warn, error
+        (false, _) => Severity::Trace, // -vv: all events
+    };
+
+    let mut event_filter = EventFilter::new().min_severity(min_severity);
+    if let Some(domains) = &cli.event_domains {
+        event_filter = event_filter.domains(domains.clone());
+    }
+
+    // Create and spawn CLI subscriber
+    let cli_subscriber = Arc::new(CliSubscriber::new(cli.event_format.clone(), cli.quiet));
+    let subscription = bus.subscribe(event_filter);
+    let _subscriber_task = spawn_subscriber_task(subscription, cli_subscriber);
+
+    // Emit command started event
+    emit!(
+        bus,
+        Event::Cli(CliEvent::CommandStarted {
+            command: std::env::args()
+                .next()
+                .unwrap_or_else(|| "dot001".to_string()),
+            args: std::env::args().skip(1).collect(),
+        })
+    );
 
     info!("dot001_cli starting with verbosity level: {}", cli.verbose);
     debug!(
@@ -272,8 +383,11 @@ fn run_main() -> Result<(), Dot001Error> {
     let output = util::OutputHandler::new(cli.quiet);
     let ctx = util::CommandContext::new(&parse_options, cli.no_auto_decompress, &output);
 
+    // Capture start time for command execution timing
+    let start_time = std::time::Instant::now();
+
     // Propagate the result; main() maps error to exit code and user message
-    match cli.command {
+    let result = match cli.command {
         Commands::BuildBlend { seed, out } => commands::cmd_build_blend(seed, out),
         #[cfg(feature = "editor")]
         Commands::LibPath {
@@ -397,7 +511,28 @@ fn run_main() -> Result<(), Dot001Error> {
             };
             commands::cmd_watch(args).map_err(|e| execution_failed_error(e.to_string()))
         }
-    }
+    };
+
+    // Calculate execution time and emit completion event
+    let duration_ms = start_time.elapsed().as_millis() as u64;
+    let exit_code = if result.is_ok() { 0 } else { 1 };
+    let command_name = std::env::args()
+        .next()
+        .unwrap_or_else(|| "dot001".to_string());
+
+    emit!(
+        bus,
+        Event::Cli(CliEvent::CommandCompleted {
+            command: command_name,
+            exit_code,
+            duration_ms,
+        })
+    );
+
+    // Give events a moment to be processed before exiting
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+    result
 }
 
 /// Helper functions for creating unified CLI errors

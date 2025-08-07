@@ -49,6 +49,10 @@ pub use policy::{
 };
 pub use reflect::PointerTraversal;
 
+use dot001_events::{
+    event::{Event, ParserEvent},
+    prelude::*,
+};
 use log::{debug, trace, warn};
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -122,6 +126,18 @@ impl<R: Read + Seek> BlendFile<R> {
             header.version, header.pointer_size
         );
 
+        // Emit header parsed event
+        let endianness = if header.is_little_endian {
+            "little"
+        } else {
+            "big"
+        };
+        emit_global_sync!(Event::Parser(ParserEvent::HeaderParsed {
+            version: header.version.to_string(),
+            endianness: endianness.to_string(),
+            pointer_size: header.pointer_size,
+        }));
+
         let mut blend_file = BlendFile {
             reader,
             header,
@@ -168,6 +184,18 @@ impl<R: Read + Seek> BlendFile<R> {
                 data_offset,
                 header_offset,
             };
+
+            // Emit block parsed event (at trace level)
+            let block_type = String::from_utf8_lossy(&block.header.code).to_string();
+            emit_global_sync!(
+                Event::Parser(ParserEvent::BlockParsed {
+                    index: block_count,
+                    block_type,
+                    size: block.header.size as usize,
+                }),
+                Severity::Trace
+            );
+
             self.blocks.push(block);
             block_count += 1;
 
@@ -194,6 +222,13 @@ impl<R: Read + Seek> BlendFile<R> {
 
         self.reader.seek(SeekFrom::Start(dna_block.data_offset))?;
         let dna = DnaCollection::read(&mut self.reader, &self.header)?;
+
+        // Emit DNA parsed event
+        emit_global_sync!(Event::Parser(ParserEvent::DnaParsed {
+            struct_count: dna.structs.len(),
+            name_count: dna.names.len(),
+        }));
+
         self.dna = Some(dna);
 
         Ok(())
@@ -340,6 +375,15 @@ pub fn parse_from_path<P: AsRef<std::path::Path>>(
 ) -> Result<(BlendFile<Box<dyn ReadSeekSend>>, DecompressionMode)> {
     use compression::{create_reader, open_source};
 
+    let path = path.as_ref();
+
+    // Emit parsing started event
+    let file_size = std::fs::metadata(path).ok().map(|m| m.len());
+    emit_global_sync!(Event::Parser(ParserEvent::Started {
+        input: path.to_path_buf(),
+        file_size,
+    }));
+
     let default_options = ParseOptions::default();
     let options = options.unwrap_or(&default_options);
     let blend_read = open_source(path, Some(&options.decompression_policy))?;
@@ -354,7 +398,16 @@ pub fn parse_from_path<P: AsRef<std::path::Path>>(
     };
 
     let reader = create_reader(blend_read)?;
+    let start_time = std::time::Instant::now();
     let blend_file = BlendFile::new(reader)?;
+
+    // Emit completion event
+    let duration_ms = start_time.elapsed().as_millis() as u64;
+    emit_global_sync!(Event::Parser(ParserEvent::Finished {
+        total_blocks: blend_file.blocks.len(),
+        total_size: std::fs::metadata(path).ok().map(|m| m.len()).unwrap_or(0),
+        duration_ms,
+    }));
 
     Ok((blend_file, mode))
 }

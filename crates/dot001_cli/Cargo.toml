@@ -13,14 +13,17 @@ dot001_diff = { path = "../dot001_diff", optional = true }
 dot001_parser = { path = "../dot001_parser" }
 dot001_editor = { path = "../dot001_editor", optional = true }
 dot001_error = { path = "../dot001_error" }
+dot001_events = { path = "../dot001_events", features = ["serde", "json"] }
 dot001_writer = { path = "../dot001_writer" }
 dot001_watcher = { path = "../dot001_watcher", optional = true }
 clap = { version = "4.5.43", features = ["derive"] }
+tokio = { version = "1.47", features = ["rt", "rt-multi-thread", "macros"] }
+async-trait = "0.1"
 env_logger = "0.11.8"
 log = "0.4"
 serde_json = "1.0.142"
 text_trees = "0.1"
-owo-colors = "4.1"
+owo-colors = "4.2"
 regex = "1.11.1"
 isatty = "0.1"
 
@@ -32,3 +35,4 @@ trace = ["dep:dot001_tracer"]
 diff = ["trace", "dep:dot001_diff", "dot001_diff/tracer_integration"]
 editor = ["dep:dot001_editor", "dot001_editor/tracer_integration"]
 watch = ["dep:dot001_watcher"]
+json = ["dot001_events/json"]

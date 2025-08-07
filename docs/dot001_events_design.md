@@ -343,15 +343,17 @@ fn parse_block(...) -> Result<Block> {
 
 ## Implementation Checklist
 
-- Crate scaffold with modules and public API
-- Error taxonomy port; shim in dot001_error
-- Event enums per domain; Severity; KV context
-- TokioEventBus; filters; timestamp; backpressure policy
-- Formatters: Pretty (default), Plain, JSON (feature)
-- CLI wiring; flags for formatter and verbosity
-- Migrations for parser, then other crates
-- Unit and integration tests
-- Remove dot001_error post-migration
+- ✅ Crate scaffold with modules and public API
+- ✅ Error taxonomy port; shim in dot001_error
+- ✅ Event enums per domain; Severity; KV context
+- ✅ TokioEventBus; filters; timestamp; backpressure policy
+- ✅ Formatters: Pretty (default), Plain, JSON (feature)
+- ✅ Emit! macro for ergonomic event publishing
+- ✅ CLI wiring; flags for formatter and verbosity
+- ✅ Parser migration with events and sync macros
+- ⏳ Migrations for other crates
+- ⏳ Unit and integration tests
+- ⏳ Remove dot001_error post-migration
 
 ---
 
