@@ -16,22 +16,27 @@
 //!
 //! ### Safe Injection
 //! Attempts to prevent crashes by sanitizing dangerous pointers.
-//! ```rust
+//! ```rust,no_run
 //! use dot001_writer::{SeedDnaProvider, BlendWriter, WriteTemplate, SafeBlockInjection};
-//!
-//! let mut seed = SeedDnaProvider::from_seed_path("source.blend")?;
-//! let injection = SafeBlockInjection::from_block_indices_with_safe_handling(
-//!     &mut seed,
-//!     &[1223, 1225] // Material + NodeTree blocks
-//! )?;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #     let mut seed = SeedDnaProvider::from_seed_path("source.blend")?;
+//! #     let injection = SafeBlockInjection::from_block_indices_with_safe_handling(
+//! #         &mut seed,
+//! #         &[1223, 1225] // Material + NodeTree blocks
+//! #     )?;
+//! #     Ok(())
+//! # }
 //! ```
 //!
 //! ### Exhaustive Injection (Highly Experimental)
 //! Attempts to trace complete dependency trees but is unstable.
-//! ```rust
+//! ```rust,no_run
 //! use dot001_writer::{SeedDnaProvider, ExhaustivePointerTracer};
-//!
-//! let injection = ExhaustivePointerTracer::trace_complete_dependencies(&mut seed, &[1223])?;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #     let mut seed = SeedDnaProvider::from_seed_path("source.blend")?;
+//! #     let injection = ExhaustivePointerTracer::trace_complete_dependencies(&mut seed, &[1223])?;
+//! #     Ok(())
+//! # }
 //! ```
 //!
 //! ## Known Issues

@@ -197,6 +197,26 @@ enum Commands {
         #[arg(long, help = "Target asset name to link to")]
         target_name: Option<String>,
     },
+
+    /// Watch directory for .blend file changes and movements
+    #[cfg(feature = "watch")]
+    Watch {
+        /// Directory to watch for .blend file changes
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Debounce delay in milliseconds for filesystem events
+        #[arg(long, default_value = "200")]
+        debounce_ms: u64,
+        /// Time window in milliseconds to pair move events (delete+create)
+        #[arg(long, default_value = "2000")]
+        move_pair_window_ms: u64,
+        /// Follow symbolic links
+        #[arg(long)]
+        follow_symlinks: bool,
+        /// Print verbose event information
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn main() {
@@ -360,6 +380,23 @@ fn run_main() -> Result<(), Dot001Error> {
             dry_run,
             target_name,
         } => commands::cmd_lib_link(file, &block_index, dry_run, target_name, &ctx),
+        #[cfg(feature = "watch")]
+        Commands::Watch {
+            path,
+            debounce_ms,
+            move_pair_window_ms,
+            follow_symlinks,
+            verbose,
+        } => {
+            let args = commands::watch::WatchArgs {
+                path,
+                debounce_ms,
+                move_pair_window_ms,
+                follow_symlinks,
+                verbose,
+            };
+            commands::cmd_watch(args).map_err(|e| execution_failed_error(e.to_string()))
+        }
     }
 }
 

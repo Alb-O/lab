@@ -1,20 +1,23 @@
 [workspace]
 members = [
-    "crates/dot001-error",
-    "crates/dot001-parser",
-    "crates/dot001-tracer",
+    "lib",
     "crates/dot001-cli",
     "crates/dot001-diff",
     "crates/dot001-editor",
-    "crates/dot001-checkpoint",
+    "crates/dot001-error",
+    "crates/dot001-parser",
+    "crates/dot001-tracer",
     "crates/dot001-writer",
-    "lib",
+    "crates/dot001-checkpoint",
+    "crates/dot001-watcher",
 ]
 resolver = "2"
 
-[workspace.dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
 [workspace.package]
-# Minimum supported Rust version; aligns with edition 2024 features
-rust-version = "1.85"
+edition = "2021" 
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# shared deps can be declared here if desired
+criterion = { version = "0.5.1", features = ["html_reports"] }

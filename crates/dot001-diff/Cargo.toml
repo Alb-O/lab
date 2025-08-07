@@ -16,10 +16,10 @@ dot001-parser = { path = "../dot001-parser" }
 dot001-tracer = { path = "../dot001-tracer", optional = true }
 dot001-error = { path = "../dot001-error" }
 bdiff = "0.1.0"
-blake3 = "1.5"
-hex = "0.4"
+blake3 = "1.8.2"
+hex = "0.4.3"
 log = "0.4"
-serde = { version = "1.0", features = ["derive"], optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [features]
 default = ["serde"]

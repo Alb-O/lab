@@ -16,6 +16,8 @@ pub mod libpath;
 pub mod mesh_diff;
 #[cfg(feature = "editor")]
 pub mod rename;
+#[cfg(feature = "watch")]
+pub mod watch;
 
 // Re-export command functions for main.rs
 pub use blocks::cmd_blocks;
@@ -35,6 +37,8 @@ pub use libpath::cmd_libpath;
 pub use mesh_diff::cmd_mesh_diff;
 #[cfg(feature = "editor")]
 pub use rename::cmd_rename;
+#[cfg(feature = "watch")]
+pub use watch::cmd_watch;
 
 // Re-export tracer components
 #[cfg(feature = "trace")]

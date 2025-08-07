@@ -11,7 +11,7 @@ use std::fmt;
 
 // Colorization helpers
 pub fn should_use_colors() -> bool {
-    atty::is(atty::Stream::Stdout)
+    isatty::stdout_isatty()
 }
 
 pub fn colorize_index(index: usize) -> String {
