@@ -5,6 +5,7 @@ use std::io::{Read, Seek};
 /// Utility for generating deterministic, stable outputs from BlendFile data.
 /// This centralizes address remapping, sorting, and normalization logic
 /// that was previously scattered across different modules.
+#[derive(Clone)]
 pub struct Determinizer {
     /// Mapping from original addresses to deterministic IDs
     address_map: HashMap<u64, u64>,

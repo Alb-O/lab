@@ -832,4 +832,12 @@ impl BlendFileBuf {
             self.header.is_little_endian,
         ))
     }
+
+    /// Convert an address to block index for dependency resolution
+    ///
+    /// This looks up an address in the address index to find the corresponding block.
+    /// Returns None if the address is not found.
+    pub fn address_to_block_index(&self, address: u64) -> Option<usize> {
+        self.address_index.get(&address).copied()
+    }
 }

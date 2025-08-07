@@ -11,7 +11,7 @@ use dot001_events::{
     event::{Event, TracerEvent},
     prelude::*,
 };
-use dot001_parser::BlendFile;
+use dot001_parser::{BlendFile, BlendFileBuf};
 use log::{debug, trace};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Seek};
@@ -293,6 +293,39 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         }));
 
         Ok(result)
+    }
+
+    /// Trace dependencies using parallel processing (when available)
+    ///
+    /// This is a convenience method that delegates to ParallelDependencyTracer
+    /// for high-performance dependency tracing with layered BFS.
+    ///
+    /// Note: This method maintains compatibility by converting the result back
+    /// to the expected format. For best performance, use ParallelDependencyTracer directly.
+    pub fn trace_dependencies_parallel(
+        &mut self,
+        _start_block_index: usize,
+        _blend_file_buf: &BlendFileBuf,
+    ) -> Result<Vec<usize>> {
+        use crate::core::ParallelDependencyTracer;
+
+        debug!("Delegating to parallel tracer implementation");
+
+        // Create a parallel tracer with matching configuration
+        let _parallel_tracer: ParallelDependencyTracer = ParallelDependencyTracer::new()
+            .with_options(self.options)
+            .with_determinizer(self.determinizer.clone().unwrap_or_default());
+
+        // PHASE 3 LIMITATION: Parallel tracing requires thread-safe expanders
+        // and BlendFileBuf-compatible expanders which haven't been implemented yet.
+        // For now, we return an error indicating this feature is not yet available.
+        debug!("Warning: Parallel tracing requires thread-safe expanders and BlendFileBuf support");
+        debug!("This feature will be available once expanders are made thread-safe in Phase 3");
+
+        Err(Error::tracer(
+            "Parallel tracing not yet implemented - requires thread-safe expanders".to_string(),
+            TracerErrorKind::BlockExpansionFailed,
+        ))
     }
 
     /// Trace dependencies and build a hierarchical tree

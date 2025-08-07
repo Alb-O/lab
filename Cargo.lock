@@ -697,10 +697,12 @@ dependencies = [
 name = "dot001_tracer"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "dot001_events",
  "dot001_parser",
  "log",
  "pathdiff",
+ "rayon",
  "regex",
  "serde",
  "tokio",

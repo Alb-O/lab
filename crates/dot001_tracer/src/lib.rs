@@ -33,6 +33,8 @@ pub mod core;
 pub mod expand_result;
 pub mod expanders;
 pub mod filter;
+pub mod thread_safe_expander;
+pub mod thread_safe_macros;
 pub mod utils;
 
 // Include macros module to ensure macros are compiled and exported
@@ -42,6 +44,7 @@ pub mod utils;
 pub use core::{DependencyNode, DependencyTracer, DependencyTree, TracerOptions};
 pub use expand_result::ExpandResult;
 pub use expanders::*;
+pub use thread_safe_expander::{ThreadSafeBlockExpander, ThreadSafePointerTraversal};
 pub use utils::{Determinizer, NameResolver, NameResolverTrait};
 
 // Re-export bpath module for backward compatibility

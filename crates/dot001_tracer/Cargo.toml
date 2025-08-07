@@ -23,3 +23,5 @@ log = "0.4"
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 regex = "1.11.1"
 pathdiff = "0.2"
+dashmap = "6.1.0"
+rayon = "1.10.0"
