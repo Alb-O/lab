@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/claude-code-settings.json",
+    "permissions": {
+        "allow": [
+            "Bash(cargo check:*)",
+            "Bash(cargo clippy:*)",
+            "Bash(cargo build:*)",
+            "Bash(grep:*)",
+            "Bash(sed:*)",
+            "Bash(find:*)",
+            "Bash(ls:*)"
+        ],
+        "deny": []
+    }
+}
