@@ -7,6 +7,7 @@ authors = ["Albert O'Shea"]
 description = "Unified error handling for the dot001 toolkit"
 keywords = ["blender", "blend", "error", "3d"]
 categories = ["development-tools", "graphics"]
+repository = "https://github.com/Alb-O/dot001"
 
 [dependencies]
 thiserror = "2.0"

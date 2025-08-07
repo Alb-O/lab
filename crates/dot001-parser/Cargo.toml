@@ -8,6 +8,8 @@ readme = "../../README.md"
 keywords = ["blender", "blend", "parser", "graphics", "3d"]
 categories = ["multimedia", "parser-implementations", "graphics"]
 authors = ["Albert O'Shea"]
+repository = "https://github.com/Alb-O/dot001"
+
 
 [dependencies]
 dot001-error = { path = "../dot001-error" }

@@ -8,6 +8,8 @@ readme = "../../README.md"
 keywords = ["blender", "blend", "dependencies", "tracing", "3d"]
 categories = ["multimedia", "graphics"]
 authors = ["Albert O'Shea"]
+repository = "https://github.com/Alb-O/dot001"
+
 
 [features]
 default = ["serde"]

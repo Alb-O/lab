@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "gpl-3.0-or-later"
 authors = ["Albert O'Shea"]
+repository = "https://github.com/Alb-O/dot001"
+
 
 [dependencies]
 dot001-tracer = { path = "../dot001-tracer", optional = true }
