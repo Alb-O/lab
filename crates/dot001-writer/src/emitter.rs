@@ -53,26 +53,30 @@ impl BlendWriter {
         // 1) Header
         self.header.write(&mut w)?;
 
-        // 2) Write a tiny Main/ID scaffolding to avoid reader assuming huge 'len' from uninitialized memory paths.
-        //    These blocks have zero-length payload and are safe placeholders.
-        //    Codes used here are conservative and recognized by Blender across versions:
-        //      - "GLOB" global state header
-        //      - "ID\0\0" minimal ID list placeholder (historic Main contents were a sequence of ID lists)
-        self.write_block_v1(&mut w, b"GLOB", 0, 0, &[], 1)?;
-        self.write_block_v1(&mut w, b"ID\0\0", 0, 0, &[], 1)?;
+        // 2) REND block (render settings) - essential first block
+        let rend_sdna_index = seed.sdna_index_for_struct("RenderData").unwrap_or(0u32);
+        self.write_block_v1(&mut w, b"REND", rend_sdna_index, 0, seed.rend_bytes(), 1)?;
 
-        // 3) DNA1 block
+        // 3) TEST block - appears to be essential in working files
+        let test_sdna_index = seed.sdna_index_for_struct("Test").unwrap_or(0u32);
+        self.write_block_v1(&mut w, b"TEST", test_sdna_index, 0, seed.test_bytes(), 1)?;
+
+        // 4) GLOB block (global settings) - use actual data from seed
+        let glob_sdna_index = seed.sdna_index_for_struct("Global").unwrap_or(0u32);
+        self.write_block_v1(&mut w, b"GLOB", glob_sdna_index, 0, seed.glob_bytes(), 1)?;
+
+        // 5) DNA1 block
         self.write_block_v1(
             &mut w,
             b"DNA1",
-            0,                // sdna_index is 0 for DNA itself
+            0u32,             // sdna_index is 0 for DNA itself
             0,                // old address not used for DNA
             seed.raw_bytes(), // payload copied from seed
             1,                // count
         )?;
 
-        // 4) ENDB
-        self.write_block_v1(&mut w, b"ENDB", 0, 0, &[], 0)?;
+        // 6) ENDB
+        self.write_block_v1(&mut w, b"ENDB", 0u32, 0, &[], 0)?;
 
         w.flush()
             .map_err(|e| Dot001Error::io(format!("flush failed: {e}")))?;
@@ -82,18 +86,18 @@ impl BlendWriter {
     /// Write a v1 (5.0) BHead+payload block.
     /// Binary layout for v1:
     ///   code[4]
-    ///   sdna_index: u64 (ASCII-less integer, little-endian)
+    ///   sdna_index: u32 (ASCII-less integer, little-endian)
     ///   old_address: u64
     ///   len: u64 (payload length in bytes)
-    ///   count: u64
+    ///   count: u64 (written as u64 but should fit in u32)
     fn write_block_v1<W: Write>(
         &self,
         mut w: W,
         code: &[u8; 4],
-        sdna_index: u64,
+        sdna_index: u32,
         old_address: u64,
         payload: &[u8],
-        count: u64,
+        count: u32,
     ) -> Result<()> {
         if code.len() != 4 {
             return Err(Dot001Error::blend_file(
@@ -106,7 +110,7 @@ impl BlendWriter {
         w.write_all(code)
             .map_err(|e| Dot001Error::io(format!("write block code failed: {e}")))?;
 
-        // sdna_index (u64 LE)
+        // sdna_index (u32 LE)
         w.write_all(&sdna_index.to_le_bytes())
             .map_err(|e| Dot001Error::io(format!("write sdna_index failed: {e}")))?;
 
@@ -119,8 +123,8 @@ impl BlendWriter {
         w.write_all(&len.to_le_bytes())
             .map_err(|e| Dot001Error::io(format!("write len failed: {e}")))?;
 
-        // count (u64 LE)
-        w.write_all(&count.to_le_bytes())
+        // count (u64 LE, but input is u32)
+        w.write_all(&(count as u64).to_le_bytes())
             .map_err(|e| Dot001Error::io(format!("write count failed: {e}")))?;
 
         // payload
