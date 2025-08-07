@@ -1,11 +1,11 @@
 use crate::{BlendFile, Result};
 use dot001_events::error::{BlendFileErrorKind, Error};
-use log::warn;
 use std::io::{Read, Seek};
 
-/// Maximum reasonable size for an array to prevent hanging on corrupted data.
-/// This is set to 1 million elements, which should be sufficient for most legitimate use cases.
-const MAX_REASONABLE_ARRAY_SIZE: u32 = 1_000_000;
+/// Maximum reasonable size for an array to prevent hanging on problematic data.
+/// This is set to 100 million elements, which should be sufficient for even the most complex scenes
+/// while still protecting against struct version mismatches that result in garbage count values.
+const MAX_REASONABLE_ARRAY_SIZE: u32 = 100_000_000;
 
 /// Utilities for reflective pointer traversal in BlendFile data structures.
 /// This module consolidates pointer traversal logic that was previously duplicated
@@ -84,14 +84,14 @@ impl PointerTraversal {
 
         if let Ok(count) = reader.read_field_u32(struct_name, count_field) {
             if count > 0 {
-                // Check for unreasonably large array counts that could indicate corruption
+                // Check for unreasonably large array counts that could indicate struct version mismatch
                 if count > MAX_REASONABLE_ARRAY_SIZE {
-                    warn!(
-                        "Skipping array field '{}' in struct '{}' with suspiciously large count: {}. \
-                         This may indicate corrupted blend file data. Max allowed: {}",
-                        array_ptr_field, struct_name, count, MAX_REASONABLE_ARRAY_SIZE
-                    );
-                    return Ok(targets);
+                    // This is likely a struct version mismatch where field offsets differ between
+                    // Blender versions, resulting in garbage count values being read
+                    return Err(Error::blend_file(
+                        format!("Array field '{}' has unreasonably large count: {}", array_ptr_field, count),
+                        BlendFileErrorKind::InvalidField,
+                    ));
                 }
 
                 if let Ok(array_ptr) = reader.read_field_pointer(struct_name, array_ptr_field) {
