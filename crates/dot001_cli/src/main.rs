@@ -338,7 +338,7 @@ async fn run_main() -> std::result::Result<(), Dot001Error> {
     let bus: Arc<dyn EventBus> = Arc::new(TokioEventBus::with_default_capacity());
 
     // Initialize global bus for ergonomic access
-    if let Err(_) = init_global_bus(bus.clone()) {
+    if init_global_bus(bus.clone()).is_err() {
         return Err(execution_failed_error(
             "Failed to initialize global event bus",
         ));

@@ -607,11 +607,13 @@ dependencies = [
  "bdiff",
  "blake3",
  "dot001_error",
+ "dot001_events",
  "dot001_parser",
  "dot001_tracer",
  "hex",
  "log",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -667,11 +669,13 @@ name = "dot001_tracer"
 version = "0.1.0"
 dependencies = [
  "dot001_error",
+ "dot001_events",
  "dot001_parser",
  "log",
  "pathdiff",
  "regex",
  "serde",
+ "tokio",
 ]
 
 [[package]]

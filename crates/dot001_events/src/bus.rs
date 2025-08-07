@@ -9,6 +9,9 @@ use tokio::sync::broadcast;
 
 use crate::event::{Event, EventWithMetadata, Severity};
 
+/// Type alias for event predicate functions to reduce complexity
+pub type EventPredicate = Arc<dyn Fn(&EventWithMetadata) -> bool + Send + Sync>;
+
 /// Trait for event bus implementations
 #[async_trait::async_trait]
 pub trait EventBus: Send + Sync {
@@ -47,7 +50,7 @@ pub struct EventFilter {
     /// Allowed domains (None means all domains)
     pub domains: Option<Vec<String>>,
     /// Custom predicate function
-    pub predicate: Option<Arc<dyn Fn(&EventWithMetadata) -> bool + Send + Sync>>,
+    pub predicate: Option<EventPredicate>,
 }
 
 impl std::fmt::Debug for EventFilter {

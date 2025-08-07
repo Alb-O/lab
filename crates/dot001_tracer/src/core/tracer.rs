@@ -7,6 +7,10 @@ use crate::core::{
 use crate::filter::{FilterEngine, FilterSpec};
 use crate::utils::determinizer::Determinizer;
 use dot001_error::{Dot001Error, Result};
+use dot001_events::{
+    event::{Event, TracerEvent},
+    prelude::*,
+};
 use dot001_parser::BlendFile;
 use log::{debug, trace};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -92,8 +96,18 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         spec: &FilterSpec,
         blend_file: &mut BlendFile<R>,
     ) -> Result<()> {
+        let blocks_before = blend_file.blocks_len();
         let engine = FilterEngine::new();
         let allowed = engine.apply(spec, blend_file)?;
+        let blocks_after = allowed.len();
+
+        // Emit filter applied event
+        emit_global_sync!(Event::Tracer(TracerEvent::FilterApplied {
+            filter_name: format!("{spec:?}"), // Using debug format for filter spec
+            blocks_before,
+            blocks_after,
+        }));
+
         self.allowed = Some(allowed);
         debug!(
             "Applied filter spec; allowed set size: {}",
@@ -167,6 +181,20 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         blend_file: &mut BlendFile<R>,
     ) -> Result<Vec<usize>> {
         debug!("Starting dependency trace from block {start_block_index}");
+
+        let start_time = std::time::Instant::now();
+
+        // Emit tracer started event
+        let root_block_type = if let Some(block) = blend_file.get_block(start_block_index) {
+            Self::block_code_to_string(&block.header.code)
+        } else {
+            "unknown".to_string()
+        };
+        emit_global_sync!(Event::Tracer(TracerEvent::Started {
+            root_blocks: vec![format!("{}[{}]", root_block_type, start_block_index)],
+            options: format!("max_depth: {}", self.options.max_depth),
+        }));
+
         self.visited.clear();
         self.visiting.clear();
         let mut result = Vec::new();
@@ -199,7 +227,29 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
                 }
 
                 if let Some(expander) = self.expanders.get(&block.header.code) {
+                    let block_type = Self::block_code_to_string(&block.header.code);
+
+                    // Emit block expansion started event
+                    emit_global_sync!(
+                        Event::Tracer(TracerEvent::BlockExpansionStarted {
+                            block_type: block_type.clone(),
+                            block_index,
+                        }),
+                        Severity::Trace
+                    );
+
                     let deps = expander.expand_block(block_index, blend_file)?;
+
+                    // Emit block expanded event
+                    emit_global_sync!(
+                        Event::Tracer(TracerEvent::BlockExpanded {
+                            block_type,
+                            block_index,
+                            dependencies_found: deps.dependencies.len(),
+                        }),
+                        Severity::Trace
+                    );
+
                     trace!(
                         "Block {} expanded to {} dependencies",
                         block_index,
@@ -232,6 +282,16 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
             "Dependency trace completed, found {} total dependencies",
             result.len()
         );
+
+        // Emit tracer finished event
+        let duration_ms = start_time.elapsed().as_millis() as u64;
+        let unique_dependencies = result.iter().collect::<HashSet<_>>().len();
+        emit_global_sync!(Event::Tracer(TracerEvent::Finished {
+            total_blocks_traced: result.len(),
+            unique_dependencies,
+            duration_ms,
+        }));
+
         Ok(result)
     }
 

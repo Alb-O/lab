@@ -15,6 +15,8 @@ repository = "https://github.com/Alb-O/dot001"
 dot001_parser = { path = "../dot001_parser" }
 dot001_tracer = { path = "../dot001_tracer", optional = true }
 dot001_error = { path = "../dot001_error" }
+dot001_events = { path = "../dot001_events" }
+tokio = { version = "1.47", features = ["rt"] }
 bdiff = "0.1.0"
 blake3 = "1.8.2"
 hex = "0.4.3"

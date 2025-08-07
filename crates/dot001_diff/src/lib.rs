@@ -30,10 +30,15 @@ pub mod policies;
 pub mod provenance;
 
 use dot001_error::Result;
+use dot001_events::{
+    event::{DiffEvent, Event},
+    prelude::*,
+};
 use dot001_parser::BlendFile;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek};
+use std::path::Path;
 
 /// Trait alias for readable and seekable streams
 pub trait ReadSeek: Read + Seek {}
@@ -138,6 +143,45 @@ impl BlendDiffer {
         self
     }
 
+    /// Compare two blend files by path
+    pub fn diff_files<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        path1: P1,
+        path2: P2,
+    ) -> Result<BlendDiff> {
+        let path1 = path1.as_ref();
+        let path2 = path2.as_ref();
+
+        // Emit diff started event
+        emit_global_sync!(Event::Diff(DiffEvent::Started {
+            lhs: path1.to_path_buf(),
+            rhs: path2.to_path_buf(),
+            diff_type: "blend_file_comparison".to_string(),
+        }));
+
+        let start_time = std::time::Instant::now();
+
+        // Parse both files
+        let (mut file1, _) = dot001_parser::parse_from_path(path1, None)?;
+        let (mut file2, _) = dot001_parser::parse_from_path(path2, None)?;
+
+        // Perform the diff
+        let diff = self.diff(&mut file1, &mut file2)?;
+
+        // Emit summary event with timing
+        let duration_ms = start_time.elapsed().as_millis() as u64;
+        emit_global_sync!(Event::Diff(DiffEvent::Summary {
+            matched_blocks: diff.summary.unchanged_blocks,
+            mismatched_blocks: diff.summary.modified_blocks
+                + diff.summary.added_blocks
+                + diff.summary.removed_blocks,
+            total_blocks: diff.summary.total_blocks,
+            duration_ms,
+        }));
+
+        Ok(diff)
+    }
+
     /// Compare two blend files and return a diff
     pub fn diff<R1, R2>(
         &self,
@@ -188,6 +232,26 @@ impl BlendDiffer {
                         }
                     };
 
+                    // Emit mismatch event if block changed
+                    if change_type != BlockChangeType::Unchanged {
+                        let change_type_str = match change_type {
+                            BlockChangeType::Modified => "modified",
+                            BlockChangeType::Added => "added",
+                            BlockChangeType::Removed => "removed",
+                            BlockChangeType::Unchanged => "unchanged",
+                        };
+                        emit_global_sync!(
+                            Event::Diff(DiffEvent::Mismatch {
+                                path: format!("block[{i}]:{block_code}"),
+                                detail: format!(
+                                    "Block {change_type_str} (type: {block_code}, sizes: {size1} -> {_size2})"
+                                ),
+                                severity: "minor".to_string(),
+                            }),
+                            Severity::Debug
+                        );
+                    }
+
                     BlockDiff {
                         block_index: i,
                         block_code,
@@ -225,6 +289,8 @@ impl BlendDiffer {
 
         let summary = self.calculate_summary(&block_diffs);
 
+        // Summary event will be emitted from diff_files method for better timing
+
         Ok(BlendDiff {
             block_diffs,
             summary,
@@ -247,18 +313,46 @@ impl BlendDiffer {
         match block_code {
             "ME" => {
                 // For mesh blocks, use content-aware comparison
+                emit_global_sync!(
+                    Event::Diff(DiffEvent::PolicyApplied {
+                        policy: "mesh_content_analysis".to_string(),
+                        blocks_affected: 1,
+                    }),
+                    Severity::Trace
+                );
                 self.compare_mesh_blocks(index, file1, file2)
             }
             "DATA" => {
                 // For DATA blocks, use size-based filtering to reduce false positives
+                emit_global_sync!(
+                    Event::Diff(DiffEvent::PolicyApplied {
+                        policy: "size_based_filtering".to_string(),
+                        blocks_affected: 1,
+                    }),
+                    Severity::Trace
+                );
                 self.compare_data_blocks(index, file1, file2, size1, size2)
             }
             "OB" | "GR" | "NT" | "CA" => {
                 // For object/group/nodetree/camera blocks, use relaxed comparison
+                emit_global_sync!(
+                    Event::Diff(DiffEvent::PolicyApplied {
+                        policy: "structural_block_analysis".to_string(),
+                        blocks_affected: 1,
+                    }),
+                    Severity::Trace
+                );
                 self.compare_structural_blocks(index, file1, file2, size1, size2)
             }
             _ => {
                 // For other block types, fall back to binary comparison
+                emit_global_sync!(
+                    Event::Diff(DiffEvent::PolicyApplied {
+                        policy: "binary_comparison".to_string(),
+                        blocks_affected: 1,
+                    }),
+                    Severity::Trace
+                );
                 if self.binary_compare_blocks_by_index(index, file1, file2)? {
                     Ok(BlockChangeType::Unchanged)
                 } else {

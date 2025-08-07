@@ -351,7 +351,9 @@ fn parse_block(...) -> Result<Block> {
 - ✅ Emit! macro for ergonomic event publishing
 - ✅ CLI wiring; flags for formatter and verbosity
 - ✅ Parser migration with events and sync macros
-- ⏳ Migrations for other crates
+- ✅ Diff migration with events and comprehensive policy tracking
+- ✅ Tracer migration with comprehensive tracing events including filters and block expansion
+- ⏳ Migrations for remaining crates (editor, writer)
 - ⏳ Unit and integration tests
 - ⏳ Remove dot001_error post-migration
 
