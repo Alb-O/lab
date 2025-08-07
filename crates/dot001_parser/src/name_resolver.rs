@@ -42,14 +42,12 @@ impl NameResolver {
 
                 // Remove type prefix if present (e.g., "MECube" -> "Cube", "OBCube" -> "Cube")
                 // Blender names often start with a 2-character type code
-                if name.len() > 2 {
-                    let prefix = &name[0..2];
-                    // Only strip prefix if it looks like a type code (2 uppercase letters)
-                    if prefix.chars().all(|c| c.is_ascii_uppercase()) {
-                        Some(name[2..].to_string())
-                    } else {
-                        Some(name.to_string())
-                    }
+                let chars = name.chars();
+                let prefix: String = chars.clone().take(2).collect();
+                if prefix.chars().count() == 2 && prefix.chars().all(|c| c.is_ascii_uppercase()) {
+                    // Find the byte index after the first two characters
+                    let byte_idx = name.char_indices().nth(2).map(|(i, _)| i).unwrap_or(name.len());
+                    Some(name[byte_idx..].to_string())
                 } else {
                     Some(name.to_string())
                 }
