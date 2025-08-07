@@ -1,6 +1,11 @@
 use crate::{BlendFile, Result};
 use dot001_events::error::{BlendFileErrorKind, Error};
+use log::warn;
 use std::io::{Read, Seek};
+
+/// Maximum reasonable size for an array to prevent hanging on corrupted data.
+/// This is set to 1 million elements, which should be sufficient for most legitimate use cases.
+const MAX_REASONABLE_ARRAY_SIZE: u32 = 1_000_000;
 
 /// Utilities for reflective pointer traversal in BlendFile data structures.
 /// This module consolidates pointer traversal logic that was previously duplicated
@@ -79,6 +84,16 @@ impl PointerTraversal {
 
         if let Ok(count) = reader.read_field_u32(struct_name, count_field) {
             if count > 0 {
+                // Check for unreasonably large array counts that could indicate corruption
+                if count > MAX_REASONABLE_ARRAY_SIZE {
+                    warn!(
+                        "Skipping array field '{}' in struct '{}' with suspiciously large count: {}. \
+                         This may indicate corrupted blend file data. Max allowed: {}",
+                        array_ptr_field, struct_name, count, MAX_REASONABLE_ARRAY_SIZE
+                    );
+                    return Ok(targets);
+                }
+
                 if let Ok(array_ptr) = reader.read_field_pointer(struct_name, array_ptr_field) {
                     if array_ptr != 0 {
                         if let Some(array_index) = blend_file.find_block_by_address(array_ptr) {
