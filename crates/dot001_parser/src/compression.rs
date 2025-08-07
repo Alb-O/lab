@@ -338,16 +338,9 @@ pub fn open_source<P: AsRef<Path>>(
     }
 }
 
-/// Convert BlendRead to a reader that implements Read + Seek
-pub fn create_reader(blend_read: BlendRead) -> Result<Box<dyn crate::ReadSeekSend>> {
-    match blend_read {
-        BlendRead::Memory(data) => Ok(Box::new(MemoryCursor::new(data))),
-        #[cfg(feature = "mmap")]
-        BlendRead::TempMmap(mmap, path) => Ok(Box::new(MmapTempFile::new(mmap, path))),
-        BlendRead::TempFile(file, path) => Ok(Box::new(OwnedTempFile::new(file, path))),
-        BlendRead::File(file) => Ok(Box::new(std::io::BufReader::new(file))),
-    }
-}
+// REMOVED: Legacy streaming API functions
+// These functions have been completely removed as part of the zero-copy rearchitecture.
+// Use create_buffer_from_source() and BlendFileBuf for all parsing operations.
 
 /// A wrapper for memory-mapped temp files that handles cleanup
 #[cfg(feature = "mmap")]

@@ -118,7 +118,7 @@ impl CompactDnaCollection {
     }
 
     /// Create from the original DnaCollection (conversion)
-    pub fn from_original(original: &crate::DnaCollection) -> Self {
+    pub fn from_original(original: &crate::dna::DnaCollection) -> Self {
         let mut compact = Self::new();
 
         // Pre-allocate based on original sizes

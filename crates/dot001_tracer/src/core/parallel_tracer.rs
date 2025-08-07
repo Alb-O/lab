@@ -16,11 +16,10 @@ use dot001_events::{
     event::{Event, TracerEvent},
     prelude::*,
 };
-use dot001_parser::{BlendFile, BlendFileBuf};
+use dot001_parser::BlendFileBuf;
 use log::{debug, trace};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
-use std::io::{Read, Seek};
 use std::sync::Arc;
 
 /// Parallel dependency tracer with concurrent BFS and deterministic output
@@ -69,12 +68,8 @@ impl ParallelDependencyTracer {
         self
     }
 
-    /// Enable deterministic output generation with address remapping  
-    ///
-    /// Note: This method requires a legacy BlendFile<R> for building the address map.
-    /// This is a temporary limitation that will be removed when Determinizer is
-    /// updated to work with BlendFileBuf.
-    pub fn with_deterministic_output<R: Read + Seek>(mut self, blend_file: &BlendFile<R>) -> Self {
+    /// Enable deterministic output generation with address remapping
+    pub fn with_deterministic_output(mut self, blend_file: &BlendFileBuf) -> Self {
         let mut determinizer = Determinizer::new();
         determinizer.build_address_map(blend_file);
         self.determinizer = Some(determinizer);
@@ -88,15 +83,7 @@ impl ParallelDependencyTracer {
     }
 
     /// Apply a FilterSpec using the FilterEngine and store the allowed set internally
-    ///
-    /// Note: This method requires a legacy BlendFile<R> for filtering.
-    /// This is a temporary limitation that will be removed when FilterEngine is
-    /// updated to work with BlendFileBuf.
-    pub fn apply_filters<R: Read + Seek>(
-        &mut self,
-        spec: &FilterSpec,
-        blend_file: &mut BlendFile<R>,
-    ) -> Result<()> {
+    pub fn apply_filters(&mut self, spec: &FilterSpec, blend_file: &BlendFileBuf) -> Result<()> {
         let blocks_before = blend_file.blocks_len();
         let engine = FilterEngine::new();
         let allowed = engine.apply(spec, blend_file)?;

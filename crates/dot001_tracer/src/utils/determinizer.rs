@@ -1,6 +1,5 @@
-use dot001_parser::BlendFile;
+use dot001_parser::BlendFileBuf;
 use std::collections::HashMap;
-use std::io::{Read, Seek};
 
 /// Utility for generating deterministic, stable outputs from BlendFile data.
 /// This centralizes address remapping, sorting, and normalization logic
@@ -29,7 +28,7 @@ impl Determinizer {
     }
 
     /// Build address mapping from a BlendFile for deterministic output
-    pub fn build_address_map<R: Read + Seek>(&mut self, blend_file: &BlendFile<R>) {
+    pub fn build_address_map(&mut self, blend_file: &BlendFileBuf) {
         let mut addresses: Vec<u64> = Vec::new();
 
         // Collect all unique addresses from blocks
@@ -68,10 +67,10 @@ impl Determinizer {
     }
 
     /// Sort a list of block indices deterministically by their addresses
-    pub fn sort_blocks_by_address<R: Read + Seek>(
+    pub fn sort_blocks_by_address(
         &self,
         mut block_indices: Vec<usize>,
-        blend_file: &BlendFile<R>,
+        blend_file: &BlendFileBuf,
     ) -> Vec<usize> {
         block_indices.sort_by_key(|&index| {
             blend_file
@@ -99,11 +98,11 @@ impl Determinizer {
 
     /// Create a stable, deterministic identifier for a block
     /// Uses the NameResolver if available, falls back to address-based ID
-    pub fn create_stable_id<R: Read + Seek>(
+    pub fn create_stable_id(
         &self,
         block_index: usize,
-        blend_file: &mut BlendFile<R>,
-        name_resolver: Option<&dyn NameResolverTrait<R>>,
+        blend_file: &BlendFileBuf,
+        name_resolver: Option<&dyn NameResolverTrait>,
     ) -> String {
         // Copy block info first to avoid borrowing conflicts
         let (code, address) = if let Some(block) = blend_file.get_block(block_index) {
@@ -126,15 +125,15 @@ impl Determinizer {
 }
 
 /// Trait for name resolution to allow different implementations
-pub trait NameResolverTrait<R: Read + Seek> {
+pub trait NameResolverTrait {
     /// Resolve the user-defined name for a block
-    fn resolve_name(&self, block_index: usize, blend_file: &mut BlendFile<R>) -> Option<String>;
+    fn resolve_name(&self, block_index: usize, blend_file: &BlendFileBuf) -> Option<String>;
 
     /// Get a display name combining type and user name
     fn get_display_name(
         &self,
         block_index: usize,
-        blend_file: &mut BlendFile<R>,
+        blend_file: &BlendFileBuf,
         block_code: &str,
     ) -> String;
 }

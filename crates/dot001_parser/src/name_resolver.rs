@@ -3,35 +3,31 @@
 /// This module provides basic name extraction from Blender datablocks without
 /// requiring the full dependency tracing capabilities of the tracer crate.
 /// It's designed for "read-only list" workflows that only need display names.
-use crate::BlendFile;
-use std::io::{Read, Seek};
+use crate::BlendFileBuf;
 
 /// Minimal name resolver for extracting user-defined names from datablocks
 pub struct NameResolver;
 
 impl NameResolver {
-    /// Extract the user-defined name from a datablock
+    /// Extract the user-defined name from a datablock using zero-copy access
     ///
     /// Returns the clean name without type prefixes (e.g., "Cube" instead of "MECube")
     /// Returns None if the name cannot be read or is empty
-    pub fn resolve_name<R: Read + Seek>(
-        block_index: usize,
-        blend_file: &mut BlendFile<R>,
-    ) -> Option<String> {
-        // Read the block data
-        let data = match blend_file.read_block_data(block_index) {
-            Ok(data) => data,
+    pub fn resolve_name(block_index: usize, blend_file: &BlendFileBuf) -> Option<String> {
+        // Read the block data as a zero-copy slice
+        let slice = match blend_file.read_block_slice(block_index) {
+            Ok(slice) => slice,
             Err(_) => return None,
         };
 
-        let reader = match blend_file.create_field_reader(&data) {
-            Ok(reader) => reader,
+        let view = match blend_file.create_field_view(&slice) {
+            Ok(view) => view,
             Err(_) => return None,
         };
 
         // Most datablocks start with an `ID` struct, which contains the name.
         // We can read this directly. If it fails, it's not a named block.
-        let name_result = reader.read_field_string("ID", "name");
+        let name_result = view.read_field_string("ID", "name");
 
         match name_result {
             Ok(raw_name) => {
@@ -65,9 +61,9 @@ impl NameResolver {
     /// Examples:
     /// - "Object (Cube)" if name is available
     /// - "Object" if name is not available
-    pub fn get_display_name<R: Read + Seek>(
+    pub fn get_display_name(
         block_index: usize,
-        blend_file: &mut BlendFile<R>,
+        blend_file: &BlendFileBuf,
         block_code: &str,
     ) -> String {
         match Self::resolve_name(block_index, blend_file) {

@@ -3,7 +3,8 @@
 //! This module provides high-performance field access using zero-copy operations
 //! with bytemuck for safe casting and minimal overhead.
 
-use crate::{BlendFileErrorKind, DnaCollection, Error, Result};
+use crate::dna::{DnaCollection, DnaField};
+use crate::{BlendFileErrorKind, Error, Result};
 use bytes::Bytes;
 
 #[cfg(feature = "bytemuck")]
@@ -233,8 +234,24 @@ impl<'data> FieldView<'data> {
         self.slice(field.offset, field.size)
     }
 
+    /// Read a field by name as a string (for character arrays like name[66])
+    pub fn read_field_string(&self, struct_name: &str, field_name: &str) -> Result<String> {
+        let field = self.find_field(struct_name, field_name)?;
+        let bytes = self.slice(field.offset, field.size)?;
+
+        // Convert bytes to string, handling null termination
+        let string_bytes: Vec<u8> = bytes.iter().take_while(|&&b| b != 0).copied().collect();
+
+        String::from_utf8(string_bytes).map_err(|e| {
+            Error::blend_file(
+                format!("Invalid UTF-8 in field: {e}"),
+                BlendFileErrorKind::InvalidField,
+            )
+        })
+    }
+
     /// Find a field definition by struct name and field name
-    fn find_field(&self, struct_name: &str, field_name: &str) -> Result<&crate::DnaField> {
+    fn find_field(&self, struct_name: &str, field_name: &str) -> Result<&DnaField> {
         let struct_def = self
             .dna
             .structs

@@ -1,23 +1,22 @@
-use crate::{BlendFile, Result};
+use crate::{BlendFileBuf, Result};
 use dot001_events::error::{BlendFileErrorKind, Error};
-use std::io::{Read, Seek};
 
 /// Maximum reasonable size for an array to prevent hanging on problematic data.
 /// This is set to 100 million elements, which should be sufficient for even the most complex scenes
 /// while still protecting against struct version mismatches that result in garbage count values.
 const MAX_REASONABLE_ARRAY_SIZE: u32 = 100_000_000;
 
-/// Utilities for reflective pointer traversal in BlendFile data structures.
+/// Utilities for reflective pointer traversal in BlendFileBuf data structures.
 /// This module consolidates pointer traversal logic that was previously duplicated
-/// between FilterEngine and various BlockExpanders.
+/// between FilterEngine and various BlockExpanders, now optimized for zero-copy access.
 pub struct PointerTraversal;
 
 impl PointerTraversal {
-    /// Find all pointer field targets in a block using DNA reflection.
+    /// Find all pointer field targets in a block using DNA reflection with zero-copy access.
     /// This provides a generic way to discover pointer dependencies without
     /// hard-coding specific struct layouts.
-    pub fn find_pointer_targets<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
+    pub fn find_pointer_targets(
+        blend_file: &BlendFileBuf,
         block_index: usize,
     ) -> Result<Vec<usize>> {
         let mut targets = Vec::new();
@@ -48,13 +47,13 @@ impl PointerTraversal {
             fields
         };
 
-        // Now read the block data and find pointer targets
+        // Now read the block data and find pointer targets using zero-copy access
         if !pointer_fields.is_empty() {
-            let block_data = blend_file.read_block_data(block_index)?;
-            let reader = blend_file.create_field_reader(&block_data)?;
+            let slice = blend_file.read_block_slice(block_index)?;
+            let view = blend_file.create_field_view(&slice)?;
 
             for (struct_name, field_name) in pointer_fields {
-                if let Ok(ptr_value) = reader.read_field_pointer(&struct_name, &field_name) {
+                if let Ok(ptr_value) = view.read_field_pointer(&struct_name, &field_name) {
                     if ptr_value != 0 {
                         if let Some(target_index) = blend_file.find_block_by_address(ptr_value) {
                             targets.push(target_index);
@@ -67,11 +66,11 @@ impl PointerTraversal {
         Ok(targets)
     }
 
-    /// Helper function for reading pointer arrays (like materials arrays in Object/Mesh).
+    /// Helper function for reading pointer arrays (like materials arrays in Object/Mesh) with zero-copy access.
     /// This consolidates the common pattern of reading an array count and pointer,
     /// then traversing the array to find all pointer targets.
-    pub fn read_pointer_array<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
+    pub fn read_pointer_array(
+        blend_file: &BlendFileBuf,
         block_index: usize,
         struct_name: &str,
         count_field: &str,
@@ -79,10 +78,10 @@ impl PointerTraversal {
     ) -> Result<Vec<usize>> {
         let mut targets = Vec::new();
 
-        let block_data = blend_file.read_block_data(block_index)?;
-        let reader = blend_file.create_field_reader(&block_data)?;
+        let slice = blend_file.read_block_slice(block_index)?;
+        let view = blend_file.create_field_view(&slice)?;
 
-        if let Ok(count) = reader.read_field_u32(struct_name, count_field) {
+        if let Ok(count) = view.read_field_u32(struct_name, count_field) {
             if count > 0 {
                 // Check for unreasonably large array counts that could indicate struct version mismatch
                 if count > MAX_REASONABLE_ARRAY_SIZE {
@@ -96,20 +95,20 @@ impl PointerTraversal {
                     ));
                 }
 
-                if let Ok(array_ptr) = reader.read_field_pointer(struct_name, array_ptr_field) {
+                if let Ok(array_ptr) = view.read_field_pointer(struct_name, array_ptr_field) {
                     if array_ptr != 0 {
                         if let Some(array_index) = blend_file.find_block_by_address(array_ptr) {
                             // Add the array block itself as a dependency
                             targets.push(array_index);
 
                             // Read through the array to find individual pointers
-                            let array_data = blend_file.read_block_data(array_index)?;
-                            let array_reader = blend_file.create_field_reader(&array_data)?;
+                            let array_slice = blend_file.read_block_slice(array_index)?;
+                            let array_view = blend_file.create_field_view(&array_slice)?;
                             let pointer_size = blend_file.header().pointer_size as usize;
 
                             for i in 0..count {
                                 let offset = i as usize * pointer_size;
-                                if let Ok(ptr_value) = array_reader.read_pointer(offset) {
+                                if let Ok(ptr_value) = array_view.read_pointer(offset) {
                                     if ptr_value != 0 {
                                         if let Some(target_index) =
                                             blend_file.find_block_by_address(ptr_value)
@@ -128,21 +127,21 @@ impl PointerTraversal {
         Ok(targets)
     }
 
-    /// Helper for reading multiple single pointer fields from a struct.
+    /// Helper for reading multiple single pointer fields from a struct with zero-copy access.
     /// Takes a list of field names and returns all valid pointer targets.
-    pub fn read_pointer_fields<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
+    pub fn read_pointer_fields(
+        blend_file: &BlendFileBuf,
         block_index: usize,
         struct_name: &str,
         field_names: &[&str],
     ) -> Result<Vec<usize>> {
         let mut targets = Vec::new();
 
-        let block_data = blend_file.read_block_data(block_index)?;
-        let reader = blend_file.create_field_reader(&block_data)?;
+        let slice = blend_file.read_block_slice(block_index)?;
+        let view = blend_file.create_field_view(&slice)?;
 
         for field_name in field_names {
-            if let Ok(ptr_value) = reader.read_field_pointer(struct_name, field_name) {
+            if let Ok(ptr_value) = view.read_field_pointer(struct_name, field_name) {
                 if ptr_value != 0 {
                     if let Some(target_index) = blend_file.find_block_by_address(ptr_value) {
                         targets.push(target_index);

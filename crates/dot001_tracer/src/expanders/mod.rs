@@ -1,23 +1,24 @@
-/// Block expanders for different Blender data types
+/// Thread-safe block expanders for different Blender data types
 ///
-/// This module contains expanders that extract dependencies from specific
-/// types of Blender blocks (Scene, Object, Mesh, Collection/Group, Material, etc.).
+/// This module contains thread-safe expanders that extract dependencies from specific
+/// types of Blender blocks using zero-copy FieldView access for optimal performance.
 ///
 /// The expanders are organized by category:
-/// - `basic`: Internal Blender structures (objects, meshes, materials, etc.)
-/// - `external`: Blocks that reference external files (sounds, images, libraries, etc.)
-/// - `macros`: Macro generators for creating expanders
-/// - `thread_safe`: Thread-safe versions using zero-copy FieldView access
-pub mod basic;
-pub mod external;
+/// - `basic`: Legacy directory (removed - see thread_safe instead)
+/// - `external`: Legacy directory (removed - see thread_safe instead)
+/// - `macros`: Macro generators for creating thread-safe expanders
+/// - `thread_safe`: Modern zero-copy expanders with parallel processing support
+pub mod basic; // Legacy - empty placeholder
+pub mod external; // Legacy - empty placeholder
 pub mod macros;
 pub mod thread_safe;
 
-// Re-export all expanders at the expanders level
-pub use basic::*;
-pub use external::*;
-// Re-export thread-safe expanders with prefixed names to avoid conflicts
+// PRIMARY EXPORTS - Thread-safe expanders only
 pub use thread_safe::{
     ThreadSafeMaterialExpander, ThreadSafeMeshExpander, ThreadSafeObjectExpander,
     ThreadSafeSceneExpander,
 };
+
+// REMOVED: Legacy expander exports
+// All basic::* and external::* expanders have been completely removed.
+// Use the ThreadSafe* variants or create custom expanders with the thread_safe_*_expander! macros.

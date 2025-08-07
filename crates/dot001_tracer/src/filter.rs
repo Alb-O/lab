@@ -1,8 +1,8 @@
 use dot001_events::error::{Error, Result as UnifiedResult, TracerErrorKind};
-use dot001_parser::{BlendFile, BlendFileBlock, PointerTraversal, Result};
+use dot001_parser::{BlendFileBlock, BlendFileBuf, PointerTraversal, Result};
 use regex::Regex;
 use std::collections::HashSet;
-use std::io::{Read, Seek};
+// Removed: std::io imports - no longer needed with BlendFileBuf
 
 /// Filter rule similar to Blender's `--filter-block`
 /// include: true for '+', false for '-'
@@ -79,11 +79,7 @@ impl FilterEngine {
     /// - Rules evaluated in order.
     /// - Exclude rules short-circuit on match.
     /// - Include rules can set marks and optionally recurse via pointers up to recursion depth.
-    pub fn apply<R: Read + Seek>(
-        &self,
-        spec: &FilterSpec,
-        blend: &mut BlendFile<R>,
-    ) -> Result<HashSet<usize>> {
+    pub fn apply(&self, spec: &FilterSpec, blend: &BlendFileBuf) -> Result<HashSet<usize>> {
         let mut marks: Vec<BlockMark> = vec![BlockMark::None; blend.blocks_len()];
         let mut include_queue: Vec<(usize, usize)> = Vec::new(); // (block_index, current_depth)
         let mut included: HashSet<usize> = HashSet::new();
@@ -204,10 +200,7 @@ impl FilterEngine {
         }
     }
 
-    fn data_view_minimal<R: Read + Seek>(
-        blend: &mut BlendFile<R>,
-        block_index: usize,
-    ) -> Result<BlockDataView> {
+    fn data_view_minimal(blend: &BlendFileBuf, block_index: usize) -> Result<BlockDataView> {
         // Minimal, fast data pairs. We avoid full reflection now.
         // Includes a few common keys that are cheap to obtain and useful for regex matching.
         let mut pairs: Vec<(String, String)> = Vec::with_capacity(8);
@@ -237,9 +230,9 @@ impl FilterEngine {
 
         // Optionally, try to read an ID name if the block likely starts with ID
         // This is a fast path used by many filters (e.g., name).
-        if let Ok(data) = blend.read_block_data(block_index) {
-            if let Ok(reader) = blend.create_field_reader(&data) {
-                if let Ok(name) = reader.read_field_string("ID", "name") {
+        if let Ok(slice) = blend.read_block_slice(block_index) {
+            if let Ok(view) = blend.create_field_view(&slice) {
+                if let Ok(name) = view.read_field_string("ID", "name") {
                     let trimmed = name.trim_end_matches('\0').to_string();
                     if !trimmed.is_empty() {
                         pairs.push(("name".into(), trimmed));
@@ -277,10 +270,7 @@ impl FilterEngine {
     /// Enumerate pointer targets from a block by inspecting common pointer fields.
     /// Now uses the shared PointerTraversal utilities for consistency, with specialized
     /// heuristics for complex cases like pointer arrays and ListBase traversal.
-    fn pointer_targets<R: Read + Seek>(
-        blend: &mut BlendFile<R>,
-        block_index: usize,
-    ) -> Result<Vec<usize>> {
+    fn pointer_targets(blend: &BlendFileBuf, block_index: usize) -> Result<Vec<usize>> {
         let mut out = Vec::new();
 
         // First try the generic DNA-based approach
@@ -319,19 +309,18 @@ impl FilterEngine {
         // NodeTree: complex ListBase traversal for nodes
         if code == *b"NT\0\0" || code == *b"DATA" {
             let nodes_ptr = {
-                let data = blend.read_block_data(block_index)?;
-                let reader = blend.create_field_reader(&data)?;
-                reader
-                    .read_field_pointer("bNodeTree", "nodes")
-                    .or_else(|_| reader.read_field_pointer("NodeTree", "nodes"))
+                let slice = blend.read_block_slice(block_index)?;
+                let view = blend.create_field_view(&slice)?;
+                view.read_field_pointer("bNodeTree", "nodes")
+                    .or_else(|_| view.read_field_pointer("NodeTree", "nodes"))
                     .ok()
             };
             if let Some(nodes_ptr) = nodes_ptr {
                 let lb_index_opt = blend.find_block_by_address(nodes_ptr);
                 if let Some(lb_index) = lb_index_opt {
-                    let lb_data = blend.read_block_data(lb_index)?;
-                    let lr = blend.create_field_reader(&lb_data)?;
-                    if let Ok(first) = lr.read_field_pointer("ListBase", "first") {
+                    let lb_slice = blend.read_block_slice(lb_index)?;
+                    let lb_view = blend.create_field_view(&lb_slice)?;
+                    if let Ok(first) = lb_view.read_field_pointer("ListBase", "first") {
                         // Traverse a few nodes and collect id pointers
                         const MAX_FILTER_ITERATIONS: usize = 256;
                         let mut cur = first;
@@ -340,12 +329,12 @@ impl FilterEngine {
                             guard += 1;
                             let nidx_opt = blend.find_block_by_address(cur);
                             if let Some(nidx) = nidx_opt {
-                                let nd = blend.read_block_data(nidx)?;
-                                let nr = blend.create_field_reader(&nd)?;
-                                if let Ok(idp) = nr.read_field_pointer("bNode", "id") {
+                                let nd_slice = blend.read_block_slice(nidx)?;
+                                let nd_view = blend.create_field_view(&nd_slice)?;
+                                if let Ok(idp) = nd_view.read_field_pointer("bNode", "id") {
                                     Self::push_addr(blend, &mut out, idp);
                                 }
-                                if let Ok(nextp) = nr.read_field_pointer("bNode", "next") {
+                                if let Ok(nextp) = nd_view.read_field_pointer("bNode", "next") {
                                     cur = nextp;
                                     continue;
                                 }
@@ -363,7 +352,7 @@ impl FilterEngine {
         Ok(out)
     }
 
-    fn push_addr<R: Read + Seek>(blend: &BlendFile<R>, out: &mut Vec<usize>, addr: u64) {
+    fn push_addr(blend: &BlendFileBuf, out: &mut Vec<usize>, addr: u64) {
         if addr == 0 {
             return;
         }

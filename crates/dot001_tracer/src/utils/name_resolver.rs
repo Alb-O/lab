@@ -1,6 +1,5 @@
 use super::determinizer::NameResolverTrait;
-use dot001_parser::BlendFile;
-use std::io::{Read, Seek};
+use dot001_parser::BlendFileBuf;
 
 /// Utility for resolving user-defined names from Blender datablocks
 ///
@@ -15,24 +14,21 @@ impl NameResolver {
     ///
     /// Returns the clean name without type prefixes (e.g., "Cube" instead of "MECube")
     /// Returns None if the name cannot be read or is empty
-    pub fn resolve_name<R: Read + Seek>(
-        block_index: usize,
-        blend_file: &mut BlendFile<R>,
-    ) -> Option<String> {
+    pub fn resolve_name(block_index: usize, blend_file: &BlendFileBuf) -> Option<String> {
         // Read the block data
-        let data = match blend_file.read_block_data(block_index) {
+        let data = match blend_file.read_block_slice_for_field_view(block_index) {
             Ok(data) => data,
             Err(_) => return None,
         };
 
-        let reader = match blend_file.create_field_reader(&data) {
-            Ok(reader) => reader,
+        let view = match blend_file.create_field_view(&data) {
+            Ok(view) => view,
             Err(_) => return None,
         };
 
         // Most datablocks start with an `ID` struct, which contains the name.
         // We can read this directly. If it fails, it's not a named block.
-        let name_result = reader.read_field_string("ID", "name");
+        let name_result = view.read_field_string("ID", "name");
 
         match name_result {
             Ok(raw_name) => {
@@ -64,9 +60,9 @@ impl NameResolver {
     /// Examples:
     /// - "Object (Cube)" if name is available
     /// - "Object" if name is not available
-    pub fn get_display_name<R: Read + Seek>(
+    pub fn get_display_name(
         block_index: usize,
-        blend_file: &mut BlendFile<R>,
+        blend_file: &BlendFileBuf,
         block_code: &str,
     ) -> String {
         match Self::resolve_name(block_index, blend_file) {
@@ -84,15 +80,15 @@ impl NameResolver {
 }
 
 /// Implementation of the NameResolverTrait for the default NameResolver
-impl<R: Read + Seek> NameResolverTrait<R> for NameResolver {
-    fn resolve_name(&self, block_index: usize, blend_file: &mut BlendFile<R>) -> Option<String> {
+impl NameResolverTrait for NameResolver {
+    fn resolve_name(&self, block_index: usize, blend_file: &BlendFileBuf) -> Option<String> {
         Self::resolve_name(block_index, blend_file)
     }
 
     fn get_display_name(
         &self,
         block_index: usize,
-        blend_file: &mut BlendFile<R>,
+        blend_file: &BlendFileBuf,
         block_code: &str,
     ) -> String {
         Self::get_display_name(block_index, blend_file, block_code)
