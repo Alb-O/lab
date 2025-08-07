@@ -125,8 +125,6 @@ fn test_dependency_tracing_integration() {
 #[test]
 fn test_external_reference_detection() {
     let blend_file = load_test_blend_file("library.blend");
-    let tracer: DependencyTracer<'_, Box<dyn dot001_parser::ReadSeekSend>> =
-        DependencyTracer::new().with_default_expanders();
 
     let mut total_external_refs = 0;
     let mut blocks_with_externals: Vec<(usize, String, Vec<std::path::PathBuf>)> = Vec::new();
