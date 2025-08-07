@@ -1,0 +1,15 @@
+[package]
+name = "dot001_writer"
+version = "0.1.0"
+edition = "2024"
+license = "gpl-3.0-or-later"
+authors = ["Albert O'Shea"]
+
+[dependencies]
+dot001_parser = { path = "../dot001_parser" }
+dot001_error = { path = "../dot001_error" }
+dot001_tracer = { path = "../dot001_tracer" }
+log = "0.4"
+
+[features]
+default = []

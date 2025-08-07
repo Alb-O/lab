@@ -538,13 +538,13 @@ name = "dot001"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "dot001-error",
- "dot001-parser",
- "dot001-tracer",
+ "dot001_error",
+ "dot001_parser",
+ "dot001_tracer",
 ]
 
 [[package]]
-name = "dot001-checkpoint"
+name = "dot001_checkpoint"
 version = "0.1.0"
 dependencies = [
  "num_cpus",
@@ -556,17 +556,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "dot001-cli"
+name = "dot001_cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "dot001-diff",
- "dot001-editor",
- "dot001-error",
- "dot001-parser",
- "dot001-tracer",
- "dot001-watcher",
- "dot001-writer",
+ "dot001_diff",
+ "dot001_editor",
+ "dot001_error",
+ "dot001_parser",
+ "dot001_tracer",
+ "dot001_watcher",
+ "dot001_writer",
  "env_logger",
  "isatty",
  "log",
@@ -577,32 +577,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "dot001-diff"
+name = "dot001_diff"
 version = "0.1.0"
 dependencies = [
  "bdiff",
  "blake3",
- "dot001-error",
- "dot001-parser",
- "dot001-tracer",
+ "dot001_error",
+ "dot001_parser",
+ "dot001_tracer",
  "hex",
  "log",
  "serde",
 ]
 
 [[package]]
-name = "dot001-editor"
+name = "dot001_editor"
 version = "0.1.0"
 dependencies = [
- "dot001-error",
- "dot001-parser",
- "dot001-tracer",
+ "dot001_error",
+ "dot001_parser",
+ "dot001_tracer",
  "log",
  "serde",
 ]
 
 [[package]]
-name = "dot001-error"
+name = "dot001_error"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -610,10 +610,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "dot001-parser"
+name = "dot001_parser"
 version = "0.1.0"
 dependencies = [
- "dot001-error",
+ "dot001_error",
  "log",
  "memmap2",
  "tempfile",
@@ -622,11 +622,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "dot001-tracer"
+name = "dot001_tracer"
 version = "0.1.0"
 dependencies = [
- "dot001-error",
- "dot001-parser",
+ "dot001_error",
+ "dot001_parser",
  "log",
  "pathdiff",
  "regex",
@@ -634,7 +634,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dot001-watcher"
+name = "dot001_watcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -651,12 +651,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "dot001-writer"
+name = "dot001_writer"
 version = "0.1.0"
 dependencies = [
- "dot001-error",
- "dot001-parser",
- "dot001-tracer",
+ "dot001_error",
+ "dot001_parser",
+ "dot001_tracer",
  "log",
 ]
 

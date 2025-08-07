@@ -5,9 +5,9 @@ edition = "2021"
 rust-version.workspace = true
 
 [dependencies]
-dot001-parser = { path = "../crates/dot001-parser" }
-dot001-tracer = { path = "../crates/dot001-tracer" }
-dot001-error = { path = "../crates/dot001-error" }
+dot001_parser = { path = "../crates/dot001_parser" }
+dot001_tracer = { path = "../crates/dot001_tracer" }
+dot001_error = { path = "../crates/dot001_error" }
 
 [dev-dependencies]
 criterion = { workspace = true }

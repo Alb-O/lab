@@ -1,0 +1,20 @@
+[package]
+name = "dot001_editor"
+version = "0.1.0"
+edition = "2024"
+license = "gpl-3.0-or-later"
+authors = ["Albert O'Shea"]
+repository = "https://github.com/Alb-O/dot001"
+
+
+[dependencies]
+dot001_parser = { path = "../dot001_parser" }
+dot001_tracer = { path = "../dot001_tracer", optional = true }
+dot001_error = { path = "../dot001_error" }
+serde = { version = "1.0", features = ["derive"], optional = true }
+log = "0.4"
+
+[features]
+default = []
+tracer_integration = ["dep:dot001_tracer"]
+serde = ["dep:serde"]

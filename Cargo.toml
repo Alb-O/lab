@@ -1,20 +1,20 @@
 [workspace]
 members = [
     "lib",
-    "crates/dot001-cli",
-    "crates/dot001-diff",
-    "crates/dot001-editor",
-    "crates/dot001-error",
-    "crates/dot001-parser",
-    "crates/dot001-tracer",
-    "crates/dot001-writer",
-    "crates/dot001-checkpoint",
-    "crates/dot001-watcher",
+    "crates/dot001_cli",
+    "crates/dot001_diff",
+    "crates/dot001_editor",
+    "crates/dot001_error",
+    "crates/dot001_parser",
+    "crates/dot001_tracer",
+    "crates/dot001_writer",
+    "crates/dot001_checkpoint",
+    "crates/dot001_watcher",
 ]
 resolver = "2"
 
 [workspace.package]
-edition = "2021" 
+edition = "2021"
 rust-version = "1.70"
 license = "MIT OR Apache-2.0"
 
