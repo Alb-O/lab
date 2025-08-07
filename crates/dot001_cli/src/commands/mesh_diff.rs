@@ -3,7 +3,7 @@ use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::block_ops::CommandHelper;
 use crate::output_utils::{CommandSummary, OutputUtils};
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use log::error;
 use std::path::PathBuf;
 
@@ -15,7 +15,7 @@ pub fn cmd_mesh_diff(
     template: DisplayTemplate,
     json: bool,
     ctx: &CommandContext,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     let mut blend_file1 = ctx.load_blend_file(&file1_path)?;
     let mut blend_file2 = ctx.load_blend_file(&file2_path)?;
     let differ = dot001_diff::BlendDiffer::new()

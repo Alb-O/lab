@@ -12,7 +12,6 @@ dot001_tracer = { path = "../dot001_tracer", optional = true }
 dot001_diff = { path = "../dot001_diff", optional = true }
 dot001_parser = { path = "../dot001_parser" }
 dot001_editor = { path = "../dot001_editor", optional = true }
-dot001_error = { path = "../dot001_error" }
 dot001_events = { path = "../dot001_events", features = ["serde", "json"] }
 dot001_writer = { path = "../dot001_writer" }
 dot001_watcher = { path = "../dot001_watcher", optional = true }

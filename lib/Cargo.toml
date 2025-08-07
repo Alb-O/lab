@@ -7,7 +7,7 @@ rust-version.workspace = true
 [dependencies]
 dot001_parser = { path = "../crates/dot001_parser" }
 dot001_tracer = { path = "../crates/dot001_tracer" }
-dot001_error = { path = "../crates/dot001_error" }
+dot001_events = { path = "../crates/dot001_events" }
 
 [dev-dependencies]
 criterion = { workspace = true }

@@ -29,7 +29,7 @@ pub mod diff_engine;
 pub mod policies;
 pub mod provenance;
 
-use dot001_error::Result;
+use dot001_events::error::Result;
 use dot001_events::{
     event::{DiffEvent, Event},
     prelude::*,

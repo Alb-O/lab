@@ -1,7 +1,7 @@
 use crate::DisplayTemplate;
 use crate::block_utils::BlockWithMetadata;
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 
@@ -14,7 +14,7 @@ pub trait BlockOperations<R: Read + Seek> {
     fn resolve_typed_block(&mut self, identifier: &str, block_type: &str) -> Option<usize>;
 
     /// Get block metadata with error handling
-    fn get_block_metadata_safe(&mut self, index: usize) -> Result<BlockWithMetadata, Dot001Error>;
+    fn get_block_metadata_safe(&mut self, index: usize) -> Result<BlockWithMetadata, Error>;
 
     /// Get all blocks of a specific type
     fn get_blocks_by_type(&mut self, block_type: &str, show_data: bool) -> Vec<BlockWithMetadata>;
@@ -29,7 +29,7 @@ impl<R: Read + Seek> BlockOperations<R> for BlendFile<R> {
         crate::util::resolve_typed_block_or_exit(identifier, block_type, self)
     }
 
-    fn get_block_metadata_safe(&mut self, index: usize) -> Result<BlockWithMetadata, Dot001Error> {
+    fn get_block_metadata_safe(&mut self, index: usize) -> Result<BlockWithMetadata, Error> {
         crate::block_utils::BlockUtils::get_block_metadata(index, self)
     }
 
@@ -50,10 +50,7 @@ impl<'a, R: Read + Seek> CommandHelper<'a, R> {
     }
 
     /// Resolve a block and exit gracefully if not found
-    pub fn resolve_block_or_return(
-        &mut self,
-        identifier: &str,
-    ) -> Result<Option<usize>, Dot001Error> {
+    pub fn resolve_block_or_return(&mut self, identifier: &str) -> Result<Option<usize>, Error> {
         match self.blend_file.resolve_block_identifier(identifier) {
             Some(index) => Ok(Some(index)),
             None => {
@@ -68,7 +65,7 @@ impl<'a, R: Read + Seek> CommandHelper<'a, R> {
         &mut self,
         identifier: &str,
         block_type: &str,
-    ) -> Result<Option<usize>, Dot001Error> {
+    ) -> Result<Option<usize>, Error> {
         match self.blend_file.resolve_typed_block(identifier, block_type) {
             Some(index) => Ok(Some(index)),
             None => {
@@ -83,7 +80,7 @@ impl<'a, R: Read + Seek> CommandHelper<'a, R> {
         &mut self,
         index: usize,
         template: &DisplayTemplate,
-    ) -> Result<String, Dot001Error> {
+    ) -> Result<String, Error> {
         let metadata = self.blend_file.get_block_metadata_safe(index)?;
         Ok(metadata.create_display(template))
     }
@@ -113,9 +110,9 @@ impl<'a, R: Read + Seek> BatchProcessor<'a, R> {
         indices: &[usize],
         template: &DisplayTemplate,
         mut processor: F,
-    ) -> Result<(), Dot001Error>
+    ) -> Result<(), Error>
     where
-        F: FnMut(usize, &BlockWithMetadata, &str, &CommandContext) -> Result<(), Dot001Error>,
+        F: FnMut(usize, &BlockWithMetadata, &str, &CommandContext) -> Result<(), Error>,
     {
         for &index in indices {
             let metadata = self.blend_file.get_block_metadata_safe(index)?;
@@ -130,7 +127,7 @@ impl<'a, R: Read + Seek> BatchProcessor<'a, R> {
         &mut self,
         indices: &[usize],
         template: &DisplayTemplate,
-    ) -> Result<(), Dot001Error> {
+    ) -> Result<(), Error> {
         self.process_blocks(indices, template, |_index, _metadata, display, ctx| {
             ctx.output.print_result_fmt(format_args!("  {display}"));
             Ok(())
@@ -162,15 +159,15 @@ impl ValidationHelper {
     pub fn validate_block_index<R: Read + Seek>(
         index: usize,
         blend_file: &BlendFile<R>,
-    ) -> Result<(), Dot001Error> {
+    ) -> Result<(), Error> {
         if index >= blend_file.blocks_len() {
-            return Err(Dot001Error::cli(
+            return Err(Error::cli(
                 format!(
                     "Block index {} is out of range (max: {})",
                     index,
                     blend_file.blocks_len() - 1
                 ),
-                dot001_error::CliErrorKind::InvalidArguments,
+                dot001_events::error::CliErrorKind::InvalidArguments,
             ));
         }
         Ok(())
@@ -181,20 +178,20 @@ impl ValidationHelper {
         index: usize,
         expected_type: &str,
         blend_file: &BlendFile<R>,
-    ) -> Result<(), Dot001Error> {
+    ) -> Result<(), Error> {
         let Some(block) = blend_file.get_block(index) else {
-            return Err(Dot001Error::cli(
+            return Err(Error::cli(
                 format!("Cannot access block {index}"),
-                dot001_error::CliErrorKind::ExecutionFailed,
+                dot001_events::error::CliErrorKind::ExecutionFailed,
             ));
         };
 
         let actual_type = dot001_parser::block_code_to_string(block.header.code);
 
         if actual_type != expected_type {
-            return Err(Dot001Error::cli(
+            return Err(Error::cli(
                 format!("Block {index} has type '{actual_type}', expected '{expected_type}'"),
-                dot001_error::CliErrorKind::InvalidArguments,
+                dot001_events::error::CliErrorKind::InvalidArguments,
             ));
         }
 

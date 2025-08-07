@@ -4,7 +4,6 @@ members = [
     "crates/dot001_cli",
     "crates/dot001_diff",
     "crates/dot001_editor",
-    "crates/dot001_error",
     "crates/dot001_events",
     "crates/dot001_parser",
     "crates/dot001_tracer",

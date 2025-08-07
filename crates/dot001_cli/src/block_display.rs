@@ -1,7 +1,7 @@
 // Block display formatting and rendering logic
 
 use crate::DisplayTemplate;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::BlendFile;
 use dot001_parser::NameResolver;
 use owo_colors::OwoColorize;
@@ -98,11 +98,11 @@ impl BlockInfo {
     pub fn from_blend_file<R: std::io::Read + std::io::Seek>(
         index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<Self, Dot001Error> {
+    ) -> Result<Self, Error> {
         let block = blend_file.get_block(index).ok_or_else(|| {
-            Dot001Error::blend_file(
+            Error::blend_file(
                 format!("Block index {index} out of range"),
-                dot001_error::BlendFileErrorKind::InvalidBlockIndex,
+                dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
             )
         })?;
         let code = dot001_parser::block_code_to_string(block.header.code);

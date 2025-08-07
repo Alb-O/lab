@@ -1,4 +1,4 @@
-use crate::error::{Dot001Error, Result};
+use crate::error::{Error, Result};
 use std::io::{Read, Seek, SeekFrom};
 
 #[derive(Debug, Clone)]
@@ -17,7 +17,7 @@ impl BlendFileHeader {
         let mut magic = [0u8; 7];
         reader.read_exact(&mut magic)?;
         if &magic != b"BLENDER" {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!("Invalid magic bytes: {magic:?}"),
                 crate::error::BlendFileErrorKind::InvalidMagic,
             ));
@@ -38,7 +38,7 @@ impl BlendFileHeader {
                 b'v' => true,
                 b'V' => false,
                 _ => {
-                    return Err(Dot001Error::blend_file(
+                    return Err(Error::blend_file(
                         format!("Invalid endian indicator: {}", byte_8[0] as char),
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     ));
@@ -49,14 +49,14 @@ impl BlendFileHeader {
             reader.read_exact(&mut version_bytes)?;
             let version = std::str::from_utf8(&version_bytes)
                 .map_err(|_| {
-                    Dot001Error::blend_file(
+                    Error::blend_file(
                         "Invalid version format",
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     )
                 })?
                 .parse::<u32>()
                 .map_err(|_| {
-                    Dot001Error::blend_file(
+                    Error::blend_file(
                         "Invalid version number",
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     )
@@ -75,7 +75,7 @@ impl BlendFileHeader {
 
             let header_size = (byte_7[0] - b'0') * 10 + (byte_8[0] - b'0');
             if header_size != 17 {
-                return Err(Dot001Error::blend_file(
+                return Err(Error::blend_file(
                     format!("Unknown header size: {header_size}"),
                     crate::error::BlendFileErrorKind::InvalidHeader,
                 ));
@@ -84,7 +84,7 @@ impl BlendFileHeader {
             let mut separator = [0u8; 1];
             reader.read_exact(&mut separator)?;
             if separator[0] != b'-' {
-                return Err(Dot001Error::blend_file(
+                return Err(Error::blend_file(
                     "Expected '-' separator",
                     crate::error::BlendFileErrorKind::InvalidHeader,
                 ));
@@ -96,21 +96,21 @@ impl BlendFileHeader {
             reader.read_exact(&mut version_bytes)?;
             let file_format_version = std::str::from_utf8(&version_bytes)
                 .map_err(|_| {
-                    Dot001Error::blend_file(
+                    Error::blend_file(
                         "Invalid file format version",
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     )
                 })?
                 .parse::<u32>()
                 .map_err(|_| {
-                    Dot001Error::blend_file(
+                    Error::blend_file(
                         "Invalid file format version number",
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     )
                 })?;
 
             if file_format_version != 1 {
-                return Err(Dot001Error::blend_file(
+                return Err(Error::blend_file(
                     format!("Unsupported version: {file_format_version}"),
                     crate::error::BlendFileErrorKind::UnsupportedVersion,
                 ));
@@ -119,7 +119,7 @@ impl BlendFileHeader {
             let mut endian_indicator = [0u8; 1];
             reader.read_exact(&mut endian_indicator)?;
             if endian_indicator[0] != b'v' {
-                return Err(Dot001Error::blend_file(
+                return Err(Error::blend_file(
                     "Expected 'v' endian indicator",
                     crate::error::BlendFileErrorKind::InvalidHeader,
                 ));
@@ -130,14 +130,14 @@ impl BlendFileHeader {
             reader.read_exact(&mut version_bytes)?;
             let version = std::str::from_utf8(&version_bytes)
                 .map_err(|_| {
-                    Dot001Error::blend_file(
+                    Error::blend_file(
                         "Invalid version format",
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     )
                 })?
                 .parse::<u32>()
                 .map_err(|_| {
-                    Dot001Error::blend_file(
+                    Error::blend_file(
                         "Invalid version number",
                         crate::error::BlendFileErrorKind::InvalidHeader,
                     )

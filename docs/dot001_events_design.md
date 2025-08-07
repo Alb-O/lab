@@ -356,8 +356,9 @@ fn parse_block(...) -> Result<Block> {
 - ✅ Editor migration with validation, field modification, and operation tracking
 - ✅ Writer migration with template generation, block injection, and dependency tracing
 - ✅ All core crate migrations completed successfully
-- ⏳ Unit and integration tests
-- ⏳ Remove dot001_error post-migration
+- ✅ Remove dot001_error crate and update all references throughout workspace
+- ⏳ Unit and integration tests for bus, filters, formatters, error conversions
+- ⏳ Integration tests capturing event sequences across parser/diff flows
 
 ---
 

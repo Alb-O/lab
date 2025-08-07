@@ -1,4 +1,4 @@
-use crate::error::{Dot001Error, Result};
+use crate::error::{Error, Result};
 use crate::header::BlendFileHeader;
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
@@ -130,7 +130,7 @@ impl DnaCollection {
         let mut sdna_marker = [0u8; 4];
         reader.read_exact(&mut sdna_marker)?;
         if &sdna_marker != b"SDNA" {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!("Expected SDNA marker, got: {sdna_marker:?}"),
                 crate::error::BlendFileErrorKind::DnaError,
             ));
@@ -162,7 +162,7 @@ impl DnaCollection {
         let mut name_marker = [0u8; 4];
         reader.read_exact(&mut name_marker)?;
         if &name_marker != b"NAME" {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!("Expected NAME marker, got: {name_marker:?}"),
                 crate::error::BlendFileErrorKind::DnaError,
             ));
@@ -171,7 +171,7 @@ impl DnaCollection {
         let names_count = read_u32(reader, header.is_little_endian)?;
         // Validate count to prevent excessive memory allocation
         if names_count > 1_000_000 {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!("Unreasonably large names count: {names_count}"),
                 crate::error::BlendFileErrorKind::DnaError,
             ));
@@ -195,7 +195,7 @@ impl DnaCollection {
         let types_count = read_u32(reader, header.is_little_endian)?;
         // Validate count to prevent excessive memory allocation
         if types_count > 1_000_000 {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!("Unreasonably large types count: {types_count}"),
                 crate::error::BlendFileErrorKind::DnaError,
             ));
@@ -238,7 +238,7 @@ impl DnaCollection {
         let struct_count = read_u32(reader, header.is_little_endian)?;
         // Validate count to prevent excessive memory allocation
         if struct_count > 100_000 {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!("Unreasonably large struct count: {struct_count}"),
                 crate::error::BlendFileErrorKind::DnaError,
             ));
@@ -250,7 +250,7 @@ impl DnaCollection {
             let field_count = read_u16(reader, header.is_little_endian)? as usize;
 
             if struct_type_index >= types.len() {
-                return Err(Dot001Error::blend_file(
+                return Err(Error::blend_file(
                     format!("Invalid struct type index: {struct_type_index}"),
                     crate::error::BlendFileErrorKind::DnaError,
                 ));
@@ -267,14 +267,14 @@ impl DnaCollection {
                 let field_name_index = read_u16(reader, header.is_little_endian)? as usize;
 
                 if field_type_index >= types.len() {
-                    return Err(Dot001Error::blend_file(
+                    return Err(Error::blend_file(
                         format!("Invalid field type index: {field_type_index}"),
                         crate::error::BlendFileErrorKind::DnaError,
                     ));
                 }
 
                 if field_name_index >= names.len() {
-                    return Err(Dot001Error::blend_file(
+                    return Err(Error::blend_file(
                         format!("Invalid field name index: {field_name_index}"),
                         crate::error::BlendFileErrorKind::DnaError,
                     ));
@@ -349,7 +349,7 @@ fn read_null_terminated_string<R: Read>(reader: &mut R) -> Result<String> {
     }
 
     String::from_utf8(bytes).map_err(|_| {
-        Dot001Error::blend_file(
+        Error::blend_file(
             "Invalid UTF-8 in DNA string",
             crate::error::BlendFileErrorKind::InvalidData,
         )
@@ -382,7 +382,7 @@ fn find_and_seek_to_marker<R: Read + Seek>(
         }
     }
 
-    Err(Dot001Error::blend_file(
+    Err(Error::blend_file(
         format!(
             "{} marker not found after {}",
             String::from_utf8_lossy(marker),

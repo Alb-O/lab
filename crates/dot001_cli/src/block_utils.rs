@@ -1,6 +1,6 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::{
     BlendFile, DataBlockVisibility, block_code_to_string, is_block_visible, is_data_block_code,
 };
@@ -48,12 +48,12 @@ impl BlockUtils {
     pub fn get_block_metadata<R: Read + Seek>(
         index: usize,
         blend_file: &mut BlendFile<R>,
-    ) -> Result<BlockWithMetadata, Dot001Error> {
+    ) -> Result<BlockWithMetadata, Error> {
         // Get block info and extract data first to avoid borrow checker issues
         let (size, address, count, code) = {
             let block = blend_file
                 .get_block(index)
-                .ok_or_else(|| Dot001Error::io(format!("Block index {index} is out of range")))?;
+                .ok_or_else(|| Error::io(format!("Block index {index} is out of range")))?;
 
             let code = block_code_to_string(block.header.code);
 

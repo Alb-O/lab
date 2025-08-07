@@ -1,4 +1,4 @@
-use dot001_error::{Dot001Error, Result};
+use dot001_events::error::{Error as Dot001Error, Result};
 use dot001_parser::{BlendFile, ReadSeekSend};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -47,7 +47,7 @@ impl SeedDnaProvider {
                             "{} block not found in seed",
                             String::from_utf8_lossy(block_type)
                         ),
-                        dot001_error::BlendFileErrorKind::NoDnaFound,
+                        dot001_events::error::BlendFileErrorKind::NoDnaFound,
                     )
                 })?;
 
@@ -59,7 +59,7 @@ impl SeedDnaProvider {
                             "{} block index out of range",
                             String::from_utf8_lossy(block_type)
                         ),
-                        dot001_error::BlendFileErrorKind::InvalidBlockIndex,
+                        dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
                     )
                 })?
                 .clone();
@@ -153,7 +153,7 @@ impl SeedDnaProvider {
                 .ok_or_else(|| {
                     Dot001Error::blend_file(
                         format!("Block index {index} out of range"),
-                        dot001_error::BlendFileErrorKind::InvalidBlockIndex,
+                        dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
                     )
                 })?
                 .clone();

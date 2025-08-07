@@ -1,11 +1,11 @@
 use crate::{execution_failed_error, missing_argument_error};
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_writer::{BlendWriter, SeedDnaProvider, WriteTemplate};
 use std::path::PathBuf;
 
 /// Build a synthetic .blend using Blender 5.0 header format and DNA from a seed .blend.
 /// For now this implements the M1 milestone: Header + DNA1 + ENDB.
-pub fn cmd_build_blend(seed_path: PathBuf, out_path: PathBuf) -> Result<(), Dot001Error> {
+pub fn cmd_build_blend(seed_path: PathBuf, out_path: PathBuf) -> Result<(), Error> {
     // Validate args
     if seed_path.as_os_str().is_empty() {
         return Err(missing_argument_error("Missing --seed path"));

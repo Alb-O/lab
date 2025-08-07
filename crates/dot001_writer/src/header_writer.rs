@@ -1,4 +1,4 @@
-use dot001_error::{Dot001Error, Result};
+use dot001_events::error::{Error as Dot001Error, Result};
 use std::io::Write;
 
 /// Writer for Blender 5.0 low-level header (file_format_version = 1).

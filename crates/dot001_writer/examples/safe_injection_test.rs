@@ -1,4 +1,4 @@
-use dot001_error::Result;
+use dot001_events::error::Result;
 /// Safe block injection with pointer sanitization
 ///
 /// This example demonstrates block injection that sanitizes dangerous pointers

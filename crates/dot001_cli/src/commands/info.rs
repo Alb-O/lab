@@ -1,9 +1,9 @@
 use crate::output_utils::CommandSummary;
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use std::path::PathBuf;
 
-pub fn cmd_info(file_path: PathBuf, ctx: &CommandContext) -> Result<(), Dot001Error> {
+pub fn cmd_info(file_path: PathBuf, ctx: &CommandContext) -> Result<(), Error> {
     let blend_file = ctx.load_blend_file(&file_path)?;
 
     ctx.output

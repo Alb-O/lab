@@ -1,6 +1,6 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::header_writer::HeaderWriter;
-use dot001_error::{Dot001Error, Result};
+use dot001_events::error::{Error as Dot001Error, Result};
 use dot001_events::{
     event::{Event, WriterEvent},
     prelude::*,
@@ -775,7 +775,7 @@ impl BlendWriter {
         if code.len() != 4 {
             return Err(Dot001Error::blend_file(
                 "block code must be 4 bytes",
-                dot001_error::BlendFileErrorKind::InvalidHeader,
+                dot001_events::error::BlendFileErrorKind::InvalidHeader,
             ));
         }
 

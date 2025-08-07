@@ -1,6 +1,6 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
-use dot001_error::Result;
+use dot001_events::error::Result;
 use dot001_parser::{BlendFile, ReadSeekSend};
 use dot001_tracer::DependencyTracer;
 use std::collections::HashSet;

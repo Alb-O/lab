@@ -3,7 +3,7 @@ use crate::block_ops::CommandHelper;
 use crate::output_utils::{CommandSummary, OutputUtils};
 use crate::util::CommandContext;
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::BlendFile;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Seek, SeekFrom, Write};
@@ -16,7 +16,7 @@ pub fn cmd_lib_link(
     dry_run: bool,
     target_name: Option<String>,
     ctx: &CommandContext,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
@@ -131,7 +131,7 @@ struct IdLinkInfo {
 }
 
 /// Read ID block information for library linking
-fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> Result<IdLinkInfo, Dot001Error> {
+fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> Result<IdLinkInfo, Error> {
     let full_name = field_reader
         .read_field_string("ID", "name")
         .map_err(|e| execution_failed_error(format!("Error reading ID name: {e}")))?;
@@ -150,7 +150,7 @@ fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> Result<IdLink
 fn resolve_library_path(
     lib_filepath: &str,
     main_file_path: &std::path::Path,
-) -> Result<PathBuf, Dot001Error> {
+) -> Result<PathBuf, Error> {
     if lib_filepath.starts_with("//") {
         // Blendfile-relative path
         let rel_path = lib_filepath.strip_prefix("//").unwrap();
@@ -164,9 +164,7 @@ fn resolve_library_path(
 }
 
 /// Find all collections in the library file
-fn find_collections_in_library(
-    lib_file_path: &PathBuf,
-) -> Result<Vec<(usize, String)>, Dot001Error> {
+fn find_collections_in_library(lib_file_path: &PathBuf) -> Result<Vec<(usize, String)>, Error> {
     let lib_file = File::open(lib_file_path)?;
     let mut lib_reader = BufReader::new(lib_file);
     let mut lib_blend_file = BlendFile::new(&mut lib_reader)
@@ -207,7 +205,7 @@ fn find_collections_in_library(
 fn determine_target_collection(
     available_collections: &[(usize, String)],
     target_name: Option<String>,
-) -> Result<String, Dot001Error> {
+) -> Result<String, Error> {
     match target_name {
         Some(target) => {
             if available_collections
@@ -243,7 +241,7 @@ fn reconstruct_id_name<R: std::io::Read + std::io::Seek>(
     block_index: usize,
     target_name: &str,
     output: &crate::util::OutputHandler,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     output.print_info("Performing pointer reconstruction...");
 
     // Read block data and get field offset

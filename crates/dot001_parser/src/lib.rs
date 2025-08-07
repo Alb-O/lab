@@ -39,7 +39,7 @@ pub mod reflect;
 pub use block::{BlendFileBlock, BlockHeader, block_code_to_string};
 pub use compression::{CompressionKind, DecompressionMode, DecompressionPolicy, ParseOptions};
 pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
-pub use error::{BlendFileErrorKind, Dot001Error, Result};
+pub use error::{BlendFileErrorKind, Error, Result};
 pub use fields::FieldReader;
 pub use header::BlendFileHeader;
 pub use name_resolver::NameResolver;
@@ -113,7 +113,7 @@ impl<R: Read + Seek> BlendFile<R> {
         // Zstandard magic number is 0x28B52FFD (little endian: FD 2F B5 28)
         if magic_bytes == [0x28, 0xB5, 0x2F, 0xFD] {
             warn!("Attempted to parse zstd-compressed file without decompression");
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 "Zstandard-compressed blend files require decompression first. Use 'zstd -d' to decompress the file.",
                 BlendFileErrorKind::UnsupportedCompression,
             ));
@@ -217,7 +217,7 @@ impl<R: Read + Seek> BlendFile<R> {
             .iter()
             .find(|block| &block.header.code == b"DNA1")
             .ok_or_else(|| {
-                Dot001Error::blend_file("DNA block not found", BlendFileErrorKind::NoDnaFound)
+                Error::blend_file("DNA block not found", BlendFileErrorKind::NoDnaFound)
             })?;
 
         self.reader.seek(SeekFrom::Start(dna_block.data_offset))?;
@@ -254,7 +254,7 @@ impl<R: Read + Seek> BlendFile<R> {
     pub fn block_content_hash(&mut self, block_index: usize) -> Result<u64> {
         use std::hash::Hasher;
         let block = self.blocks.get(block_index).ok_or_else(|| {
-            Dot001Error::blend_file(
+            Error::blend_file(
                 format!("Invalid block index: {block_index}"),
                 BlendFileErrorKind::InvalidBlockIndex,
             )
@@ -273,7 +273,7 @@ impl<R: Read + Seek> BlendFile<R> {
     /// Read the raw data for a specific block
     pub fn read_block_data(&mut self, block_index: usize) -> Result<Vec<u8>> {
         let block = self.blocks.get(block_index).ok_or_else(|| {
-            Dot001Error::blend_file(
+            Error::blend_file(
                 format!("Invalid block index: {block_index}"),
                 BlendFileErrorKind::InvalidBlockIndex,
             )
@@ -282,7 +282,7 @@ impl<R: Read + Seek> BlendFile<R> {
         // Validate block size to prevent excessive memory allocation
         let limit = self.max_block_size();
         if block.header.size > limit {
-            return Err(Dot001Error::blend_file(
+            return Err(Error::blend_file(
                 format!(
                     "Block size too large: {} bytes (limit {})",
                     block.header.size, limit
@@ -311,9 +311,9 @@ impl<R: Read + Seek> BlendFile<R> {
 
     /// Get DNA collection (required for field reading)
     pub fn dna(&self) -> Result<&DnaCollection> {
-        self.dna.as_ref().ok_or_else(|| {
-            Dot001Error::blend_file("DNA block not found", BlendFileErrorKind::NoDnaFound)
-        })
+        self.dna
+            .as_ref()
+            .ok_or_else(|| Error::blend_file("DNA block not found", BlendFileErrorKind::NoDnaFound))
     }
 
     /// Get block header by index
@@ -357,7 +357,7 @@ pub fn from_path<P: AsRef<std::path::Path>>(path: P) -> Result<BlendFile<Cursor<
         }
         #[cfg(not(feature = "zstd"))]
         {
-            Err(Dot001Error::blend_file(
+            Err(Error::blend_file(
                 "Zstd support not compiled in",
                 BlendFileErrorKind::UnsupportedCompression,
             ))

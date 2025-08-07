@@ -30,7 +30,7 @@
 /// - Test modified files in Blender before production use
 /// - Validate results after operations
 pub mod commands;
-use dot001_error::{Dot001Error, EditorErrorKind, Result};
+use dot001_events::error::{EditorErrorKind, Error, Result};
 use dot001_events::{
     event::{EditorEvent, Event},
     prelude::*,
@@ -64,8 +64,6 @@ impl BlendEditor {
         new_path: &str,
         no_validate: bool,
     ) -> Result<()> {
-        let path_str = file_path.as_ref().display().to_string();
-
         // Emit started event
         emit_global_sync!(Event::Editor(EditorEvent::Started {
             operation: "update_libpath".to_string(),
@@ -121,8 +119,6 @@ impl BlendEditor {
         block_index: usize,
         new_name: &str,
     ) -> Result<()> {
-        let path_str = file_path.as_ref().display().to_string();
-
         // Emit started event
         emit_global_sync!(Event::Editor(EditorEvent::Started {
             operation: "rename_id_block".to_string(),
@@ -195,7 +191,7 @@ pub(crate) fn validate_new_name(name: &str) -> Result<()> {
             }),
             Severity::Debug
         );
-        return Err(Dot001Error::editor(
+        return Err(Error::editor(
             format!(
                 "Name too long (max {MAX_BLOCK_NAME_LENGTH} characters after type prefix): {name}"
             ),
@@ -213,7 +209,7 @@ pub(crate) fn validate_new_name(name: &str) -> Result<()> {
             }),
             Severity::Debug
         );
-        return Err(Dot001Error::editor(
+        return Err(Error::editor(
             format!("Invalid characters in name (only ASCII printable allowed): {name}"),
             EditorErrorKind::InvalidCharacters,
         ));
@@ -229,7 +225,7 @@ pub(crate) fn validate_new_name(name: &str) -> Result<()> {
             }),
             Severity::Debug
         );
-        return Err(Dot001Error::editor(
+        return Err(Error::editor(
             "Empty name".to_string(),
             EditorErrorKind::InvalidCharacters,
         ));

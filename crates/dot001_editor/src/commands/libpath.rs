@@ -1,5 +1,5 @@
 use crate::Result;
-use dot001_error::{Dot001Error, EditorErrorKind};
+use dot001_events::error::{EditorErrorKind, Error};
 use dot001_events::{
     event::{EditorEvent, Event},
     prelude::*,
@@ -41,27 +41,27 @@ impl LibPathCommand {
                     // Blendfile-relative path
                     let blend_file_path = file_path.as_ref();
                     let blend_dir = blend_file_path.parent().ok_or_else(|| {
-                        Dot001Error::from(std::io::Error::new(
+                        Error::from(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
                             "Blend file has no parent directory",
                         ))
                     })?;
                     let abs_path = blend_dir.join(rel_path);
                     if !abs_path.exists() {
-                        return Err(Dot001Error::from(std::io::Error::new(
+                        return Err(Error::from(std::io::Error::new(
                             std::io::ErrorKind::NotFound,
                             format!("Target library file does not exist: {}", abs_path.display()),
                         )));
                     }
                 } else if Path::new(&normalized_path).is_absolute() {
                     if !Path::new(&normalized_path).exists() {
-                        return Err(Dot001Error::from(std::io::Error::new(
+                        return Err(Error::from(std::io::Error::new(
                             std::io::ErrorKind::NotFound,
                             format!("Target library file does not exist: {normalized_path}"),
                         )));
                     }
                 } else {
-                    return Err(Dot001Error::editor(
+                    return Err(Error::editor(
                         "Library path must be absolute or blendfile-relative".to_string(),
                         EditorErrorKind::InvalidCharacters,
                     ));
@@ -76,14 +76,14 @@ impl LibPathCommand {
                 // Resolve relative to blend file location
                 let blend_file_path = file_path.as_ref();
                 let blend_dir = blend_file_path.parent().ok_or_else(|| {
-                    Dot001Error::from(std::io::Error::new(
+                    Error::from(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         "Blend file has no parent directory",
                     ))
                 })?;
                 let abs_path = blend_path.absolute(Some(blend_dir));
                 if !Path::new(std::str::from_utf8(abs_path.as_bytes()).unwrap_or("")).exists() {
-                    return Err(Dot001Error::from(std::io::Error::new(
+                    return Err(Error::from(std::io::Error::new(
                         std::io::ErrorKind::NotFound,
                         format!(
                             "Target library file does not exist: {}",
@@ -93,7 +93,7 @@ impl LibPathCommand {
                 }
             } else if blend_path.is_absolute() {
                 if !Path::new(std::str::from_utf8(blend_path.as_bytes()).unwrap_or("")).exists() {
-                    return Err(Dot001Error::from(std::io::Error::new(
+                    return Err(Error::from(std::io::Error::new(
                         std::io::ErrorKind::NotFound,
                         format!(
                             "Target library file does not exist: {}",
@@ -103,7 +103,7 @@ impl LibPathCommand {
                 }
             } else {
                 // Not blendfile-relative or absolute: invalid for Blender library path
-                return Err(Dot001Error::editor(
+                return Err(Error::editor(
                     "Library path must be absolute or blendfile-relative".to_string(),
                     EditorErrorKind::InvalidCharacters,
                 ));
@@ -117,7 +117,7 @@ impl LibPathCommand {
 
         // Check if block exists
         if block_index >= blend_file.blocks_len() {
-            return Err(Dot001Error::editor(
+            return Err(Error::editor(
                 format!("Block not found at index: {block_index}"),
                 EditorErrorKind::BlockNotFound,
             ));
@@ -125,7 +125,7 @@ impl LibPathCommand {
         let block = blend_file.get_block(block_index).unwrap();
         let block_code = dot001_parser::block_code_to_string(block.header.code);
         if block_code != "LI" {
-            return Err(Dot001Error::editor(
+            return Err(Error::editor(
                 "Block is not a linked library file (LI block)".to_string(),
                 EditorErrorKind::InvalidCharacters,
             ));
@@ -135,7 +135,7 @@ impl LibPathCommand {
         let reader = blend_file.create_field_reader(&block_data)?;
         // Find the offset and size of the name field in the LI struct
         let name_offset = reader.get_field_offset("Library", "name").map_err(|_| {
-            Dot001Error::editor(
+            Error::editor(
                 "Could not find name field in Library block".to_string(),
                 EditorErrorKind::InvalidCharacters,
             )
@@ -147,7 +147,7 @@ impl LibPathCommand {
             .iter()
             .find(|s| s.type_name == "Library")
             .ok_or_else(|| {
-                Dot001Error::editor(
+                Error::editor(
                     "Struct Library not found in DNA".to_string(),
                     EditorErrorKind::InvalidCharacters,
                 )
@@ -157,7 +157,7 @@ impl LibPathCommand {
             .iter()
             .find(|f| f.name.name_only == "name")
             .ok_or_else(|| {
-                Dot001Error::editor(
+                Error::editor(
                     "Field name not found in Library struct".to_string(),
                     EditorErrorKind::InvalidCharacters,
                 )
@@ -176,7 +176,7 @@ impl LibPathCommand {
         if !no_validate {
             let current_name = &block_data[name_offset..(name_offset + name_size)];
             if &path_bytes[..] == current_name {
-                return Err(Dot001Error::editor(
+                return Err(Error::editor(
                     "No change detected: new library path is identical to the current path"
                         .to_string(),
                     EditorErrorKind::InvalidCharacters,
@@ -202,7 +202,7 @@ impl LibPathCommand {
         // Overwrite the name field in the block data
         let end_offset = name_offset + name_size;
         if end_offset > block_data.len() {
-            return Err(Dot001Error::from(std::io::Error::new(
+            return Err(Error::from(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Name field extends beyond block data",
             )));

@@ -6,7 +6,7 @@ use crate::core::{
 };
 use crate::filter::{FilterEngine, FilterSpec};
 use crate::utils::determinizer::Determinizer;
-use dot001_error::{Dot001Error, Result};
+use dot001_events::error::{Error, Result, TracerErrorKind};
 use dot001_events::{
     event::{Event, TracerEvent},
     prelude::*,
@@ -354,9 +354,10 @@ impl<'a, R: Read + Seek> DependencyTracer<'a, R> {
         // Extract block info before mutable operations
         let (block_code, block_size, block_address, expander_code) = {
             let block = blend_file.get_block(block_index).ok_or_else(|| {
-                Dot001Error::tracer_block_expansion_failed(format!(
-                    "Invalid block index: {block_index}"
-                ))
+                Error::tracer(
+                    format!("Invalid block index: {block_index}"),
+                    TracerErrorKind::BlockExpansionFailed,
+                )
             })?;
 
             let block_code = Self::block_code_to_string(&block.header.code);

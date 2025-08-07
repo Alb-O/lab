@@ -2,7 +2,7 @@ use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, colorize_name, create_display_for_template};
 use crate::block_ops::CommandHelper;
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::block_code_to_string;
 use log::{error, info};
 use std::path::PathBuf;
@@ -14,7 +14,7 @@ pub fn cmd_rename(
     template: DisplayTemplate,
     dry_run: bool,
     ctx: &CommandContext,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     use dot001_editor::BlendEditor;
     let mut blend_file = ctx.load_blend_file(&file_path)?;
 

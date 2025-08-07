@@ -559,7 +559,7 @@ name = "dot001"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "dot001_error",
+ "dot001_events",
  "dot001_parser",
  "dot001_tracer",
 ]
@@ -584,7 +584,6 @@ dependencies = [
  "clap",
  "dot001_diff",
  "dot001_editor",
- "dot001_error",
  "dot001_events",
  "dot001_parser",
  "dot001_tracer",
@@ -606,7 +605,6 @@ version = "0.1.0"
 dependencies = [
  "bdiff",
  "blake3",
- "dot001_error",
  "dot001_events",
  "dot001_parser",
  "dot001_tracer",
@@ -620,21 +618,12 @@ dependencies = [
 name = "dot001_editor"
 version = "0.1.0"
 dependencies = [
- "dot001_error",
  "dot001_events",
  "dot001_parser",
  "dot001_tracer",
  "log",
  "serde",
  "tokio",
-]
-
-[[package]]
-name = "dot001_error"
-version = "0.1.0"
-dependencies = [
- "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -656,7 +645,6 @@ dependencies = [
 name = "dot001_parser"
 version = "0.1.0"
 dependencies = [
- "dot001_error",
  "dot001_events",
  "log",
  "memmap2",
@@ -670,7 +658,6 @@ dependencies = [
 name = "dot001_tracer"
 version = "0.1.0"
 dependencies = [
- "dot001_error",
  "dot001_events",
  "dot001_parser",
  "log",
@@ -701,7 +688,6 @@ dependencies = [
 name = "dot001_writer"
 version = "0.1.0"
 dependencies = [
- "dot001_error",
  "dot001_events",
  "dot001_parser",
  "dot001_tracer",

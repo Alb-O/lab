@@ -1,6 +1,6 @@
 use crate::OutputFormat;
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use log::error;
 use text_trees::{FormatCharacters, StringTreeNode, TreeFormatting};
 
@@ -77,9 +77,9 @@ impl TreeFormatter {
 
 /// Output format handler trait for consistent format switching
 pub trait OutputFormatHandler<T> {
-    fn handle_flat(&self, data: &T, ctx: &CommandContext) -> Result<(), Dot001Error>;
-    fn handle_tree(&self, data: &T, ctx: &CommandContext, ascii: bool) -> Result<(), Dot001Error>;
-    fn handle_json(&self, data: &T, ctx: &CommandContext) -> Result<(), Dot001Error>;
+    fn handle_flat(&self, data: &T, ctx: &CommandContext) -> Result<(), Error>;
+    fn handle_tree(&self, data: &T, ctx: &CommandContext, ascii: bool) -> Result<(), Error>;
+    fn handle_json(&self, data: &T, ctx: &CommandContext) -> Result<(), Error>;
 
     /// Main entry point that handles format switching
     fn handle_output(
@@ -88,7 +88,7 @@ pub trait OutputFormatHandler<T> {
         format: OutputFormat,
         ctx: &CommandContext,
         ascii: bool,
-    ) -> Result<(), Dot001Error> {
+    ) -> Result<(), Error> {
         match format {
             OutputFormat::Flat => self.handle_flat(data, ctx),
             OutputFormat::Tree => self.handle_tree(data, ctx, ascii),
@@ -105,7 +105,7 @@ impl CollectionFormatter {
     pub fn print_flat<T: std::fmt::Display>(
         items: &[T],
         ctx: &CommandContext,
-    ) -> Result<(), Dot001Error> {
+    ) -> Result<(), Error> {
         OutputUtils::print_list(ctx, items);
         Ok(())
     }
@@ -117,7 +117,7 @@ impl CollectionFormatter {
         tree: &StringTreeNode,
         ctx: &CommandContext,
         ascii: bool,
-    ) -> Result<(), Dot001Error> {
+    ) -> Result<(), Error> {
         let formatter = TreeFormatter::new(ascii);
         formatter.print_tree(tree, ctx);
         Ok(())

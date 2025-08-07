@@ -11,7 +11,7 @@ mod output_utils;
 mod util;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use dot001_error::{CliErrorKind, Dot001Error};
+use dot001_events::error::{CliErrorKind, Error};
 use dot001_events::{
     bus::{EventFilter, Subscriber, init_global_bus},
     bus_impl::{TokioEventBus, spawn_subscriber_task},
@@ -328,7 +328,7 @@ fn init_logging(verbose: u8) {
         .init();
 }
 
-async fn run_main() -> std::result::Result<(), Dot001Error> {
+async fn run_main() -> std::result::Result<(), Error> {
     let cli = Cli::parse();
 
     // Initialize logging based on verbosity level
@@ -536,26 +536,26 @@ async fn run_main() -> std::result::Result<(), Dot001Error> {
 }
 
 /// Helper functions for creating unified CLI errors
-pub fn create_cli_error<M: Into<String>>(message: M, kind: CliErrorKind) -> Dot001Error {
-    Dot001Error::cli(message.into(), kind)
+pub fn create_cli_error<M: Into<String>>(message: M, kind: CliErrorKind) -> Error {
+    Error::cli(message.into(), kind)
 }
 
 /// Create an invalid arguments error
-pub fn invalid_arguments_error<M: Into<String>>(message: M) -> Dot001Error {
+pub fn invalid_arguments_error<M: Into<String>>(message: M) -> Error {
     create_cli_error(message, CliErrorKind::InvalidArguments)
 }
 
 /// Create a missing argument error
-pub fn missing_argument_error<M: Into<String>>(message: M) -> Dot001Error {
+pub fn missing_argument_error<M: Into<String>>(message: M) -> Error {
     create_cli_error(message, CliErrorKind::MissingArgument)
 }
 
 /// Create an execution failed error
-pub fn execution_failed_error<M: Into<String>>(message: M) -> Dot001Error {
+pub fn execution_failed_error<M: Into<String>>(message: M) -> Error {
     create_cli_error(message, CliErrorKind::ExecutionFailed)
 }
 
 /// Create an output format error
-pub fn output_format_error<M: Into<String>>(message: M) -> Dot001Error {
+pub fn output_format_error<M: Into<String>>(message: M) -> Error {
     create_cli_error(message, CliErrorKind::OutputFormatError)
 }

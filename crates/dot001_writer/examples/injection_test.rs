@@ -1,4 +1,4 @@
-use dot001_error::Result;
+use dot001_events::error::Result;
 use dot001_writer::{BlendWriter, BlockInjection, SeedDnaProvider, WriteTemplate};
 
 fn main() -> Result<()> {

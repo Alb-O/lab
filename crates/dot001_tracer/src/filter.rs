@@ -1,4 +1,4 @@
-use dot001_error::{Dot001Error, Result as UnifiedResult};
+use dot001_events::error::{Error, Result as UnifiedResult, TracerErrorKind};
 use dot001_parser::{BlendFile, BlendFileBlock, PointerTraversal, Result};
 use regex::Regex;
 use std::collections::HashSet;
@@ -214,9 +214,10 @@ impl FilterEngine {
         // Copy header primitives without holding an immutable borrow across &mut calls
         let (code_bytes, size_v, count_v, sdna_v, old_addr_v) = {
             let Some(block) = blend.get_block(block_index) else {
-                return Err(Dot001Error::parser_invalid_block(format!(
-                    "Block index {block_index} out of range"
-                )));
+                return Err(Error::tracer(
+                    format!("Block index {block_index} out of range"),
+                    TracerErrorKind::DependencyResolutionFailed,
+                ));
             };
             let h = &block.header;
             (h.code, h.size, h.count, h.sdna_index, h.old_address)
@@ -290,9 +291,10 @@ impl FilterEngine {
         // Then add specialized heuristics for complex cases that need custom logic
         let code = {
             let Some(block) = blend.get_block(block_index) else {
-                return Err(Dot001Error::parser_invalid_block(format!(
-                    "Block index {block_index} out of range"
-                )));
+                return Err(Error::tracer(
+                    format!("Block index {block_index} out of range"),
+                    TracerErrorKind::DependencyResolutionFailed,
+                ));
             };
             block.header.code
         };
@@ -376,16 +378,20 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
     let mut spec = FilterSpec { rules: Vec::new() };
     for (modif, key, val) in triples {
         let mut chars = modif.chars();
-        let sign = chars
-            .next()
-            .ok_or_else(|| Dot001Error::tracer_dependency_failed("Empty filter modifier"))?;
+        let sign = chars.next().ok_or_else(|| {
+            Error::tracer(
+                "Empty filter modifier",
+                TracerErrorKind::DependencyResolutionFailed,
+            )
+        })?;
         let include = match sign {
             '+' => true,
             '-' => false,
             _ => {
-                return Err(Dot001Error::tracer_dependency_failed(format!(
-                    "Invalid filter modifier: {modif}"
-                )));
+                return Err(Error::tracer(
+                    format!("Invalid filter modifier: {modif}"),
+                    TracerErrorKind::DependencyResolutionFailed,
+                ));
             }
         };
         // Recursion parse
@@ -397,9 +403,10 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
                 Some(usize::MAX)
             } else {
                 let n = rest.parse::<usize>().map_err(|_| {
-                    Dot001Error::tracer_dependency_failed(format!(
-                        "Invalid recursion level: {rest}"
-                    ))
+                    Error::tracer(
+                        format!("Invalid recursion level: {rest}"),
+                        TracerErrorKind::DependencyResolutionFailed,
+                    )
                 })?;
                 Some(n)
             }
@@ -408,10 +415,16 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
         };
 
         let key_regex = Regex::new(key).map_err(|e| {
-            Dot001Error::tracer_dependency_failed(format!("Invalid key regex: {e}"))
+            Error::tracer(
+                format!("Invalid key regex: {e}"),
+                TracerErrorKind::DependencyResolutionFailed,
+            )
         })?;
         let value_regex = Regex::new(val).map_err(|e| {
-            Dot001Error::tracer_dependency_failed(format!("Invalid value regex: {e}"))
+            Error::tracer(
+                format!("Invalid value regex: {e}"),
+                TracerErrorKind::DependencyResolutionFailed,
+            )
         })?;
 
         spec.rules.push(FilterRule {

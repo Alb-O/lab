@@ -4,7 +4,7 @@ use crate::block_utils::BlockUtils;
 use crate::commands::NameResolver;
 use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::BlendFile;
 use std::path::PathBuf;
 use text_trees::StringTreeNode;
@@ -17,7 +17,7 @@ pub fn cmd_filter(
     show_data: bool,
     json: bool,
     ctx: &CommandContext,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     let mut blend_file = ctx.load_blend_file(&file_path)?;
     let mut filter_triples: Vec<(String, String, String)> = Vec::new();
     for expr in &filter_expressions {

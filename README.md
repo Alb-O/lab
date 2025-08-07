@@ -1,3 +1,3 @@
 # dot001
 
-Under construction.
+A powerful .blend file toolkit. Analyze and manipulate the internals of .blend files from the command line.

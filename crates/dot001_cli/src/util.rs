@@ -1,7 +1,7 @@
 // Utility functions for CLI
 
 use crate::block_display::{BlockDisplay, BlockInfo, CompactFormatter, colorize_index};
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::NameResolver;
 use dot001_parser::{BlendFile, DecompressionPolicy, ParseOptions};
 use log::warn;
@@ -31,7 +31,7 @@ impl<'a> CommandContext<'a> {
     pub fn load_blend_file(
         &self,
         path: &PathBuf,
-    ) -> Result<BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, Dot001Error> {
+    ) -> Result<BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, Error> {
         load_blend_file(path, self.parse_options, self.no_auto_decompress)
     }
 }
@@ -94,8 +94,10 @@ pub fn load_blend_file(
     file_path: &PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> Result<dot001_parser::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, dot001_error::Dot001Error>
-{
+) -> Result<
+    dot001_parser::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>,
+    dot001_events::error::Error,
+> {
     use std::fs::File;
     use std::io::BufReader;
     if no_auto_decompress {
@@ -141,7 +143,7 @@ pub struct BlockMatch {
 pub fn resolve_block_identifier<R: std::io::Read + std::io::Seek>(
     identifier: &str,
     blend_file: &mut BlendFile<R>,
-) -> Result<BlockResolution, Dot001Error> {
+) -> Result<BlockResolution, Error> {
     let identifier = identifier.trim();
 
     // First, try to parse as a numeric index

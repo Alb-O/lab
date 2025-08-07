@@ -1,5 +1,5 @@
 use crate::Result;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::{BlendFile, DnaCollection};
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::{BlockExpander, MeshExpander};
@@ -126,7 +126,7 @@ impl ProvenanceAnalyzer {
     ) -> Result<ProvenanceGraph> {
         let referenced_blocks = mesh_expander
             .expand_block(me_block_index, file)
-            .map_err(|e| Dot001Error::diff_analysis_failed(format!("Blend file error: {e}")))?
+            .map_err(|e| Error::diff_analysis_failed(format!("Blend file error: {e}")))?
             .dependencies;
 
         let mut referenced_data_blocks = HashSet::new();
@@ -258,7 +258,10 @@ impl ProvenanceAnalyzer {
         file: &mut BlendFile<R>,
     ) -> Result<DataBlockInfo> {
         let block = file.get_block(block_index).ok_or_else(|| {
-            Dot001Error::diff_insufficient_data(format!("Block not found: {block_index}"))
+            Error::diff(
+                format!("Block not found: {block_index}"),
+                dot001_events::error::DiffErrorKind::InsufficientData,
+            )
         })?;
 
         let size = block.header.size;

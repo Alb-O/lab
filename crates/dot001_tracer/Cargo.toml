@@ -17,7 +17,6 @@ serde = ["dep:serde"]
 
 [dependencies]
 dot001_parser = { path = "../dot001_parser" }
-dot001_error = { path = "../dot001_error" }
 dot001_events = { path = "../dot001_events" }
 tokio = { version = "1.47", features = ["rt"] }
 log = "0.4"

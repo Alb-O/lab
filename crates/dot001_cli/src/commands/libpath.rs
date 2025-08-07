@@ -2,7 +2,7 @@ use crate::block_ops::CommandHelper;
 use crate::output_utils::CommandSummary;
 use crate::util::CommandContext;
 use dot001_editor::BlendEditor;
-use dot001_error::{CliErrorKind, Dot001Error};
+use dot001_events::error::{CliErrorKind, Error};
 use log::error;
 use std::path::PathBuf;
 
@@ -13,7 +13,7 @@ pub fn cmd_libpath(
     dry_run: bool,
     no_validate: bool,
     ctx: &CommandContext,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     let mut blend_file = ctx.load_blend_file(&file_path)?;
 
     // Resolve the block identifier to a specific block index
@@ -44,7 +44,7 @@ pub fn cmd_libpath(
         }
         Err(e) => {
             error!("Failed to update library path: {e}");
-            Err(Dot001Error::cli(
+            Err(Error::cli(
                 format!("Editor error: {e}"),
                 CliErrorKind::ExecutionFailed,
             ))

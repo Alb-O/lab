@@ -10,7 +10,6 @@ repository = "https://github.com/Alb-O/dot001"
 [dependencies]
 dot001_parser = { path = "../dot001_parser" }
 dot001_tracer = { path = "../dot001_tracer", optional = true }
-dot001_error = { path = "../dot001_error" }
 dot001_events = { path = "../dot001_events" }
 tokio = { version = "1.47", features = ["rt"] }
 serde = { version = "1.0", features = ["derive"], optional = true }

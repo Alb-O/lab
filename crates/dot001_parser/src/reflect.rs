@@ -1,5 +1,5 @@
 use crate::{BlendFile, Result};
-use dot001_error::{BlendFileErrorKind, Dot001Error};
+use dot001_events::error::{BlendFileErrorKind, Error};
 use std::io::{Read, Seek};
 
 /// Utilities for reflective pointer traversal in BlendFile data structures.
@@ -18,12 +18,10 @@ impl PointerTraversal {
         let mut targets = Vec::new();
 
         // Get block info
-        let block = blend_file
-            .get_block(block_index)
-            .ok_or(Dot001Error::blend_file(
-                "Block index out of range",
-                BlendFileErrorKind::InvalidBlockIndex,
-            ))?;
+        let block = blend_file.get_block(block_index).ok_or(Error::blend_file(
+            "Block index out of range",
+            BlendFileErrorKind::InvalidBlockIndex,
+        ))?;
         let code = block.header.code;
 
         // Get type name from block code

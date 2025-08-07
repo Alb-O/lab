@@ -48,7 +48,7 @@ pub use utils::{Determinizer, NameResolver, NameResolverTrait};
 pub use utils::bpath;
 
 // Re-export from dependencies
-pub use dot001_error::Result;
+pub use dot001_events::error::Result;
 pub use dot001_parser::BlendFile;
 use std::io::{Read, Seek};
 

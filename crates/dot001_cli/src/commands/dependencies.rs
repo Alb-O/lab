@@ -4,7 +4,7 @@ use crate::block_ops::{BatchProcessor, CommandHelper};
 use crate::commands::DependencyTracer;
 use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
-use dot001_error::Dot001Error;
+use dot001_events::error::Error;
 use dot001_parser::{BlendFile, block_code_to_string, is_data_block_code};
 use dot001_tracer::DependencyNode;
 use log::{debug, error, info};
@@ -35,7 +35,7 @@ pub fn cmd_dependencies(
     show_data: bool,
     template: DisplayTemplate,
     ctx: &CommandContext,
-) -> Result<(), Dot001Error> {
+) -> Result<(), Error> {
     info!("Loading blend file: {}", file_path.display());
     debug!("Target block identifier: '{block_identifier}', format: {format:?}, ascii: {ascii}");
 

@@ -1,4 +1,4 @@
-use dot001_error::Result;
+use dot001_events::error::Result;
 /// Experimental exhaustive block injection
 ///
 /// This attempts to trace complete pointer dependency trees and reconstruct

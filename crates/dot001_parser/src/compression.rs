@@ -1,4 +1,4 @@
-use crate::error::{Dot001Error, Result};
+use crate::error::{Error, Result};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -206,7 +206,7 @@ impl Decompressor for ZstdDecompressor {
             // Try in-memory decompression first
             match self.decompress_to_memory(reader, policy.max_in_memory_bytes) {
                 Ok(data) => return Ok(BlendRead::Memory(Arc::new(data))),
-                Err(Dot001Error::BlendFile {
+                Err(Error::BlendFile {
                     kind: crate::error::BlendFileErrorKind::SizeLimitExceeded,
                     ..
                 }) => {
@@ -240,7 +240,7 @@ impl ZstdDecompressor {
                 }
 
                 if result.len() + bytes_read > max_size {
-                    return Err(Dot001Error::blend_file(
+                    return Err(Error::blend_file(
                         format!("Size limit exceeded: {max_size} bytes"),
                         crate::error::BlendFileErrorKind::SizeLimitExceeded,
                     ));
@@ -254,7 +254,7 @@ impl ZstdDecompressor {
 
         #[cfg(not(feature = "zstd"))]
         {
-            Err(Dot001Error::blend_file(
+            Err(Error::blend_file(
                 "Zstd support not compiled in",
                 crate::error::BlendFileErrorKind::UnsupportedCompression,
             ))
@@ -274,7 +274,7 @@ impl ZstdDecompressor {
             let default_temp = std::env::temp_dir();
             let temp_dir = policy.temp_dir.as_deref().unwrap_or(default_temp.as_path());
             let temp_file = tempfile::NamedTempFile::new_in(temp_dir).map_err(|e| {
-                Dot001Error::blend_file(
+                Error::blend_file(
                     format!("Temporary file error: {e}"),
                     crate::error::BlendFileErrorKind::InvalidData,
                 )
@@ -310,7 +310,7 @@ impl ZstdDecompressor {
 
         #[cfg(not(feature = "zstd"))]
         {
-            Err(Dot001Error::blend_file(
+            Err(Error::blend_file(
                 "Zstd support not compiled in",
                 crate::error::BlendFileErrorKind::UnsupportedCompression,
             ))

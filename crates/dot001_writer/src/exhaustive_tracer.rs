@@ -1,6 +1,6 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
-use dot001_error::Result;
+use dot001_events::error::Result;
 use dot001_events::{
     event::{Event, WriterEvent},
     prelude::*,
