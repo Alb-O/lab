@@ -111,6 +111,22 @@ impl DnaStruct {
         }
     }
 
+    /// Create a new DnaStruct for testing purposes
+    #[cfg(test)]
+    pub fn new_for_test(type_name: String, size: usize, fields: Vec<DnaField>) -> Self {
+        let mut fields_by_name = HashMap::new();
+        for (i, field) in fields.iter().enumerate() {
+            fields_by_name.insert(field.name.name_only.clone(), i);
+        }
+
+        DnaStruct {
+            type_name,
+            size,
+            fields,
+            fields_by_name,
+        }
+    }
+
     fn add_field(&mut self, field: DnaField) {
         let field_index = self.fields.len();
         let field_name = field.name.name_only.clone();
@@ -126,6 +142,27 @@ impl DnaStruct {
 }
 
 impl DnaCollection {
+    /// Create a new DnaCollection for testing purposes
+    #[cfg(test)]
+    pub fn new_for_test(
+        structs: Vec<DnaStruct>,
+        types: Vec<String>,
+        names: Vec<DnaName>,
+        type_sizes: Vec<u16>,
+    ) -> Self {
+        let mut struct_index = HashMap::new();
+        for (i, struct_def) in structs.iter().enumerate() {
+            struct_index.insert(struct_def.type_name.clone(), i);
+        }
+
+        DnaCollection {
+            structs,
+            struct_index,
+            types,
+            names,
+            type_sizes,
+        }
+    }
     pub fn read<R: Read + Seek>(reader: &mut R, header: &BlendFileHeader) -> Result<Self> {
         let mut sdna_marker = [0u8; 4];
         reader.read_exact(&mut sdna_marker)?;

@@ -28,12 +28,15 @@
 
 pub mod block;
 pub mod buf;
+pub mod compact_dna;
 pub mod compression;
 pub mod dna;
 pub mod error;
 pub mod fields;
+pub mod fieldview;
 pub mod header;
 pub mod index;
+pub mod interner;
 pub mod name_resolver;
 pub mod policy;
 pub mod reflect;
@@ -41,10 +44,12 @@ pub mod scan;
 
 pub use block::{BlendFileBlock, BlockHeader, block_code_to_string};
 pub use buf::{BlendBuf, BlendSlice, BlendSource};
+pub use compact_dna::{CompactDnaCollection, CompactDnaField, CompactDnaStruct};
 pub use compression::{CompressionKind, DecompressionMode, DecompressionPolicy, ParseOptions};
 pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
 pub use error::{BlendFileErrorKind, Error, Result};
 pub use fields::FieldReader;
+pub use fieldview::{FieldView, FieldViewExt};
 pub use header::BlendFileHeader;
 pub use name_resolver::NameResolver;
 pub use policy::{
@@ -538,6 +543,8 @@ pub struct BlendFileBuf {
     header: BlendFileHeader,
     blocks: Vec<BlendFileBlock>,
     dna: Option<DnaCollection>,
+    /// Optimized compact DNA for better performance (optional)
+    compact_dna: Option<CompactDnaCollection>,
     block_index: BlockIndex,
     address_index: AddressIndex,
 }
@@ -612,6 +619,7 @@ impl BlendFileBuf {
             header,
             blocks,
             dna: Some(dna),
+            compact_dna: None, // Will be created on-demand
             block_index,
             address_index,
         })
@@ -755,5 +763,73 @@ impl BlendFileBuf {
             self.header.is_little_endian,
         );
         Ok(reader)
+    }
+
+    /// Create a high-performance FieldView for zero-copy block access
+    ///
+    /// This is the preferred method for accessing block data in performance-critical code.
+    /// It provides faster field access than the compatibility FieldReader.
+    pub fn create_field_view<'a>(&'a self, block_data: &'a BlendSlice) -> Result<FieldView<'a>> {
+        let dna = self.dna()?;
+        Ok(FieldView::from_bytes(
+            block_data,
+            dna,
+            self.header.pointer_size as usize,
+            self.header.is_little_endian,
+        ))
+    }
+
+    /// Read block data as a slice for creating field views
+    ///
+    /// This is a convenience method that returns the block data slice
+    /// that can then be used with create_field_view.
+    ///
+    /// Due to Rust lifetime constraints, the slice and FieldView must be
+    /// created separately. Use this pattern:
+    /// ```ignore
+    /// let slice = blend_file.read_block_slice_for_field_view(block_index)?;
+    /// let view = blend_file.create_field_view(&slice)?;
+    /// ```
+    pub fn read_block_slice_for_field_view(&self, block_index: usize) -> Result<BlendSlice> {
+        self.read_block_slice(block_index)
+    }
+
+    /// Get or create the compact DNA collection
+    ///
+    /// This creates an optimized DNA representation on first access and caches it.
+    /// The compact DNA uses string interning and provides faster lookups.
+    pub fn compact_dna(&mut self) -> Result<&CompactDnaCollection> {
+        if self.compact_dna.is_none() {
+            let original_dna = self.dna()?;
+            let compact = CompactDnaCollection::from_original(original_dna);
+
+            debug!("Created compact DNA: {}", compact.memory_stats());
+            self.compact_dna = Some(compact);
+        }
+
+        Ok(self.compact_dna.as_ref().unwrap())
+    }
+
+    /// Create a FieldView using compact DNA (most optimized path)
+    ///
+    /// This uses the compact DNA representation for the fastest possible field access.
+    /// The compact DNA must be created first via compact_dna().
+    ///
+    /// TODO: Currently falls back to regular DNA. Future enhancement will implement
+    /// native CompactFieldView for even better performance.
+    pub fn create_field_view_compact<'a>(
+        &'a mut self,
+        block_data: &'a BlendSlice,
+    ) -> Result<FieldView<'a>> {
+        let _compact_dna = self.compact_dna()?;
+        // Convert compact DNA back to regular DNA for FieldView
+        // TODO: Create a native CompactFieldView for even better performance
+        let dna = self.dna()?;
+        Ok(FieldView::from_bytes(
+            block_data,
+            dna,
+            self.header.pointer_size as usize,
+            self.header.is_little_endian,
+        ))
     }
 }
