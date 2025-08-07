@@ -214,8 +214,8 @@ enum Commands {
         #[arg(long)]
         follow_symlinks: bool,
         /// Print verbose event information
-        #[arg(short, long)]
-        verbose: bool,
+        #[arg(long = "verbose-events")]
+        verbose_events: bool,
     },
 }
 
@@ -386,14 +386,14 @@ fn run_main() -> Result<(), Dot001Error> {
             debounce_ms,
             move_pair_window_ms,
             follow_symlinks,
-            verbose,
+            verbose_events,
         } => {
             let args = commands::watch::WatchArgs {
                 path,
                 debounce_ms,
                 move_pair_window_ms,
                 follow_symlinks,
-                verbose,
+                verbose: verbose_events,
             };
             commands::cmd_watch(args).map_err(|e| execution_failed_error(e.to_string()))
         }
