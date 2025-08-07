@@ -155,12 +155,7 @@ impl Normalizer {
         let mut out = Vec::new();
 
         for p in paths {
-            // Directories: we do not attempt to pair singletons for them here.
-            if p.is_dir() {
-                // Directory create/remove without explicit rename is too ambiguous; ignore here.
-                continue;
-            }
-
+            let is_dir = p.is_dir();
             // Try to match with an opposite kind by same base filename within the window.
             let base = match p.file_name() {
                 Some(b) => b.to_os_string(),
@@ -189,7 +184,10 @@ impl Normalizer {
                 let base_from = from.file_name().unwrap_or_default().to_os_string();
                 let base_to = to.file_name().unwrap_or_default().to_os_string();
 
-                if base_from == base_to {
+                if is_dir || from.is_dir() || to.is_dir() {
+                    // If either path is a directory, treat as DirMove
+                    out.push(NormalizedEvent::DirMove { from, to });
+                } else if base_from == base_to {
                     out.push(NormalizedEvent::BlendMove { from, to });
                 } else {
                     out.push(NormalizedEvent::BlendRename {
