@@ -1,6 +1,10 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
 use dot001_error::Result;
+use dot001_events::{
+    event::{Event, WriterEvent},
+    prelude::*,
+};
 
 /// Experimental block injection that sanitizes dangerous pointers.
 ///
@@ -15,6 +19,11 @@ impl SafeBlockInjection {
         seed: &mut SeedDnaProvider,
         block_indices: &[usize],
     ) -> Result<BlockInjection> {
+        // Emit block extraction started event
+        emit_global_sync!(Event::Writer(WriterEvent::BlockInjectionStarted {
+            total_blocks: block_indices.len(),
+        }));
+
         // Extract the requested blocks
         let extracted_blocks = seed.extract_blocks_by_indices(block_indices)?;
 
@@ -34,6 +43,15 @@ impl SafeBlockInjection {
 
         // Apply safe handling to complex structures
         Self::apply_safe_handling_to_injection(&mut injection, seed.dna())?;
+
+        // Emit completion event
+        emit_global_sync!(Event::Writer(WriterEvent::Finished {
+            operation: "safe_block_injection".to_string(),
+            bytes_written: 0, // TODO: Track bytes
+            blocks_written: injection.blocks.len(),
+            duration_ms: 0, // TODO: Track timing
+            success: true,
+        }));
 
         Ok(injection)
     }

@@ -1,6 +1,10 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::header_writer::HeaderWriter;
 use dot001_error::{Dot001Error, Result};
+use dot001_events::{
+    event::{Event, WriterEvent},
+    prelude::*,
+};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
@@ -578,7 +582,40 @@ impl BlendWriter {
         template: WriteTemplate,
         seed: &SeedDnaProvider,
     ) -> Result<()> {
-        self.write_with_seed_and_injection(out_path, template, seed, None)
+        // Emit write started event
+        let file_path = out_path.as_ref().to_path_buf();
+        emit_global_sync!(Event::Writer(WriterEvent::Started {
+            operation: "write_blend_file".to_string(),
+            target_file: file_path.clone(),
+        }));
+
+        let start_time = std::time::Instant::now();
+        let result = self.write_with_seed_and_injection(out_path, template, seed, None);
+
+        // Emit result event
+        let duration_ms = start_time.elapsed().as_millis() as u64;
+        match &result {
+            Ok(()) => {
+                emit_global_sync!(Event::Writer(WriterEvent::Finished {
+                    operation: "write_blend_file".to_string(),
+                    bytes_written: 0,  // TODO: Track bytes
+                    blocks_written: 0, // TODO: Count blocks
+                    duration_ms,
+                    success: true,
+                }));
+            }
+            Err(e) => {
+                let writer_error = dot001_events::error::Error::writer(
+                    e.user_message(),
+                    dot001_events::error::WriterErrorKind::WriteFailed,
+                );
+                emit_global_sync!(Event::Writer(WriterEvent::Error {
+                    error: writer_error,
+                }));
+            }
+        }
+
+        result
     }
 
     /// Write a .blend file with optional block injection.
@@ -604,6 +641,12 @@ impl BlendWriter {
         out_path: P,
         seed: &SeedDnaProvider,
     ) -> Result<()> {
+        // Emit template generation event
+        emit_global_sync!(Event::Writer(WriterEvent::HeaderGenerated {
+            version: "Blender 3.0".to_string(), // Default template version
+            block_count: 4,                     // REND, TEST, GLOB, DNA1
+        }));
+
         let file = File::create(out_path)?;
         let mut w = BufWriter::new(file);
 
@@ -665,7 +708,24 @@ impl BlendWriter {
         self.write_block_v1(&mut w, b"GLOB", glob_sdna_index, 0, seed.glob_bytes(), 1)?;
 
         // 5) Injected blocks - write them in the order provided
-        for block in &injection.blocks {
+        emit_global_sync!(Event::Writer(WriterEvent::BlockInjectionStarted {
+            total_blocks: injection.blocks.len(),
+        }));
+
+        for (i, block) in injection.blocks.iter().enumerate() {
+            let block_type = String::from_utf8_lossy(&block.code)
+                .trim_end_matches('\0')
+                .to_string();
+
+            emit_global_sync!(
+                Event::Writer(WriterEvent::BlockWritten {
+                    block_type,
+                    block_index: i,
+                    size: block.data.len(),
+                }),
+                Severity::Debug
+            );
+
             self.write_block_v1(
                 &mut w,
                 &block.code,
@@ -675,6 +735,8 @@ impl BlendWriter {
                 block.count,
             )?;
         }
+
+        // Block injection completed - will be reported in main Finished event
 
         // 6) DNA1 block
         self.write_block_v1(

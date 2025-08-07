@@ -1,6 +1,10 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
 use dot001_error::Result;
+use dot001_events::{
+    event::{Event, WriterEvent},
+    prelude::*,
+};
 use dot001_parser::{BlendFile, ReadSeekSend};
 use std::collections::{HashSet, VecDeque};
 use std::fs::File;
@@ -29,6 +33,12 @@ impl ExhaustivePointerTracer {
         file.read_to_end(&mut buf)?;
         let cursor = Cursor::new(buf);
         let mut blend_file = BlendFile::new(Box::new(cursor) as Box<dyn ReadSeekSend>)?;
+
+        // Emit dependency tracing started event
+        emit_global_sync!(Event::Writer(WriterEvent::Started {
+            operation: "exhaustive_dependency_tracing".to_string(),
+            target_file: seed.source_path().to_path_buf(),
+        }));
 
         println!("=== Exhaustive Pointer Tracing ===");
         println!("Starting from {} root blocks:", root_indices.len());

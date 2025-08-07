@@ -702,9 +702,11 @@ name = "dot001_writer"
 version = "0.1.0"
 dependencies = [
  "dot001_error",
+ "dot001_events",
  "dot001_parser",
  "dot001_tracer",
  "log",
+ "tokio",
 ]
 
 [[package]]

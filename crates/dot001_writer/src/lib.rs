@@ -58,3 +58,5 @@ pub use emitter::{BlendWriter, BlockInjection, InjectableBlock, WriteTemplate};
 pub use exhaustive_tracer::ExhaustivePointerTracer;
 pub use expanded_injection::ExpandedBlockInjection;
 pub use safe_injection::SafeBlockInjection;
+
+// Event imports added to individual modules as needed
