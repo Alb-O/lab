@@ -5,7 +5,10 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-fn find_block_by_name(blend_file: &mut BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, _name: &str) -> Option<usize> {
+fn find_block_by_name(
+    blend_file: &mut BlendFile<Box<dyn dot001_parser::ReadSeekSend>>,
+    _name: &str,
+) -> Option<usize> {
     // Try to find a block with the given name pattern
     // For now, just return a reasonable block index for testing
     if blend_file.blocks_len() > 5 {
@@ -27,7 +30,7 @@ fn benchmark_trace_dependencies_flat(c: &mut Criterion) {
     let reader = BufReader::new(file);
     let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
     let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-    
+
     // Try to find Collection block or use first block
     let target_block = find_block_by_name(&mut blend_file, "Collection")
         .or_else(|| {
@@ -50,7 +53,7 @@ fn benchmark_trace_dependencies_flat(c: &mut Criterion) {
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
             let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-            
+
             let mut tracer = DependencyTracer::new().with_default_expanders();
             let deps = black_box(tracer.trace_dependencies(target_block, &mut blend_file))
                 .expect("Failed to trace dependencies");
@@ -69,9 +72,8 @@ fn benchmark_trace_dependencies_tree(c: &mut Criterion) {
     let reader = BufReader::new(file);
     let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
     let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-    
-    let target_block = find_block_by_name(&mut blend_file, "Collection")
-        .unwrap_or(0);
+
+    let target_block = find_block_by_name(&mut blend_file, "Collection").unwrap_or(0);
 
     c.bench_function("trace_dependencies_tree", |b| {
         b.iter(|| {
@@ -79,7 +81,7 @@ fn benchmark_trace_dependencies_tree(c: &mut Criterion) {
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
             let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-            
+
             let mut tracer = DependencyTracer::new().with_default_expanders();
             let tree = black_box(tracer.trace_dependency_tree(target_block, &mut blend_file))
                 .expect("Failed to trace dependency tree");
@@ -100,7 +102,7 @@ fn benchmark_tracer_initialization(c: &mut Criterion) {
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
             let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-            
+
             let mut tracer = black_box(DependencyTracer::new());
             if blend_file.blocks_len() > 0 {
                 let _deps = tracer.trace_dependencies(0, &mut blend_file);
@@ -114,7 +116,7 @@ fn benchmark_tracer_initialization(c: &mut Criterion) {
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
             let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-            
+
             let mut tracer = black_box(DependencyTracer::new().with_default_expanders());
             if blend_file.blocks_len() > 0 {
                 let _deps = tracer.trace_dependencies(0, &mut blend_file);
@@ -131,23 +133,23 @@ fn benchmark_different_blend_files(c: &mut Criterion) {
     ];
 
     let mut group = c.benchmark_group("trace_by_file");
-    
+
     for (file_name, target_name) in &test_files {
-        let test_path = format!("../tests/test-blendfiles/{}", file_name);
+        let test_path = format!("../tests/test-blendfiles/{file_name}");
         if !Path::new(&test_path).exists() {
             continue;
         }
 
-        group.bench_function(&format!("trace_{}", file_name.replace(".blend", "")), |b| {
+        group.bench_function(format!("trace_{}", file_name.replace(".blend", "")), |b| {
             b.iter(|| {
                 let file = File::open(&test_path).expect("Failed to open test file");
                 let reader = BufReader::new(file);
                 let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
-                let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-                
-                let target_block = find_block_by_name(&mut blend_file, target_name)
-                    .unwrap_or(0);
-                
+                let mut blend_file =
+                    BlendFile::new(boxed_reader).expect("Failed to parse blend file");
+
+                let target_block = find_block_by_name(&mut blend_file, target_name).unwrap_or(0);
+
                 let mut tracer = DependencyTracer::new().with_default_expanders();
                 let deps = black_box(tracer.trace_dependencies(target_block, &mut blend_file))
                     .expect("Failed to trace dependencies");
@@ -155,7 +157,7 @@ fn benchmark_different_blend_files(c: &mut Criterion) {
             })
         });
     }
-    
+
     group.finish();
 }
 
@@ -179,7 +181,7 @@ fn benchmark_tracer_with_different_configurations(c: &mut Criterion) {
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
             let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-            
+
             let mut tracer = DependencyTracer::new(); // No expanders
             let deps = black_box(tracer.trace_dependencies(target_block, &mut blend_file))
                 .expect("Failed to trace dependencies");
@@ -193,7 +195,7 @@ fn benchmark_tracer_with_different_configurations(c: &mut Criterion) {
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
             let mut blend_file = BlendFile::new(boxed_reader).expect("Failed to parse blend file");
-            
+
             let mut tracer = DependencyTracer::new().with_default_expanders();
             let deps = black_box(tracer.trace_dependencies(target_block, &mut blend_file))
                 .expect("Failed to trace dependencies");

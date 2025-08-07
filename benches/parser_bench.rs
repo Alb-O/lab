@@ -22,13 +22,13 @@ fn benchmark_parser_load_blend_file(c: &mut Criterion) {
             .to_string_lossy()
             .to_string();
 
-        c.bench_function(&format!("parse_blend_file_{}", file_name), |b| {
+        c.bench_function(&format!("parse_blend_file_{file_name}"), |b| {
             b.iter(|| {
                 let file = File::open(test_file).expect("Failed to open test file");
                 let reader = BufReader::new(file);
                 let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
-                let _blend_file = black_box(BlendFile::new(boxed_reader))
-                    .expect("Failed to parse blend file");
+                let _blend_file =
+                    black_box(BlendFile::new(boxed_reader)).expect("Failed to parse blend file");
             })
         });
     }
@@ -102,8 +102,8 @@ fn benchmark_parser_with_different_readers(c: &mut Criterion) {
             let file = File::open(test_file).expect("Failed to open test file");
             let reader = BufReader::new(file);
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
-            let _blend_file = black_box(BlendFile::new(boxed_reader))
-                .expect("Failed to parse blend file");
+            let _blend_file =
+                black_box(BlendFile::new(boxed_reader)).expect("Failed to parse blend file");
         })
     });
 
@@ -112,8 +112,8 @@ fn benchmark_parser_with_different_readers(c: &mut Criterion) {
         b.iter(|| {
             let file = File::open(test_file).expect("Failed to open test file");
             let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(file);
-            let _blend_file = black_box(BlendFile::new(boxed_reader))
-                .expect("Failed to parse blend file");
+            let _blend_file =
+                black_box(BlendFile::new(boxed_reader)).expect("Failed to parse blend file");
         })
     });
 

@@ -1,5 +1,3 @@
-/// Options to control traversal limits and behavior
-
 /// Options to control traversal limits and behavior.
 #[derive(Debug, Clone, Copy)]
 pub struct TracerOptions {

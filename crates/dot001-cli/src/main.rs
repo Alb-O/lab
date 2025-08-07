@@ -67,6 +67,16 @@ enum DisplayTemplate {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Build a synthetic .blend file using a seed DNA (5.0 header + DNA1 + ENDB)
+    BuildBlend {
+        /// Path to a 5.0-alpha seed .blend file to extract DNA1 from
+        #[arg(long = "seed")]
+        seed: PathBuf,
+        /// Output .blend path to write
+        #[arg(long = "out")]
+        out: PathBuf,
+    },
+
     /// Update the filepath of a linked library file (LI block)
     #[cfg(feature = "editor")]
     LibPath {
@@ -244,6 +254,7 @@ fn run_main() -> Result<(), Dot001Error> {
 
     // Propagate the result; main() maps error to exit code and user message
     match cli.command {
+        Commands::BuildBlend { seed, out } => commands::cmd_build_blend(seed, out),
         #[cfg(feature = "editor")]
         Commands::LibPath {
             file,

@@ -1,5 +1,4 @@
 /// Hierarchical dependency tree structures
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

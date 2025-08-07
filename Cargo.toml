@@ -7,6 +7,7 @@ members = [
     "crates/dot001-diff",
     "crates/dot001-editor",
     "crates/dot001-checkpoint",
+    "crates/dot001-writer",
     "lib",
 ]
 resolver = "2"

@@ -1,4 +1,5 @@
 pub mod blocks;
+pub mod build_blend;
 #[cfg(feature = "trace")]
 pub mod dependencies;
 #[cfg(feature = "diff")]
@@ -18,6 +19,7 @@ pub mod rename;
 
 // Re-export command functions for main.rs
 pub use blocks::cmd_blocks;
+pub use build_blend::cmd_build_blend;
 #[cfg(feature = "trace")]
 pub use dependencies::cmd_dependencies;
 #[cfg(feature = "diff")]
