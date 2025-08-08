@@ -491,69 +491,99 @@ impl PrettyFormatter {
                 }
             },
             Event::Watcher(watcher_event) => match watcher_event {
+                crate::event::WatcherEvent::BlendFileMoved { from, to, filename } => {
+                    format!(
+                        "MOVED: {} ({} → {})",
+                        filename.bold(),
+                        from.parent().unwrap_or(std::path::Path::new("")).display(),
+                        to.parent().unwrap_or(std::path::Path::new("")).display()
+                    )
+                }
+                crate::event::WatcherEvent::BlendFileRenamed {
+                    from: _,
+                    to,
+                    old_filename,
+                    new_filename,
+                } => {
+                    format!(
+                        "RENAMED: {} → {} ({})",
+                        old_filename.bold(),
+                        new_filename.bold(),
+                        to.parent().unwrap_or(std::path::Path::new("")).display()
+                    )
+                }
+                crate::event::WatcherEvent::BlendFileMovedWithDirectory {
+                    filename,
+                    parent_move,
+                    ..
+                } => {
+                    format!(
+                        "MOVED WITH DIR: {} (dir: {} → {})",
+                        filename.bold(),
+                        parent_move.0.display(),
+                        parent_move.1.display()
+                    )
+                }
+                crate::event::WatcherEvent::ProcessingStepCompleted {
+                    step,
+                    success,
+                    step_duration_ms,
+                    ..
+                } => {
+                    let status = if *success { "✓".green() } else { "✗".red() };
+                    format!("{status} Step '{step}' ({step_duration_ms}ms)")
+                }
                 crate::event::WatcherEvent::Started {
                     watch_paths,
                     recursive,
+                    ..
                 } => {
                     let recursive_str = if *recursive { " (recursive)" } else { "" };
                     format!("Watching {} paths{}", watch_paths.len(), recursive_str)
                 }
-                crate::event::WatcherEvent::FileEvent {
-                    event_type,
-                    path,
-                    old_path,
-                } => {
-                    if let Some(old) = old_path {
-                        format!(
-                            "{}: {} → {}",
-                            event_type.to_uppercase().bold(),
-                            old.display(),
-                            path.display().to_string().bold()
-                        )
-                    } else {
-                        format!(
-                            "{}: {}",
-                            event_type.to_uppercase().bold(),
-                            path.display().to_string().bold()
-                        )
-                    }
-                }
-                crate::event::WatcherEvent::DirectoryEvent { event_type, path } => {
+                crate::event::WatcherEvent::FileEvent { event_type, path } => {
                     format!(
-                        "{}: {}/",
+                        "{}: {}",
                         event_type.to_uppercase().bold(),
                         path.display().to_string().bold()
                     )
                 }
+                crate::event::WatcherEvent::DirectoryMoved { from, to, .. } => {
+                    format!(
+                        "DIR MOVED: {} → {}",
+                        from.display().to_string().bold(),
+                        to.display().to_string().bold()
+                    )
+                }
                 crate::event::WatcherEvent::ProcessingStarted {
                     trigger_path,
-                    action,
+                    trigger_type,
+                    ..
                 } => {
                     format!(
                         "Processing {} → {}",
                         trigger_path.display().to_string().bold(),
-                        action
+                        trigger_type
                     )
                 }
                 crate::event::WatcherEvent::ProcessingCompleted {
                     trigger_path,
-                    action,
                     success,
-                    duration_ms,
+                    total_duration_ms,
+                    ..
                 } => {
                     let status = if *success { "✓".green() } else { "✗".red() };
                     format!(
-                        "{} {} → {} completed in {} ms",
+                        "{} {} completed in {} ms",
                         status,
                         trigger_path.display().to_string().bold(),
-                        action,
-                        duration_ms
+                        total_duration_ms
                     )
                 }
                 crate::event::WatcherEvent::Warning { code, message, .. } => {
                     format!("[{}] {}", code.yellow(), message)
                 }
-                crate::event::WatcherEvent::Error { error } => {
+                crate::event::WatcherEvent::Error { error, .. } => {
                     format!("{}", error.to_string().red())
                 }
                 crate::event::WatcherEvent::Stopped { reason } => {

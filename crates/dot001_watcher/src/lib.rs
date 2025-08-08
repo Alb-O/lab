@@ -8,6 +8,9 @@ use thiserror::Error;
 pub mod dir_emit;
 pub mod normalizer;
 
+#[cfg(feature = "async-events")]
+pub mod async_watcher;
+
 pub use dir_emit::emit_dir_child_moves;
 pub use normalizer::{NormalizedEvent, Normalizer};
 
@@ -170,14 +173,30 @@ pub mod async_api {
     pub fn watch_stream(
         options: WatchOptions,
     ) -> Result<impl Stream<Item = WatchEvent> + Send + 'static, WatchError> {
-        let (rx, _watcher) = super::watch(options)?;
-        // Bridge crossbeam channel to tokio stream
-        let s = stream::unfold(rx, |rx| async move {
-            match rx.recv() {
-                Ok(ev) => Some((ev, rx)),
-                Err(_) => None,
+        let (cross_rx, watcher) = super::watch(options)?;
+
+        // Bridge crossbeam Receiver -> Tokio mpsc to avoid blocking the async task on recv().
+        let (tx, rx) = tokio::sync::mpsc::channel::<WatchEvent>(1024);
+
+        // Forwarder thread: blocks on crossbeam recv and forwards into Tokio channel.
+        std::thread::spawn(move || {
+            while let Ok(ev) = cross_rx.recv() {
+                // If the receiver side is gone, stop forwarding.
+                if tx.blocking_send(ev).is_err() {
+                    break;
+                }
+            }
+            // Exiting: crossbeam channel closed or tokio receiver dropped.
+        });
+
+        // Keep the watcher alive by capturing it in the stream state alongside the Tokio receiver.
+        let s = stream::unfold((rx, watcher), |(mut rx, watcher)| async move {
+            match rx.recv().await {
+                Some(ev) => Some((ev, (rx, watcher))),
+                None => None,
             }
         });
+
         Ok(s)
     }
 }

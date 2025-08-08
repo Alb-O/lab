@@ -327,30 +327,68 @@ pub enum WatcherEvent {
     Started {
         watch_paths: Vec<PathBuf>,
         recursive: bool,
+        debounce_ms: u64,
     },
 
-    /// File system event detected
-    FileEvent {
-        event_type: String, // "created", "modified", "deleted", "moved"
-        path: PathBuf,
-        old_path: Option<PathBuf>, // For move events
+    /// Blend file moved to different directory (same filename)
+    BlendFileMoved {
+        from: PathBuf,
+        to: PathBuf,
+        filename: String,
     },
 
-    /// Directory event detected
-    DirectoryEvent { event_type: String, path: PathBuf },
+    /// Blend file renamed (filename changed, may include directory change)
+    BlendFileRenamed {
+        from: PathBuf,
+        to: PathBuf,
+        old_filename: String,
+        new_filename: String,
+    },
 
-    /// Event processing started
+    /// Directory moved/renamed containing blend files
+    DirectoryMoved {
+        from: PathBuf,
+        to: PathBuf,
+        blend_files_affected: usize,
+    },
+
+    /// Synthetic event for blend file affected by directory move
+    BlendFileMovedWithDirectory {
+        from: PathBuf,
+        to: PathBuf,
+        filename: String,
+        parent_move: (PathBuf, PathBuf), // The directory that moved
+    },
+
+    /// Event processing started for async workflow
     ProcessingStarted {
         trigger_path: PathBuf,
-        action: String,
+        trigger_type: String, // "moved", "renamed", "dir_moved"
+        workflow_id: String,
     },
 
-    /// Event processing completed
-    ProcessingCompleted {
-        trigger_path: PathBuf,
-        action: String,
+    /// Async processing step completed
+    ProcessingStepCompleted {
+        workflow_id: String,
+        step: String, // "dependency_trace", "validation", "update_complete"
         success: bool,
-        duration_ms: u64,
+        step_duration_ms: u64,
+    },
+
+    /// Async processing workflow completed
+    ProcessingCompleted {
+        workflow_id: String,
+        trigger_path: PathBuf,
+        total_steps: usize,
+        total_duration_ms: u64,
+        success: bool,
+        results: Option<String>, // JSON summary of results
+    },
+
+    /// Generic file system event (for compatibility)
+    FileEvent {
+        event_type: String, // "created", "modified", "deleted"
+        path: PathBuf,
     },
 
     /// Watcher warning
@@ -358,10 +396,14 @@ pub enum WatcherEvent {
         code: String,
         message: String,
         path: Option<PathBuf>,
+        workflow_id: Option<String>,
     },
 
     /// Watcher error
-    Error { error: Error },
+    Error {
+        error: Error,
+        workflow_id: Option<String>,
+    },
 
     /// Watcher stopped
     Stopped { reason: String },
@@ -516,11 +558,16 @@ impl Event {
             },
             Event::Watcher(watcher_event) => match watcher_event {
                 WatcherEvent::Started { .. } => Severity::Info,
-                WatcherEvent::FileEvent { .. } => Severity::Debug,
-                WatcherEvent::DirectoryEvent { .. } => Severity::Debug,
+                WatcherEvent::BlendFileMoved { .. } => Severity::Info,
+                WatcherEvent::BlendFileRenamed { .. } => Severity::Info,
+                WatcherEvent::DirectoryMoved { .. } => Severity::Info,
+                WatcherEvent::BlendFileMovedWithDirectory { .. } => Severity::Debug,
                 WatcherEvent::ProcessingStarted { .. } => Severity::Info,
+                WatcherEvent::ProcessingStepCompleted { success: true, .. } => Severity::Debug,
+                WatcherEvent::ProcessingStepCompleted { success: false, .. } => Severity::Warn,
                 WatcherEvent::ProcessingCompleted { success: true, .. } => Severity::Info,
                 WatcherEvent::ProcessingCompleted { success: false, .. } => Severity::Error,
+                WatcherEvent::FileEvent { .. } => Severity::Debug,
                 WatcherEvent::Warning { .. } => Severity::Warn,
                 WatcherEvent::Error { .. } => Severity::Error,
                 WatcherEvent::Stopped { .. } => Severity::Info,
@@ -615,10 +662,16 @@ impl Event {
             },
             Event::Watcher(e) => match e {
                 WatcherEvent::Started { .. } => "started",
-                WatcherEvent::FileEvent { .. } => "file_event",
-                WatcherEvent::DirectoryEvent { .. } => "directory_event",
+                WatcherEvent::BlendFileMoved { .. } => "blend_file_moved",
+                WatcherEvent::BlendFileRenamed { .. } => "blend_file_renamed",
+                WatcherEvent::DirectoryMoved { .. } => "directory_moved",
+                WatcherEvent::BlendFileMovedWithDirectory { .. } => {
+                    "blend_file_moved_with_directory"
+                }
                 WatcherEvent::ProcessingStarted { .. } => "processing_started",
+                WatcherEvent::ProcessingStepCompleted { .. } => "processing_step_completed",
                 WatcherEvent::ProcessingCompleted { .. } => "processing_completed",
+                WatcherEvent::FileEvent { .. } => "file_event",
                 WatcherEvent::Warning { .. } => "warning",
                 WatcherEvent::Error { .. } => "error",
                 WatcherEvent::Stopped { .. } => "stopped",

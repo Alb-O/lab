@@ -697,8 +697,12 @@ name = "dot001_watcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "cfg-if 1.0.1",
  "crossbeam-channel",
+ "dot001_events",
+ "dot001_parser",
+ "dot001_tracer",
  "env_logger",
  "futures",
  "log",
@@ -707,6 +711,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
