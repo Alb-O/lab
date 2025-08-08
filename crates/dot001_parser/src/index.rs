@@ -50,8 +50,6 @@ pub fn build_address_index(blocks: &[BlendFileBlock]) -> AddressIndex {
 /// on multi-core systems when processing large numbers of blocks.
 #[cfg(feature = "rayon")]
 pub fn build_indices_parallel(blocks: &[BlendFileBlock]) -> (BlockIndex, AddressIndex) {
-    use rayon::prelude::*;
-
     // Use rayon's join to build both indices in parallel
     let (block_index, address_index) =
         rayon::join(|| build_block_index(blocks), || build_address_index(blocks));

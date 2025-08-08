@@ -5,10 +5,10 @@ use dot001_events::{
     event::{Event, WriterEvent},
     prelude::*,
 };
-use dot001_parser::{BlendFile, ReadSeekSend};
+use dot001_parser::{BlendBuf, BlendFile};
 use std::collections::{HashSet, VecDeque};
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::Read;
 
 /// Experimental exhaustive pointer tracer for research purposes.
 ///
@@ -31,8 +31,9 @@ impl ExhaustivePointerTracer {
         let mut file = File::open(seed.source_path())?;
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
-        let cursor = Cursor::new(buf);
-        let mut blend_file = BlendFile::new(Box::new(cursor) as Box<dyn ReadSeekSend>)?;
+
+        let blend_buf = BlendBuf::from_vec(buf);
+        let blend_file = BlendFile::new(blend_buf)?;
 
         // Emit dependency tracing started event
         emit_global_sync!(Event::Writer(WriterEvent::Started {
@@ -52,7 +53,7 @@ impl ExhaustivePointerTracer {
 
         // Trace all dependencies exhaustively
         let all_dependencies =
-            Self::trace_all_pointer_references(&mut blend_file, seed.dna(), root_indices)?;
+            Self::trace_all_pointer_references(&blend_file, seed.dna(), root_indices)?;
 
         println!(
             "\nComplete dependency closure: {} blocks",
@@ -79,7 +80,7 @@ impl ExhaustivePointerTracer {
 
     /// Recursively trace ALL pointer references from the given root blocks
     fn trace_all_pointer_references(
-        blend_file: &mut BlendFile<impl ReadSeekSend>,
+        blend_file: &BlendFile,
         dna: &dot001_parser::DnaCollection,
         root_indices: &[usize],
     ) -> Result<HashSet<usize>> {
@@ -180,7 +181,7 @@ impl ExhaustivePointerTracer {
     fn extract_pointers_from_field(
         data: &[u8],
         field: &dot001_parser::DnaField,
-        blend_file: &mut BlendFile<impl ReadSeekSend>,
+        blend_file: &BlendFile,
         field_context: &str,
     ) -> Vec<usize> {
         let mut dependencies = Vec::new();
@@ -235,7 +236,7 @@ impl ExhaustivePointerTracer {
     fn extract_listbase_dependencies(
         data: &[u8],
         offset: usize,
-        blend_file: &mut BlendFile<impl ReadSeekSend>,
+        blend_file: &BlendFile,
         field_name: &str,
     ) -> Vec<usize> {
         let mut dependencies = Vec::new();
@@ -276,11 +277,7 @@ impl ExhaustivePointerTracer {
     }
 
     /// Trace a linked list starting from the given pointer
-    fn trace_linked_list(
-        blend_file: &mut BlendFile<impl ReadSeekSend>,
-        start_ptr: u64,
-        list_name: &str,
-    ) -> Vec<usize> {
+    fn trace_linked_list(blend_file: &BlendFile, start_ptr: u64, list_name: &str) -> Vec<usize> {
         let mut dependencies = Vec::new();
         let mut current_ptr = start_ptr;
         let mut node_count = 0;
@@ -346,7 +343,7 @@ impl ExhaustivePointerTracer {
     fn analyze_node_tree_internals(
         data: &[u8],
         struct_def: &dot001_parser::DnaStruct,
-        blend_file: &mut BlendFile<impl ReadSeekSend>,
+        blend_file: &BlendFile,
     ) -> Vec<usize> {
         let mut dependencies = Vec::new();
 

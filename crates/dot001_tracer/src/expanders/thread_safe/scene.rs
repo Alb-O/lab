@@ -1,13 +1,11 @@
 //! Thread-safe Scene block expander
+//!
+//! This expander handles Scene blocks (SC) and traces dependencies to:
+//! - camera: Active camera object
+//! - world: World environment settings  
+//! - master_collection: Root collection containing all scene objects
 
 use crate::thread_safe_simple_expander;
-
-/// Thread-safe Scene expander using zero-copy FieldView access
-///
-/// This expander handles Scene blocks (SC) and traces dependencies to:
-/// - camera: Active camera object
-/// - world: World environment settings  
-/// - master_collection: Root collection containing all scene objects
 thread_safe_simple_expander! {
     ThreadSafeSceneExpander, b"SC\0\0", "Scene" => {
         single_fields: ["camera", "world", "master_collection"],

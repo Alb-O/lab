@@ -360,15 +360,6 @@ impl ParallelDependencyTracer {
         Ok(dependencies)
     }
 
-    /// Remap an address using the optional determinizer if present
-    fn remap_address(&self, addr: u64) -> u64 {
-        if let Some(determinizer) = &self.determinizer {
-            determinizer.remap_address(addr)
-        } else {
-            addr
-        }
-    }
-
     /// Get a reference to the internal determinizer, if configured
     pub fn determinizer(&self) -> Option<&Determinizer> {
         self.determinizer.as_ref()

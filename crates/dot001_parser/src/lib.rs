@@ -63,6 +63,9 @@ pub use reflect::PointerTraversal;
 // RE-EXPORT FOR PRIMARY API
 pub use BlendFileBuf as BlendFile;
 
+// Re-export from DNA module for compatibility
+pub use dna::{DnaCollection, DnaField, DnaName, DnaStruct};
+
 use dot001_events::{
     event::{Event, ParserEvent},
     prelude::*,
@@ -71,7 +74,6 @@ use log::{debug, trace, warn};
 use std::io::Cursor;
 
 use crate::{
-    dna::DnaCollection,
     index::{AddressIndex, AddressIndexExt, BlockIndex, BlockIndexExt, build_indices},
     scan::scan_blocks,
 };
@@ -163,7 +165,7 @@ pub struct BlendFileBuf {
     buf: BlendBuf,
     header: BlendFileHeader,
     blocks: Vec<BlendFileBlock>,
-    dna: Option<DnaCollection>,
+    dna: Option<dna::DnaCollection>,
     /// Optimized compact DNA for better performance (optional)
     compact_dna: Option<CompactDnaCollection>,
     block_index: BlockIndex,
@@ -251,7 +253,7 @@ impl BlendFileBuf {
         buf: &BlendBuf,
         blocks: &[BlendFileBlock],
         header: &BlendFileHeader,
-    ) -> Result<DnaCollection> {
+    ) -> Result<dna::DnaCollection> {
         let dna_block = blocks
             .iter()
             .find(|block| &block.header.code == b"DNA1")
@@ -265,7 +267,7 @@ impl BlendFileBuf {
         )?;
 
         let mut cursor = Cursor::new(dna_data.as_ref());
-        DnaCollection::read(&mut cursor, header)
+        dna::DnaCollection::read(&mut cursor, header)
     }
 
     /// Access to the header information
@@ -294,7 +296,7 @@ impl BlendFileBuf {
     }
 
     /// Get DNA collection (required for field reading)
-    pub fn dna(&self) -> Result<&DnaCollection> {
+    pub fn dna(&self) -> Result<&dna::DnaCollection> {
         self.dna
             .as_ref()
             .ok_or_else(|| Error::blend_file("DNA block not found", BlendFileErrorKind::NoDnaFound))

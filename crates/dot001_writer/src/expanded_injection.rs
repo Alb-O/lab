@@ -1,11 +1,11 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
 use dot001_events::error::Result;
-use dot001_parser::{BlendFile, ReadSeekSend};
-use dot001_tracer::DependencyTracer;
+use dot001_parser::{BlendBuf, BlendFile};
+use dot001_tracer::ParallelDependencyTracer;
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::Read;
 
 /// Enhanced injection system that uses dependency tracing to expand
 /// injected blocks with their complete dependency trees
@@ -22,11 +22,12 @@ impl ExpandedBlockInjection {
         let mut file = File::open(seed.source_path())?;
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
-        let cursor = Cursor::new(buf);
-        let mut blend_file = BlendFile::new(Box::new(cursor) as Box<dyn ReadSeekSend>)?;
+
+        let blend_buf = BlendBuf::from_vec(buf);
+        let blend_file = BlendFile::new(blend_buf)?;
 
         // Create a dependency tracer with standard expanders
-        let mut tracer = DependencyTracer::new().with_default_expanders();
+        let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
 
         // Collect all dependencies for the provided block indices
         let mut all_dependencies = HashSet::new();
@@ -34,10 +35,10 @@ impl ExpandedBlockInjection {
         for &block_index in block_indices {
             println!("Tracing dependencies for block {block_index}");
 
-            match tracer.trace_dependency_tree(block_index, &mut blend_file) {
-                Ok(tree) => {
-                    // Collect all block indices from the dependency tree
-                    collect_all_indices_from_tree(&tree.root, &mut all_dependencies);
+            match tracer.trace_dependencies_parallel(block_index, &blend_file) {
+                Ok(dependencies) => {
+                    // Add all dependencies to our set
+                    all_dependencies.extend(dependencies.iter());
                     println!(
                         "  Found {} total dependencies including root",
                         all_dependencies.len()

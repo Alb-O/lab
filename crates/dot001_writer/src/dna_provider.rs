@@ -1,7 +1,7 @@
 use dot001_events::error::{Error as Dot001Error, Result};
-use dot001_parser::{BlendFile, ReadSeekSend};
+use dot001_parser::{BlendBuf, BlendFile};
 use std::fs::File;
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::{Cursor, Read};
 
 /// Seed provider that extracts essential blocks (REND, TEST, GLOB, DNA1) and parsed DnaCollection
 /// from a user-provided 5.0-alpha .blend file.
@@ -31,12 +31,12 @@ impl SeedDnaProvider {
         let mut f = File::open(&path)?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
-        let cursor = Cursor::new(buf);
 
-        let mut blend_file = BlendFile::new(Box::new(cursor) as Box<dyn ReadSeekSend>)?;
+        let blend_buf = BlendBuf::from_vec(buf);
+        let blend_file = BlendFile::new(blend_buf)?;
 
         // Helper function to extract block bytes
-        let mut extract_block = |block_type: &[u8; 4]| -> Result<Vec<u8>> {
+        let extract_block = |block_type: &[u8; 4]| -> Result<Vec<u8>> {
             let block_index = blend_file
                 .blocks_by_type(block_type)
                 .into_iter()
@@ -51,26 +51,18 @@ impl SeedDnaProvider {
                     )
                 })?;
 
-            let block = blend_file
-                .get_block(block_index)
-                .ok_or_else(|| {
-                    Dot001Error::blend_file(
-                        format!(
-                            "{} block index out of range",
-                            String::from_utf8_lossy(block_type)
-                        ),
-                        dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
-                    )
-                })?
-                .clone();
+            let block = blend_file.get_block(block_index).ok_or_else(|| {
+                Dot001Error::blend_file(
+                    format!(
+                        "{} block index out of range",
+                        String::from_utf8_lossy(block_type)
+                    ),
+                    dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
+                )
+            })?;
 
-            let mut block_bytes = vec![0u8; block.header.size as usize];
-            {
-                let reader = blend_file.reader_mut();
-                reader.seek(SeekFrom::Start(block.data_offset))?;
-                reader.read_exact(&mut block_bytes)?;
-            }
-            Ok(block_bytes)
+            // Use the modern API to read block data
+            blend_file.read_block_data(block_index)
         };
 
         // Extract all essential blocks
@@ -142,29 +134,20 @@ impl SeedDnaProvider {
         let mut f = File::open(&self.source_path)?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
-        let cursor = Cursor::new(buf);
 
-        let mut blend_file = BlendFile::new(Box::new(cursor) as Box<dyn ReadSeekSend>)?;
+        let blend_buf = BlendBuf::from_vec(buf);
+        let blend_file = BlendFile::new(blend_buf)?;
 
         let mut results = Vec::new();
         for &index in indices {
-            let block = blend_file
-                .get_block(index)
-                .ok_or_else(|| {
-                    Dot001Error::blend_file(
-                        format!("Block index {index} out of range"),
-                        dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
-                    )
-                })?
-                .clone();
+            let block = blend_file.get_block(index).ok_or_else(|| {
+                Dot001Error::blend_file(
+                    format!("Block index {index} out of range"),
+                    dot001_events::error::BlendFileErrorKind::InvalidBlockIndex,
+                )
+            })?;
 
-            let mut block_data = vec![0u8; block.header.size as usize];
-            {
-                let reader = blend_file.reader_mut();
-                reader.seek(SeekFrom::Start(block.data_offset))?;
-                reader.read_exact(&mut block_data)?;
-            }
-
+            let block_data = blend_file.read_block_data(index)?;
             results.push((index, block.header.clone(), block_data));
         }
 

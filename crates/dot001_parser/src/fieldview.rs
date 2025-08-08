@@ -8,7 +8,7 @@ use crate::{BlendFileErrorKind, Error, Result};
 use bytes::Bytes;
 
 #[cfg(feature = "bytemuck")]
-use bytemuck::{Pod, Zeroable};
+use bytemuck::Pod;
 
 /// Zero-copy view into a blend file block for efficient field access
 ///

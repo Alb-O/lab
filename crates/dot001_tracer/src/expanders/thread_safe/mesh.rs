@@ -1,11 +1,9 @@
 //! Thread-safe Mesh block expander
+//!
+//! This expander handles Mesh blocks (ME) and traces dependencies to:
+//! - mat: Array of materials assigned to the mesh (based on totcol count)
 
 use crate::thread_safe_simple_expander;
-
-/// Thread-safe Mesh expander using zero-copy FieldView access
-///
-/// This expander handles Mesh blocks (ME) and traces dependencies to:
-/// - mat: Array of materials assigned to the mesh (based on totcol count)
 thread_safe_simple_expander! {
     ThreadSafeMeshExpander, b"ME\0\0", "Mesh" => {
         single_fields: [],

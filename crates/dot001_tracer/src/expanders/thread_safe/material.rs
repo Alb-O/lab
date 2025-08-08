@@ -1,14 +1,12 @@
 //! Thread-safe Material block expander
+//!
+//! This expander handles Material blocks (MA) and traces dependencies to:
+//! - nodetree: Node tree for shader nodes
+//!
+//! Note: This is a simplified version. The legacy MaterialExpander had complex
+//! mtex array processing that would need custom logic to fully replicate.
 
 use crate::thread_safe_simple_expander;
-
-/// Thread-safe Material expander using zero-copy FieldView access
-///
-/// This expander handles Material blocks (MA) and traces dependencies to:
-/// - nodetree: Node tree for shader nodes
-///
-/// Note: This is a simplified version. The legacy MaterialExpander had complex
-/// mtex array processing that would need custom logic to fully replicate.
 thread_safe_simple_expander! {
     ThreadSafeMaterialExpander, b"MA\0\0", "Material" => {
         single_fields: ["nodetree"],

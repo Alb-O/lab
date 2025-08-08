@@ -297,7 +297,10 @@ impl std::fmt::Display for CompactDnaStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DnaCollection, DnaField, DnaName, DnaStruct};
+    use crate::{
+        DnaCollection,
+        dna::{DnaField, DnaName, DnaStruct},
+    };
 
     fn create_test_dna() -> DnaCollection {
         // Create test DNA data using test constructors

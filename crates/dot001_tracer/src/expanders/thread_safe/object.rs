@@ -1,12 +1,10 @@
 //! Thread-safe Object block expander
+//!
+//! This expander handles Object blocks (OB) and traces dependencies to:
+//! - data: The mesh, curve, or other object data
+//! - mat: Array of materials (based on totcol count)
 
 use crate::thread_safe_simple_expander;
-
-/// Thread-safe Object expander using zero-copy FieldView access
-///
-/// This expander handles Object blocks (OB) and traces dependencies to:
-/// - data: The mesh, curve, or other object data
-/// - mat: Array of materials (based on totcol count)
 thread_safe_simple_expander! {
     ThreadSafeObjectExpander, b"OB\0\0", "Object" => {
         single_fields: ["data"],

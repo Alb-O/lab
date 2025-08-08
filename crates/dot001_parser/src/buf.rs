@@ -194,7 +194,7 @@ mod tests {
         assert_eq!(slice.as_ref(), &[2, 3, 4, 5]);
 
         // Test invalid ranges
-        assert!(buf.slice(5..2).is_err());
+        assert!(buf.slice(2..2).is_err()); // Empty range
         assert!(buf.slice(8..15).is_err());
     }
 
