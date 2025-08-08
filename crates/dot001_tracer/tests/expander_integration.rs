@@ -1,6 +1,6 @@
 /// Integration tests for thread-safe expanders using real blend files
 use dot001_parser::{BlendFile, from_path};
-use dot001_tracer::ParallelDependencyTracer;
+use dot001_tracer::DependencyTracer;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -42,7 +42,7 @@ fn test_basic_expanders_on_real_files() {
     let Some(blend_file) = load_test_blend_file("main_test.blend") else {
         return;
     };
-    let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
+    let mut tracer = DependencyTracer::new().with_default_expanders();
 
     // Get all blocks and categorize them by type
     let mut block_counts: HashMap<String, usize> = HashMap::new();
@@ -92,7 +92,7 @@ fn test_dependency_tracing_integration() {
     let Some(blend_file) = load_test_blend_file("main_test.blend") else {
         return;
     };
-    let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
+    let mut tracer = DependencyTracer::new().with_default_expanders();
 
     // Find the first Scene block
     let scene_block = (0..blend_file.blocks_len()).find(|&i| {
@@ -180,10 +180,10 @@ fn test_external_reference_detection() {
 fn test_thread_safe_expanders() {
     println!("Testing thread-safe expander registration:");
 
-    let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
+    let mut tracer = DependencyTracer::new().with_default_expanders();
 
     // Verify the tracer was created successfully with default expanders
-    println!("  ✓ ParallelDependencyTracer created with default thread-safe expanders");
+    println!("  ✓ DependencyTracer created with default thread-safe expanders");
 
     // Test that the tracer can handle basic operations
     let Some(dummy_blend_file) = load_test_blend_file("main_test.blend") else {

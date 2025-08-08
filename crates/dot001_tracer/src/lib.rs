@@ -15,7 +15,7 @@
 /// ## Example
 ///
 /// ```rust,no_run
-/// use dot001_tracer::ParallelDependencyTracer;  
+/// use dot001_tracer::DependencyTracer;  
 /// use dot001_parser::from_path;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +23,7 @@
 /// let blend_file = from_path("scene.blend")?;
 ///
 /// // Create a parallel tracer with thread-safe expanders
-/// let mut tracer = ParallelDependencyTracer::new()
+/// let mut tracer = DependencyTracer::new()
 ///     .with_default_expanders();
 ///
 /// // Trace dependencies in parallel for high performance  
@@ -52,13 +52,13 @@ pub mod utils;
 // The actual macros are available at crate root due to #[macro_export]
 
 // Re-export key types and traits - NEW ARCHITECTURE
-pub use core::{DependencyNode, DependencyTree, ParallelDependencyTracer, TracerOptions};
+pub use core::{DependencyNode, DependencyTracer, DependencyTree, TracerOptions};
 pub use expand_result::ExpandResult;
 pub use expanders::*;
 pub use thread_safe_expander::{ThreadSafeBlockExpander, ThreadSafePointerTraversal};
 pub use utils::{Determinizer, NameResolver, NameResolverTrait};
 
-// REMOVED: DependencyTracer - use ParallelDependencyTracer instead
+// REMOVED: DependencyTracer - use DependencyTracer instead
 
 // Re-export bpath module for backward compatibility
 pub use utils::bpath;

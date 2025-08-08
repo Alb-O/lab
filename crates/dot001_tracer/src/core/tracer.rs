@@ -1,29 +1,28 @@
-//! Parallel dependency tracer implementation
+//! Dependency tracer implementation
 //!
-//! This module provides high-performance parallel dependency tracing using
-//! layered BFS, DashMap for visited tracking, and deterministic merging.
-//!
-//! The implementation processes dependencies in parallel using rayon's work-stealing
-//! scheduler while maintaining deterministic output through per-depth stable sorting.
+//! This module provides dependency tracing using recursive tree building and
+//! thread-safe block expansion. The implementation builds hierarchical dependency
+//! trees and provides both tree and flattened list outputs with deterministic results.
 
 use crate::ThreadSafeBlockExpander;
 use crate::core::options::TracerOptions;
+use crate::core::tree::{DependencyNode, DependencyTree};
 use crate::filter::{FilterEngine, FilterSpec};
 use crate::utils::determinizer::Determinizer;
 use dashmap::DashSet;
-use dot001_events::error::{Error, Result, TracerErrorKind};
+use dot001_events::error::Result;
 use dot001_events::{
     event::{Event, TracerEvent},
     prelude::*,
 };
 use dot001_parser::BlendFileBuf;
 use log::{debug, trace};
-use rayon::prelude::*;
+use rayon;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-/// Parallel dependency tracer with concurrent BFS and deterministic output
-pub struct ParallelDependencyTracer {
+/// Dependency tracer with recursive tree building and deterministic output
+pub struct DependencyTracer {
     pub(crate) thread_safe_expanders: HashMap<[u8; 4], Box<dyn ThreadSafeBlockExpander>>,
     /// Concurrent visited set using DashMap for thread-safe access
     visited: Arc<DashSet<usize>>,
@@ -37,16 +36,16 @@ pub struct ParallelDependencyTracer {
     thread_pool_size: Option<usize>,
 }
 
-impl Default for ParallelDependencyTracer {
+impl Default for DependencyTracer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ParallelDependencyTracer {
+impl DependencyTracer {
     /// Create a new parallel dependency tracer
     pub fn new() -> Self {
-        ParallelDependencyTracer {
+        DependencyTracer {
             thread_safe_expanders: HashMap::new(),
             visited: Arc::new(DashSet::new()),
             allowed: None,
@@ -157,16 +156,45 @@ impl ParallelDependencyTracer {
         }
     }
 
-    /// Trace dependencies using parallel layered BFS
+    /// Trace dependencies and return as a flat list
     ///
-    /// This is the core parallel implementation that processes dependency
-    /// traversal in parallel while maintaining deterministic output.
+    /// This method builds a hierarchical dependency tree and then flattens it
+    /// to provide a simple list of dependencies, maintaining compatibility with
+    /// existing code while using the more robust tree-building approach.
     pub fn trace_dependencies_parallel(
         &mut self,
         start_block_index: usize,
         blend_file: &BlendFileBuf,
     ) -> Result<Vec<usize>> {
-        debug!("Starting parallel dependency trace from block {start_block_index}");
+        // Build the full tree
+        let tree = self.trace_dependency_tree(start_block_index, blend_file)?;
+
+        // Flatten it to a list
+        let mut result = Vec::new();
+        self.flatten_tree(&tree.root, &mut result);
+
+        // Sort for deterministic output
+        result.sort_unstable();
+        result.dedup();
+
+        debug!(
+            "Flattened dependency tree to {} unique dependencies",
+            result.len()
+        );
+
+        Ok(result)
+    }
+
+    /// Trace dependencies and build a hierarchical tree structure
+    ///
+    /// This is the core tracing method that builds a proper `DependencyTree`
+    /// with parent-child relationships preserved through recursive traversal.
+    pub fn trace_dependency_tree(
+        &mut self,
+        start_block_index: usize,
+        blend_file: &BlendFileBuf,
+    ) -> Result<DependencyTree> {
+        debug!("Starting parallel dependency tree trace from block {start_block_index}");
 
         let start_time = std::time::Instant::now();
 
@@ -180,7 +208,7 @@ impl ParallelDependencyTracer {
         emit_global_sync!(Event::Tracer(TracerEvent::Started {
             root_blocks: vec![format!("{}[{}]", root_block_type, start_block_index)],
             options: format!(
-                "max_depth: {}, parallel: true, threads: {:?}",
+                "max_depth: {}, parallel: true, tree_mode: true, threads: {:?}",
                 self.options.max_depth,
                 self.thread_pool_size
                     .unwrap_or_else(rayon::current_num_threads)
@@ -189,113 +217,142 @@ impl ParallelDependencyTracer {
 
         // Clear visited set
         self.visited.clear();
-        let mut result = Vec::new();
 
-        // Respect allowed set: if present and start not allowed, return empty
+        // Respect allowed set: if present and start not allowed, return empty tree
         if let Some(allowed) = &self.allowed {
             if !allowed.contains(&start_block_index) {
-                return Ok(result);
+                let root =
+                    self.create_dependency_node(start_block_index, blend_file, Vec::new())?;
+                return Ok(DependencyTree {
+                    root,
+                    total_dependencies: 0,
+                    max_depth: 0,
+                });
             }
         }
 
-        // Initialize with start block
-        let mut current_layer = vec![start_block_index];
-        self.visited.insert(start_block_index);
-
-        // Process each depth layer
-        for depth in 0..self.options.max_depth {
-            if current_layer.is_empty() {
-                break;
-            }
-
-            debug!(
-                "Processing depth layer {depth} with {} blocks",
-                current_layer.len()
-            );
-
-            // Process current layer in parallel
-            let next_layer_chunks: Vec<Vec<usize>> = if self.thread_pool_size.is_some() {
-                // Use custom thread pool if specified
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(self.thread_pool_size.unwrap())
-                    .build()
-                    .map_err(|e| {
-                        Error::tracer(
-                            format!("Failed to create thread pool: {e}"),
-                            TracerErrorKind::BlockExpansionFailed,
-                        )
-                    })?
-                    .install(|| self.process_layer_parallel(&current_layer, blend_file, depth))?
-            } else {
-                // Use default global thread pool
-                self.process_layer_parallel(&current_layer, blend_file, depth)?
-            };
-
-            // Merge results from all threads deterministically
-            let mut next_layer = Vec::new();
-            for chunk in next_layer_chunks {
-                next_layer.extend(chunk);
-            }
-
-            // Sort for deterministic output and remove duplicates
-            next_layer.sort_unstable();
-            next_layer.dedup();
-
-            // Filter out already visited blocks and update visited set
-            let mut filtered_next_layer = Vec::new();
-            for block_index in next_layer {
-                if self.visited.insert(block_index) {
-                    // This block was not visited before
-                    filtered_next_layer.push(block_index);
-                    if block_index != start_block_index {
-                        result.push(block_index);
-                    }
-                }
-            }
-
-            current_layer = filtered_next_layer;
-
-            trace!(
-                "Depth {depth} processed, next layer has {} blocks",
-                current_layer.len()
-            );
-        }
-
-        // Sort final result for deterministic output
-        result.sort_unstable();
+        // Build tree layer by layer, preserving relationships
+        let root =
+            self.build_tree_recursive(start_block_index, blend_file, 0, &mut HashSet::new())?;
+        let total_dependencies = self.count_dependencies(&root);
+        let max_depth = self.calculate_max_depth(&root);
 
         debug!(
-            "Parallel dependency trace completed, found {} total dependencies",
-            result.len()
+            "Parallel dependency tree trace completed, found {total_dependencies} total dependencies with max depth {max_depth}"
         );
 
         // Emit tracer finished event
         let duration_ms = start_time.elapsed().as_millis() as u64;
-        let unique_dependencies = result.len(); // Already unique due to visited tracking
 
         emit_global_sync!(Event::Tracer(TracerEvent::Finished {
-            total_blocks_traced: result.len(),
-            unique_dependencies,
+            total_blocks_traced: total_dependencies,
+            unique_dependencies: total_dependencies,
             duration_ms,
         }));
 
-        Ok(result)
+        Ok(DependencyTree {
+            root,
+            total_dependencies,
+            max_depth,
+        })
     }
 
-    /// Process a single layer in parallel, returning per-thread dependency chunks
-    fn process_layer_parallel(
+    /// Recursively build tree nodes maintaining parent-child relationships
+    fn build_tree_recursive(
         &self,
-        layer: &[usize],
+        block_index: usize,
         blend_file: &BlendFileBuf,
-        depth: usize,
-    ) -> Result<Vec<Vec<usize>>> {
-        // Process blocks in parallel chunks
-        let chunk_results: Result<Vec<Vec<usize>>> = layer
-            .par_iter()
-            .map(|&block_index| self.expand_block_dependencies(block_index, blend_file, depth))
-            .collect();
+        current_depth: usize,
+        visited: &mut HashSet<usize>,
+    ) -> Result<DependencyNode> {
+        // Avoid infinite recursion
+        if visited.contains(&block_index) || current_depth >= self.options.max_depth {
+            return self.create_dependency_node(block_index, blend_file, Vec::new());
+        }
 
-        chunk_results
+        visited.insert(block_index);
+
+        // Get immediate dependencies for this block
+        let immediate_deps =
+            self.expand_block_dependencies(block_index, blend_file, current_depth)?;
+
+        // Recursively build child nodes
+        let mut children = Vec::new();
+        for &child_index in &immediate_deps {
+            if let Some(allowed) = &self.allowed {
+                if !allowed.contains(&child_index) {
+                    continue;
+                }
+            }
+
+            let child_node =
+                self.build_tree_recursive(child_index, blend_file, current_depth + 1, visited)?;
+            children.push(child_node);
+        }
+
+        visited.remove(&block_index); // Allow this block to be visited via other paths
+
+        self.create_dependency_node(block_index, blend_file, children)
+    }
+
+    /// Create a DependencyNode from block information
+    fn create_dependency_node(
+        &self,
+        block_index: usize,
+        blend_file: &BlendFileBuf,
+        children: Vec<DependencyNode>,
+    ) -> Result<DependencyNode> {
+        if let Some(block) = blend_file.get_block(block_index) {
+            Ok(DependencyNode {
+                block_index,
+                block_code: Self::block_code_to_string(&block.header.code),
+                block_size: block.header.size,
+                block_address: block.header.old_address,
+                children,
+            })
+        } else {
+            Ok(DependencyNode {
+                block_index,
+                block_code: "????".to_string(),
+                block_size: 0,
+                block_address: 0,
+                children,
+            })
+        }
+    }
+
+    /// Count total dependencies in a tree
+    fn count_dependencies(&self, node: &DependencyNode) -> usize {
+        let mut count = node.children.len();
+        for child in &node.children {
+            count += self.count_dependencies(child);
+        }
+        count
+    }
+
+    /// Calculate maximum depth of a tree
+    fn calculate_max_depth(&self, node: &DependencyNode) -> usize {
+        if node.children.is_empty() {
+            0
+        } else {
+            1 + node
+                .children
+                .iter()
+                .map(|child| self.calculate_max_depth(child))
+                .max()
+                .unwrap_or(0)
+        }
+    }
+
+    /// Flatten a dependency tree into a list of block indices (excluding root)
+    ///
+    /// This provides a flat list of all dependencies, useful for compatibility
+    /// with code that expects a simple Vec<usize> of dependencies.
+    fn flatten_tree(&self, node: &DependencyNode, result: &mut Vec<usize>) {
+        for child in &node.children {
+            result.push(child.block_index);
+            self.flatten_tree(child, result);
+        }
     }
 
     /// Expand dependencies for a single block (thread-safe)
@@ -359,32 +416,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parallel_tracer_creation() {
-        let tracer = ParallelDependencyTracer::new();
+    fn test_tracer_creation() {
+        let tracer = DependencyTracer::new();
         assert_eq!(tracer.visited_count(), 0);
     }
 
     #[test]
     fn test_thread_pool_size_configuration() {
-        let tracer = ParallelDependencyTracer::new().with_thread_pool_size(4);
+        let tracer = DependencyTracer::new().with_thread_pool_size(4);
         assert_eq!(tracer.thread_pool_size, Some(4));
     }
 
     #[test]
     fn test_block_code_to_string() {
-        assert_eq!(
-            ParallelDependencyTracer::block_code_to_string(b"SC\0\0"),
-            "SC"
-        );
-        assert_eq!(
-            ParallelDependencyTracer::block_code_to_string(b"DATA"),
-            "DATA"
-        );
+        assert_eq!(DependencyTracer::block_code_to_string(b"SC\0\0"), "SC");
+        assert_eq!(DependencyTracer::block_code_to_string(b"DATA"), "DATA");
     }
 
     #[test]
     fn test_thread_safe_expander_registration() {
-        let mut tracer = ParallelDependencyTracer::new();
+        let mut tracer = DependencyTracer::new();
 
         use crate::expanders::thread_safe::ThreadSafeObjectExpander;
         tracer.register_thread_safe_expander(*b"OB\0\0", Box::new(ThreadSafeObjectExpander));
@@ -395,7 +446,7 @@ mod tests {
 
     #[test]
     fn test_with_default_expanders() {
-        let tracer = ParallelDependencyTracer::new().with_default_expanders();
+        let tracer = DependencyTracer::new().with_default_expanders();
 
         // Should have registered the basic thread-safe expanders
         assert!(tracer.thread_safe_expanders.len() >= 5);

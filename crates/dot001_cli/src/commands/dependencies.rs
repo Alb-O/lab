@@ -5,7 +5,7 @@ use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
 use dot001_events::error::Error;
 use dot001_parser::{BlendFile, block_code_to_string, is_data_block_code};
-use dot001_tracer::{DependencyNode, ParallelDependencyTracer};
+use dot001_tracer::{DependencyNode, DependencyTracer};
 use log::{debug, error, info};
 use std::path::PathBuf;
 use text_trees::StringTreeNode;
@@ -49,7 +49,7 @@ pub fn cmd_dependencies(
         };
         index
     };
-    let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
+    let mut tracer = DependencyTracer::new().with_default_expanders();
     debug!("Created dependency tracer with default expanders");
 
     let Some(start_block) = blend_file.get_block(block_index) else {
@@ -110,35 +110,7 @@ pub fn cmd_dependencies(
                 block_index,
                 block_code_to_string(start_block.header.code)
             );
-            let deps = tracer.trace_dependencies_parallel(block_index, &blend_file)?;
-            // Build a simple tree structure from deps for display purposes
-            let root = DependencyNode {
-                block_index,
-                block_code: block_code_to_string(start_block.header.code),
-                block_size: start_block.header.size,
-                block_address: start_block.header.old_address,
-                children: deps
-                    .iter()
-                    .map(|&i| DependencyNode {
-                        block_index: i,
-                        block_code: blend_file
-                            .get_block(i)
-                            .map(|b| block_code_to_string(b.header.code))
-                            .unwrap_or_else(|| "????".to_string()),
-                        block_size: blend_file.get_block(i).map(|b| b.header.size).unwrap_or(0),
-                        block_address: blend_file
-                            .get_block(i)
-                            .map(|b| b.header.old_address)
-                            .unwrap_or(0),
-                        children: Vec::new(),
-                    })
-                    .collect(),
-            };
-            let tree = dot001_tracer::core::tree::DependencyTree {
-                total_dependencies: deps.len(),
-                max_depth: 1,
-                root,
-            };
+            let tree = tracer.trace_dependency_tree(block_index, &blend_file)?;
             info!(
                 "Dependency tree built: {} total nodes, max depth: {}",
                 tree.total_dependencies + 1,

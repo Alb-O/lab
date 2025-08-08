@@ -117,7 +117,7 @@ impl DiffFormatter {
         blend_file: &mut BlendFile,
         template: &DisplayTemplate,
     ) -> dot001_tracer::Result<Vec<HierarchyNode>> {
-        let mut tracer = dot001_tracer::ParallelDependencyTracer::new().with_default_expanders();
+        let mut tracer = dot001_tracer::DependencyTracer::new().with_default_expanders();
 
         let mut hierarchy = Vec::new();
         let mut processed_indices = std::collections::HashSet::new();

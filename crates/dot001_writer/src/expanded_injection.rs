@@ -2,7 +2,7 @@ use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
 use dot001_events::error::Result;
 use dot001_parser::{BlendBuf, BlendFile};
-use dot001_tracer::ParallelDependencyTracer;
+use dot001_tracer::DependencyTracer;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
@@ -27,7 +27,7 @@ impl ExpandedBlockInjection {
         let blend_file = BlendFile::new(blend_buf)?;
 
         // Create a dependency tracer with standard expanders
-        let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
+        let mut tracer = DependencyTracer::new().with_default_expanders();
 
         // Collect all dependencies for the provided block indices
         let mut all_dependencies = HashSet::new();
