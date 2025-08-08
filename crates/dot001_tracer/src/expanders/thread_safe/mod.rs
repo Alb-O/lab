@@ -3,12 +3,14 @@
 //! This module contains thread-safe versions of all block expanders that work
 //! with BlendFileBuf for parallel dependency tracing.
 
+pub mod group;
 pub mod material;
 pub mod mesh;
 pub mod object;
 pub mod scene;
 
 // Re-export all thread-safe expanders
+pub use group::ThreadSafeGroupExpander;
 pub use material::ThreadSafeMaterialExpander;
 pub use mesh::ThreadSafeMeshExpander;
 pub use object::ThreadSafeObjectExpander;

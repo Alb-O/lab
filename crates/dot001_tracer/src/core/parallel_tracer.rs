@@ -127,6 +127,7 @@ impl ParallelDependencyTracer {
         self.register_thread_safe_expander(*b"SC\0\0", Box::new(ThreadSafeSceneExpander));
         self.register_thread_safe_expander(*b"ME\0\0", Box::new(ThreadSafeMeshExpander));
         self.register_thread_safe_expander(*b"MA\0\0", Box::new(ThreadSafeMaterialExpander));
+        self.register_thread_safe_expander(*b"GR\0\0", Box::new(ThreadSafeGroupExpander));
 
         debug!(
             "Registered {} thread-safe block expanders",
@@ -315,29 +316,11 @@ impl ParallelDependencyTracer {
             }
 
             if let Some(expander) = self.thread_safe_expanders.get(&block.header.code) {
-                let block_type = Self::block_code_to_string(&block.header.code);
-
-                // Emit block expansion started event
-                emit_global_sync!(
-                    Event::Tracer(TracerEvent::BlockExpansionStarted {
-                        block_type: block_type.clone(),
-                        block_index,
-                    }),
-                    Severity::Trace
-                );
+                // Note: Event emission disabled in parallel context to avoid Tokio runtime issues
+                // TODO: Fix event emission in parallel processing context
 
                 // Use thread-safe expander with BlendFileBuf
                 let deps = expander.expand_block_threadsafe(block_index, blend_file)?;
-
-                // Emit block expanded event
-                emit_global_sync!(
-                    Event::Tracer(TracerEvent::BlockExpanded {
-                        block_type,
-                        block_index,
-                        dependencies_found: deps.dependencies.len(),
-                    }),
-                    Severity::Trace
-                );
 
                 trace!(
                     "Block {} expanded to {} dependencies",
@@ -415,10 +398,11 @@ mod tests {
         let tracer = ParallelDependencyTracer::new().with_default_expanders();
 
         // Should have registered the basic thread-safe expanders
-        assert!(tracer.thread_safe_expanders.len() >= 4);
+        assert!(tracer.thread_safe_expanders.len() >= 5);
         assert!(tracer.thread_safe_expanders.contains_key(b"OB\0\0"));
         assert!(tracer.thread_safe_expanders.contains_key(b"SC\0\0"));
         assert!(tracer.thread_safe_expanders.contains_key(b"ME\0\0"));
         assert!(tracer.thread_safe_expanders.contains_key(b"MA\0\0"));
+        assert!(tracer.thread_safe_expanders.contains_key(b"GR\0\0"));
     }
 }
