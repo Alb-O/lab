@@ -51,7 +51,7 @@ impl SeedDnaProvider {
                     )
                 })?;
 
-            let block = blend_file.get_block(block_index).ok_or_else(|| {
+            let _block = blend_file.get_block(block_index).ok_or_else(|| {
                 Dot001Error::blend_file(
                     format!(
                         "{} block index out of range",

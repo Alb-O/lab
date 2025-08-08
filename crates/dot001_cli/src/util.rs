@@ -28,10 +28,7 @@ impl<'a> CommandContext<'a> {
     }
 
     /// Load a blend file using the context's parse options and decompression settings
-    pub fn load_blend_file(
-        &self,
-        path: &PathBuf,
-    ) -> Result<BlendFile<Box<dyn dot001_parser::ReadSeekSend>>, Error> {
+    pub fn load_blend_file(&self, path: &PathBuf) -> Result<BlendFile, Error> {
         load_blend_file(path, self.parse_options, self.no_auto_decompress)
     }
 }
@@ -94,19 +91,14 @@ pub fn load_blend_file(
     file_path: &PathBuf,
     options: &ParseOptions,
     no_auto_decompress: bool,
-) -> Result<
-    dot001_parser::BlendFile<Box<dyn dot001_parser::ReadSeekSend>>,
-    dot001_events::error::Error,
-> {
-    use std::fs::File;
-    use std::io::BufReader;
+) -> Result<dot001_parser::BlendFile, dot001_events::error::Error> {
     if no_auto_decompress {
-        let file = File::open(file_path)?;
-        let reader = BufReader::new(file);
-        let boxed_reader: Box<dyn dot001_parser::ReadSeekSend> = Box::new(reader);
-        Ok(dot001_parser::BlendFile::new(boxed_reader)?)
+        // Direct zero-copy parse
+        let blend_file = dot001_parser::from_path(file_path)?;
+        Ok(blend_file)
     } else {
-        let (blend_file, _mode) = dot001_parser::parse_from_path(file_path, Some(options))?;
+        // Use parse with decompression options
+        let (blend_file, _mode) = dot001_parser::parse_from_path_buf(file_path, Some(options))?;
         Ok(blend_file)
     }
 }
@@ -140,9 +132,9 @@ pub struct BlockMatch {
 /// - `BlockResolution::Single(index)` if exactly one block is found
 /// - `BlockResolution::Ambiguous(matches)` if multiple blocks have the same name
 /// - `BlockResolution::NotFound` if no blocks match the identifier
-pub fn resolve_block_identifier<R: std::io::Read + std::io::Seek>(
+pub fn resolve_block_identifier(
     identifier: &str,
-    blend_file: &mut BlendFile<R>,
+    blend_file: &mut BlendFile,
 ) -> Result<BlockResolution, Error> {
     let identifier = identifier.trim();
 
@@ -219,10 +211,7 @@ pub fn display_ambiguous_matches(identifier: &str, matches: &[BlockMatch]) {
 /// - Shows "not found" errors with helpful suggestions
 ///
 /// Returns `Some(block_index)` on success, `None` on any error condition.
-pub fn resolve_block_or_exit<R: std::io::Read + std::io::Seek>(
-    identifier: &str,
-    blend_file: &mut BlendFile<R>,
-) -> Option<usize> {
+pub fn resolve_block_or_exit(identifier: &str, blend_file: &mut BlendFile) -> Option<usize> {
     match resolve_block_identifier(identifier, blend_file) {
         Ok(resolution) => match resolution {
             BlockResolution::Single(index) => {
@@ -253,10 +242,10 @@ pub fn resolve_block_or_exit<R: std::io::Read + std::io::Seek>(
 ///
 /// Returns `Some(block_index)` if a block of the correct type is found,
 /// `None` on any error condition.
-pub fn resolve_typed_block_or_exit<R: std::io::Read + std::io::Seek>(
+pub fn resolve_typed_block_or_exit(
     identifier: &str,
     expected_type: &str,
-    blend_file: &mut BlendFile<R>,
+    blend_file: &mut BlendFile,
 ) -> Option<usize> {
     match resolve_block_identifier(identifier, blend_file) {
         Ok(resolution) => match resolution {

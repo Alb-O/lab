@@ -28,7 +28,9 @@ pub use dependencies::cmd_dependencies;
 pub use diff::cmd_diff;
 #[cfg(feature = "trace")]
 pub use filter::cmd_filter;
+#[cfg(feature = "info")]
 pub use info::cmd_info;
+#[cfg(feature = "trace")]
 pub use liblink::cmd_lib_link;
 
 #[cfg(feature = "editor")]
@@ -42,7 +44,5 @@ pub use watch::cmd_watch;
 
 // Re-export tracer components
 #[cfg(feature = "trace")]
-pub use dot001_tracer::DependencyTracer;
-
 // Re-export NameResolver from parser for lightweight name resolution
 pub use dot001_parser::NameResolver;

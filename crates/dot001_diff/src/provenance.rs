@@ -6,7 +6,6 @@ use dot001_tracer::{BlockExpander, MeshExpander};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::io::{Read, Seek};
 
 /// Provenance graph for tracking ME block dependencies
 #[derive(Debug, Clone)]
@@ -99,10 +98,10 @@ impl ProvenanceAnalyzer {
     }
 
     /// Extract provenance graph for an ME block
-    pub fn extract_me_provenance<R: Read + Seek>(
+    pub fn extract_me_provenance(
         &self,
         me_block_index: usize,
-        file: &mut BlendFile<R>,
+        file: &mut BlendFile,
     ) -> Result<ProvenanceGraph> {
         #[cfg(feature = "tracer_integration")]
         {
@@ -118,10 +117,10 @@ impl ProvenanceAnalyzer {
     }
 
     #[cfg(feature = "tracer_integration")]
-    fn extract_me_provenance_with_tracer<R: Read + Seek>(
+    fn extract_me_provenance_with_tracer(
         &self,
         me_block_index: usize,
-        file: &mut BlendFile<R>,
+        file: &mut BlendFile,
         mesh_expander: MeshExpander,
     ) -> Result<ProvenanceGraph> {
         let referenced_blocks = mesh_expander
@@ -207,10 +206,10 @@ impl ProvenanceAnalyzer {
     }
 
     #[cfg(not(feature = "tracer_integration"))]
-    fn extract_me_provenance_fallback<R: Read + Seek>(
+    fn extract_me_provenance_fallback(
         &self,
         me_block_index: usize,
-        file: &mut BlendFile<R>,
+        file: &mut BlendFile,
     ) -> Result<ProvenanceGraph> {
         let mut referenced_data_blocks = HashSet::new();
         let mut data_block_info = HashMap::new();
@@ -252,10 +251,10 @@ impl ProvenanceAnalyzer {
     }
 
     /// Analyze a single DATA block and compute hashes
-    pub fn analyze_data_block<R: Read + Seek>(
+    pub fn analyze_data_block(
         &self,
         block_index: usize,
-        file: &mut BlendFile<R>,
+        file: &mut BlendFile,
     ) -> Result<DataBlockInfo> {
         let block = file.get_block(block_index).ok_or_else(|| {
             Error::diff(
@@ -375,10 +374,10 @@ impl ProvenanceAnalyzer {
     }
 
     /// Try to infer the structure of a DATA block
-    fn infer_data_block_structure<R: Read + Seek>(
+    fn infer_data_block_structure(
         &self,
         data: &[u8],
-        _file: &mut BlendFile<R>,
+        _file: &mut BlendFile,
     ) -> Option<(Option<String>, Option<usize>, Option<usize>)> {
         // Heuristic inference of data-block structure
 
@@ -576,11 +575,11 @@ impl ProvenanceAnalyzer {
     }
 
     /// Analyze ME block changes with full provenance correlation
-    pub fn analyze_mesh_changes<R1: Read + Seek, R2: Read + Seek>(
+    pub fn analyze_mesh_changes(
         &self,
         me_block_index: usize,
-        before_file: &mut BlendFile<R1>,
-        after_file: &mut BlendFile<R2>,
+        before_file: &mut BlendFile,
+        after_file: &mut BlendFile,
     ) -> Result<MeshAnalysisResult> {
         let before_provenance = self.extract_me_provenance(me_block_index, before_file).ok();
         let after_provenance = self.extract_me_provenance(me_block_index, after_file).ok();

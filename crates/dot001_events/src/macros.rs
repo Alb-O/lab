@@ -273,7 +273,7 @@ macro_rules! emit_warning {
         $crate::emit!(
             $bus,
             $crate::event::Event::Core($crate::event::CoreEvent::Warning {
-                code: $code,
+                code: $code.to_string(),
                 message: $message.to_string(),
             })
         )
@@ -313,6 +313,32 @@ macro_rules! emit_error {
 /// ```
 #[macro_export]
 macro_rules! emit_progress {
+    // Indeterminate progress with message (match this before generic total forms)
+    ($bus:expr, $operation:expr, $current:expr, None, $message:expr) => {
+        $crate::emit!(
+            $bus,
+            $crate::event::Event::Core($crate::event::CoreEvent::Progress {
+                operation: $operation.to_string(),
+                current: $current,
+                total: None,
+                message: Some($message.to_string()),
+            })
+        )
+    };
+
+    // Indeterminate progress without message (match before generic total forms)
+    ($bus:expr, $operation:expr, $current:expr, None) => {
+        $crate::emit!(
+            $bus,
+            $crate::event::Event::Core($crate::event::CoreEvent::Progress {
+                operation: $operation.to_string(),
+                current: $current,
+                total: None,
+                message: None,
+            })
+        )
+    };
+
     // With total and message
     ($bus:expr, $operation:expr, $current:expr, $total:expr, $message:expr) => {
         $crate::emit!(
@@ -334,32 +360,6 @@ macro_rules! emit_progress {
                 operation: $operation.to_string(),
                 current: $current,
                 total: Some($total),
-                message: None,
-            })
-        )
-    };
-
-    // Indeterminate progress with message
-    ($bus:expr, $operation:expr, $current:expr, None, $message:expr) => {
-        $crate::emit!(
-            $bus,
-            $crate::event::Event::Core($crate::event::CoreEvent::Progress {
-                operation: $operation.to_string(),
-                current: $current,
-                total: None,
-                message: Some($message.to_string()),
-            })
-        )
-    };
-
-    // Indeterminate progress without message
-    ($bus:expr, $operation:expr, $current:expr, None) => {
-        $crate::emit!(
-            $bus,
-            $crate::event::Event::Core($crate::event::CoreEvent::Progress {
-                operation: $operation.to_string(),
-                current: $current,
-                total: None,
                 message: None,
             })
         )

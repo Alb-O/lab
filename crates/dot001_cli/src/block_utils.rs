@@ -4,7 +4,6 @@ use dot001_events::error::Error;
 use dot001_parser::{
     BlendFile, DataBlockVisibility, block_code_to_string, is_block_visible, is_data_block_code,
 };
-use std::io::{Read, Seek};
 
 /// Block information with metadata commonly needed for display
 #[derive(Debug, Clone)]
@@ -45,9 +44,9 @@ pub struct BlockUtils;
 
 impl BlockUtils {
     /// Extract block metadata from a blend file at a specific index
-    pub fn get_block_metadata<R: Read + Seek>(
+    pub fn get_block_metadata(
         index: usize,
-        blend_file: &mut BlendFile<R>,
+        blend_file: &mut BlendFile,
     ) -> Result<BlockWithMetadata, Error> {
         // Get block info and extract data first to avoid borrow checker issues
         let (size, address, count, code) = {
@@ -79,10 +78,7 @@ impl BlockUtils {
     }
 
     /// Get all blocks from a blend file with optional DATA filtering
-    pub fn get_all_blocks<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
-        show_data: bool,
-    ) -> Vec<BlockWithMetadata> {
+    pub fn get_all_blocks(blend_file: &mut BlendFile, show_data: bool) -> Vec<BlockWithMetadata> {
         (0..blend_file.blocks_len())
             .filter_map(|i| Self::get_block_metadata(i, blend_file).ok())
             .filter(|block| show_data || !block.is_data_block())
@@ -90,8 +86,8 @@ impl BlockUtils {
     }
 
     /// Get blocks of a specific type
-    pub fn get_blocks_by_type<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
+    pub fn get_blocks_by_type(
+        blend_file: &mut BlendFile,
         block_type: &str,
         show_data: bool,
     ) -> Vec<BlockWithMetadata> {
@@ -102,11 +98,7 @@ impl BlockUtils {
     }
 
     /// Filter a list of block indices, removing DATA blocks unless show_data is true
-    pub fn filter_data_blocks<R: Read + Seek>(
-        indices: &mut Vec<usize>,
-        blend_file: &BlendFile<R>,
-        show_data: bool,
-    ) {
+    pub fn filter_data_blocks(indices: &mut Vec<usize>, blend_file: &BlendFile, show_data: bool) {
         let policy = DataBlockVisibility::from_flag(show_data);
         indices.retain(|&i| {
             if let Some(block) = blend_file.get_block(i) {
@@ -119,9 +111,9 @@ impl BlockUtils {
     }
 
     /// Filter a HashSet of block indices, removing DATA blocks unless show_data is true
-    pub fn filter_data_blocks_hashset<R: Read + Seek>(
+    pub fn filter_data_blocks_hashset(
         indices: &mut std::collections::HashSet<usize>,
-        blend_file: &BlendFile<R>,
+        blend_file: &BlendFile,
         show_data: bool,
     ) {
         let policy = DataBlockVisibility::from_flag(show_data);
@@ -136,10 +128,7 @@ impl BlockUtils {
     }
 
     /// Extract basic block code from a block index
-    pub fn get_block_code<R: Read + Seek>(
-        index: usize,
-        blend_file: &BlendFile<R>,
-    ) -> Option<String> {
+    pub fn get_block_code(index: usize, blend_file: &BlendFile) -> Option<String> {
         blend_file
             .get_block(index)
             .map(|block| block_code_to_string(block.header.code))
@@ -147,15 +136,15 @@ impl BlockUtils {
 }
 
 /// Builder pattern for processing blocks with filters
-pub struct BlockProcessor<'a, R: Read + Seek> {
-    blend_file: &'a mut BlendFile<R>,
+pub struct BlockProcessor<'a> {
+    blend_file: &'a mut BlendFile,
     show_data: bool,
     type_filters: Vec<String>,
     index_filters: Vec<usize>,
 }
 
-impl<'a, R: Read + Seek> BlockProcessor<'a, R> {
-    pub fn new(blend_file: &'a mut BlendFile<R>) -> Self {
+impl<'a> BlockProcessor<'a> {
+    pub fn new(blend_file: &'a mut BlendFile) -> Self {
         Self {
             blend_file,
             show_data: false,

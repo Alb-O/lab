@@ -4,7 +4,6 @@ use dot001_events::{
     event::{EditorEvent, Event},
     prelude::*,
 };
-use dot001_parser::BlendFile;
 #[cfg(feature = "tracer_integration")]
 use dot001_tracer::bpath::BlendPath;
 use std::fs::OpenOptions;
@@ -110,10 +109,8 @@ impl LibPathCommand {
             }
         }
 
-        // Open the blend file and parse
-        let file = std::fs::File::open(&file_path)?;
-        let mut reader = std::io::BufReader::new(file);
-        let mut blend_file = BlendFile::new(&mut reader)?;
+        // Open and parse the blend file using zero-copy buffer API
+        let blend_file = dot001_parser::from_path(&file_path)?;
 
         // Check if block exists
         if block_index >= blend_file.blocks_len() {
@@ -132,37 +129,46 @@ impl LibPathCommand {
         }
         let block_data_offset = block.data_offset;
         let mut block_data = blend_file.read_block_data(block_index)?;
-        let reader = blend_file.create_field_reader(&block_data)?;
+        // Use DNA to locate the name field offset/size in Library struct
+        let dna = blend_file.dna()?;
         // Find the offset and size of the name field in the LI struct
-        let name_offset = reader.get_field_offset("Library", "name").map_err(|_| {
-            Error::editor(
-                "Could not find name field in Library block".to_string(),
-                EditorErrorKind::InvalidCharacters,
-            )
-        })?;
+        let name_offset = {
+            let struct_def = dna
+                .structs
+                .iter()
+                .find(|s| s.type_name == "Library")
+                .ok_or_else(|| {
+                    Error::editor(
+                        "Struct Library not found in DNA".to_string(),
+                        EditorErrorKind::InvalidCharacters,
+                    )
+                })?;
+            let field = struct_def
+                .fields
+                .iter()
+                .find(|f| f.name.name_only == "name")
+                .ok_or_else(|| {
+                    Error::editor(
+                        "Field name not found in Library struct".to_string(),
+                        EditorErrorKind::InvalidCharacters,
+                    )
+                })?;
+            field.offset
+        };
         // Get the field size from the DNA struct
-        let struct_def = reader
-            .dna
-            .structs
-            .iter()
-            .find(|s| s.type_name == "Library")
-            .ok_or_else(|| {
-                Error::editor(
-                    "Struct Library not found in DNA".to_string(),
-                    EditorErrorKind::InvalidCharacters,
-                )
-            })?;
-        let field = struct_def
-            .fields
-            .iter()
-            .find(|f| f.name.name_only == "name")
-            .ok_or_else(|| {
-                Error::editor(
-                    "Field name not found in Library struct".to_string(),
-                    EditorErrorKind::InvalidCharacters,
-                )
-            })?;
-        let name_size = field.size;
+        let name_size = {
+            let struct_def = dna
+                .structs
+                .iter()
+                .find(|s| s.type_name == "Library")
+                .unwrap();
+            let field = struct_def
+                .fields
+                .iter()
+                .find(|f| f.name.name_only == "name")
+                .unwrap();
+            field.size
+        };
         // Prepare the new path bytes, null-terminated and sized for Blender
         let mut path_bytes = vec![0u8; name_size];
         #[cfg(feature = "tracer_integration")]

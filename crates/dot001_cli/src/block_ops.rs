@@ -3,10 +3,9 @@ use crate::block_utils::BlockWithMetadata;
 use crate::util::CommandContext;
 use dot001_events::error::Error;
 use dot001_parser::BlendFile;
-use std::io::{Read, Seek};
 
 /// Common block resolution and operation patterns
-pub trait BlockOperations<R: Read + Seek> {
+pub trait BlockOperations {
     /// Resolve a block identifier (index or name) to a specific block index
     fn resolve_block_identifier(&mut self, identifier: &str) -> Option<usize>;
 
@@ -20,7 +19,7 @@ pub trait BlockOperations<R: Read + Seek> {
     fn get_blocks_by_type(&mut self, block_type: &str, show_data: bool) -> Vec<BlockWithMetadata>;
 }
 
-impl<R: Read + Seek> BlockOperations<R> for BlendFile<R> {
+impl BlockOperations for BlendFile {
     fn resolve_block_identifier(&mut self, identifier: &str) -> Option<usize> {
         crate::util::resolve_block_or_exit(identifier, self)
     }
@@ -39,13 +38,13 @@ impl<R: Read + Seek> BlockOperations<R> for BlendFile<R> {
 }
 
 /// Helper for common command patterns
-pub struct CommandHelper<'a, R: Read + Seek> {
-    blend_file: &'a mut BlendFile<R>,
+pub struct CommandHelper<'a> {
+    blend_file: &'a mut BlendFile,
     ctx: &'a CommandContext<'a>,
 }
 
-impl<'a, R: Read + Seek> CommandHelper<'a, R> {
-    pub fn new(blend_file: &'a mut BlendFile<R>, ctx: &'a CommandContext<'a>) -> Self {
+impl<'a> CommandHelper<'a> {
+    pub fn new(blend_file: &'a mut BlendFile, ctx: &'a CommandContext<'a>) -> Self {
         Self { blend_file, ctx }
     }
 
@@ -94,13 +93,13 @@ impl<'a, R: Read + Seek> CommandHelper<'a, R> {
 }
 
 /// Batch operations helper for processing multiple blocks
-pub struct BatchProcessor<'a, R: Read + Seek> {
-    blend_file: &'a mut BlendFile<R>,
+pub struct BatchProcessor<'a> {
+    blend_file: &'a mut BlendFile,
     ctx: &'a CommandContext<'a>,
 }
 
-impl<'a, R: Read + Seek> BatchProcessor<'a, R> {
-    pub fn new(blend_file: &'a mut BlendFile<R>, ctx: &'a CommandContext<'a>) -> Self {
+impl<'a> BatchProcessor<'a> {
+    pub fn new(blend_file: &'a mut BlendFile, ctx: &'a CommandContext<'a>) -> Self {
         Self { blend_file, ctx }
     }
 
@@ -156,10 +155,7 @@ pub struct ValidationHelper;
 
 impl ValidationHelper {
     /// Validate that a block index is in range
-    pub fn validate_block_index<R: Read + Seek>(
-        index: usize,
-        blend_file: &BlendFile<R>,
-    ) -> Result<(), Error> {
+    pub fn validate_block_index(index: usize, blend_file: &BlendFile) -> Result<(), Error> {
         if index >= blend_file.blocks_len() {
             return Err(Error::cli(
                 format!(
@@ -174,10 +170,10 @@ impl ValidationHelper {
     }
 
     /// Validate that a block has the expected type
-    pub fn validate_block_type<R: Read + Seek>(
+    pub fn validate_block_type(
         index: usize,
         expected_type: &str,
-        blend_file: &BlendFile<R>,
+        blend_file: &BlendFile,
     ) -> Result<(), Error> {
         let Some(block) = blend_file.get_block(index) else {
             return Err(Error::cli(

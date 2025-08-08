@@ -9,7 +9,7 @@ use dot001_parser::BlendFile;
 use dot001_tracer::NameResolver;
 use log::{debug, info};
 use std::fs::OpenOptions;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
 
 pub struct RenameCommand;
@@ -29,9 +29,7 @@ impl RenameCommand {
         );
         validate_new_name(new_name)?;
         debug!("Name validation passed for '{new_name}'");
-        let file = std::fs::File::open(&file_path)?;
-        let mut reader = std::io::BufReader::new(file);
-        let mut blend_file = BlendFile::new(&mut reader)?;
+        let blend_file = dot001_parser::from_path(&file_path)?;
         if block_index >= blend_file.blocks_len() {
             return Err(Error::editor(
                 format!("Block not found at index: {block_index}"),
@@ -64,13 +62,30 @@ impl RenameCommand {
         };
         let block_data_offset = block.data_offset;
         let mut block_data = blend_file.read_block_data(block_index)?;
-        let reader = blend_file.create_field_reader(&block_data)?;
-        let name_offset = reader.get_field_offset("ID", "name").map_err(|_| {
-            Error::editor(
-                "No ID structure found in block".to_string(),
-                EditorErrorKind::NoIdStructure,
-            )
-        })?;
+        let dna = blend_file.dna()?;
+        let name_offset = {
+            let struct_def = dna
+                .structs
+                .iter()
+                .find(|s| s.type_name == "ID")
+                .ok_or_else(|| {
+                    Error::editor(
+                        "No ID structure found in block".to_string(),
+                        EditorErrorKind::NoIdStructure,
+                    )
+                })?;
+            let field = struct_def
+                .fields
+                .iter()
+                .find(|f| f.name.name_only == "name")
+                .ok_or_else(|| {
+                    Error::editor(
+                        "No ID.name field found".to_string(),
+                        EditorErrorKind::NoIdStructure,
+                    )
+                })?;
+            field.offset
+        };
         let prefixed_name = format!("{block_code}{new_name}");
         let mut name_bytes = [0u8; 66];
         let name_bytes_to_copy = std::cmp::min(prefixed_name.len(), 65);
@@ -108,8 +123,8 @@ impl RenameCommand {
     }
 
     /// Rename an ID block (in-memory only, for testing)
-    pub fn rename_id_block<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
+    pub fn rename_id_block(
+        blend_file: &mut BlendFile,
         block_index: usize,
         new_name: &str,
     ) -> Result<()> {
@@ -139,13 +154,30 @@ impl RenameCommand {
         #[cfg(not(feature = "tracer_integration"))]
         let _current_name = format!("Block{block_index}"); // Fallback without tracer
         let mut block_data = blend_file.read_block_data(block_index)?;
-        let reader = blend_file.create_field_reader(&block_data)?;
-        let name_offset = reader.get_field_offset("ID", "name").map_err(|_| {
-            Error::editor(
-                "No ID structure found in block".to_string(),
-                EditorErrorKind::NoIdStructure,
-            )
-        })?;
+        let dna = blend_file.dna()?;
+        let name_offset = {
+            let struct_def = dna
+                .structs
+                .iter()
+                .find(|s| s.type_name == "ID")
+                .ok_or_else(|| {
+                    Error::editor(
+                        "No ID structure found in block".to_string(),
+                        EditorErrorKind::NoIdStructure,
+                    )
+                })?;
+            let field = struct_def
+                .fields
+                .iter()
+                .find(|f| f.name.name_only == "name")
+                .ok_or_else(|| {
+                    Error::editor(
+                        "No ID.name field found".to_string(),
+                        EditorErrorKind::NoIdStructure,
+                    )
+                })?;
+            field.offset
+        };
         let prefixed_name = format!("{block_code}{new_name}");
         let mut name_bytes = [0u8; 66];
         let name_bytes_to_copy = std::cmp::min(prefixed_name.len(), 65);

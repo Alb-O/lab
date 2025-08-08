@@ -5,36 +5,24 @@
 use crate::{BlendDiff, BlockChangeType, BlockDiff, DiffSummary, Result, policies::PolicyRegistry};
 use dot001_parser::BlendFile;
 use std::collections::HashMap;
-use std::io::{Read, Seek};
 
 /// Trait for diffing engines that compare blend files
 pub trait DiffEngine {
-    type Reader1: Read + Seek;
-    type Reader2: Read + Seek;
-
     /// Compare two blend files and produce a diff
-    fn diff(
-        &self,
-        file1: &mut BlendFile<Self::Reader1>,
-        file2: &mut BlendFile<Self::Reader2>,
-    ) -> Result<BlendDiff>;
+    fn diff(&self, file1: &mut BlendFile, file2: &mut BlendFile) -> Result<BlendDiff>;
 
     /// Get a summary of changes without full block analysis
-    fn summary(
-        &self,
-        file1: &mut BlendFile<Self::Reader1>,
-        file2: &mut BlendFile<Self::Reader2>,
-    ) -> Result<DiffSummary>;
+    fn summary(&self, file1: &mut BlendFile, file2: &mut BlendFile) -> Result<DiffSummary>;
 }
 
 /// Policy-based diff engine that uses pluggable comparison policies
-pub struct PolicyDiffEngine<R1: Read + Seek, R2: Read + Seek> {
-    policy_registry: PolicyRegistry<R1, R2>,
+pub struct PolicyDiffEngine {
+    policy_registry: PolicyRegistry,
     include_unchanged: bool,
 }
 
-impl<R1: Read + Seek, R2: Read + Seek> PolicyDiffEngine<R1, R2> {
-    pub fn new(policy_registry: PolicyRegistry<R1, R2>) -> Self {
+impl PolicyDiffEngine {
+    pub fn new(policy_registry: PolicyRegistry) -> Self {
         Self {
             policy_registry,
             include_unchanged: false,
@@ -53,8 +41,8 @@ impl<R1: Read + Seek, R2: Read + Seek> PolicyDiffEngine<R1, R2> {
     /// Create block mappings between two files based on address or position
     fn create_block_mappings(
         &self,
-        file1: &BlendFile<R1>,
-        file2: &BlendFile<R2>,
+        file1: &BlendFile,
+        file2: &BlendFile,
     ) -> (HashMap<usize, usize>, Vec<usize>, Vec<usize>) {
         let mut mappings = HashMap::new();
         let mut only_in_first = Vec::new();
@@ -87,15 +75,8 @@ impl<R1: Read + Seek, R2: Read + Seek> PolicyDiffEngine<R1, R2> {
     }
 }
 
-impl<R1: Read + Seek, R2: Read + Seek> DiffEngine for PolicyDiffEngine<R1, R2> {
-    type Reader1 = R1;
-    type Reader2 = R2;
-
-    fn diff(
-        &self,
-        file1: &mut BlendFile<Self::Reader1>,
-        file2: &mut BlendFile<Self::Reader2>,
-    ) -> Result<BlendDiff> {
+impl DiffEngine for PolicyDiffEngine {
+    fn diff(&self, file1: &mut BlendFile, file2: &mut BlendFile) -> Result<BlendDiff> {
         let (mappings, only_in_first, only_in_second) = self.create_block_mappings(file1, file2);
 
         let mut block_diffs = Vec::new();
@@ -191,11 +172,7 @@ impl<R1: Read + Seek, R2: Read + Seek> DiffEngine for PolicyDiffEngine<R1, R2> {
         })
     }
 
-    fn summary(
-        &self,
-        file1: &mut BlendFile<Self::Reader1>,
-        file2: &mut BlendFile<Self::Reader2>,
-    ) -> Result<DiffSummary> {
+    fn summary(&self, file1: &mut BlendFile, file2: &mut BlendFile) -> Result<DiffSummary> {
         let (mappings, only_in_first, only_in_second) = self.create_block_mappings(file1, file2);
 
         let mut modified_count = 0;

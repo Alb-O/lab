@@ -5,8 +5,8 @@ use crate::util::CommandContext;
 use crate::{execution_failed_error, invalid_arguments_error, missing_argument_error};
 use dot001_events::error::Error;
 use dot001_parser::BlendFile;
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Seek, SeekFrom, Write};
+use std::fs::OpenOptions;
+use std::io::{Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 /// Reconstruct broken library links by updating ID names to match available assets
@@ -32,11 +32,11 @@ pub fn cmd_lib_link(
         "Analyzing library link for block {block_index}..."
     ));
 
-    let block_data = blend_file.read_block_data(block_index)?;
-    let field_reader = blend_file.create_field_reader(&block_data)?;
+    let slice = blend_file.read_block_slice_for_field_view(block_index)?;
+    let field_view = blend_file.create_field_view(&slice)?;
 
     // Read current ID information
-    let link_info = read_id_link_info(&field_reader)?;
+    let link_info = read_id_link_info(&field_view)?;
 
     if link_info.lib_ptr == 0 {
         ctx.output
@@ -49,9 +49,9 @@ pub fn cmd_lib_link(
         .find_block_by_address(link_info.lib_ptr)
         .ok_or_else(|| execution_failed_error("Lib pointer does not point to a valid block"))?;
 
-    let lib_data = blend_file.read_block_data(lib_block_index)?;
-    let lib_reader = blend_file.create_field_reader(&lib_data)?;
-    let lib_filepath = lib_reader
+    let lib_slice = blend_file.read_block_slice_for_field_view(lib_block_index)?;
+    let lib_view = blend_file.create_field_view(&lib_slice)?;
+    let lib_filepath = lib_view
         .read_field_string("Library", "name")
         .map_err(|e| execution_failed_error(format!("Error reading library name field: {e}")))?;
 
@@ -131,15 +131,15 @@ struct IdLinkInfo {
 }
 
 /// Read ID block information for library linking
-fn read_id_link_info(field_reader: &dot001_parser::FieldReader) -> Result<IdLinkInfo, Error> {
-    let full_name = field_reader
+fn read_id_link_info(field_view: &dot001_parser::FieldView) -> Result<IdLinkInfo, Error> {
+    let full_name = field_view
         .read_field_string("ID", "name")
         .map_err(|e| execution_failed_error(format!("Error reading ID name: {e}")))?;
 
     // ID names include the 2-byte type prefix, skip it
     let name = full_name.chars().skip(2).collect::<String>();
 
-    let lib_ptr = field_reader
+    let lib_ptr = field_view
         .read_field_pointer("ID", "lib")
         .map_err(|e| execution_failed_error(format!("Error reading lib pointer: {e}")))?;
 
@@ -165,9 +165,7 @@ fn resolve_library_path(
 
 /// Find all collections in the library file
 fn find_collections_in_library(lib_file_path: &PathBuf) -> Result<Vec<(usize, String)>, Error> {
-    let lib_file = File::open(lib_file_path)?;
-    let mut lib_reader = BufReader::new(lib_file);
-    let mut lib_blend_file = BlendFile::new(&mut lib_reader)
+    let lib_blend_file = dot001_parser::from_path(lib_file_path)
         .map_err(|e| execution_failed_error(format!("Error opening library blend file: {e}")))?;
 
     let mut available_collections = Vec::new();
@@ -188,9 +186,9 @@ fn find_collections_in_library(lib_file_path: &PathBuf) -> Result<Vec<(usize, St
 
     // Read collection names
     for index in collection_indices {
-        if let Ok(lib_block_data) = lib_blend_file.read_block_data(index) {
-            if let Ok(lib_field_reader) = lib_blend_file.create_field_reader(&lib_block_data) {
-                if let Ok(name) = lib_field_reader.read_field_string("ID", "name") {
+        if let Ok(lib_slice) = lib_blend_file.read_block_slice_for_field_view(index) {
+            if let Ok(lib_field_view) = lib_blend_file.create_field_view(&lib_slice) {
+                if let Ok(name) = lib_field_view.read_field_string("ID", "name") {
                     let clean_name = name.chars().skip(2).collect::<String>();
                     available_collections.push((index, clean_name));
                 }
@@ -235,9 +233,9 @@ fn determine_target_collection(
 }
 
 /// Perform the actual ID name reconstruction
-fn reconstruct_id_name<R: std::io::Read + std::io::Seek>(
+fn reconstruct_id_name(
     file_path: &PathBuf,
-    blend_file: &mut BlendFile<R>,
+    blend_file: &mut BlendFile,
     block_index: usize,
     target_name: &str,
     output: &crate::util::OutputHandler,
@@ -246,11 +244,19 @@ fn reconstruct_id_name<R: std::io::Read + std::io::Seek>(
 
     // Read block data and get field offset
     let mut block_data = blend_file.read_block_data(block_index)?;
-    let field_reader = blend_file.create_field_reader(&block_data)?;
-
-    let name_offset = field_reader.get_field_offset("ID", "name").map_err(|e| {
-        execution_failed_error(format!("Could not find name field in ID block: {e}"))
-    })?;
+    let dna = blend_file
+        .dna()
+        .map_err(|e| execution_failed_error(e.to_string()))?;
+    // Find ID.name field offset and size
+    let id_struct = dna
+        .structs
+        .iter()
+        .find(|s| s.type_name == "ID")
+        .ok_or_else(|| execution_failed_error("ID struct not found in DNA"))?;
+    let name_field = id_struct
+        .find_field("name")
+        .ok_or_else(|| execution_failed_error("Field 'name' not found in ID struct"))?;
+    let name_offset = name_field.offset;
 
     // Construct new ID name with type prefix (GR for collections)
     let new_id_name = format!("GR{target_name}");

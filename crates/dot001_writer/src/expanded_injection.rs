@@ -82,6 +82,7 @@ impl ExpandedBlockInjection {
 }
 
 /// Recursively collect all block indices from a dependency tree
+#[allow(dead_code)]
 fn collect_all_indices_from_tree(
     node: &dot001_tracer::DependencyNode,
     indices: &mut HashSet<usize>,

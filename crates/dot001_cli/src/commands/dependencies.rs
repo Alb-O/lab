@@ -1,21 +1,16 @@
 use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::block_ops::{BatchProcessor, CommandHelper};
-use crate::commands::DependencyTracer;
 use crate::output_utils::{CommandSummary, OutputUtils, TreeFormatter};
 use crate::util::CommandContext;
 use dot001_events::error::Error;
 use dot001_parser::{BlendFile, block_code_to_string, is_data_block_code};
-use dot001_tracer::DependencyNode;
+use dot001_tracer::{DependencyNode, ParallelDependencyTracer};
 use log::{debug, error, info};
 use std::path::PathBuf;
 use text_trees::StringTreeNode;
 
-fn should_filter_block<R: std::io::Read + std::io::Seek>(
-    block_index: usize,
-    blend_file: &mut BlendFile<R>,
-    show_data: bool,
-) -> bool {
+fn should_filter_block(block_index: usize, blend_file: &mut BlendFile, show_data: bool) -> bool {
     if show_data {
         return false; // Don't filter anything if show_data is true
     }
@@ -54,7 +49,7 @@ pub fn cmd_dependencies(
         };
         index
     };
-    let mut tracer = DependencyTracer::new().with_default_expanders();
+    let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
     debug!("Created dependency tracer with default expanders");
 
     let Some(start_block) = blend_file.get_block(block_index) else {
@@ -73,7 +68,7 @@ pub fn cmd_dependencies(
                 block_index,
                 block_code_to_string(start_block.header.code)
             );
-            let deps = tracer.trace_dependencies(block_index, &mut blend_file)?;
+            let deps = tracer.trace_dependencies_parallel(block_index, &blend_file)?;
 
             // Filter out DATA blocks if show_data is false
             let filtered_deps: Vec<usize> = deps
@@ -115,7 +110,35 @@ pub fn cmd_dependencies(
                 block_index,
                 block_code_to_string(start_block.header.code)
             );
-            let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
+            let deps = tracer.trace_dependencies_parallel(block_index, &blend_file)?;
+            // Build a simple tree structure from deps for display purposes
+            let root = DependencyNode {
+                block_index,
+                block_code: block_code_to_string(start_block.header.code),
+                block_size: start_block.header.size,
+                block_address: start_block.header.old_address,
+                children: deps
+                    .iter()
+                    .map(|&i| DependencyNode {
+                        block_index: i,
+                        block_code: blend_file
+                            .get_block(i)
+                            .map(|b| block_code_to_string(b.header.code))
+                            .unwrap_or_else(|| "????".to_string()),
+                        block_size: blend_file.get_block(i).map(|b| b.header.size).unwrap_or(0),
+                        block_address: blend_file
+                            .get_block(i)
+                            .map(|b| b.header.old_address)
+                            .unwrap_or(0),
+                        children: Vec::new(),
+                    })
+                    .collect(),
+            };
+            let tree = dot001_tracer::core::tree::DependencyTree {
+                total_dependencies: deps.len(),
+                max_depth: 1,
+                root,
+            };
             info!(
                 "Dependency tree built: {} total nodes, max depth: {}",
                 tree.total_dependencies + 1,
@@ -132,8 +155,12 @@ pub fn cmd_dependencies(
                 .print(ctx);
         }
         crate::OutputFormat::Json => {
-            let tree = tracer.trace_dependency_tree(block_index, &mut blend_file)?;
-            OutputUtils::try_print_json(&tree, ctx, "dependency tree", |data| {
+            let deps = tracer.trace_dependencies_parallel(block_index, &blend_file)?;
+            let json = serde_json::json!({
+                "root": block_index,
+                "dependencies": deps,
+            });
+            OutputUtils::try_print_json(&json, ctx, "dependencies", |data| {
                 serde_json::to_string_pretty(data)
             });
         }
@@ -141,9 +168,9 @@ pub fn cmd_dependencies(
     Ok(())
 }
 
-pub fn build_text_tree<R: std::io::Read + std::io::Seek>(
+pub fn build_text_tree(
     node: &DependencyNode,
-    blend_file: &mut BlendFile<R>,
+    blend_file: &mut BlendFile,
     show_names: bool,
     show_data: bool,
     template: &DisplayTemplate,

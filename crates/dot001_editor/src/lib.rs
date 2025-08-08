@@ -36,7 +36,6 @@ use dot001_events::{
     prelude::*,
 };
 use dot001_parser::BlendFile;
-use std::io::{Read, Seek};
 use std::path::Path;
 
 /// Experimental blend file editor
@@ -157,8 +156,8 @@ impl BlendEditor {
     }
 
     /// Rename an ID block (in-memory only, for testing)
-    pub fn rename_id_block<R: Read + Seek>(
-        blend_file: &mut BlendFile<R>,
+    pub fn rename_id_block(
+        blend_file: &mut BlendFile,
         block_index: usize,
         new_name: &str,
     ) -> Result<()> {

@@ -38,7 +38,7 @@ pub fn cmd_filter(
         .collect();
     let filter_spec = dot001_tracer::filter::build_filter_spec(&filter_slice_triples)?;
     let filter_engine = dot001_tracer::filter::FilterEngine::new();
-    let mut filtered_indices = filter_engine.apply(&filter_spec, &mut blend_file)?;
+    let mut filtered_indices = filter_engine.apply(&filter_spec, &blend_file)?;
 
     // Filter out DATA blocks by default unless show_data is true
     BlockUtils::filter_data_blocks_hashset(&mut filtered_indices, &blend_file, show_data);
@@ -58,7 +58,7 @@ pub fn cmd_filter(
                     block.header_offset,
                 )
             };
-            let name = NameResolver::resolve_name(i, &mut blend_file);
+            let name = NameResolver::resolve_name(i, &blend_file);
             filtered_blocks.push(serde_json::json!({
                 "index": i,
                 "code": code_str,
@@ -140,9 +140,9 @@ pub fn cmd_filter(
         }
     }
     /// Build a simple flat tree for filtered blocks (no hierarchy, just a list)
-    fn build_filter_tree<R: std::io::Read + std::io::Seek>(
+    fn build_filter_tree(
         indices: &[usize],
-        blend_file: &mut BlendFile<R>,
+        blend_file: &mut BlendFile,
         _filter_expressions: &[(&str, &str, &str)],
         template: &DisplayTemplate,
     ) -> StringTreeNode {

@@ -124,7 +124,7 @@ impl BlendDiffer {
     }
 
     /// Create a new BlendDiffer using the policy-based architecture
-    pub fn with_policies<R1: ReadSeek, R2: ReadSeek>() -> PolicyDiffEngine<R1, R2> {
+    pub fn with_policies() -> PolicyDiffEngine {
         PolicyDiffEngine::with_default_policies()
     }
 
@@ -161,9 +161,9 @@ impl BlendDiffer {
 
         let start_time = std::time::Instant::now();
 
-        // Parse both files
-        let (mut file1, _) = dot001_parser::parse_from_path(path1, None)?;
-        let (mut file2, _) = dot001_parser::parse_from_path(path2, None)?;
+        // Parse both files using zero-copy API
+        let mut file1 = dot001_parser::from_path(path1)?;
+        let mut file2 = dot001_parser::from_path(path2)?;
 
         // Perform the diff
         let diff = self.diff(&mut file1, &mut file2)?;
@@ -183,15 +183,7 @@ impl BlendDiffer {
     }
 
     /// Compare two blend files and return a diff
-    pub fn diff<R1, R2>(
-        &self,
-        file1: &mut BlendFile<R1>,
-        file2: &mut BlendFile<R2>,
-    ) -> Result<BlendDiff>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+    pub fn diff(&self, file1: &mut BlendFile, file2: &mut BlendFile) -> Result<BlendDiff> {
         let mut block_diffs = Vec::new();
 
         // Get block count from both files
@@ -297,19 +289,15 @@ impl BlendDiffer {
         })
     }
 
-    fn content_aware_compare_by_index<R1, R2>(
+    fn content_aware_compare_by_index(
         &self,
         index: usize,
-        file1: &mut BlendFile<R1>,
-        file2: &mut BlendFile<R2>,
+        file1: &mut BlendFile,
+        file2: &mut BlendFile,
         block_code: &str,
         size1: u32,
         size2: u32,
-    ) -> Result<BlockChangeType>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+    ) -> Result<BlockChangeType> {
         match block_code {
             "ME" => {
                 // For mesh blocks, use content-aware comparison
@@ -362,16 +350,12 @@ impl BlendDiffer {
         }
     }
 
-    fn compare_mesh_blocks<R1, R2>(
+    fn compare_mesh_blocks(
         &self,
         index: usize,
-        file1: &mut BlendFile<R1>,
-        file2: &mut BlendFile<R2>,
-    ) -> Result<BlockChangeType>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+        file1: &mut BlendFile,
+        file2: &mut BlendFile,
+    ) -> Result<BlockChangeType> {
         if self.enable_provenance_analysis {
             // Use enhanced provenance-based analysis
             match self
@@ -400,16 +384,12 @@ impl BlendDiffer {
         }
     }
 
-    fn compare_mesh_blocks_legacy<R1, R2>(
+    fn compare_mesh_blocks_legacy(
         &self,
         index: usize,
-        file1: &mut BlendFile<R1>,
-        file2: &mut BlendFile<R2>,
-    ) -> Result<BlockChangeType>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+        file1: &mut BlendFile,
+        file2: &mut BlendFile,
+    ) -> Result<BlockChangeType> {
         // Read mesh data from both files
         let mesh1 = self.extract_mesh_content(index, file1)?;
         let mesh2 = self.extract_mesh_content(index, file2)?;
@@ -430,18 +410,14 @@ impl BlendDiffer {
         }
     }
 
-    fn compare_data_blocks<R1, R2>(
+    fn compare_data_blocks(
         &self,
         _index: usize,
-        _file1: &mut BlendFile<R1>,
-        _file2: &mut BlendFile<R2>,
+        _file1: &mut BlendFile,
+        _file2: &mut BlendFile,
         size1: u32,
         size2: u32,
-    ) -> Result<BlockChangeType>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+    ) -> Result<BlockChangeType> {
         // For DATA blocks, prioritize size changes as the primary indicator of real content changes
         if size1 != size2 {
             // Size change strongly indicates actual data modification
@@ -454,18 +430,14 @@ impl BlendDiffer {
         }
     }
 
-    fn compare_structural_blocks<R1, R2>(
+    fn compare_structural_blocks(
         &self,
         _index: usize,
-        _file1: &mut BlendFile<R1>,
-        _file2: &mut BlendFile<R2>,
+        _file1: &mut BlendFile,
+        _file2: &mut BlendFile,
         size1: u32,
         size2: u32,
-    ) -> Result<BlockChangeType>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+    ) -> Result<BlockChangeType> {
         // For structural blocks (OB, GR, NT, CA), size changes are significant
         if size1 != size2 {
             Ok(BlockChangeType::Modified)
@@ -477,31 +449,27 @@ impl BlendDiffer {
         }
     }
 
-    fn extract_mesh_content<R: Read + Seek>(
-        &self,
-        index: usize,
-        file: &mut BlendFile<R>,
-    ) -> Result<MeshContent> {
-        let data = file.read_block_data(index)?;
-        let reader = file.create_field_reader(&data)?;
+    fn extract_mesh_content(&self, index: usize, file: &mut BlendFile) -> Result<MeshContent> {
+        let slice = file.read_block_slice_for_field_view(index)?;
+        let view = file.create_field_view(&slice)?;
 
         // Extract key mesh content fields, ignoring pointers and metadata
         let mut content = MeshContent::default();
 
         // Try to read basic mesh properties
-        if let Ok(totvert) = reader.read_field_u32("Mesh", "totvert") {
+        if let Ok(totvert) = view.read_field_u32("Mesh", "totvert") {
             content.totvert = totvert;
         }
 
-        if let Ok(totedge) = reader.read_field_u32("Mesh", "totedge") {
+        if let Ok(totedge) = view.read_field_u32("Mesh", "totedge") {
             content.totedge = totedge;
         }
 
-        if let Ok(totpoly) = reader.read_field_u32("Mesh", "totpoly") {
+        if let Ok(totpoly) = view.read_field_u32("Mesh", "totpoly") {
             content.totpoly = totpoly;
         }
 
-        if let Ok(totloop) = reader.read_field_u32("Mesh", "totloop") {
+        if let Ok(totloop) = view.read_field_u32("Mesh", "totloop") {
             content.totloop = totloop;
         }
 
@@ -515,27 +483,19 @@ impl BlendDiffer {
         Ok(content)
     }
 
-    fn binary_compare_blocks_by_index<R1, R2>(
+    fn binary_compare_blocks_by_index(
         &self,
         index: usize,
-        file1: &mut BlendFile<R1>,
-        file2: &mut BlendFile<R2>,
-    ) -> Result<bool>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+        file1: &mut BlendFile,
+        file2: &mut BlendFile,
+    ) -> Result<bool> {
         let data1 = file1.read_block_data(index)?;
         let data2 = file2.read_block_data(index)?;
 
         Ok(data1 == data2)
     }
 
-    fn get_block_name<R: Read + Seek>(
-        &self,
-        _index: usize,
-        _file: &mut BlendFile<R>,
-    ) -> Option<String> {
+    fn get_block_name(&self, _index: usize, _file: &mut BlendFile) -> Option<String> {
         // Use the existing NameResolver if available
         // For now, return None - we'll integrate with the name resolver later
         None
@@ -563,16 +523,12 @@ impl BlendDiffer {
     }
 
     /// Get detailed mesh analysis for a specific ME block (requires provenance analysis enabled)
-    pub fn analyze_mesh_block<R1, R2>(
+    pub fn analyze_mesh_block(
         &self,
         index: usize,
-        file1: &mut BlendFile<R1>,
-        file2: &mut BlendFile<R2>,
-    ) -> Result<MeshAnalysisResult>
-    where
-        R1: Read + Seek,
-        R2: Read + Seek,
-    {
+        file1: &mut BlendFile,
+        file2: &mut BlendFile,
+    ) -> Result<MeshAnalysisResult> {
         self.provenance_analyzer
             .analyze_mesh_changes(index, file1, file2)
     }

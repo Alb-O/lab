@@ -45,7 +45,8 @@ impl BlendSource {
     /// This is the primary method for zero-copy slicing of blend file data.
     /// Returns a Bytes object that shares the underlying data without allocation.
     pub fn slice(&self, range: std::ops::Range<usize>) -> Result<Bytes, crate::Error> {
-        if range.start > range.end || range.end > self.len() {
+        // Empty ranges are considered invalid; require start < end and within bounds
+        if range.start >= range.end || range.end > self.len() {
             return Err(crate::Error::blend_file(
                 format!(
                     "Invalid range {}..{} for buffer of length {}",

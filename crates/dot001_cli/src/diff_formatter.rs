@@ -16,14 +16,8 @@ use crate::DisplayTemplate;
 use crate::block_display::{BlockInfo, create_display_for_template};
 use crate::util::CommandContext;
 use dot001_diff::{BlendDiff, BlockChangeType, BlockDiff};
-use dot001_tracer::{BlendFile, DependencyTracer};
-use dot001_tracer::{
-    CacheFileExpander, CollectionExpander, DataBlockExpander, ImageExpander, LampExpander,
-    LibraryExpander, MaterialExpander, MeshExpander, NodeTreeExpander, ObjectExpander,
-    SceneExpander, SoundExpander, TextureExpander,
-};
+use dot001_parser::BlendFile;
 use log::info;
-use std::io::{Read, Seek};
 
 /// Formatter for diff results with multiple output formats
 pub struct DiffFormatter;
@@ -84,9 +78,9 @@ impl DiffFormatter {
     }
 
     /// Display diff results in hierarchical tree format
-    pub fn display_tree<R: Read + Seek>(
+    pub fn display_tree(
         diff: &BlendDiff,
-        blend_file: &mut BlendFile<R>,
+        blend_file: &mut BlendFile,
         _only_modified: bool,
         template: DisplayTemplate,
         ascii: bool,
@@ -118,13 +112,12 @@ impl DiffFormatter {
     }
 
     /// Build evidence-based hierarchy using dependency tracing and spatial analysis
-    fn build_evidence_based_hierarchy<R: Read + Seek>(
+    fn build_evidence_based_hierarchy(
         modified_blocks: &[&BlockDiff],
-        blend_file: &mut BlendFile<R>,
+        blend_file: &mut BlendFile,
         template: &DisplayTemplate,
     ) -> dot001_tracer::Result<Vec<HierarchyNode>> {
-        let mut tracer = DependencyTracer::new();
-        Self::register_tracer_expanders(&mut tracer);
+        let mut tracer = dot001_tracer::ParallelDependencyTracer::new().with_default_expanders();
 
         let mut hierarchy = Vec::new();
         let mut processed_indices = std::collections::HashSet::new();
@@ -138,7 +131,8 @@ impl DiffFormatter {
             match block_diff.block_code.as_str() {
                 "ME" | "OB" | "MA" | "TE" | "IM" | "NT" => {
                     // This could be a parent block - check its dependencies
-                    let deps = tracer.trace_dependencies(block_diff.block_index, blend_file)?;
+                    let deps =
+                        tracer.trace_dependencies_parallel(block_diff.block_index, &blend_file)?;
 
                     let block_info = BlockInfo::from_blend_file(block_diff.block_index, blend_file)
                         .unwrap_or_else(|_| {
@@ -289,21 +283,7 @@ impl DiffFormatter {
         }
     }
 
-    fn register_tracer_expanders<R: Read + Seek>(tracer: &mut dot001_tracer::DependencyTracer<R>) {
-        tracer.register_expander(*b"SC\0\0", Box::new(SceneExpander));
-        tracer.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
-        tracer.register_expander(*b"ME\0\0", Box::new(MeshExpander));
-        tracer.register_expander(*b"GR\0\0", Box::new(CollectionExpander));
-        tracer.register_expander(*b"MA\0\0", Box::new(MaterialExpander));
-        tracer.register_expander(*b"TE\0\0", Box::new(TextureExpander));
-        tracer.register_expander(*b"IM\0\0", Box::new(ImageExpander));
-        tracer.register_expander(*b"LI\0\0", Box::new(LibraryExpander));
-        tracer.register_expander(*b"CF\0\0", Box::new(CacheFileExpander));
-        tracer.register_expander(*b"SO\0\0", Box::new(SoundExpander));
-        tracer.register_expander(*b"LA\0\0", Box::new(LampExpander));
-        tracer.register_expander(*b"NT\0\0", Box::new(NodeTreeExpander));
-        tracer.register_expander(*b"DATA", Box::new(DataBlockExpander));
-    }
+    // Default expanders are registered by with_default_expanders() in the new tracer.
 }
 
 #[derive(Debug, Clone)]

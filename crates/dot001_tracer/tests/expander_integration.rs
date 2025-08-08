@@ -2,36 +2,46 @@
 use dot001_parser::{BlendFile, from_path};
 use dot001_tracer::ParallelDependencyTracer;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 /// Test helper to load test blend files
 fn load_test_blend_file(name: &str) -> BlendFile {
-    let test_file_path = format!("../../tests/test-blendfiles/{name}");
+    // Try multiple candidate locations to support running from different CWDs
+    let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        crate_dir.join("../../tests/test-blendfiles").join(name),
+        crate_dir.join("../../../tests/test-blendfiles").join(name),
+        PathBuf::from("../../tests/test-blendfiles").join(name),
+        PathBuf::from("../../../tests/test-blendfiles").join(name),
+        PathBuf::from("tests/test-blendfiles").join(name),
+    ];
 
-    // Check if test file exists
-    if !std::path::Path::new(&test_file_path).exists() {
-        panic!(
-            "Test blend file not found: {test_file_path}. Make sure to run tests from the workspace root."
-        );
-    }
+    let path = candidates
+        .into_iter()
+        .find(|p| Path::new(p).exists())
+        .unwrap_or_else(|| {
+            panic!(
+                "Test blend file not found in expected locations for {name}. Tried relative to {} and CWD.",
+                crate_dir.display()
+            )
+        });
 
-    from_path(&test_file_path).expect("Failed to parse test blend file")
+    from_path(&path).expect("Failed to parse test blend file")
 }
 
 /// Test that basic expanders work with real blend files
 #[test]
 fn test_basic_expanders_on_real_files() {
-    let blend_file = load_test_blend_file("main.blend");
+    let blend_file = load_test_blend_file("main_test.blend");
     let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
 
     // Get all blocks and categorize them by type
     let mut block_counts: HashMap<String, usize> = HashMap::new();
     let mut tested_expanders = Vec::new();
 
-    for i in 0..blend_file.blocks().len() {
-        if let Some(block) = blend_file.blocks().get(i) {
-            let code = std::str::from_utf8(&block.header.code)
-                .unwrap_or("????")
-                .to_string();
+    for i in 0..blend_file.blocks_len() {
+        if let Some(block) = blend_file.get_block(i) {
+            let code = dot001_parser::block_code_to_string(block.header.code);
             *block_counts.entry(code.clone()).or_insert(0) += 1;
 
             // Test that we can trace dependencies for this block (if it's a supported type)
@@ -70,14 +80,13 @@ fn test_basic_expanders_on_real_files() {
 /// Test dependency tracing on a real scene
 #[test]
 fn test_dependency_tracing_integration() {
-    let blend_file = load_test_blend_file("main.blend");
+    let blend_file = load_test_blend_file("main_test.blend");
     let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
 
     // Find the first Scene block
-    let scene_block = (0..blend_file.blocks().len()).find(|&i| {
+    let scene_block = (0..blend_file.blocks_len()).find(|&i| {
         blend_file
-            .blocks()
-            .get(i)
+            .get_block(i)
             .map(|b| b.header.code == *b"SC\0\0")
             .unwrap_or(false)
     });
@@ -94,10 +103,8 @@ fn test_dependency_tracing_integration() {
                 // Analyze dependency types
                 let mut dep_types: HashMap<String, usize> = HashMap::new();
                 for &dep_idx in &dependencies {
-                    if let Some(block) = blend_file.blocks().get(dep_idx) {
-                        let code = std::str::from_utf8(&block.header.code)
-                            .unwrap_or("????")
-                            .to_string();
+                    if let Some(block) = blend_file.get_block(dep_idx) {
+                        let code = dot001_parser::block_code_to_string(block.header.code);
                         *dep_types.entry(code).or_insert(0) += 1;
                     }
                 }
@@ -125,14 +132,14 @@ fn test_dependency_tracing_integration() {
 /// Test external reference detection
 #[test]
 fn test_external_reference_detection() {
-    let blend_file = load_test_blend_file("library.blend");
+    let blend_file = load_test_blend_file("library_test.blend");
 
     let mut total_external_refs = 0;
     let mut blocks_with_externals: Vec<(usize, String, Vec<std::path::PathBuf>)> = Vec::new();
 
     // Check all blocks for external references
-    for i in 0..blend_file.blocks().len() {
-        if let Some(block) = blend_file.blocks().get(i) {
+    for i in 0..blend_file.blocks_len() {
+        if let Some(block) = blend_file.get_block(i) {
             let code = std::str::from_utf8(&block.header.code).unwrap_or("????");
 
             // For now, just test that library blocks exist (LI blocks should have external refs)
@@ -160,19 +167,17 @@ fn test_external_reference_detection() {
 fn test_thread_safe_expanders() {
     println!("Testing thread-safe expander registration:");
 
-    let tracer = ParallelDependencyTracer::new().with_default_expanders();
+    let mut tracer = ParallelDependencyTracer::new().with_default_expanders();
 
     // Verify the tracer was created successfully with default expanders
     println!("  ✓ ParallelDependencyTracer created with default thread-safe expanders");
 
     // Test that the tracer can handle basic operations
-    let dummy_blend_file = load_test_blend_file("main.blend");
+    let dummy_blend_file = load_test_blend_file("main_test.blend");
 
     // Just verify we can attempt dependency tracing without panicking
-    for i in 0..dummy_blend_file.blocks().len().min(5) {
-        let _ = tracer
-            .clone()
-            .trace_dependencies_parallel(i, &dummy_blend_file);
+    for i in 0..dummy_blend_file.blocks_len().min(5) {
+        let _ = tracer.trace_dependencies_parallel(i, &dummy_blend_file);
     }
 
     println!("  ✓ Thread-safe expanders handle block processing without errors");

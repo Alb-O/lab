@@ -4,10 +4,9 @@
 /// of different block types and content analysis strategies.
 use crate::{BlockChangeType, Result};
 use dot001_parser::BlendFile;
-use std::io::{Read, Seek};
 
 /// Policy for determining how to compare blocks of a specific type
-pub trait BlockDiffPolicy<R1: Read + Seek, R2: Read + Seek> {
+pub trait BlockDiffPolicy {
     /// Check if this policy can handle the given block code
     fn can_handle(&self, block_code: &[u8; 4]) -> bool;
 
@@ -15,18 +14,18 @@ pub trait BlockDiffPolicy<R1: Read + Seek, R2: Read + Seek> {
     fn compare_blocks(
         &self,
         block_index1: usize,
-        file1: &mut BlendFile<R1>,
+        file1: &mut BlendFile,
         block_index2: usize,
-        file2: &mut BlendFile<R2>,
+        file2: &mut BlendFile,
     ) -> Result<BlockChangeType>;
 
     /// Get additional metadata for the diff result
     fn get_metadata(
         &self,
         _block_index1: Option<usize>,
-        _file1: Option<&mut BlendFile<R1>>,
+        _file1: Option<&mut BlendFile>,
         _block_index2: Option<usize>,
-        _file2: Option<&mut BlendFile<R2>>,
+        _file2: Option<&mut BlendFile>,
     ) -> Result<Option<String>> {
         Ok(None)
     }
@@ -35,7 +34,7 @@ pub trait BlockDiffPolicy<R1: Read + Seek, R2: Read + Seek> {
 /// Simple binary comparison policy for generic blocks
 pub struct BinaryDiffPolicy;
 
-impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for BinaryDiffPolicy {
+impl BlockDiffPolicy for BinaryDiffPolicy {
     fn can_handle(&self, _block_code: &[u8; 4]) -> bool {
         true // Default fallback for all block types
     }
@@ -43,9 +42,9 @@ impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for BinaryDiffPol
     fn compare_blocks(
         &self,
         block_index1: usize,
-        file1: &mut BlendFile<R1>,
+        file1: &mut BlendFile,
         block_index2: usize,
-        file2: &mut BlendFile<R2>,
+        file2: &mut BlendFile,
     ) -> Result<BlockChangeType> {
         let data1 = file1.read_block_data(block_index1)?;
         let data2 = file2.read_block_data(block_index2)?;
@@ -70,7 +69,7 @@ impl SizeBasedDiffPolicy {
     }
 }
 
-impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for SizeBasedDiffPolicy {
+impl BlockDiffPolicy for SizeBasedDiffPolicy {
     fn can_handle(&self, block_code: &[u8; 4]) -> bool {
         block_code == b"DATA"
     }
@@ -78,9 +77,9 @@ impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for SizeBasedDiff
     fn compare_blocks(
         &self,
         block_index1: usize,
-        file1: &mut BlendFile<R1>,
+        file1: &mut BlendFile,
         block_index2: usize,
-        file2: &mut BlendFile<R2>,
+        file2: &mut BlendFile,
     ) -> Result<BlockChangeType> {
         let size1 = file1
             .get_block(block_index1)
@@ -101,9 +100,9 @@ impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for SizeBasedDiff
     fn get_metadata(
         &self,
         block_index1: Option<usize>,
-        file1: Option<&mut BlendFile<R1>>,
+        file1: Option<&mut BlendFile>,
         block_index2: Option<usize>,
-        file2: Option<&mut BlendFile<R2>>,
+        file2: Option<&mut BlendFile>,
     ) -> Result<Option<String>> {
         let size1 = if let (Some(idx), Some(file)) = (block_index1, file1) {
             file.get_block(idx).map(|b| b.header.size).unwrap_or(0)
@@ -124,7 +123,7 @@ impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for SizeBasedDiff
 /// Content-aware comparison policy for mesh blocks
 pub struct MeshContentDiffPolicy;
 
-impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for MeshContentDiffPolicy {
+impl BlockDiffPolicy for MeshContentDiffPolicy {
     fn can_handle(&self, block_code: &[u8; 4]) -> bool {
         block_code == b"ME\0\0"
     }
@@ -132,9 +131,9 @@ impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for MeshContentDi
     fn compare_blocks(
         &self,
         block_index1: usize,
-        file1: &mut BlendFile<R1>,
+        file1: &mut BlendFile,
         block_index2: usize,
-        file2: &mut BlendFile<R2>,
+        file2: &mut BlendFile,
     ) -> Result<BlockChangeType> {
         // Simplified mesh comparison - in reality this would analyze mesh structure
         let hash1 = file1.block_content_hash(block_index1)?;
@@ -150,26 +149,26 @@ impl<R1: Read + Seek, R2: Read + Seek> BlockDiffPolicy<R1, R2> for MeshContentDi
     fn get_metadata(
         &self,
         _block_index1: Option<usize>,
-        _file1: Option<&mut BlendFile<R1>>,
+        _file1: Option<&mut BlendFile>,
         _block_index2: Option<usize>,
-        _file2: Option<&mut BlendFile<R2>>,
+        _file2: Option<&mut BlendFile>,
     ) -> Result<Option<String>> {
         Ok(Some("mesh_content_analysis".to_string()))
     }
 }
 
 /// Registry for managing multiple diff policies
-pub struct PolicyRegistry<R1: Read + Seek, R2: Read + Seek> {
-    policies: Vec<Box<dyn BlockDiffPolicy<R1, R2>>>,
+pub struct PolicyRegistry {
+    policies: Vec<Box<dyn BlockDiffPolicy>>,
 }
 
-impl<R1: Read + Seek, R2: Read + Seek> Default for PolicyRegistry<R1, R2> {
+impl Default for PolicyRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<R1: Read + Seek, R2: Read + Seek> PolicyRegistry<R1, R2> {
+impl PolicyRegistry {
     pub fn new() -> Self {
         Self {
             policies: Vec::new(),
@@ -177,7 +176,7 @@ impl<R1: Read + Seek, R2: Read + Seek> PolicyRegistry<R1, R2> {
     }
 
     /// Add a policy to the registry
-    pub fn register_policy(&mut self, policy: Box<dyn BlockDiffPolicy<R1, R2>>) {
+    pub fn register_policy(&mut self, policy: Box<dyn BlockDiffPolicy>) {
         self.policies.push(policy);
     }
 
@@ -194,7 +193,7 @@ impl<R1: Read + Seek, R2: Read + Seek> PolicyRegistry<R1, R2> {
     }
 
     /// Find the first policy that can handle the given block code
-    pub fn find_policy(&self, block_code: &[u8; 4]) -> Option<&dyn BlockDiffPolicy<R1, R2>> {
+    pub fn find_policy(&self, block_code: &[u8; 4]) -> Option<&dyn BlockDiffPolicy> {
         self.policies
             .iter()
             .find(|policy| policy.can_handle(block_code))
@@ -206,9 +205,9 @@ impl<R1: Read + Seek, R2: Read + Seek> PolicyRegistry<R1, R2> {
         &self,
         block_code: &[u8; 4],
         block_index1: usize,
-        file1: &mut BlendFile<R1>,
+        file1: &mut BlendFile,
         block_index2: usize,
-        file2: &mut BlendFile<R2>,
+        file2: &mut BlendFile,
     ) -> Result<BlockChangeType> {
         if let Some(policy) = self.find_policy(block_code) {
             policy.compare_blocks(block_index1, file1, block_index2, file2)

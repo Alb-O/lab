@@ -95,10 +95,7 @@ impl BlockInfo {
         }
     }
 
-    pub fn from_blend_file<R: std::io::Read + std::io::Seek>(
-        index: usize,
-        blend_file: &mut BlendFile<R>,
-    ) -> Result<Self, Error> {
+    pub fn from_blend_file(index: usize, blend_file: &mut BlendFile) -> Result<Self, Error> {
         let block = blend_file.get_block(index).ok_or_else(|| {
             Error::blend_file(
                 format!("Block index {index} out of range"),

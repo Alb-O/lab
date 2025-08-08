@@ -820,6 +820,29 @@ mod tests {
     use super::*;
     use crate::event::{CoreEvent, Event, Severity};
 
+    fn strip_ansi(input: &str) -> String {
+        let mut out = String::with_capacity(input.len());
+        let bytes = input.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == 0x1B && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
+                // Skip until 'm' or end
+                i += 2;
+                while i < bytes.len() && bytes[i] != b'm' {
+                    i += 1;
+                }
+                // Skip the 'm' if present
+                if i < bytes.len() {
+                    i += 1;
+                }
+            } else {
+                out.push(bytes[i] as char);
+                i += 1;
+            }
+        }
+        out
+    }
+
     #[test]
     fn test_pretty_formatter() {
         let formatter = PrettyFormatter::new();
@@ -832,14 +855,15 @@ mod tests {
         );
 
         let formatted = formatter.format(&event);
-        assert!(formatted.contains("INFO"));
-        assert!(formatted.contains("[core]"));
-        assert!(formatted.contains("Test message"));
+        let formatted_clean = strip_ansi(&formatted);
+        assert!(formatted_clean.contains("INFO"));
+        assert!(formatted_clean.contains("[core]"));
+        assert!(formatted_clean.contains("Test message"));
     }
 
     #[test]
     fn test_plain_formatter() {
-        let formatter = PlainFormatter::new();
+        let formatter = PlainFormatter::new().with_domains(true);
         let event = EventWithMetadata::new(
             Event::Core(CoreEvent::Warning {
                 code: "TEST_WARN".to_string(),
