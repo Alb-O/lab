@@ -70,6 +70,7 @@ impl BlendEditor {
             block_count: Some(1),
         }));
 
+        let start_time = std::time::Instant::now();
         let result = crate::commands::libpath::LibPathCommand::update_libpath_and_save(
             file_path,
             block_index,
@@ -78,12 +79,13 @@ impl BlendEditor {
         );
 
         // Emit result event
+        let duration_ms = start_time.elapsed().as_millis() as u64;
         match &result {
             Ok(()) => {
                 emit_global_sync!(Event::Editor(EditorEvent::Finished {
                     operation: "update_libpath".to_string(),
                     blocks_modified: 1,
-                    duration_ms: 0, // TODO: Add timing
+                    duration_ms,
                     success: true,
                 }));
             }
@@ -125,6 +127,7 @@ impl BlendEditor {
             block_count: Some(1),
         }));
 
+        let start_time = std::time::Instant::now();
         let result = crate::commands::rename::RenameCommand::rename_id_block_and_save(
             file_path,
             block_index,
@@ -132,12 +135,13 @@ impl BlendEditor {
         );
 
         // Emit result event
+        let duration_ms = start_time.elapsed().as_millis() as u64;
         match &result {
             Ok(()) => {
                 emit_global_sync!(Event::Editor(EditorEvent::Finished {
                     operation: "rename_id_block".to_string(),
                     blocks_modified: 1,
-                    duration_ms: 0, // TODO: Add timing
+                    duration_ms,
                     success: true,
                 }));
             }

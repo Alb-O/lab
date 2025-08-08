@@ -4,27 +4,18 @@
 //! and automatically process them with dependency tracing when they are
 //! moved or renamed.
 
-#[cfg(feature = "async-events")]
 use std::path::PathBuf;
-#[cfg(feature = "async-events")]
 use std::sync::Arc;
-#[cfg(feature = "async-events")]
 use std::time::Duration;
 
-#[cfg(feature = "async-events")]
 use dot001_events::bus::{EventBus, EventFilter, Subscriber};
-#[cfg(feature = "async-events")]
 use dot001_events::bus_impl::async_tokio::TokioEventBus;
-#[cfg(feature = "async-events")]
 use dot001_events::event::{Event, EventWithMetadata, Severity, WatcherEvent};
-#[cfg(feature = "async-events")]
 use dot001_watcher::async_watcher::{AsyncWatcher, AsyncWatcherConfig};
 
 /// A simple subscriber that logs watcher events
-#[cfg(feature = "async-events")]
 pub struct WatcherSubscriber;
 
-#[cfg(feature = "async-events")]
 #[async_trait::async_trait]
 impl Subscriber for WatcherSubscriber {
     async fn on_event(&self, event: &EventWithMetadata) {
@@ -124,7 +115,7 @@ impl Subscriber for WatcherSubscriber {
                             &workflow_id[..8]
                         );
                         if let Some(results) = results {
-                            println!("    Results: {}", results);
+                            println!("    Results: {results}");
                         }
                     }
                     WatcherEvent::Error { error, workflow_id } => match workflow_id {
@@ -134,10 +125,10 @@ impl Subscriber for WatcherSubscriber {
                             &id[..8],
                             error
                         ),
-                        None => println!("[{}] Watcher error: {}", severity_str, error),
+                        None => println!("[{severity_str}] Watcher error: {error}"),
                     },
                     WatcherEvent::Stopped { reason } => {
-                        println!("[{}] Watcher stopped: {}", severity_str, reason);
+                        println!("[{severity_str}] Watcher stopped: {reason}");
                     }
                     _ => {
                         println!(
@@ -149,28 +140,20 @@ impl Subscriber for WatcherSubscriber {
                     }
                 }
             }
-            Event::Tracer(tracer_event) => {
-                // Also log tracer events for dependency analysis
-                match tracer_event {
-                    dot001_events::event::TracerEvent::Finished {
-                        total_blocks_traced,
-                        unique_dependencies,
-                        duration_ms,
-                    } => {
-                        println!(
-                            "[TRACE] Dependency analysis complete: {} dependencies, {} blocks traced in {}ms",
-                            unique_dependencies, total_blocks_traced, duration_ms
-                        );
-                    }
-                    _ => {}
-                }
+            Event::Tracer(dot001_events::event::TracerEvent::Finished {
+                total_blocks_traced,
+                unique_dependencies,
+                duration_ms,
+            }) => {
+                println!(
+                    "[TRACE] Dependency analysis complete: {unique_dependencies} dependencies, {total_blocks_traced} blocks traced in {duration_ms}ms"
+                );
             }
             _ => {}
         }
     }
 }
 
-#[cfg(feature = "async-events")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
@@ -240,11 +223,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Watcher stopped.");
     Ok(())
-}
-
-#[cfg(not(feature = "async-events"))]
-fn main() {
-    eprintln!(
-        "This example requires the 'async-events' feature.\nTry: cargo run -p dot001_watcher --example async_watcher_demo --features async-events"
-    );
 }

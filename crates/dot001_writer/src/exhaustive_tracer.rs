@@ -6,6 +6,7 @@ use dot001_events::{
     prelude::*,
 };
 use dot001_parser::{BlendBuf, BlendFile};
+use log::info;
 use std::collections::{HashSet, VecDeque};
 use std::fs::File;
 use std::io::Read;
@@ -41,13 +42,13 @@ impl ExhaustivePointerTracer {
             target_file: seed.source_path().to_path_buf(),
         }));
 
-        println!("=== Exhaustive Pointer Tracing ===");
-        println!("Starting from {} root blocks:", root_indices.len());
+        info!("=== Exhaustive Pointer Tracing ===");
+        info!("Starting from {} root blocks:", root_indices.len());
         for &index in root_indices {
             if let Some(block) = blend_file.get_block(index) {
                 let code_str = String::from_utf8_lossy(&block.header.code);
                 let code = code_str.trim_end_matches('\0');
-                println!("  [{index}] {code}");
+                info!("  [{index}] {code}");
             }
         }
 
@@ -55,7 +56,7 @@ impl ExhaustivePointerTracer {
         let all_dependencies =
             Self::trace_all_pointer_references(&blend_file, seed.dna(), root_indices)?;
 
-        println!(
+        info!(
             "\nComplete dependency closure: {} blocks",
             all_dependencies.len()
         );
@@ -63,7 +64,7 @@ impl ExhaustivePointerTracer {
             if let Some(block) = blend_file.get_block(index) {
                 let code_str = String::from_utf8_lossy(&block.header.code);
                 let code = code_str.trim_end_matches('\0');
-                println!("  [{index}] {code}");
+                info!("  [{index}] {code}");
             }
         }
 
@@ -92,7 +93,7 @@ impl ExhaustivePointerTracer {
             queue.push_back(index);
         }
 
-        println!("\nTracing pointer dependencies:");
+        info!("\nTracing pointer dependencies:");
 
         while let Some(block_index) = queue.pop_front() {
             if visited.contains(&block_index) {
@@ -110,13 +111,13 @@ impl ExhaustivePointerTracer {
                 continue;
             };
 
-            println!("  Analyzing [{block_index}] {code}");
+            info!("  Analyzing [{block_index}] {code}");
 
             // Read the block data
             let block_data = match blend_file.read_block_data(block_index) {
                 Ok(data) => data,
                 Err(e) => {
-                    println!("    ⚠️ Failed to read block data: {e}");
+                    info!("    ⚠️ Failed to read block data: {e}");
                     continue;
                 }
             };
@@ -125,7 +126,7 @@ impl ExhaustivePointerTracer {
             let struct_def = match dna.get_struct(sdna_index as usize) {
                 Some(def) => def,
                 None => {
-                    println!("    ⚠️ Unknown struct type: {sdna_index}");
+                    info!("    ⚠️ Unknown struct type: {sdna_index}");
                     continue;
                 }
             };
@@ -154,7 +155,7 @@ impl ExhaustivePointerTracer {
 
             // Special handling for complex structures with internal linked lists
             if struct_def.type_name == "bNodeTree" {
-                println!("    🔍 Special NodeTree analysis - checking internal linked lists");
+                info!("    🔍 Special NodeTree analysis - checking internal linked lists");
                 let internal_deps =
                     Self::analyze_node_tree_internals(&block_data, struct_def, blend_file);
                 found_pointers += internal_deps.len();
@@ -162,15 +163,15 @@ impl ExhaustivePointerTracer {
                 for dep_index in internal_deps {
                     if !visited.contains(&dep_index) {
                         queue.push_back(dep_index);
-                        println!("      → Adding internal NodeTree dependency [{dep_index}]");
+                        info!("      → Adding internal NodeTree dependency [{dep_index}]");
                     }
                 }
             }
 
-            println!("    → Found {found_pointers} pointer references");
+            info!("    → Found {found_pointers} pointer references");
         }
 
-        println!(
+        info!(
             "Exhaustive tracing complete: {} total blocks",
             visited.len()
         );
@@ -218,12 +219,12 @@ impl ExhaustivePointerTracer {
                             })
                             .unwrap_or_else(|| "?".to_string());
 
-                        println!(
+                        info!(
                             "      {field_context} → [{target_index}] {target_code} (0x{ptr_val:x})"
                         );
                     } else {
                         // Pointer doesn't reference a valid block - this is normal for some cases
-                        println!("      {field_context} → 0x{ptr_val:x} (external/invalid)");
+                        info!("      {field_context} → 0x{ptr_val:x} (external/invalid)");
                     }
                 }
             }
@@ -282,7 +283,7 @@ impl ExhaustivePointerTracer {
         let mut current_ptr = start_ptr;
         let mut node_count = 0;
 
-        println!("        Tracing linked list '{list_name}' from 0x{start_ptr:x}");
+        info!("        Tracing linked list '{list_name}' from 0x{start_ptr:x}");
 
         while current_ptr != 0 && node_count < 1000 {
             // Safety limit
@@ -299,7 +300,7 @@ impl ExhaustivePointerTracer {
                     })
                     .unwrap_or_else(|| "?".to_string());
 
-                println!("          [{node_index}] {node_code} at 0x{current_ptr:x}");
+                info!("          [{node_index}] {node_code} at 0x{current_ptr:x}");
 
                 // Try to find the 'next' pointer to continue the list
                 if let Ok(node_data) = blend_file.read_block_data(node_index) {
@@ -318,7 +319,7 @@ impl ExhaustivePointerTracer {
                         ]);
 
                         if current_ptr != 0 {
-                            println!("          → Following 'next' pointer to 0x{current_ptr:x}");
+                            info!("          → Following 'next' pointer to 0x{current_ptr:x}");
                         }
                     } else {
                         break;
@@ -327,13 +328,13 @@ impl ExhaustivePointerTracer {
                     break;
                 }
             } else {
-                println!("          0x{current_ptr:x} not found in blocks");
+                info!("          0x{current_ptr:x} not found in blocks");
                 break;
             }
         }
 
         if node_count > 0 {
-            println!("        → Found {node_count} nodes in linked list");
+            info!("        → Found {node_count} nodes in linked list");
         }
 
         dependencies
@@ -356,7 +357,7 @@ impl ExhaustivePointerTracer {
                 .iter()
                 .find(|f| f.name.name_only == field_name)
             {
-                println!("      Checking ListBase '{field_name}'");
+                info!("      Checking ListBase '{field_name}'");
                 let list_deps =
                     Self::extract_listbase_dependencies(data, field.offset, blend_file, field_name);
                 dependencies.extend(list_deps);

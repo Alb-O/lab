@@ -608,6 +608,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "env_logger",
  "indicatif 0.17.11",
  "reqwest",
  "serde",

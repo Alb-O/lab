@@ -124,8 +124,13 @@ impl ProvenanceAnalyzer {
         mesh_expander: MeshExpander,
     ) -> Result<ProvenanceGraph> {
         let referenced_blocks = mesh_expander
-            .expand_block(me_block_index, file)
-            .map_err(|e| Error::diff_analysis_failed(format!("Blend file error: {e}")))?
+            .expand_block_threadsafe(me_block_index, file)
+            .map_err(|e| {
+                Error::diff(
+                    format!("Blend file error: {e}"),
+                    dot001_events::error::DiffErrorKind::AnalysisFailed,
+                )
+            })?
             .dependencies;
 
         let mut referenced_data_blocks = HashSet::new();

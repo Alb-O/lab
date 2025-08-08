@@ -12,14 +12,6 @@ authors = ["Albert O'Shea"]
 
 [features]
 default = []
-tokio = ["dep:tokio", "dep:futures"]
-async-events = [
-    "tokio",
-    "dep:dot001_events",
-    "dep:dot001_tracer",
-    "dep:dot001_parser",
-    "dep:uuid",
-]
 
 [dependencies]
 notify = "8.2.0"
@@ -35,14 +27,14 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
     "macros",
     "signal",
-], optional = true }
-futures = { version = "0.3", optional = true }
+] }
+futures = { version = "0.3" }
 
 # Optional dot001_events integration
-dot001_events = { path = "../dot001_events", optional = true }
+dot001_events = { path = "../dot001_events" }
 dot001_tracer = { path = "../dot001_tracer", optional = true }
-dot001_parser = { path = "../dot001_parser", optional = true }
-uuid = { version = "1", features = ["v4"], optional = true }
+dot001_parser = { path = "../dot001_parser" }
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 tempfile = "3"

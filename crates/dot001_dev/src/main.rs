@@ -38,6 +38,9 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    // Initialize logger for consistent log output
+    env_logger::init();
+
     let cli = Cli::parse();
 
     match &cli.command {

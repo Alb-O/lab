@@ -1,15 +1,17 @@
+pub mod async_watcher;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crossbeam_channel::{Receiver, unbounded};
+use dot001_events::{
+    event::{Event as DotEvent, WatcherEvent},
+    prelude::emit_global_sync,
+};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher};
 use thiserror::Error;
 
 pub mod dir_emit;
 pub mod normalizer;
-
-#[cfg(feature = "async-events")]
-pub mod async_watcher;
 
 pub use dir_emit::emit_dir_child_moves;
 pub use normalizer::{NormalizedEvent, Normalizer};
@@ -97,8 +99,14 @@ pub fn watch(
                     let _ = tx_clone_for_err.send(ev);
                 }
                 Err(e) => {
-                    // Represent errors as a special Event? For simplicity we drop; logging is left to the app via log crate.
                     log::warn!("notify error: {e}");
+                    emit_global_sync!(DotEvent::Watcher(WatcherEvent::Error {
+                        error: dot001_events::error::Error::watcher(
+                            format!("notify error: {e}"),
+                            dot001_events::error::WatcherErrorKind::EventProcessingFailed,
+                        ),
+                        workflow_id: None,
+                    }));
                 }
             }
         },
@@ -164,7 +172,6 @@ pub fn watch(
     Ok((out_rx, watcher))
 }
 
-#[cfg(feature = "tokio")]
 pub mod async_api {
     use super::*;
     use futures::{Stream, stream};
@@ -191,10 +198,7 @@ pub mod async_api {
 
         // Keep the watcher alive by capturing it in the stream state alongside the Tokio receiver.
         let s = stream::unfold((rx, watcher), |(mut rx, watcher)| async move {
-            match rx.recv().await {
-                Some(ev) => Some((ev, (rx, watcher))),
-                None => None,
-            }
+            rx.recv().await.map(|ev| (ev, (rx, watcher)))
         });
 
         Ok(s)

@@ -5,6 +5,7 @@ use dot001_events::{
     event::{Event, WriterEvent},
     prelude::*,
 };
+use log::info;
 
 /// Experimental block injection that sanitizes dangerous pointers.
 ///
@@ -24,17 +25,19 @@ impl SafeBlockInjection {
             total_blocks: block_indices.len(),
         }));
 
+        let start_time = std::time::Instant::now();
+
         // Extract the requested blocks
         let extracted_blocks = seed.extract_blocks_by_indices(block_indices)?;
 
-        println!(
+        info!(
             "Creating safe injection with {} blocks:",
             extracted_blocks.len()
         );
         for (index, header, _) in &extracted_blocks {
             let code_str = String::from_utf8_lossy(&header.code);
             let code = code_str.trim_end_matches('\0');
-            println!("  [{index}] {code}");
+            info!("  [{index}] {code}");
         }
 
         // Create the basic injection with address remapping
@@ -44,12 +47,16 @@ impl SafeBlockInjection {
         // Apply safe handling to complex structures
         Self::apply_safe_handling_to_injection(&mut injection, seed.dna())?;
 
+        // Calculate duration and bytes written (sum of block data lengths)
+        let duration_ms = start_time.elapsed().as_millis() as u64;
+        let bytes_written: u64 = injection.blocks.iter().map(|b| b.data.len() as u64).sum();
+
         // Emit completion event
         emit_global_sync!(Event::Writer(WriterEvent::Finished {
             operation: "safe_block_injection".to_string(),
-            bytes_written: 0, // TODO: Track bytes
+            bytes_written,
             blocks_written: injection.blocks.len(),
-            duration_ms: 0, // TODO: Track timing
+            duration_ms,
             success: true,
         }));
 
@@ -61,7 +68,7 @@ impl SafeBlockInjection {
         injection: &mut BlockInjection,
         dna: &dot001_parser::DnaCollection,
     ) -> Result<()> {
-        println!(
+        info!(
             "Applying safe handling to {} blocks...",
             injection.blocks.len()
         );
@@ -71,15 +78,15 @@ impl SafeBlockInjection {
             if let Some(struct_def) = dna.get_struct(block.sdna_index as usize) {
                 match struct_def.type_name.as_str() {
                     "bNodeTree" => {
-                        println!("  Sanitizing NodeTree block (dangerous internal pointers)");
+                        info!("  Sanitizing NodeTree block (dangerous internal pointers)");
                         Self::sanitize_node_tree(&mut block.data, struct_def)?;
                     }
                     "bNode" => {
-                        println!("  Sanitizing Node block (linked list pointers)");
+                        info!("  Sanitizing Node block (linked list pointers)");
                         Self::sanitize_node(&mut block.data, struct_def)?;
                     }
                     "bNodeLink" => {
-                        println!("  Sanitizing NodeLink block (connection pointers)");
+                        info!("  Sanitizing NodeLink block (connection pointers)");
                         Self::sanitize_node_link(&mut block.data, struct_def)?;
                     }
                     _ => {
@@ -90,7 +97,7 @@ impl SafeBlockInjection {
             }
         }
 
-        println!("Safe handling applied successfully");
+        info!("Safe handling applied successfully");
         Ok(())
     }
 
@@ -171,7 +178,7 @@ impl SafeBlockInjection {
             // ListBase is typically 16 bytes (2 pointers)
             // Clear both pointers (16 bytes total)
             data[offset..offset + 16].fill(0);
-            println!("    Nullified ListBase '{field_name}' at offset {offset}");
+            info!("    Nullified ListBase '{field_name}' at offset {offset}");
         }
     }
 
@@ -179,7 +186,7 @@ impl SafeBlockInjection {
     fn nullify_pointer_at_offset(data: &mut [u8], offset: usize, field_name: &str) {
         if offset + 8 <= data.len() {
             data[offset..offset + 8].fill(0);
-            println!("    Nullified pointer '{field_name}' at offset {offset}");
+            info!("    Nullified pointer '{field_name}' at offset {offset}");
         }
     }
 }

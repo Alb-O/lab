@@ -1,8 +1,13 @@
 use crate::dna_provider::SeedDnaProvider;
 use crate::emitter::BlockInjection;
 use dot001_events::error::Result;
+use dot001_events::{
+    event::{Event, WriterEvent},
+    prelude::*,
+};
 use dot001_parser::{BlendBuf, BlendFile};
 use dot001_tracer::DependencyTracer;
+use log::{info, warn};
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
@@ -33,21 +38,25 @@ impl ExpandedBlockInjection {
         let mut all_dependencies = HashSet::new();
 
         for &block_index in block_indices {
-            println!("Tracing dependencies for block {block_index}");
+            info!("Tracing dependencies for block {block_index}");
 
             match tracer.trace_dependencies_parallel(block_index, &blend_file) {
                 Ok(dependencies) => {
                     // Add all dependencies to our set
                     all_dependencies.extend(dependencies.iter());
-                    println!(
+                    info!(
                         "  Found {} total dependencies including root",
                         all_dependencies.len()
                     );
                 }
                 Err(e) => {
-                    println!(
-                        "  Warning: Failed to trace dependencies for block {block_index}: {e}"
-                    );
+                    warn!("  Failed to trace dependencies for block {block_index}: {e}");
+                    emit_global_sync!(Event::Writer(WriterEvent::Error {
+                        error: dot001_events::error::Error::writer(
+                            format!("Failed to trace dependencies for block {block_index}: {e}"),
+                            dot001_events::error::WriterErrorKind::BlockInjectionFailed
+                        ),
+                    }));
                     // Still include the original block even if dependency tracing fails
                     all_dependencies.insert(block_index);
                 }
@@ -57,7 +66,7 @@ impl ExpandedBlockInjection {
         // Convert HashSet to Vec for extraction
         let expanded_indices: Vec<usize> = all_dependencies.into_iter().collect();
 
-        println!(
+        info!(
             "Extracting {} blocks with expanded dependencies:",
             expanded_indices.len()
         );
@@ -66,7 +75,7 @@ impl ExpandedBlockInjection {
                 let code = String::from_utf8_lossy(&block.header.code)
                     .trim_end_matches('\0')
                     .to_string();
-                println!("  [{index}] {code}");
+                info!("  [{index}] {code}");
             }
         }
 

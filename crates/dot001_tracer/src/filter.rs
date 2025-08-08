@@ -1,4 +1,8 @@
 use dot001_events::error::{Error, Result as UnifiedResult, TracerErrorKind};
+use dot001_events::{
+    event::{Event, TracerEvent},
+    prelude::emit_global_sync,
+};
 use dot001_parser::{BlendFileBlock, BlendFileBuf, PointerTraversal, Result};
 use regex::Regex;
 use std::collections::HashSet;
@@ -207,10 +211,12 @@ impl FilterEngine {
         // Copy header primitives without holding an immutable borrow across &mut calls
         let (code_bytes, size_v, count_v, sdna_v, old_addr_v) = {
             let Some(block) = blend.get_block(block_index) else {
-                return Err(Error::tracer(
+                let err = Error::tracer(
                     format!("Block index {block_index} out of range"),
                     TracerErrorKind::DependencyResolutionFailed,
-                ));
+                );
+                emit_global_sync!(Event::Tracer(TracerEvent::Error { error: err.clone() }));
+                return Err(err);
             };
             let h = &block.header;
             (h.code, h.size, h.count, h.sdna_index, h.old_address)
@@ -368,19 +374,23 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
     for (modif, key, val) in triples {
         let mut chars = modif.chars();
         let sign = chars.next().ok_or_else(|| {
-            Error::tracer(
+            let err = Error::tracer(
                 "Empty filter modifier",
                 TracerErrorKind::DependencyResolutionFailed,
-            )
+            );
+            emit_global_sync!(Event::Tracer(TracerEvent::Error { error: err.clone() }));
+            err
         })?;
         let include = match sign {
             '+' => true,
             '-' => false,
             _ => {
-                return Err(Error::tracer(
+                let err = Error::tracer(
                     format!("Invalid filter modifier: {modif}"),
                     TracerErrorKind::DependencyResolutionFailed,
-                ));
+                );
+                emit_global_sync!(Event::Tracer(TracerEvent::Error { error: err.clone() }));
+                return Err(err);
             }
         };
         // Recursion parse
@@ -392,10 +402,12 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
                 Some(usize::MAX)
             } else {
                 let n = rest.parse::<usize>().map_err(|_| {
-                    Error::tracer(
+                    let err = Error::tracer(
                         format!("Invalid recursion level: {rest}"),
                         TracerErrorKind::DependencyResolutionFailed,
-                    )
+                    );
+                    emit_global_sync!(Event::Tracer(TracerEvent::Error { error: err.clone() }));
+                    err
                 })?;
                 Some(n)
             }
@@ -404,16 +416,20 @@ pub fn build_filter_spec(triples: &[(&str, &str, &str)]) -> UnifiedResult<Filter
         };
 
         let key_regex = Regex::new(key).map_err(|e| {
-            Error::tracer(
+            let err = Error::tracer(
                 format!("Invalid key regex: {e}"),
                 TracerErrorKind::DependencyResolutionFailed,
-            )
+            );
+            emit_global_sync!(Event::Tracer(TracerEvent::Error { error: err.clone() }));
+            err
         })?;
         let value_regex = Regex::new(val).map_err(|e| {
-            Error::tracer(
+            let err = Error::tracer(
                 format!("Invalid value regex: {e}"),
                 TracerErrorKind::DependencyResolutionFailed,
-            )
+            );
+            emit_global_sync!(Event::Tracer(TracerEvent::Error { error: err.clone() }));
+            err
         })?;
 
         spec.rules.push(FilterRule {
