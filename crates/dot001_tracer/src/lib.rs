@@ -16,13 +16,11 @@
 ///
 /// ```rust,no_run
 /// use dot001_tracer::ParallelDependencyTracer;  
-/// use dot001_parser::BlendFileBuf;
-/// use std::fs::File;
+/// use dot001_parser::from_path;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Load a .blend file using the modern zero-copy parser
-/// let file = File::open("scene.blend")?;
-/// let blend_file = BlendFileBuf::from_file(file)?;
+/// let blend_file = from_path("scene.blend")?;
 ///
 /// // Create a parallel tracer with thread-safe expanders
 /// let mut tracer = ParallelDependencyTracer::new()

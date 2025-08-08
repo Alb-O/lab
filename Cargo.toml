@@ -10,6 +10,7 @@ members = [
     "crates/dot001_writer",
     "crates/dot001_checkpoint",
     "crates/dot001_watcher",
+    "crates/dot001_dev",
 ]
 resolver = "2"
 
