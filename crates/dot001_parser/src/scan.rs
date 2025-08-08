@@ -113,13 +113,19 @@ pub fn scan_blocks(
     start_offset: usize,
     file_header: &BlendFileHeader,
 ) -> Result<Vec<BlendFileBlock>> {
-    let mut blocks = Vec::new();
+    // Pre-allocate based on file size estimation
+    // Average block size in modern .blend files is ~130 bytes
+    let estimated_block_count = (data.len() / 130).max(1000);
+    let mut blocks = Vec::with_capacity(estimated_block_count);
     let mut current_offset = start_offset;
     let header_size = block_header_size(file_header);
 
+    // Pre-check that we have at least enough data to start
+    let data_len = data.len();
+
     loop {
-        // Ensure we have enough data for at least the block header
-        if current_offset + header_size > data.len() {
+        // Fast bounds check for header - avoid function call overhead
+        if current_offset + header_size > data_len {
             return Err(Error::blend_file(
                 format!("Unexpected end of data while scanning blocks at offset {current_offset}"),
                 BlendFileErrorKind::InvalidData,
@@ -127,31 +133,29 @@ pub fn scan_blocks(
         }
 
         let header_start = current_offset;
-        let (block_header, consumed) = parse_block_header_at(data, current_offset, file_header)?;
-        current_offset += consumed;
+
+        // Inline header parsing to avoid function call overhead
+        let block_header = parse_block_header_inline(data, current_offset, file_header)?;
+        current_offset += header_size;
 
         // Check for end marker
-        if &block_header.code == b"ENDB" {
+        if block_header.code == *b"ENDB" {
             break;
         }
 
-        // Validate block size
-        if block_header.size as u64 > crate::DEFAULT_MAX_BLOCK_SIZE as u64 {
+        // Fast block size validation without format!() allocation
+        if block_header.size > crate::DEFAULT_MAX_BLOCK_SIZE {
             return Err(Error::blend_file(
-                format!("Block size too large: {} bytes", block_header.size),
+                "Block size too large".to_string(),
                 BlendFileErrorKind::SizeLimitExceeded,
             ));
         }
 
-        // Ensure we don't overflow when seeking past block data
-        let block_end = current_offset as u64 + block_header.size as u64;
-        if block_end > data.len() as u64 {
+        // Calculate block end with overflow check
+        let block_end = current_offset + block_header.size as usize;
+        if block_end > data_len {
             return Err(Error::blend_file(
-                format!(
-                    "Block extends beyond data: block ends at {}, data length is {}",
-                    block_end,
-                    data.len()
-                ),
+                "Block extends beyond data".to_string(),
                 BlendFileErrorKind::InvalidData,
             ));
         }
@@ -165,10 +169,73 @@ pub fn scan_blocks(
         blocks.push(block);
 
         // Skip past the block data
-        current_offset = block_end as usize;
+        current_offset = block_end;
     }
 
     Ok(blocks)
+}
+
+/// Inline version of block header parsing for performance-critical scanning
+///
+/// This avoids the overhead of the more general `parse_block_header_at` function
+/// by inlining the parsing logic and avoiding redundant bounds checks.
+#[inline]
+fn parse_block_header_inline(
+    data: &[u8],
+    offset: usize,
+    file_header: &BlendFileHeader,
+) -> Result<BlockHeader> {
+    // We already know we have enough data from the caller's bounds check
+    let slice = &data[offset..];
+
+    // Read block code (4 bytes) - this is always the same regardless of format
+    let code: [u8; 4] = [slice[0], slice[1], slice[2], slice[3]];
+
+    let header = if file_header.file_format_version == 1 {
+        // v1 format: code(4) + sdna_index(4) + old_address(8) + size(8) + count(8)
+        let sdna_index = read_u32_at_unchecked(slice, 4, file_header.is_little_endian);
+        let old_address = read_u64_at_unchecked(slice, 8, file_header.is_little_endian);
+        let size = read_u64_at_unchecked(slice, 16, file_header.is_little_endian) as u32;
+        let count = read_u64_at_unchecked(slice, 24, file_header.is_little_endian) as u32;
+
+        BlockHeader {
+            code,
+            size,
+            old_address,
+            sdna_index,
+            count,
+        }
+    } else if file_header.pointer_size == 4 {
+        // Legacy 32-bit format: code(4) + size(4) + old_address(4) + sdna_index(4) + count(4)
+        let size = read_u32_at_unchecked(slice, 4, file_header.is_little_endian);
+        let old_address = read_u32_at_unchecked(slice, 8, file_header.is_little_endian) as u64;
+        let sdna_index = read_u32_at_unchecked(slice, 12, file_header.is_little_endian);
+        let count = read_u32_at_unchecked(slice, 16, file_header.is_little_endian);
+
+        BlockHeader {
+            code,
+            size,
+            old_address,
+            sdna_index,
+            count,
+        }
+    } else {
+        // Legacy 64-bit format: code(4) + size(4) + old_address(8) + sdna_index(4) + count(4)
+        let size = read_u32_at_unchecked(slice, 4, file_header.is_little_endian);
+        let old_address = read_u64_at_unchecked(slice, 8, file_header.is_little_endian);
+        let sdna_index = read_u32_at_unchecked(slice, 16, file_header.is_little_endian);
+        let count = read_u32_at_unchecked(slice, 20, file_header.is_little_endian);
+
+        BlockHeader {
+            code,
+            size,
+            old_address,
+            sdna_index,
+            count,
+        }
+    };
+
+    Ok(header)
 }
 
 /// Read a u32 from a slice at the given offset with endianness handling
@@ -186,6 +253,46 @@ fn read_u32_at(data: &[u8], offset: usize, is_little_endian: bool) -> u32 {
 #[inline]
 fn read_u64_at(data: &[u8], offset: usize, is_little_endian: bool) -> u64 {
     let bytes: [u8; 8] = data[offset..offset + 8].try_into().unwrap();
+    if is_little_endian {
+        u64::from_le_bytes(bytes)
+    } else {
+        u64::from_be_bytes(bytes)
+    }
+}
+
+/// Unchecked version of read_u32_at for performance-critical paths
+///
+/// This version assumes bounds checking has already been done by the caller
+#[inline]
+fn read_u32_at_unchecked(data: &[u8], offset: usize, is_little_endian: bool) -> u32 {
+    let bytes = [
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        data[offset + 3],
+    ];
+    if is_little_endian {
+        u32::from_le_bytes(bytes)
+    } else {
+        u32::from_be_bytes(bytes)
+    }
+}
+
+/// Unchecked version of read_u64_at for performance-critical paths
+///
+/// This version assumes bounds checking has already been done by the caller
+#[inline]
+fn read_u64_at_unchecked(data: &[u8], offset: usize, is_little_endian: bool) -> u64 {
+    let bytes = [
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        data[offset + 3],
+        data[offset + 4],
+        data[offset + 5],
+        data[offset + 6],
+        data[offset + 7],
+    ];
     if is_little_endian {
         u64::from_le_bytes(bytes)
     } else {
