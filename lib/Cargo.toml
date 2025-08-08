@@ -8,16 +8,3 @@ rust-version.workspace = true
 dot001_parser = { path = "../crates/dot001_parser" }
 dot001_tracer = { path = "../crates/dot001_tracer" }
 dot001_events = { path = "../crates/dot001_events" }
-
-[dev-dependencies]
-criterion = { workspace = true }
-
-[[bench]]
-name = "parser_bench"
-harness = false
-path = "../benches/parser_bench.rs"
-
-[[bench]]
-name = "tracer_bench"
-harness = false
-path = "../benches/tracer_bench.rs"

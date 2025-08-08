@@ -20,4 +20,3 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 # shared deps can be declared here if desired
-criterion = { version = "0.5.1", features = ["html_reports"] }
