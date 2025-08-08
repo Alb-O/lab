@@ -177,7 +177,7 @@ fn test_external_reference_detection() {
 
 /// Test thread-safe expander registration
 #[test]
-fn test_thread_safe_expanders() {
+fn test_expander_registration() {
     println!("Testing thread-safe expander registration:");
 
     let mut tracer = DependencyTracer::new().with_default_expanders();

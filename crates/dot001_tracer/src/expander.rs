@@ -15,7 +15,7 @@ use dot001_parser::BlendFileBuf;
 /// - Uses only immutable references for thread safety
 /// - Provides FieldView-based field access for performance
 /// - Can be safely shared across threads (Send + Sync)
-pub trait ThreadSafeBlockExpander: Send + Sync {
+pub trait BlockExpander: Send + Sync {
     /// Expand dependencies for a block using zero-copy access
     ///
     /// This method receives only immutable references and must not mutate
@@ -41,9 +41,9 @@ pub trait ThreadSafeBlockExpander: Send + Sync {
 ///
 /// This provides zero-copy versions of the pointer traversal functions
 /// that work with FieldView instead of FieldReader.
-pub struct ThreadSafePointerTraversal;
+pub struct PointerTraversal;
 
-impl ThreadSafePointerTraversal {
+impl PointerTraversal {
     /// Read single pointer fields using FieldView
     ///
     /// This is the thread-safe, zero-copy equivalent of PointerTraversal::read_pointer_fields
@@ -180,26 +180,13 @@ impl ThreadSafePointerTraversal {
     }
 }
 
-/// Adapter that wraps legacy BlockExpander for thread-safe usage
-///
-/// This is a temporary compatibility layer that allows legacy expanders
-/// to work with the new thread-safe architecture. It's marked as unsafe
-/// because it uses interior mutability and transmutes.
-///
-/// TODO: Remove this once all expanders are converted to ThreadSafeBlockExpander
-pub struct LegacyExpanderAdapter<R: std::io::Read + std::io::Seek> {
-    // We cannot actually implement this safely without major refactoring
-    // of the BlendFile<R> architecture. This is just a placeholder.
-    _phantom: std::marker::PhantomData<R>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     struct TestExpander;
 
-    impl ThreadSafeBlockExpander for TestExpander {
+    impl BlockExpander for TestExpander {
         fn expand_block_threadsafe(
             &self,
             _block_index: usize,
@@ -222,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_safe_expander_trait() {
+    fn test_expander_trait() {
         let expander = TestExpander;
         assert!(expander.can_handle(b"TE\0\0"));
         assert!(!expander.can_handle(b"OB\0\0"));

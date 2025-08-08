@@ -5,9 +5,9 @@
 //! - world: World environment settings  
 //! - master_collection: Root collection containing all scene objects
 
-use crate::thread_safe_simple_expander;
-thread_safe_simple_expander! {
-    ThreadSafeSceneExpander, b"SC\0\0", "Scene" => {
+use crate::simple_expander;
+simple_expander! {
+     SceneExpander, b"SC\0\0", "Scene" => {
         single_fields: ["camera", "world", "master_collection"],
         array_fields: []
     }
@@ -16,13 +16,13 @@ thread_safe_simple_expander! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ThreadSafeBlockExpander;
+    use crate::BlockExpander;
 
     #[test]
     fn test_scene_expander_properties() {
-        let expander = ThreadSafeSceneExpander;
+        let expander = SceneExpander;
         assert_eq!(expander.block_code(), *b"SC\0\0");
-        assert_eq!(expander.expander_name(), "ThreadSafeSceneExpander");
+        assert_eq!(expander.expander_name(), "SceneExpander");
         assert!(expander.can_handle(b"SC\0\0"));
         assert!(!expander.can_handle(b"OB\0\0"));
     }

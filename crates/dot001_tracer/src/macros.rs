@@ -5,21 +5,21 @@
 
 /// Generate a simple thread-safe block expander
 ///
-/// This creates an expander that uses ThreadSafePointerTraversal for
+/// This creates an expander that uses  PointerTraversal for
 /// zero-copy pointer field and array access.
 ///
 /// # Example
 /// ```rust
-/// use dot001_tracer::thread_safe_simple_expander;
-/// thread_safe_simple_expander! {
-///     ThreadSafeObjectExpander, b"OB\0\0", "Object" => {
+/// use dot001_tracer::simple_expander;
+/// simple_expander! {
+///      ObjectExpander, b"OB\0\0", "Object" => {
 ///         single_fields: ["data"],
 ///         array_fields: [("totcol", "mat")]
 ///     }
 /// }
 /// ```
 #[macro_export]
-macro_rules! thread_safe_simple_expander {
+macro_rules! simple_expander {
     (
         $expander_name:ident,
         $block_code:expr,
@@ -30,7 +30,7 @@ macro_rules! thread_safe_simple_expander {
     ) => {
         pub struct $expander_name;
 
-        impl $crate::ThreadSafeBlockExpander for $expander_name {
+        impl $crate::BlockExpander for $expander_name {
             fn expand_block_threadsafe(
                 &self,
                 block_index: usize,
@@ -40,7 +40,7 @@ macro_rules! thread_safe_simple_expander {
 
                 // Add single pointer field dependencies using thread-safe traversal
                 $(
-                    if let Ok(single_targets) = $crate::ThreadSafePointerTraversal::read_pointer_fields_threadsafe(
+                    if let Ok(single_targets) = $crate::PointerTraversal::read_pointer_fields_threadsafe(
                         blend_file,
                         block_index,
                         $struct_name,
@@ -52,7 +52,7 @@ macro_rules! thread_safe_simple_expander {
 
                 // Add array field dependencies using thread-safe traversal
                 $(
-                    if let Ok(array_targets) = $crate::ThreadSafePointerTraversal::read_pointer_array_threadsafe(
+                    if let Ok(array_targets) = $crate::PointerTraversal::read_pointer_array_threadsafe(
                         blend_file,
                         block_index,
                         $struct_name,
@@ -85,9 +85,9 @@ macro_rules! thread_safe_simple_expander {
 ///
 /// # Example
 /// ```rust
-/// use dot001_tracer::thread_safe_custom_expander;
-/// thread_safe_custom_expander! {
-///     ThreadSafeMaterialExpander, b"MA\0\0" => |block_index, blend_file| {
+/// use dot001_tracer::custom_expander;
+/// custom_expander! {
+///      MaterialExpander, b"MA\0\0" => |block_index, blend_file| {
 ///         let mut dependencies = Vec::new();
 ///         // Custom zero-copy logic using FieldView...
 ///         dependencies
@@ -95,14 +95,14 @@ macro_rules! thread_safe_simple_expander {
 /// }
 /// ```
 #[macro_export]
-macro_rules! thread_safe_custom_expander {
+macro_rules! custom_expander {
     (
         $expander_name:ident,
         $block_code:expr => |$block_index:ident, $blend_file:ident| $custom_logic:block
     ) => {
         pub struct $expander_name;
 
-        impl $crate::ThreadSafeBlockExpander for $expander_name {
+        impl $crate::BlockExpander for $expander_name {
             fn expand_block_threadsafe(
                 &self,
                 $block_index: usize,
@@ -131,9 +131,9 @@ macro_rules! thread_safe_custom_expander {
 ///
 /// # Example
 /// ```rust
-/// use dot001_tracer::thread_safe_hybrid_expander;
-/// thread_safe_hybrid_expander! {
-///     ThreadSafeMaterialExpander, b"MA\0\0", "Material" => {
+/// use dot001_tracer::hybrid_expander;
+/// hybrid_expander! {
+///      MaterialExpander, b"MA\0\0", "Material" => {
 ///         single_fields: ["nodetree"],
 ///         array_fields: [],
 ///         custom: |block_index, blend_file, dependencies| {
@@ -143,7 +143,7 @@ macro_rules! thread_safe_custom_expander {
 /// }
 /// ```
 #[macro_export]
-macro_rules! thread_safe_hybrid_expander {
+macro_rules! hybrid_expander {
     (
         $expander_name:ident,
         $block_code:expr,
@@ -155,7 +155,7 @@ macro_rules! thread_safe_hybrid_expander {
     ) => {
         pub struct $expander_name;
 
-        impl $crate::ThreadSafeBlockExpander for $expander_name {
+        impl $crate::BlockExpander for $expander_name {
             fn expand_block_threadsafe(
                 &self,
                 $block_index: usize,
@@ -165,7 +165,7 @@ macro_rules! thread_safe_hybrid_expander {
 
                 // Add single pointer field dependencies using thread-safe traversal
                 $(
-                    if let Ok(single_targets) = $crate::ThreadSafePointerTraversal::read_pointer_fields_threadsafe(
+                    if let Ok(single_targets) = $crate::PointerTraversal::read_pointer_fields_threadsafe(
                         $blend_file,
                         $block_index,
                         $struct_name,
@@ -177,7 +177,7 @@ macro_rules! thread_safe_hybrid_expander {
 
                 // Add array field dependencies using thread-safe traversal
                 $(
-                    if let Ok(array_targets) = $crate::ThreadSafePointerTraversal::read_pointer_array_threadsafe(
+                    if let Ok(array_targets) = $crate::PointerTraversal::read_pointer_array_threadsafe(
                         $blend_file,
                         $block_index,
                         $struct_name,
@@ -211,24 +211,24 @@ macro_rules! thread_safe_hybrid_expander {
 
 #[cfg(test)]
 mod tests {
-    use crate::ThreadSafeBlockExpander;
+    use crate::BlockExpander;
 
     // Test the macro generation at compile time
-    thread_safe_simple_expander! {
-        TestThreadSafeSimpleExpander, b"TS\0\0", "TestStruct" => {
+    simple_expander! {
+        TestSimpleExpander, b"TS\0\0", "TestStruct" => {
             single_fields: ["field1", "field2"],
             array_fields: [("count", "array")]
         }
     }
 
-    thread_safe_custom_expander! {
-        TestThreadSafeCustomExpander, b"TC\0\0" => |block_index, _blend_file| {
+    custom_expander! {
+        TestCustomExpander, b"TC\0\0" => |block_index, _blend_file| {
             vec![block_index] // Just return self for testing
         }
     }
 
-    thread_safe_hybrid_expander! {
-        TestThreadSafeHybridExpander, b"TH\0\0", "TestHybrid" => {
+    hybrid_expander! {
+        TestHybridExpander, b"TH\0\0", "TestHybrid" => {
             single_fields: ["single"],
             array_fields: [],
             custom: |_block_index, _blend_file, deps| {
@@ -238,17 +238,17 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_safe_expander_generation() {
-        let simple = TestThreadSafeSimpleExpander;
+    fn test_expander_generation() {
+        let simple = TestSimpleExpander;
         assert_eq!(simple.block_code(), *b"TS\0\0");
-        assert_eq!(simple.expander_name(), "TestThreadSafeSimpleExpander");
+        assert_eq!(simple.expander_name(), "TestSimpleExpander");
 
-        let custom = TestThreadSafeCustomExpander;
+        let custom = TestCustomExpander;
         assert_eq!(custom.block_code(), *b"TC\0\0");
-        assert_eq!(custom.expander_name(), "TestThreadSafeCustomExpander");
+        assert_eq!(custom.expander_name(), "TestCustomExpander");
 
-        let hybrid = TestThreadSafeHybridExpander;
+        let hybrid = TestHybridExpander;
         assert_eq!(hybrid.block_code(), *b"TH\0\0");
-        assert_eq!(hybrid.expander_name(), "TestThreadSafeHybridExpander");
+        assert_eq!(hybrid.expander_name(), "TestHybridExpander");
     }
 }

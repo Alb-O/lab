@@ -4,9 +4,9 @@
 //! - data: The mesh, curve, or other object data
 //! - mat: Array of materials (based on totcol count)
 
-use crate::thread_safe_simple_expander;
-thread_safe_simple_expander! {
-    ThreadSafeObjectExpander, b"OB\0\0", "Object" => {
+use crate::simple_expander;
+simple_expander! {
+    ObjectExpander, b"OB\0\0", "Object" => {
         single_fields: ["data"],
         array_fields: [("totcol", "mat")]
     }
@@ -15,13 +15,13 @@ thread_safe_simple_expander! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ThreadSafeBlockExpander;
+    use crate::BlockExpander;
 
     #[test]
     fn test_object_expander_properties() {
-        let expander = ThreadSafeObjectExpander;
+        let expander = ObjectExpander;
         assert_eq!(expander.block_code(), *b"OB\0\0");
-        assert_eq!(expander.expander_name(), "ThreadSafeObjectExpander");
+        assert_eq!(expander.expander_name(), "ObjectExpander");
         assert!(expander.can_handle(b"OB\0\0"));
         assert!(!expander.can_handle(b"ME\0\0"));
     }

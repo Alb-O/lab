@@ -4,7 +4,7 @@
 //! thread-safe block expansion. The implementation builds hierarchical dependency
 //! trees and provides both tree and flattened list outputs with deterministic results.
 
-use crate::ThreadSafeBlockExpander;
+use crate::BlockExpander;
 use crate::core::options::TracerOptions;
 use crate::core::tree::{DependencyNode, DependencyTree};
 use crate::filter::{FilterEngine, FilterSpec};
@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 /// Dependency tracer with recursive tree building and deterministic output
 pub struct DependencyTracer {
-    pub(crate) thread_safe_expanders: HashMap<[u8; 4], Box<dyn ThreadSafeBlockExpander>>,
+    pub(crate) expanders: HashMap<[u8; 4], Box<dyn BlockExpander>>,
     /// Concurrent visited set using DashMap for thread-safe access
     visited: Arc<DashSet<usize>>,
     /// Optional filter of allowed blocks (indices) as a thread-safe set
@@ -46,7 +46,7 @@ impl DependencyTracer {
     /// Create a new parallel dependency tracer
     pub fn new() -> Self {
         DependencyTracer {
-            thread_safe_expanders: HashMap::new(),
+            expanders: HashMap::new(),
             visited: Arc::new(DashSet::new()),
             allowed: None,
             determinizer: None,
@@ -105,33 +105,54 @@ impl DependencyTracer {
         self.allowed = None;
     }
 
-    /// Register a thread-safe block expander for parallel processing
-    pub fn register_thread_safe_expander(
-        &mut self,
-        code: [u8; 4],
-        expander: Box<dyn ThreadSafeBlockExpander>,
-    ) {
-        self.thread_safe_expanders.insert(code, expander);
+    /// Register a block expander for parallel processing
+    pub fn register_expander(&mut self, code: [u8; 4], expander: Box<dyn BlockExpander>) {
+        self.expanders.insert(code, expander);
     }
 
-    /// Register all standard thread-safe block expanders for comprehensive dependency analysis
+    /// Register all standard block expanders for comprehensive dependency analysis
     pub fn with_default_expanders(mut self) -> Self {
-        debug!("Registering thread-safe block expanders for parallel processing");
+        debug!("Registering all available block expanders for parallel processing");
 
-        // Import thread-safe expanders
-        use crate::expanders::thread_safe::*;
-
-        // Register all available thread-safe expanders
-        self.register_thread_safe_expander(*b"OB\0\0", Box::new(ThreadSafeObjectExpander));
-        self.register_thread_safe_expander(*b"SC\0\0", Box::new(ThreadSafeSceneExpander));
-        self.register_thread_safe_expander(*b"ME\0\0", Box::new(ThreadSafeMeshExpander));
-        self.register_thread_safe_expander(*b"MA\0\0", Box::new(ThreadSafeMaterialExpander));
-        self.register_thread_safe_expander(*b"GR\0\0", Box::new(ThreadSafeGroupExpander));
+        crate::expanders::register_all_expanders(&mut self);
 
         debug!(
-            "Registered {} thread-safe block expanders",
-            self.thread_safe_expanders.len()
+            "Registered {} thread-safe block expanders (complete coverage)",
+            self.expanders.len()
         );
+        self
+    }
+
+    /// Register only basic data block expanders (objects, scenes, meshes, materials, etc.)
+    pub fn with_basic_expanders(mut self) -> Self {
+        debug!("Registering basic block expanders");
+
+        crate::expanders::register_basic_expanders(&mut self);
+
+        debug!("Registered {} basic block expanders", self.expanders.len());
+        self
+    }
+
+    /// Register only external file expanders (images, sounds, libraries, etc.)
+    pub fn with_external_expanders(mut self) -> Self {
+        debug!("Registering external file expanders");
+
+        crate::expanders::register_external_expanders(&mut self);
+
+        debug!(
+            "Registered {} external file expanders",
+            self.expanders.len()
+        );
+        self
+    }
+
+    /// Register only structural expanders (collections, groups, node trees)
+    pub fn with_structural_expanders(mut self) -> Self {
+        debug!("Registering structural expanders");
+
+        crate::expanders::register_structural_expanders(&mut self);
+
+        debug!("Registered {} structural expanders", self.expanders.len());
         self
     }
 
@@ -171,7 +192,7 @@ impl DependencyTracer {
 
         // Flatten it to a list
         let mut result = Vec::new();
-        self.flatten_tree(&tree.root, &mut result);
+        Self::flatten_tree(&tree.root, &mut result);
 
         // Sort for deterministic output
         result.sort_unstable();
@@ -234,8 +255,8 @@ impl DependencyTracer {
         // Build tree layer by layer, preserving relationships
         let root =
             self.build_tree_recursive(start_block_index, blend_file, 0, &mut HashSet::new())?;
-        let total_dependencies = self.count_dependencies(&root);
-        let max_depth = self.calculate_max_depth(&root);
+        let total_dependencies = Self::count_dependencies(&root);
+        let max_depth = Self::calculate_max_depth(&root);
 
         debug!(
             "Parallel dependency tree trace completed, found {total_dependencies} total dependencies with max depth {max_depth}"
@@ -322,23 +343,23 @@ impl DependencyTracer {
     }
 
     /// Count total dependencies in a tree
-    fn count_dependencies(&self, node: &DependencyNode) -> usize {
+    fn count_dependencies(node: &DependencyNode) -> usize {
         let mut count = node.children.len();
         for child in &node.children {
-            count += self.count_dependencies(child);
+            count += Self::count_dependencies(child);
         }
         count
     }
 
     /// Calculate maximum depth of a tree
-    fn calculate_max_depth(&self, node: &DependencyNode) -> usize {
+    fn calculate_max_depth(node: &DependencyNode) -> usize {
         if node.children.is_empty() {
             0
         } else {
             1 + node
                 .children
                 .iter()
-                .map(|child| self.calculate_max_depth(child))
+                .map(Self::calculate_max_depth)
                 .max()
                 .unwrap_or(0)
         }
@@ -348,10 +369,10 @@ impl DependencyTracer {
     ///
     /// This provides a flat list of all dependencies, useful for compatibility
     /// with code that expects a simple Vec<usize> of dependencies.
-    fn flatten_tree(&self, node: &DependencyNode, result: &mut Vec<usize>) {
+    fn flatten_tree(node: &DependencyNode, result: &mut Vec<usize>) {
         for child in &node.children {
             result.push(child.block_index);
-            self.flatten_tree(child, result);
+            Self::flatten_tree(child, result);
         }
     }
 
@@ -372,7 +393,7 @@ impl DependencyTracer {
                 }
             }
 
-            if let Some(expander) = self.thread_safe_expanders.get(&block.header.code) {
+            if let Some(expander) = self.expanders.get(&block.header.code) {
                 // Note: Event emission disabled in parallel context to avoid Tokio runtime issues
                 // TODO: Fix event emission in parallel processing context
 
@@ -434,14 +455,14 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_safe_expander_registration() {
+    fn test_expander_registration() {
         let mut tracer = DependencyTracer::new();
 
-        use crate::expanders::thread_safe::ThreadSafeObjectExpander;
-        tracer.register_thread_safe_expander(*b"OB\0\0", Box::new(ThreadSafeObjectExpander));
+        use crate::expanders::ObjectExpander;
+        tracer.register_expander(*b"OB\0\0", Box::new(ObjectExpander));
 
-        assert_eq!(tracer.thread_safe_expanders.len(), 1);
-        assert!(tracer.thread_safe_expanders.contains_key(b"OB\0\0"));
+        assert_eq!(tracer.expanders.len(), 1);
+        assert!(tracer.expanders.contains_key(b"OB\0\0"));
     }
 
     #[test]
@@ -449,11 +470,11 @@ mod tests {
         let tracer = DependencyTracer::new().with_default_expanders();
 
         // Should have registered the basic thread-safe expanders
-        assert!(tracer.thread_safe_expanders.len() >= 5);
-        assert!(tracer.thread_safe_expanders.contains_key(b"OB\0\0"));
-        assert!(tracer.thread_safe_expanders.contains_key(b"SC\0\0"));
-        assert!(tracer.thread_safe_expanders.contains_key(b"ME\0\0"));
-        assert!(tracer.thread_safe_expanders.contains_key(b"MA\0\0"));
-        assert!(tracer.thread_safe_expanders.contains_key(b"GR\0\0"));
+        assert!(tracer.expanders.len() >= 5);
+        assert!(tracer.expanders.contains_key(b"OB\0\0"));
+        assert!(tracer.expanders.contains_key(b"SC\0\0"));
+        assert!(tracer.expanders.contains_key(b"ME\0\0"));
+        assert!(tracer.expanders.contains_key(b"MA\0\0"));
+        assert!(tracer.expanders.contains_key(b"GR\0\0"));
     }
 }

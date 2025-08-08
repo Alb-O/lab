@@ -4,10 +4,10 @@
 //! - gobject: Linked list of objects in the group/collection
 //! - children: Linked list of child collections (Blender 2.8+)
 
-use crate::thread_safe_custom_expander;
+use crate::custom_expander;
 
-thread_safe_custom_expander! {
-    ThreadSafeGroupExpander, b"GR\0\0" => |block_index, blend_file| {
+custom_expander! {
+    GroupExpander, b"GR\0\0" => |block_index, blend_file| {
         let mut dependencies = Vec::new();
 
         // Get block data slice
@@ -203,13 +203,13 @@ fn traverse_children_list(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ThreadSafeBlockExpander;
+    use crate::BlockExpander;
 
     #[test]
     fn test_group_expander_properties() {
-        let expander = ThreadSafeGroupExpander;
+        let expander = GroupExpander;
         assert_eq!(expander.block_code(), *b"GR\0\0");
-        assert_eq!(expander.expander_name(), "ThreadSafeGroupExpander");
+        assert_eq!(expander.expander_name(), "GroupExpander");
         assert!(expander.can_handle(b"GR\0\0"));
         assert!(!expander.can_handle(b"OB\0\0"));
     }

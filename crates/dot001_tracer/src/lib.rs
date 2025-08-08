@@ -22,9 +22,14 @@
 /// // Load a .blend file using the modern zero-copy parser
 /// let blend_file = from_path("scene.blend")?;
 ///
-/// // Create a parallel tracer with thread-safe expanders
+/// // Create a parallel tracer with all available expanders (recommended)
 /// let mut tracer = DependencyTracer::new()
-///     .with_default_expanders();
+///     .with_default_expanders(); // Registers all 13 expanders
+///
+/// // Or register only specific categories:
+/// // .with_basic_expanders()      // Only objects, scenes, meshes, materials, etc.
+/// // .with_external_expanders()   // Only images, sounds, libraries, etc.
+/// // .with_structural_expanders() // Only collections, groups, node trees
 ///
 /// // Trace dependencies in parallel for high performance  
 /// // object_block_index would come from your application logic
@@ -35,30 +40,24 @@
 /// # Ok(())
 /// # }
 /// ```
-///
-/// ## Legacy Usage (Deprecated)
-///
-/// The old API is still available but deprecated:
-/// Re-exports and core functionality
+// Re-exports and core functionality
 pub mod core;
 pub mod expand_result;
+pub mod expander;
 pub mod expanders;
 pub mod filter;
-pub mod thread_safe_expander;
-pub mod thread_safe_macros;
+pub mod macros;
 pub mod utils;
 
 // Include macros module to ensure macros are compiled and exported
 // The actual macros are available at crate root due to #[macro_export]
 
-// Re-export key types and traits - NEW ARCHITECTURE
+// Re-export key types and traits
 pub use core::{DependencyNode, DependencyTracer, DependencyTree, TracerOptions};
 pub use expand_result::ExpandResult;
+pub use expander::{BlockExpander, PointerTraversal};
 pub use expanders::*;
-pub use thread_safe_expander::{ThreadSafeBlockExpander, ThreadSafePointerTraversal};
 pub use utils::{Determinizer, NameResolver, NameResolverTrait};
-
-// REMOVED: DependencyTracer - use DependencyTracer instead
 
 // Re-export bpath module for backward compatibility
 pub use utils::bpath;
@@ -66,7 +65,3 @@ pub use utils::bpath;
 // Re-export from dependencies
 pub use dot001_events::error::Result;
 pub use dot001_parser::BlendFileBuf;
-
-// REMOVED: Legacy BlockExpander trait
-// This trait has been completely removed in favor of ThreadSafeBlockExpander.
-// Use thread_safe_simple_expander!, thread_safe_custom_expander!, etc. instead.
