@@ -29,6 +29,14 @@ impl Paragraph {
         }
     }
 
+    pub fn push_raw(&mut self, text: &str) {
+        if self.buffer.is_empty() {
+            self.buffer.push_str(text.trim_start());
+        } else {
+            self.buffer.push_str(text);
+        }
+    }
+
     pub fn set_prefix(&mut self, prefix: String) {
         self.pending_prefix = Some(prefix);
     }

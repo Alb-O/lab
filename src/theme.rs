@@ -1,13 +1,7 @@
 use clap::ValueEnum;
 use std::default::Default;
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum ThemeName {
-    Unicode,
-    Ascii,
-}
-
-// New names for clarity - these are about character glyphs, not colors
+// These are about character glyphs, not colors
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum GlyphThemeName {
     Unicode,
@@ -39,14 +33,7 @@ impl GlyphTheme {
             bullets: ['*', '-', 'o'],
         }
     }
-    pub fn from_name(name: ThemeName) -> Self {
-        match name {
-            ThemeName::Unicode => Default::default(),
-            ThemeName::Ascii => Self::ascii(),
-        }
-    }
-
-    pub fn from_glyph_name(name: GlyphThemeName) -> Self {
+    pub fn from_name(name: GlyphThemeName) -> Self {
         match name {
             GlyphThemeName::Unicode => Default::default(),
             GlyphThemeName::Ascii => Self::ascii(),

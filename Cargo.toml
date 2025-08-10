@@ -28,7 +28,9 @@ cjk = "0.2"
 clap_complete = "4.5"
 rasteroid = { path = "crates/mcat/crates/rasteroid" }
 comfy-table = { version = "7.1", features = ["custom_styling"] }
-bat = { version = "0.25", optional = true }
+bat = { version = "0.25", optional = true, default-features = false, features = [
+    "minimal-application",
+] }
 
 [features]
 default = ["syntax-highlighting"]

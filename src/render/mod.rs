@@ -1,11 +1,7 @@
 use std::io;
+use std::path::Path;
 
-#[cfg(feature = "syntax-highlighting")]
-use bat::{Input, PrettyPrinter};
-use std::path::{Path, PathBuf};
-
-use comfy_table::{ContentArrangement, Table, presets};
-use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::config::Config;
 use crate::media::{ImageBackend, RasteroidBackend};
@@ -14,8 +10,13 @@ use crate::spacing::{BlankLines, Block, DefaultSpacingPolicy, SpacingPolicy};
 use crate::str_width::str_width;
 use crate::style::ColorTheme;
 use crate::theme::GlyphTheme;
-use crate::types::Indent;
+use crate::types::{Column, Indent};
 use crate::wrap::{IndentedScope, Paragraph};
+
+mod code;
+mod image;
+mod table;
+mod text;
 
 #[derive(Debug)]
 enum ListKind {
@@ -79,7 +80,7 @@ pub struct Renderer<B: ImageBackend = RasteroidBackend, S: Sink = crate::sink::S
 
 impl<B: ImageBackend + Default, S: Sink + Default> Renderer<B, S> {
     pub fn new(cfg: Config) -> Self {
-        let glyph_theme = GlyphTheme::from_name(cfg.theme);
+        let glyph_theme = GlyphTheme::from_name(cfg.glyph_theme);
         let color_theme = ColorTheme::from_name(cfg.color_theme);
         Self {
             cfg,
@@ -93,7 +94,7 @@ impl<B: ImageBackend + Default, S: Sink + Default> Renderer<B, S> {
     }
 
     pub fn with_sink(cfg: Config, sink: S) -> Self {
-        let glyph_theme = GlyphTheme::from_name(cfg.theme);
+        let glyph_theme = GlyphTheme::from_name(cfg.glyph_theme);
         let color_theme = ColorTheme::from_name(cfg.color_theme);
         Self {
             cfg,
@@ -116,48 +117,7 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
         }
     }
 
-    fn wrap_caption_lines(&self, text: &str, max_cells: usize) -> Vec<String> {
-        // Simple greedy wrapper aware of cell widths
-        let mut lines = Vec::new();
-        let mut buf = String::new();
-        for part in text.split_inclusive(char::is_whitespace) {
-            let cur = crate::str_width::str_width(&buf);
-            let pw = crate::str_width::str_width(part);
-            if cur + pw > max_cells && !buf.is_empty() {
-                lines.push(buf.trim_end().to_string());
-                buf.clear();
-            }
-            if buf.is_empty() {
-                buf.push_str(part.trim_start());
-            } else {
-                buf.push_str(part);
-            }
-        }
-        if !buf.is_empty() {
-            lines.push(buf.trim_end().to_string());
-        }
-        if lines.is_empty() {
-            lines.push(text.trim().to_string());
-        }
-        lines
-    }
-
-    /// Apply styling to text based on the current scope stack
-    fn apply_text_styling(&self, text: &str, scope: &[Scope]) -> String {
-        let mut styled_text = text.to_string();
-
-        // Apply styles based on active scopes, in order
-        for s in scope {
-            styled_text = match s {
-                Scope::Italic => self.color_theme.emphasis.apply(&styled_text),
-                Scope::Bold => self.color_theme.strong.apply(&styled_text),
-                Scope::Link { .. } => self.color_theme.link.apply(&styled_text),
-                _ => styled_text,
-            };
-        }
-
-        styled_text
-    }
+    // helpers now live in submodules
 
     pub fn render_markdown(&mut self, source: &str, file_path: Option<&Path>) -> io::Result<()> {
         if self.cfg.dev {
@@ -484,9 +444,9 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                                 // Render image and caption
                                 para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                                 self.ensure_spacing_before(Block::Image, &scope);
-                                let path = Self::resolve_image_path(&url, file_path);
+                                let path = image::resolve_image_path(&url, file_path);
                                 match std::fs::read(&path) {
-                                    Ok(bytes) => match image::load_from_memory(&bytes) {
+                                    Ok(bytes) => match ::image::load_from_memory(&bytes) {
                                         Ok(img) => {
                                             let base_indent: usize =
                                                 scope.iter().map(|s| s.indent().0).sum();
@@ -510,7 +470,7 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                                                     let lw = str_width(&line);
                                                     let extra_pad =
                                                         used_cells.saturating_sub(lw) / 2;
-                                                    let column = indent + extra_pad;
+                                                    let column = Column(indent + extra_pad);
                                                     let styled =
                                                         self.color_theme.caption.apply(&line);
                                                     let _ = self
@@ -596,20 +556,22 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                         .rposition(|s| matches!(s, Scope::TableCollect(_)))
                     {
                         let styled_text = self.apply_text_styling(&text, &scope);
-                        // Convert literal "\n" into actual newlines for table cells
                         let styled_text = styled_text.replace("\\n", "\n");
                         if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
                             state.push_text(&styled_text);
                         }
                     } else {
                         let styled_text = self.apply_text_styling(&text, &scope);
-                        para.wrap_and_push(
-                            &scope,
-                            self.cfg.width,
-                            &styled_text,
-                            &mut self.sink,
-                            &str_width,
-                        );
+                        match self.cfg.wrap_mode {
+                            crate::config::WrapMode::Greedy => para.wrap_and_push(
+                                &scope,
+                                self.cfg.width,
+                                &styled_text,
+                                &mut self.sink,
+                                &str_width,
+                            ),
+                            crate::config::WrapMode::None => para.push_raw(&styled_text),
+                        }
                     }
                 }
                 Event::Code(text) => {
@@ -625,13 +587,16 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                         }
                     } else {
                         let styled = self.color_theme.code.apply(&text);
-                        para.wrap_and_push(
-                            &scope,
-                            self.cfg.width,
-                            &styled,
-                            &mut self.sink,
-                            &str_width,
-                        );
+                        match self.cfg.wrap_mode {
+                            crate::config::WrapMode::Greedy => para.wrap_and_push(
+                                &scope,
+                                self.cfg.width,
+                                &styled,
+                                &mut self.sink,
+                                &str_width,
+                            ),
+                            crate::config::WrapMode::None => para.push_raw(&styled),
+                        }
                     }
                 }
                 Event::Rule => {
@@ -651,7 +616,16 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                             state.push_text("\n");
                         }
                     } else {
-                        para.wrap_and_push(&scope, self.cfg.width, " ", &mut self.sink, &str_width);
+                        match self.cfg.wrap_mode {
+                            crate::config::WrapMode::Greedy => para.wrap_and_push(
+                                &scope,
+                                self.cfg.width,
+                                " ",
+                                &mut self.sink,
+                                &str_width,
+                            ),
+                            crate::config::WrapMode::None => para.push_raw(" "),
+                        }
                     }
                 }
                 Event::HardBreak => {
@@ -668,7 +642,16 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                 }
                 Event::TaskListMarker(checked) => {
                     let text = if checked { "[✓] " } else { "[ ] " };
-                    para.wrap_and_push(&scope, self.cfg.width, text, &mut self.sink, &str_width);
+                    match self.cfg.wrap_mode {
+                        crate::config::WrapMode::Greedy => para.wrap_and_push(
+                            &scope,
+                            self.cfg.width,
+                            text,
+                            &mut self.sink,
+                            &str_width,
+                        ),
+                        crate::config::WrapMode::None => para.push_raw(text),
+                    }
                 }
                 _ => {}
             }
@@ -680,164 +663,7 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
         Ok(())
     }
 
-    /// Render a code block with syntax highlighting using bat
-    #[cfg(feature = "syntax-highlighting")]
-    fn render_highlighted_code_block(&mut self, code_buffer: &str, scope: &[Scope], indent: usize) {
-        if let Some(Scope::CodeBlock(lang)) = scope.last() {
-            let mut output_buffer = String::new();
-
-            let mut printer = PrettyPrinter::new();
-            printer
-                .header(false)
-                .grid(false)
-                .line_numbers(false)
-                .rule(false)
-                .use_italics(true)
-                .tab_width(Some(4));
-
-            // Set language if specified
-            if !lang.is_empty() {
-                printer.language(lang);
-            }
-
-            // Use appropriate theme for dark terminals
-            printer.theme("OneHalfDark");
-
-            let input = Input::from_bytes(code_buffer.as_bytes()).name("code-block");
-
-            printer.input(input);
-
-            match printer.print_with_writer(Some(&mut output_buffer)) {
-                Ok(_) => {
-                    // Split the output into lines and write with proper indentation
-                    for line in output_buffer.lines() {
-                        let _ = self.sink.write_line(line, indent);
-                    }
-                }
-                Err(_) => {
-                    // Fall back to plain styling if bat fails
-                    self.render_plain_code_block(code_buffer, indent);
-                }
-            }
-        }
-    }
-
-    /// Render a plain code block without syntax highlighting
-    fn render_plain_code_block(&mut self, code_buffer: &str, indent: usize) {
-        for line in code_buffer.lines() {
-            self.render_plain_code_line(line, indent);
-        }
-    }
-
-    /// Render a single line of code with the default code block styling
-    fn render_plain_code_line(&mut self, line: &str, indent: usize) {
-        let styled_line = self.color_theme.code_block.apply(line);
-        let _ = self.sink.write_line(&styled_line, indent);
-    }
-
-    fn resolve_image_path(raw: &str, file_path: Option<&Path>) -> PathBuf {
-        let path = Path::new(raw);
-        if path.is_absolute() {
-            return path.to_path_buf();
-        }
-        if path.exists() {
-            return path.to_path_buf();
-        }
-        if let Some(p) = file_path.and_then(|f| f.parent()) {
-            let cand = p.join(path);
-            if cand.exists() {
-                return cand;
-            }
-        }
-        path.to_path_buf()
-    }
+    // rendering helpers moved to submodules
 }
 
-#[derive(Debug, Default, Clone)]
-struct TableState {
-    headers: Vec<String>,
-    rows: Vec<Vec<String>>,
-    cur_row: Vec<String>,
-    cur_cell: String,
-    in_head: bool,
-    alignments: Vec<Alignment>,
-}
-
-impl TableState {
-    fn new() -> Self {
-        Self::default()
-    }
-    fn start_row(&mut self) {
-        self.cur_row.clear();
-    }
-    fn start_cell(&mut self) {
-        self.cur_cell.clear();
-    }
-    fn push_text(&mut self, s: &str) {
-        self.cur_cell.push_str(s);
-    }
-    fn finish_cell(&mut self) {
-        self.cur_row.push(self.cur_cell.clone());
-        self.cur_cell.clear();
-    }
-    fn finish_row(&mut self) {
-        if self.in_head && self.headers.is_empty() {
-            self.headers = self.cur_row.clone();
-        } else {
-            self.rows.push(self.cur_row.clone());
-        }
-        self.cur_row.clear();
-    }
-}
-
-impl<B: ImageBackend, S: Sink> Renderer<B, S> {
-    fn render_table(&mut self, state: TableState, scope: &[Scope]) -> io::Result<()> {
-        // Compute indent and available width using strong types
-        let base_indent: usize = scope.iter().map(|s| s.indent().0).sum();
-        let indent = base_indent;
-        let available = self.cfg.width.0.saturating_sub(indent);
-
-        let mut table = Table::new();
-        // Choose preset according to glyph theme
-        // Default GlyphTheme uses a UTF8 hr char; ASCII theme uses '-'
-        if self.glyph_theme.hr == '─' {
-            table.load_preset(presets::UTF8_FULL);
-            // Prefer solid lines for inner separators
-            use comfy_table::TableComponent as TC;
-            table
-                .set_style(TC::VerticalLines, '│')
-                .set_style(TC::HorizontalLines, '─');
-        } else {
-            table.load_preset(presets::ASCII_FULL);
-        }
-        table
-            .set_content_arrangement(ContentArrangement::Dynamic)
-            .set_width(available as u16);
-
-        if !state.headers.is_empty() {
-            table.set_header(state.headers.clone());
-        }
-        for row in state.rows {
-            table.add_row(row);
-        }
-
-        // Map Markdown alignments to comfy-table column alignment
-        use comfy_table::CellAlignment as CtAlign;
-        for (i, a) in state.alignments.iter().enumerate() {
-            if let Some(col) = table.column_mut(i) {
-                let ca = match a {
-                    Alignment::Left => CtAlign::Left,
-                    Alignment::Right => CtAlign::Right,
-                    Alignment::Center => CtAlign::Center,
-                    Alignment::None => CtAlign::Left,
-                };
-                col.set_cell_alignment(ca);
-            }
-        }
-
-        for line in table.lines() {
-            let _ = self.sink.write_line(&line, indent);
-        }
-        Ok(())
-    }
-}
+use table::TableState;

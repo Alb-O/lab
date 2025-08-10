@@ -30,7 +30,7 @@ Features include:
 
 5.  Rules
 6.  `Inline code`
-7.  Code blocks, with optional syntax highlighting (via `bat`) using `--highlight`.
+7.  Code blocks, with optional syntax highlighting (via `bat`) using `--highlight` and selectable code theme.
     ```rust
     fn main() {
         println!("Hello world");
@@ -71,7 +71,7 @@ Not a very good comparison... this is more of an example of a table!
 
 ## Styling
 
-By default, headings are bold; inline code is reversed. If you want syntax highlighting for fenced blocks, pass `--highlight` (uses `bat` under the hood).
+By default, headings are bold; inline code is reversed. If you want syntax highlighting for fenced blocks, pass `--highlight` (uses `bat`), and choose a code theme with `--code-theme` or let it auto-pick based on `--color-theme`.
 
 ## Installation
 
@@ -90,8 +90,11 @@ paper --help
 # Render README.md
 paper README.md
 
-# Render README.md
-paper README.md
+# Dark colors, ASCII glyphs, highlighted code, Nord theme
+paper --color-theme dark --theme ascii --highlight --code-theme nord README.md
+
+# No wrapping (preserve long lines)
+paper --wrap none README.md
 ```
 
 ```

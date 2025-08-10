@@ -9,7 +9,10 @@ use terminal_size::{Width, terminal_size};
 
 // use the library crate API
 
-use paper_terminal::{Cells, ColorThemeName, Config, Renderer, ThemeName};
+use paper_terminal::code_theme::CodeThemeName;
+use paper_terminal::code_theme::CodeThemeSetting;
+use paper_terminal::config::WrapMode;
+use paper_terminal::{Cells, ColorThemeName, Config, GlyphThemeName, Renderer};
 
 /// Minimal terminal Markdown renderer with optional inline images
 #[derive(clap::Parser, Debug)]
@@ -68,13 +71,31 @@ pub struct Opts {
     #[arg(long)]
     completions: Option<Shell>,
 
-    /// GlyphTheme for bullets and rules
-    #[arg(long, value_enum, default_value = "unicode")]
-    pub theme: ThemeName,
+    /// Glyph theme for bullets and rules
+    #[arg(
+        long = "theme",
+        visible_alias = "glyph-theme",
+        value_enum,
+        default_value = "unicode"
+    )]
+    pub glyph_theme: GlyphThemeName,
 
-    /// Color theme for markdown elements
-    #[arg(long, value_enum, default_value = "light")]
+    /// Color theme (text colors/attributes)
+    #[arg(
+        long = "color-theme",
+        value_enum,
+        default_value = "light",
+        visible_alias = "style"
+    )]
     pub color_theme: ColorThemeName,
+
+    /// Code highlight theme (for --highlight). Omit to auto-pick based on color theme.
+    #[arg(long = "code-theme", value_enum)]
+    pub code_theme: Option<CodeThemeName>,
+
+    /// Paragraph wrapping mode
+    #[arg(long = "wrap", value_enum, default_value = "greedy")]
+    pub wrap_mode: WrapMode,
 }
 
 fn normalize(tab_len: usize, source: &str) -> String {
@@ -119,8 +140,13 @@ where
         no_images: opts.no_images,
         syncat: opts.highlight,
         dev: opts.dev,
-        theme: opts.theme,
+        glyph_theme: opts.glyph_theme,
         color_theme: opts.color_theme,
+        code_theme: match opts.code_theme {
+            Some(n) => CodeThemeSetting::Named(n),
+            None => CodeThemeSetting::Auto,
+        },
+        wrap_mode: opts.wrap_mode,
     }
     .validate();
     let mut renderer = Renderer::<paper_terminal::media::RasteroidBackend>::new(cfg);
