@@ -200,7 +200,7 @@ impl<'a> Printer<'a> {
                 let prefix = scope.prefix();
                 let mut all_scopes = scopes.clone();
                 all_scopes.append(&mut extra_scopes.unwrap_or(&[]).to_vec());
-                let style = Self::resolve_scopes(&stylesheet, &all_scopes, Some("prefix"));
+                let style = Self::resolve_scopes(stylesheet, &all_scopes, Some("prefix"));
                 Some((format!("{}", style.paint(&prefix)), str_width(&prefix)))
             })
             .fold((String::new(), 0), |(s, c), (s2, c2)| (s + &s2, c + c2))
@@ -219,7 +219,7 @@ impl<'a> Printer<'a> {
                 let suffix = scope.suffix();
                 let mut all_scopes = scopes.clone();
                 all_scopes.append(&mut extra_scopes.unwrap_or(&[]).to_vec());
-                let style = Self::resolve_scopes(&stylesheet, &all_scopes, Some("suffix"));
+                let style = Self::resolve_scopes(stylesheet, &all_scopes, Some("suffix"));
                 Some((format!("{}", style.paint(&suffix)), str_width(&suffix)))
             })
             .fold((String::new(), 0), |(s, c), (s2, c2)| (s2 + &s, c + c2))
@@ -230,7 +230,7 @@ impl<'a> Printer<'a> {
         if let Some(extras) = extra_scopes {
             scope_names.append(&mut extras.to_vec());
         }
-        Self::resolve_scopes(&self.stylesheet, &scope_names, token)
+        Self::resolve_scopes(self.stylesheet, &scope_names, token)
     }
 
     fn resolve_scopes(stylesheet: &Stylesheet, scopes: &[&str], token: Option<&str>) -> Style {
@@ -240,7 +240,7 @@ impl<'a> Printer<'a> {
         let mut query = Query::new(scopes[0], token.unwrap_or(scopes[0]));
         let mut index = vec![];
         for scope in &scopes[1..] {
-            query[&index[..]].add_child(Query::new(*scope, token.unwrap_or(scope)));
+            query[&index[..]].add_child(Query::new(scope, token.unwrap_or(scope)));
             index.push(0);
         }
         stylesheet
@@ -325,7 +325,7 @@ impl<'a> Printer<'a> {
         } else {
             return;
         };
-        let (heading, rows) = std::mem::replace(&mut self.table, (vec![], vec![]));
+        let (heading, rows) = std::mem::take(&mut self.table);
         let available_width = self
             .width
             .saturating_sub(self.prefix_len())
@@ -351,143 +351,136 @@ impl<'a> Printer<'a> {
     }
 
     fn flush_buffer(&mut self) {
-        match self.scope.last() {
-            Some(Scope::CodeBlock(lang)) => {
-                let language_context = if lang.is_empty() || !self.opts.syncat {
-                    String::from("txt")
-                } else {
-                    lang.to_owned()
-                };
-                let style = self.style3(Some(&[&language_context[..]]), None);
-                let lang = lang.to_owned();
-                let mut first_prefix = Some(self.prefix2(Some(&[&language_context[..]])));
-                let mut first_suffix = Some(self.suffix2(Some(&[&language_context[..]])));
+        if let Some(Scope::CodeBlock(lang)) = self.scope.last() {
+            let language_context = if lang.is_empty() || !self.opts.syncat {
+                String::from("txt")
+            } else {
+                lang.to_owned()
+            };
+            let style = self.style3(Some(&[&language_context[..]]), None);
+            let lang = lang.to_owned();
+            let mut first_prefix = Some(self.prefix2(Some(&[&language_context[..]])));
+            let mut first_suffix = Some(self.suffix2(Some(&[&language_context[..]])));
 
-                let available_width = self
-                    .width
-                    .saturating_sub(first_prefix.as_ref().unwrap().1)
-                    .saturating_sub(first_suffix.as_ref().unwrap().1);
-                let buffer = std::mem::replace(&mut self.buffer, String::new());
-                let buffer = if self.opts.syncat {
-                    let syncat = Command::new("syncat")
-                        .args(&["-l", &lang, "-w", &available_width.to_string()])
-                        .stdin(Stdio::piped())
-                        .stdout(Stdio::piped())
-                        .spawn();
-                    match syncat {
-                        Ok(syncat) => {
-                            {
-                                let mut stdin = syncat.stdin.unwrap();
-                                write!(stdin, "{}", buffer).unwrap();
-                            }
-                            let mut output = String::new();
-                            syncat.stdout.unwrap().read_to_string(&mut output).unwrap();
-                            output
+            let available_width = self
+                .width
+                .saturating_sub(first_prefix.as_ref().unwrap().1)
+                .saturating_sub(first_suffix.as_ref().unwrap().1);
+            let buffer = std::mem::take(&mut self.buffer);
+            let buffer = if self.opts.syncat {
+                let syncat = Command::new("syncat")
+                    .args(["-l", &lang, "-w", &available_width.to_string()])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn();
+                match syncat {
+                    Ok(syncat) => {
+                        {
+                            let mut stdin = syncat.stdin.unwrap();
+                            write!(stdin, "{buffer}").unwrap();
                         }
-                        Err(error) => {
-                            eprintln!("{}", error);
-                            buffer.to_owned()
-                        }
+                        let mut output = String::new();
+                        syncat.stdout.unwrap().read_to_string(&mut output).unwrap();
+                        output
                     }
-                } else {
-                    buffer
-                        .lines()
-                        .map(|mut line| {
-                            let mut output = String::new();
-                            while str_width(&line) > available_width {
-                                let not_too_wide = {
-                                    let mut acc = 0;
-                                    move |ch: &char| {
-                                        acc += str_width(&ch.to_string());
-                                        acc < available_width
-                                    }
-                                };
-                                let prefix =
-                                    line.chars().take_while(not_too_wide).collect::<String>();
-                                output = format!("{}{}\n", output, prefix);
-                                line = &line[prefix.len()..];
-                            }
-                            format!(
-                                "{}{}{}\n",
-                                output,
-                                line,
-                                " ".repeat(available_width.saturating_sub(str_width(&line)))
-                            )
-                        })
-                        .collect()
-                };
-
-                let (prefix, _) = first_prefix
-                    .take()
-                    .unwrap_or_else(|| self.prefix2(Some(&[&language_context[..]])));
-                let (suffix, _) = first_suffix
-                    .take()
-                    .unwrap_or_else(|| self.suffix2(Some(&[&language_context[..]])));
-                println!(
-                    "{}{}{}{}{}{}{}",
-                    self.centering,
-                    self.margin,
-                    prefix,
-                    style.paint(" ".repeat(available_width)),
-                    suffix,
-                    self.margin,
-                    self.shadow(),
-                );
-
-                for line in buffer.lines() {
-                    let width = str_width(line);
-                    let (prefix, _) = self.prefix2(Some(&[&language_context[..]]));
-                    let (suffix, _) = self.suffix2(Some(&[&language_context[..]]));
-                    print!(
-                        "{}{}{}{}",
-                        self.centering,
-                        self.margin,
-                        prefix,
-                        style.prefix(),
-                    );
-                    for (s, is_ansi) in AnsiCodeIterator::new(line) {
-                        if is_ansi {
-                            if s == "\u{1b}[0m" {
-                                print!("{}{}", s, style.prefix());
-                            } else {
-                                print!("{}{}", style.prefix(), s);
-                            }
-                        } else {
-                            print!("{}", s);
-                        }
+                    Err(error) => {
+                        eprintln!("{error}");
+                        buffer.to_owned()
                     }
-                    println!(
-                        "{}{}{}{}",
-                        style.paint(" ".repeat(available_width.saturating_sub(width))),
-                        suffix,
-                        self.margin,
-                        self.shadow(),
-                    );
                 }
+            } else {
+                buffer
+                    .lines()
+                    .map(|mut line| {
+                        let mut output = String::new();
+                        while str_width(line) > available_width {
+                            let not_too_wide = {
+                                let mut acc = 0;
+                                move |ch: &char| {
+                                    acc += str_width(&ch.to_string());
+                                    acc < available_width
+                                }
+                            };
+                            let prefix = line.chars().take_while(not_too_wide).collect::<String>();
+                            output = format!("{output}{prefix}\n");
+                            line = &line[prefix.len()..];
+                        }
+                        format!(
+                            "{}{}{}\n",
+                            output,
+                            line,
+                            " ".repeat(available_width.saturating_sub(str_width(line)))
+                        )
+                    })
+                    .collect()
+            };
 
-                let (prefix, _) = first_prefix
-                    .take()
-                    .unwrap_or_else(|| self.prefix2(Some(&[&language_context[..]])));
-                let (suffix, _) = first_suffix
-                    .take()
-                    .unwrap_or_else(|| self.suffix2(Some(&[&language_context[..]])));
-                println!(
-                    "{}{}{}{}{}{}{}",
+            let (prefix, _) = first_prefix
+                .take()
+                .unwrap_or_else(|| self.prefix2(Some(&[&language_context[..]])));
+            let (suffix, _) = first_suffix
+                .take()
+                .unwrap_or_else(|| self.suffix2(Some(&[&language_context[..]])));
+            println!(
+                "{}{}{}{}{}{}{}",
+                self.centering,
+                self.margin,
+                prefix,
+                style.paint(" ".repeat(available_width)),
+                suffix,
+                self.margin,
+                self.shadow(),
+            );
+
+            for line in buffer.lines() {
+                let width = str_width(line);
+                let (prefix, _) = self.prefix2(Some(&[&language_context[..]]));
+                let (suffix, _) = self.suffix2(Some(&[&language_context[..]]));
+                print!(
+                    "{}{}{}{}",
                     self.centering,
                     self.margin,
                     prefix,
-                    format!(
-                        "{}{}",
-                        style.paint(" ".repeat(available_width.saturating_sub(str_width(&lang)))),
-                        self.style3(Some(&[&language_context[..]]), Some("lang-tag"))
-                            .paint(lang)
-                    ),
+                    style.prefix(),
+                );
+                for (s, is_ansi) in AnsiCodeIterator::new(line) {
+                    if is_ansi {
+                        if s == "\u{1b}[0m" {
+                            print!("{}{}", s, style.prefix());
+                        } else {
+                            print!("{}{}", style.prefix(), s);
+                        }
+                    } else {
+                        print!("{s}");
+                    }
+                }
+                println!(
+                    "{}{}{}{}",
+                    style.paint(" ".repeat(available_width.saturating_sub(width))),
                     suffix,
                     self.margin,
                     self.shadow(),
                 );
             }
-            _ => {}
+
+            let (prefix, _) = first_prefix
+                .take()
+                .unwrap_or_else(|| self.prefix2(Some(&[&language_context[..]])));
+            let (suffix, _) = first_suffix
+                .take()
+                .unwrap_or_else(|| self.suffix2(Some(&[&language_context[..]])));
+            println!(
+                "{}{}{}{}{}{}{}{}",
+                self.centering,
+                self.margin,
+                prefix,
+                style.paint(" ".repeat(available_width.saturating_sub(str_width(&lang)))),
+                self.style3(Some(&[&language_context[..]]), Some("lang-tag"))
+                    .paint(lang),
+                suffix,
+                self.margin,
+                self.shadow(),
+            );
         }
     }
 
@@ -498,14 +491,7 @@ impl<'a> Printer<'a> {
         if self
             .scope
             .iter()
-            .find(|scope| {
-                if let Scope::Table(..) = scope {
-                    true
-                } else {
-                    false
-                }
-            })
-            .is_some()
+            .any(|scope| matches!(scope, Scope::Table(..)))
         {
             return;
         }
@@ -536,19 +522,9 @@ impl<'a> Printer<'a> {
     }
 
     fn target(&mut self) -> &mut String {
-        if self
-            .scope
-            .iter()
-            .find(|scope| *scope == &Scope::TableHead)
-            .is_some()
-        {
+        if self.scope.iter().any(|scope| scope == &Scope::TableHead) {
             self.table.0.last_mut().unwrap()
-        } else if self
-            .scope
-            .iter()
-            .find(|scope| *scope == &Scope::TableRow)
-            .is_some()
-        {
+        } else if self.scope.iter().any(|scope| scope == &Scope::TableRow) {
             self.table.1.last_mut().unwrap().last_mut().unwrap()
         } else {
             &mut self.content
@@ -580,7 +556,7 @@ impl<'a> Printer<'a> {
                 .width
                 .saturating_sub(self.prefix_len())
                 .saturating_sub(self.suffix_len());
-            while str_width(&self.content) + str_width(&word) > available_len {
+            while str_width(&self.content) + str_width(word) > available_len {
                 let part = word.chars().take(available_len).collect::<String>();
                 self.target().push_str(&format!("{}", style.paint(&part)));
                 word = &word[part.len()..];
@@ -622,11 +598,11 @@ impl<'a> Printer<'a> {
                             None => {}
                             Some(BlockQuoteKind::Note) => {
                                 let style = Self::resolve_scopes(
-                                    &self.stylesheet,
+                                    self.stylesheet,
                                     &["note-blockquote"],
                                     Some("prefix"),
                                 );
-                                self.handle_text(&format!(
+                                self.handle_text(format!(
                                     "{} {}",
                                     style.paint("󰋽"),
                                     style.paint("Note")
@@ -634,11 +610,11 @@ impl<'a> Printer<'a> {
                             }
                             Some(BlockQuoteKind::Tip) => {
                                 let style = Self::resolve_scopes(
-                                    &self.stylesheet,
+                                    self.stylesheet,
                                     &["tip-blockquote"],
                                     Some("prefix"),
                                 );
-                                self.handle_text(&format!(
+                                self.handle_text(format!(
                                     "{} {}",
                                     style.paint("󰌶"),
                                     style.paint("Tip")
@@ -646,11 +622,11 @@ impl<'a> Printer<'a> {
                             }
                             Some(BlockQuoteKind::Important) => {
                                 let style = Self::resolve_scopes(
-                                    &self.stylesheet,
+                                    self.stylesheet,
                                     &["important-blockquote"],
                                     Some("prefix"),
                                 );
-                                self.handle_text(&format!(
+                                self.handle_text(format!(
                                     "{} {}",
                                     style.paint("󱋉"),
                                     style.paint("Important")
@@ -658,11 +634,11 @@ impl<'a> Printer<'a> {
                             }
                             Some(BlockQuoteKind::Warning) => {
                                 let style = Self::resolve_scopes(
-                                    &self.stylesheet,
+                                    self.stylesheet,
                                     &["warning-blockquote"],
                                     Some("prefix"),
                                 );
-                                self.handle_text(&format!(
+                                self.handle_text(format!(
                                     "{} {}",
                                     style.paint("󰀪"),
                                     style.paint("Warning")
@@ -670,11 +646,11 @@ impl<'a> Printer<'a> {
                             }
                             Some(BlockQuoteKind::Caution) => {
                                 let style = Self::resolve_scopes(
-                                    &self.stylesheet,
+                                    self.stylesheet,
                                     &["caution-blockquote"],
                                     Some("prefix"),
                                 );
-                                self.handle_text(&format!(
+                                self.handle_text(format!(
                                     "{} {}",
                                     style.paint("󰳦"),
                                     style.paint("Caution")
@@ -717,7 +693,7 @@ impl<'a> Printer<'a> {
                     Tag::FootnoteDefinition(text) => {
                         self.flush();
                         self.scope.push(Scope::FootnoteDefinition);
-                        self.handle_text(&format!("{}:", text));
+                        self.handle_text(format!("{text}:"));
                         self.scope.pop();
                         self.flush();
                         self.scope.push(Scope::FootnoteContent);
@@ -732,12 +708,7 @@ impl<'a> Printer<'a> {
                     }
                     Tag::TableCell => {
                         self.scope.push(Scope::TableCell);
-                        if self
-                            .scope
-                            .iter()
-                            .find(|scope| *scope == &Scope::TableHead)
-                            .is_some()
-                        {
+                        if self.scope.iter().any(|scope| scope == &Scope::TableHead) {
                             self.table.0.push(String::new());
                         } else {
                             self.table.1.last_mut().unwrap().push(String::new());
@@ -810,7 +781,7 @@ impl<'a> Printer<'a> {
                                     });
                                     self.handle_text(dest_url);
                                     self.scope.pop();
-                                    self.handle_text(&format!(": {}", error));
+                                    self.handle_text(format!(": {error}"));
                                     self.scope.push(Scope::Caption);
                                     self.flush();
                                 }
@@ -905,11 +876,11 @@ impl<'a> Printer<'a> {
                         panic!()
                     };
                     if !title.is_empty() && !dest_url.is_empty() && !self.opts.hide_urls {
-                        self.handle_text(format!(" <{}: {}>", title, dest_url));
+                        self.handle_text(format!(" <{title}: {dest_url}>"));
                     } else if !dest_url.is_empty() && !self.opts.hide_urls {
-                        self.handle_text(format!(" <{}>", dest_url));
+                        self.handle_text(format!(" <{dest_url}>"));
                     } else if !title.is_empty() {
-                        self.handle_text(format!(" <{}>", title));
+                        self.handle_text(format!(" <{title}>"));
                     }
                 }
                 TagEnd::Image => {
@@ -948,7 +919,7 @@ impl<'a> Printer<'a> {
             }
             Event::FootnoteReference(text) => {
                 self.scope.push(Scope::FootnoteReference);
-                self.handle_text(&format!("[{}]", text));
+                self.handle_text(format!("[{text}]"));
                 self.scope.pop();
             }
             Event::SoftBreak => {

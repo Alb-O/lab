@@ -107,7 +107,7 @@ fn normalize(tab_len: usize, source: &str) -> String {
                 line
             }
         })
-        .map(|line| format!("{}\n", line))
+        .map(|line| format!("{line}\n"))
         .collect::<String>()
 }
 
@@ -157,14 +157,14 @@ where
         let source = match source {
             Ok(source) => normalize(opts.tab_length, &source),
             Err(error) => {
-                println!("{}", error);
+                println!("{error}");
                 continue;
             }
         };
         if opts.plain {
-            println!("{}{}", left_space, blank_line);
+            println!("{left_space}{blank_line}");
             for _ in 0..v_margin {
-                println!("{}{}{}", left_space, blank_line, end_shadow);
+                println!("{left_space}{blank_line}{end_shadow}");
             }
 
             for line in source.lines() {
@@ -209,19 +209,19 @@ where
                 );
             }
             for _ in 0..v_margin {
-                println!("{}{}{}", left_space, blank_line, end_shadow);
+                println!("{left_space}{blank_line}{end_shadow}");
             }
             println!("{} {}", left_space, shadow_style.paint(" ".repeat(width)));
         } else if opts.dev {
             let parser = Parser::new_ext(&source, Options::all());
             for event in parser {
-                println!("{:?}", event);
+                println!("{event:?}");
             }
         } else {
             let parser = Parser::new_ext(&source, Options::all());
-            println!("{}{}", left_space, blank_line);
+            println!("{left_space}{blank_line}");
             for _ in 0..v_margin {
-                println!("{}{}{}", left_space, blank_line, end_shadow);
+                println!("{left_space}{blank_line}{end_shadow}");
             }
 
             let mut printer =
@@ -231,7 +231,7 @@ where
             }
 
             for _ in 0..v_margin {
-                println!("{}{}{}", left_space, blank_line, end_shadow);
+                println!("{left_space}{blank_line}{end_shadow}");
             }
             println!("{} {}", left_space, shadow_style.paint(" ".repeat(width)));
         }

@@ -140,7 +140,7 @@ fn print_row<W: Write>(
     row: &[String],
     paper_style: Style,
 ) {
-    let mut row_words = row.into_iter().map(|s| Words::new(s)).collect::<Vec<_>>();
+    let mut row_words = row.iter().map(Words::new).collect::<Vec<_>>();
     loop {
         let mut done = true;
         write!(w, "{}", paper_style.paint("│")).unwrap();
@@ -157,19 +157,14 @@ fn print_row<W: Write>(
                     continue;
                 }
             };
-            loop {
-                match words.next() {
-                    Some(next) => {
-                        if str_width(&line) + str_width(&next) <= cols[i] {
-                            line += &next;
-                        } else {
-                            words.undo();
-                            done = false;
-                            break;
-                        }
-                    }
-                    None => break,
-                };
+            while let Some(next) = words.next() {
+                if str_width(&line) + str_width(&next) <= cols[i] {
+                    line += &next;
+                } else {
+                    words.undo();
+                    done = false;
+                    break;
+                }
             }
             line = line.trim().to_string();
             let padded = if alignment[i] == Alignment::Center {
@@ -193,7 +188,7 @@ fn print_row<W: Write>(
             };
             write!(w, "{}", paper_style.paint(padded)).unwrap();
         }
-        write!(w, "\n").unwrap();
+        writeln!(w).unwrap();
         if done {
             break;
         }
@@ -213,11 +208,11 @@ fn print_separator<W: Write>(
         .iter()
         .map(|width| mid.to_string().repeat(*width))
         .collect::<Vec<_>>()
-        .join(&format!("{}{}{}", mid, cross, mid));
-    write!(
+        .join(&format!("{mid}{cross}{mid}"));
+    writeln!(
         w,
-        "{}\n",
-        paper_style.paint(format!("{}{}{}{}{}", left, mid, line, mid, right))
+        "{}",
+        paper_style.paint(format!("{left}{mid}{line}{mid}{right}"))
     )
     .unwrap();
 }

@@ -35,7 +35,7 @@ pub fn print_image<W: Write>(
                 })
                 .collect();
 
-            write!(w, "{}\n", ANSIStrings(&row)).ok();
+            writeln!(w, "{}", ANSIStrings(&row)).ok();
         }
     } else {
         let mut row = Vec::new();
@@ -58,8 +58,8 @@ pub fn print_image<W: Write>(
                 .unwrap();
             }
 
-            write!(row, "\x1b[m\n").unwrap();
-            w.write(&row).unwrap();
+            writeln!(row, "\x1b[m").unwrap();
+            w.write_all(&row).unwrap();
             row.clear();
         }
     }
@@ -68,8 +68,7 @@ pub fn print_image<W: Write>(
 fn find_colour_index(pixel: &[u8]) -> u8 {
     let mut best = 0;
     let mut best_distance = 255 * 255 * 3 + 1;
-    for i in 16..255 {
-        let ansi_colour = ANSI_COLOURS[i];
+    for (i, ansi_colour) in ANSI_COLOURS.iter().enumerate().take(255).skip(16) {
         let dr = ansi_colour[0] - pixel[0] as i32;
         let dg = ansi_colour[1] - pixel[1] as i32;
         let db = ansi_colour[2] - pixel[2] as i32;
@@ -81,7 +80,7 @@ fn find_colour_index(pixel: &[u8]) -> u8 {
         }
     }
 
-    return best;
+    best
 }
 
 fn blend_alpha(pixel: &mut image::Rgba<u8>) {
