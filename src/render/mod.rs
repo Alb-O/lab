@@ -1,7 +1,8 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use comfy_table::{ContentArrangement, Table, presets};
+use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::config::Config;
 use crate::media::{ImageBackend, RasteroidBackend};
@@ -42,6 +43,8 @@ enum Scope {
     DefinitionList,
     DefinitionTitle,
     DefinitionDesc,
+    // Collects Markdown table content until the table ends
+    TableCollect(TableState),
 }
 
 impl IndentedScope for Scope {
@@ -168,6 +171,29 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
         for event in Parser::new_ext(source, Options::all()) {
             match event {
                 Event::Start(tag) => match tag {
+                    Tag::Table(alignments) => {
+                        // Finish any running paragraph, then prepare table collection
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::Table, &scope);
+                        let mut st = TableState::new();
+                        st.alignments = alignments.into_iter().collect();
+                        scope.push(Scope::TableCollect(st));
+                    }
+                    Tag::TableHead => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.in_head = true;
+                        }
+                    }
+                    Tag::TableRow => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.start_row();
+                        }
+                    }
+                    Tag::TableCell => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.start_cell();
+                        }
+                    }
                     Tag::Paragraph => {
                         self.ensure_spacing_before(Block::Paragraph, &scope);
                     }
@@ -286,6 +312,28 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     _ => {}
                 },
                 Event::End(tag) => match tag {
+                    TagEnd::TableCell => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.finish_cell();
+                        }
+                    }
+                    TagEnd::TableRow => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.finish_row();
+                        }
+                    }
+                    TagEnd::TableHead => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.in_head = false;
+                        }
+                    }
+                    TagEnd::Table => {
+                        // Render the collected table using comfy-table
+                        if let Some(Scope::TableCollect(state)) = scope.pop() {
+                            self.render_table(state, &scope)?;
+                            self.last_block = Some(Block::Table);
+                        }
+                    }
                     TagEnd::Paragraph => {
                         para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                         self.last_block = Some(Block::Paragraph);
@@ -379,33 +427,39 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     }
                     TagEnd::Link => {
                         if let Some(Scope::Link { dest_url, title }) = scope.pop() {
-                            if !title.is_empty() && !dest_url.is_empty() && !self.cfg.hide_urls {
-                                let text = format!(" <{title}: {dest_url}>");
-                                para.wrap_and_push(
-                                    &scope,
-                                    self.cfg.width,
-                                    &text,
-                                    &mut self.sink,
-                                    &str_width,
-                                );
-                            } else if !dest_url.is_empty() && !self.cfg.hide_urls {
-                                let text = format!(" <{dest_url}>");
-                                para.wrap_and_push(
-                                    &scope,
-                                    self.cfg.width,
-                                    &text,
-                                    &mut self.sink,
-                                    &str_width,
-                                );
-                            } else if !title.is_empty() {
-                                let text = format!(" <{title}>");
-                                para.wrap_and_push(
-                                    &scope,
-                                    self.cfg.width,
-                                    &text,
-                                    &mut self.sink,
-                                    &str_width,
-                                );
+                            let text_opt =
+                                if !title.is_empty() && !dest_url.is_empty() && !self.cfg.hide_urls
+                                {
+                                    Some(format!(" <{title}: {dest_url}>"))
+                                } else if !dest_url.is_empty() && !self.cfg.hide_urls {
+                                    Some(format!(" <{dest_url}>"))
+                                } else if !title.is_empty() {
+                                    Some(format!(" <{title}>"))
+                                } else {
+                                    None
+                                };
+
+                            if let Some(text) = text_opt {
+                                // If we are inside a table, append link trail to the current cell
+                                let mut pushed_into_table = false;
+                                if let Some(table_state) =
+                                    scope.iter_mut().rev().find_map(|s| match s {
+                                        Scope::TableCollect(st) => Some(st),
+                                        _ => None,
+                                    })
+                                {
+                                    table_state.push_text(&text);
+                                    pushed_into_table = true;
+                                }
+                                if !pushed_into_table {
+                                    para.wrap_and_push(
+                                        &scope,
+                                        self.cfg.width,
+                                        &text,
+                                        &mut self.sink,
+                                        &str_width,
+                                    );
+                                }
                             }
                         }
                     }
@@ -552,6 +606,16 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                         code_buffer.push_str(&text);
                     } else if let Some(Scope::ImageCollect { alt, .. }) = scope.last_mut() {
                         alt.push_str(&text);
+                    } else if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        let styled_text = self.apply_text_styling(&text, &scope);
+                        // Convert literal "\n" into actual newlines for table cells
+                        let styled_text = styled_text.replace("\\n", "\n");
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text(&styled_text);
+                        }
                     } else {
                         let styled_text = self.apply_text_styling(&text, &scope);
                         para.wrap_and_push(
@@ -566,6 +630,14 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                 Event::Code(text) => {
                     if let Some(Scope::ImageCollect { alt, .. }) = scope.last_mut() {
                         alt.push_str(&text);
+                    } else if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        let styled = self.color_theme.code.apply(&text);
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text(&styled);
+                        }
                     } else {
                         let styled = self.color_theme.code.apply(&text);
                         para.wrap_and_push(
@@ -586,10 +658,28 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     self.last_block = Some(Block::Rule);
                 }
                 Event::SoftBreak => {
-                    para.wrap_and_push(&scope, self.cfg.width, " ", &mut self.sink, &str_width);
+                    if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text("\n");
+                        }
+                    } else {
+                        para.wrap_and_push(&scope, self.cfg.width, " ", &mut self.sink, &str_width);
+                    }
                 }
                 Event::HardBreak => {
-                    para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                    if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text("\n");
+                        }
+                    } else {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                    }
                 }
                 Event::TaskListMarker(checked) => {
                     let text = if checked { "[✓] " } else { "[ ] " };
@@ -620,5 +710,94 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
             }
         }
         path.to_path_buf()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct TableState {
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+    cur_row: Vec<String>,
+    cur_cell: String,
+    in_head: bool,
+    alignments: Vec<Alignment>,
+}
+
+impl TableState {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn start_row(&mut self) {
+        self.cur_row.clear();
+    }
+    fn start_cell(&mut self) {
+        self.cur_cell.clear();
+    }
+    fn push_text(&mut self, s: &str) {
+        self.cur_cell.push_str(s);
+    }
+    fn finish_cell(&mut self) {
+        self.cur_row.push(self.cur_cell.clone());
+        self.cur_cell.clear();
+    }
+    fn finish_row(&mut self) {
+        if self.in_head && self.headers.is_empty() {
+            self.headers = self.cur_row.clone();
+        } else {
+            self.rows.push(self.cur_row.clone());
+        }
+        self.cur_row.clear();
+    }
+}
+
+impl<B: ImageBackend, S: Sink> Renderer<B, S> {
+    fn render_table(&mut self, state: TableState, scope: &[Scope]) -> io::Result<()> {
+        // Compute indent and available width using strong types
+        let base_indent: usize = scope.iter().map(|s| s.indent().0).sum();
+        let indent = base_indent;
+        let available = self.cfg.width.0.saturating_sub(indent);
+
+        let mut table = Table::new();
+        // Choose preset according to glyph theme
+        // Default GlyphTheme uses a UTF8 hr char; ASCII theme uses '-'
+        if self.glyph_theme.hr == '─' {
+            table.load_preset(presets::UTF8_FULL);
+            // Prefer solid lines for inner separators
+            use comfy_table::TableComponent as TC;
+            table
+                .set_style(TC::VerticalLines, '│')
+                .set_style(TC::HorizontalLines, '─');
+        } else {
+            table.load_preset(presets::ASCII_FULL);
+        }
+        table
+            .set_content_arrangement(ContentArrangement::Dynamic)
+            .set_width(available as u16);
+
+        if !state.headers.is_empty() {
+            table.set_header(state.headers.clone());
+        }
+        for row in state.rows {
+            table.add_row(row);
+        }
+
+        // Map Markdown alignments to comfy-table column alignment
+        use comfy_table::CellAlignment as CtAlign;
+        for (i, a) in state.alignments.iter().enumerate() {
+            if let Some(col) = table.column_mut(i) {
+                let ca = match a {
+                    Alignment::Left => CtAlign::Left,
+                    Alignment::Right => CtAlign::Right,
+                    Alignment::Center => CtAlign::Center,
+                    Alignment::None => CtAlign::Left,
+                };
+                col.set_cell_alignment(ca);
+            }
+        }
+
+        for line in table.lines() {
+            let _ = self.sink.write_line(&line, indent);
+        }
+        Ok(())
     }
 }

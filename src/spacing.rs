@@ -6,6 +6,7 @@ pub enum Block {
     List,
     ListItem,
     CodeBlock,
+    Table,
     Rule,
     BlockQuote,
     Image,

@@ -1,0 +1,3 @@
+[submodule "crates/comfy-table"]
+	path = crates/comfy-table
+	url = https://github.com/nukesor/comfy-table
