@@ -7,14 +7,21 @@ pub enum ThemeName {
     Ascii,
 }
 
+// New names for clarity - these are about character glyphs, not colors
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum GlyphThemeName {
+    Unicode,
+    Ascii,
+}
+
 #[derive(Debug, Clone)]
-pub struct Theme {
+pub struct GlyphTheme {
     pub hr: char,
     pub quote_prefix: &'static str,
     pub bullets: [char; 3],
 }
 
-impl Default for Theme {
+impl Default for GlyphTheme {
     fn default() -> Self {
         Self {
             hr: '─',
@@ -24,7 +31,7 @@ impl Default for Theme {
     }
 }
 
-impl Theme {
+impl GlyphTheme {
     pub fn ascii() -> Self {
         Self {
             hr: '-',
@@ -36,6 +43,13 @@ impl Theme {
         match name {
             ThemeName::Unicode => Default::default(),
             ThemeName::Ascii => Self::ascii(),
+        }
+    }
+
+    pub fn from_glyph_name(name: GlyphThemeName) -> Self {
+        match name {
+            GlyphThemeName::Unicode => Default::default(),
+            GlyphThemeName::Ascii => Self::ascii(),
         }
     }
     pub fn bullet_for_depth(&self, depth: usize) -> char {

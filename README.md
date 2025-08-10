@@ -47,7 +47,7 @@ Features include:
 
 9.  And even images! Here's a photo of my cat
 
-    ![My cat. His name is Cato](./cato.png)
+    ![My cat. His name is Cato](assets/cato.png)
 
 10. Task lists:
     - [x] Easy

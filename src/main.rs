@@ -9,7 +9,7 @@ use terminal_size::{Width, terminal_size};
 
 // use the library crate API
 
-use paper_terminal::{Cells, Config, Renderer, ThemeName};
+use paper_terminal::{Cells, ColorThemeName, Config, Renderer, ThemeName};
 
 /// Minimal terminal Markdown renderer with optional inline images
 #[derive(clap::Parser, Debug)]
@@ -55,9 +55,13 @@ pub struct Opts {
     #[structopt(long)]
     completions: Option<Shell>,
 
-    /// Theme for bullets and rules
+    /// GlyphTheme for bullets and rules
     #[arg(long, value_enum, default_value = "unicode")]
     pub theme: ThemeName,
+
+    /// Color theme for markdown elements
+    #[arg(long, value_enum, default_value = "light")]
+    pub color_theme: ColorThemeName,
 }
 
 fn normalize(tab_len: usize, source: &str) -> String {
@@ -103,6 +107,7 @@ where
         syncat: opts.syncat,
         dev: opts.dev,
         theme: opts.theme,
+        color_theme: opts.color_theme,
     }
     .validate();
     let mut renderer = Renderer::<paper_terminal::media::RasteroidBackend>::new(cfg);

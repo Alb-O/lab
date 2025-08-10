@@ -1,12 +1,15 @@
-use crate::types::Cells;
+use crate::sink::Sink;
+use crate::str_width::str_width;
+use crate::types::{Cells, Indent};
 
 pub trait IndentedScope {
-    fn indent(&self) -> usize;
+    fn indent(&self) -> Indent;
 }
 
 pub struct Paragraph {
     buffer: String,
     pending_prefix: Option<String>,
+    line_prefix: String,
     pub hanging_extra: usize,
 }
 
@@ -21,6 +24,7 @@ impl Paragraph {
         Self {
             buffer: String::new(),
             pending_prefix: None,
+            line_prefix: String::new(),
             hanging_extra: 0,
         }
     }
@@ -29,25 +33,36 @@ impl Paragraph {
         self.pending_prefix = Some(prefix);
     }
 
-    fn current_indent<S: IndentedScope>(scope: &[S]) -> usize {
-        scope.iter().map(|s| s.indent()).sum()
+    pub fn set_line_prefix(&mut self, prefix: String) {
+        self.line_prefix = prefix;
     }
 
-    pub fn wrap_and_push<S: IndentedScope, F: Fn(&str, usize)>(
+    pub fn clear_line_prefix(&mut self) {
+        self.line_prefix.clear();
+    }
+
+    fn current_indent<S: IndentedScope>(scope: &[S]) -> usize {
+        scope.iter().map(|s| s.indent().0).sum()
+    }
+
+    pub fn wrap_and_push<S: IndentedScope, K: Sink>(
         &mut self,
         scope: &[S],
         width: Cells,
         text: &str,
-        flush_line: &F,
+        sink: &mut K,
         str_width: &dyn Fn(&str) -> usize,
     ) {
         let base_indent = Self::current_indent(scope);
         let mut indent = base_indent + self.hanging_extra;
-        let mut first_avail = width.0.saturating_sub(indent);
+
+        let line_prefix_width = str_width(&self.line_prefix);
+        let mut first_avail = width.0.saturating_sub(indent + line_prefix_width);
+
         let prefix_width = self
             .pending_prefix
             .as_ref()
-            .map(|s| s.chars().count())
+            .map(|s| str_width(s))
             .unwrap_or(0);
         if self.pending_prefix.is_some() {
             first_avail = first_avail.saturating_sub(prefix_width);
@@ -56,16 +71,25 @@ impl Paragraph {
             let current_avail = if self.pending_prefix.is_some() {
                 first_avail
             } else {
-                width.0.saturating_sub(indent)
+                width.0.saturating_sub(indent + line_prefix_width)
             };
             if str_width(&self.buffer) + str_width(word) > current_avail {
                 let mut line = self.buffer.clone();
+                let mut write_indent = indent;
                 if let Some(prefix) = self.pending_prefix.take() {
+                    // Write the first line with the base indent only; apply hanging indent
+                    // for subsequent wrapped lines.
                     line = format!("{prefix}{line}");
                     self.hanging_extra = prefix_width;
+                    // Do NOT add hanging to this first prefixed line's indent
+                    write_indent = base_indent;
+                    // Update indent for any following lines in this paragraph
                     indent = base_indent + self.hanging_extra;
                 }
-                flush_line(&line, indent);
+                if !self.line_prefix.is_empty() {
+                    line = format!("{}{line}", self.line_prefix);
+                }
+                let _ = sink.write_line(&line, write_indent);
                 self.buffer.clear();
             }
             if self.buffer.is_empty() {
@@ -76,26 +100,31 @@ impl Paragraph {
         }
     }
 
-    pub fn flush_paragraph<S: IndentedScope, F: Fn(&str, usize)>(
+    pub fn flush_paragraph<S: IndentedScope, K: Sink>(
         &mut self,
         scope: &[S],
         _width: Cells,
-        flush_line: &F,
+        sink: &mut K,
     ) {
         if !self.buffer.is_empty() {
             let base_indent = Self::current_indent(scope);
             let mut indent = base_indent + self.hanging_extra;
             let mut line = self.buffer.clone();
+            let mut write_indent = indent;
             if let Some(prefix) = self.pending_prefix.take() {
+                // First written line uses base indent; future lines hang.
                 line = format!("{prefix}{line}");
-                let prefix_width = prefix.chars().count();
+                let prefix_width = str_width(&prefix);
                 self.hanging_extra = prefix_width;
+                write_indent = base_indent;
                 indent = base_indent + self.hanging_extra;
             }
-            flush_line(&line, indent);
+            if !self.line_prefix.is_empty() {
+                line = format!("{}{line}", self.line_prefix);
+            }
+            let _ = sink.write_line(&line, write_indent);
             self.buffer.clear();
         }
-        println!();
     }
 
     pub fn is_empty(&self) -> bool {

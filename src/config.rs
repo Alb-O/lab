@@ -1,4 +1,4 @@
-use crate::{theme::ThemeName, types::Cells};
+use crate::{style::ColorThemeName, theme::ThemeName, types::Cells};
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -9,6 +9,7 @@ pub struct Config {
     pub syncat: bool,
     pub dev: bool,
     pub theme: ThemeName,
+    pub color_theme: ColorThemeName,
 }
 
 impl Config {

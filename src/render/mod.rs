@@ -1,13 +1,16 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use ansi_term::Style;
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::config::Config;
 use crate::media::{ImageBackend, RasteroidBackend};
+use crate::sink::Sink;
+use crate::spacing::{BlankLines, Block, DefaultSpacingPolicy, SpacingPolicy};
 use crate::str_width::str_width;
-use crate::theme::Theme;
+use crate::style::ColorTheme;
+use crate::theme::GlyphTheme;
+use crate::types::Indent;
 use crate::wrap::{IndentedScope, Paragraph};
 
 #[derive(Debug)]
@@ -31,36 +34,85 @@ enum Scope {
 }
 
 impl IndentedScope for Scope {
-    fn indent(&self) -> usize {
+    fn indent(&self) -> Indent {
         match self {
-            Scope::List(..) => 2,
-            Scope::ListItem => 0,
-            Scope::BlockQuote => 2,
-            Scope::CodeBlock(..) => 2,
-            Scope::Heading(..) => 0,
-            _ => 0,
+            // Indent per list nesting level; items use hanging indent for bullets
+            Scope::List(..) => Indent(2),
+            Scope::ListItem => Indent(0),
+            Scope::BlockQuote => Indent(2),
+            Scope::CodeBlock(..) => Indent(2),
+            Scope::Heading(..) => Indent(0),
+            _ => Indent(0),
         }
     }
 }
 
-pub struct Renderer<B: ImageBackend = RasteroidBackend> {
+pub struct Renderer<B: ImageBackend = RasteroidBackend, S: Sink = crate::sink::StdoutSink> {
     cfg: Config,
-    theme: Theme,
+    glyph_theme: GlyphTheme,
+    color_theme: ColorTheme,
     images: B,
+    sink: S,
+    spacing: DefaultSpacingPolicy,
+    last_block: Option<Block>,
 }
 
-impl<B: ImageBackend + Default> Renderer<B> {
+impl<B: ImageBackend + Default, S: Sink + Default> Renderer<B, S> {
     pub fn new(cfg: Config) -> Self {
-        let theme = Theme::from_name(cfg.theme);
+        let glyph_theme = GlyphTheme::from_name(cfg.theme);
+        let color_theme = ColorTheme::from_name(cfg.color_theme);
         Self {
             cfg,
-            theme,
+            glyph_theme,
+            color_theme,
             images: B::default(),
+            sink: S::default(),
+            spacing: DefaultSpacingPolicy,
+            last_block: None,
+        }
+    }
+
+    pub fn with_sink(cfg: Config, sink: S) -> Self {
+        let glyph_theme = GlyphTheme::from_name(cfg.theme);
+        let color_theme = ColorTheme::from_name(cfg.color_theme);
+        Self {
+            cfg,
+            glyph_theme,
+            color_theme,
+            images: B::default(),
+            sink,
+            spacing: DefaultSpacingPolicy,
+            last_block: None,
         }
     }
 }
 
-impl<B: ImageBackend> Renderer<B> {
+impl<B: ImageBackend, S: Sink> Renderer<B, S> {
+    fn ensure_spacing_before(&mut self, next: Block, scope: &[Scope]) {
+        let in_list = scope.iter().any(|s| matches!(s, Scope::List(_)));
+        let BlankLines(n) = self.spacing.between(self.last_block, next, in_list);
+        for _ in 0..n {
+            let _ = self.sink.write_blank_line();
+        }
+    }
+
+    /// Apply styling to text based on the current scope stack
+    fn apply_text_styling(&self, text: &str, scope: &[Scope]) -> String {
+        let mut styled_text = text.to_string();
+
+        // Apply styles based on active scopes, in order
+        for s in scope {
+            styled_text = match s {
+                Scope::Italic => self.color_theme.emphasis.apply(&styled_text),
+                Scope::Bold => self.color_theme.strong.apply(&styled_text),
+                Scope::Link { .. } => self.color_theme.link.apply(&styled_text),
+                _ => styled_text,
+            };
+        }
+
+        styled_text
+    }
+
     pub fn render_markdown(&mut self, source: &str, file_path: Option<&Path>) -> io::Result<()> {
         if self.cfg.dev {
             for e in Parser::new_ext(source, Options::all()) {
@@ -73,27 +125,31 @@ impl<B: ImageBackend> Renderer<B> {
         let mut para = Paragraph::new();
         let mut code_buffer = String::new();
 
-        let flush_line = |line: &str, indent: usize| {
-            if line.is_empty() {
-                return;
-            }
-            let pad = " ".repeat(indent);
-            println!("{pad}{line}");
-        };
-
         for event in Parser::new_ext(source, Options::all()) {
             match event {
                 Event::Start(tag) => match tag {
-                    Tag::Paragraph => {}
+                    Tag::Paragraph => {
+                        self.ensure_spacing_before(Block::Paragraph, &scope);
+                    }
                     Tag::Heading { level, .. } => {
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::Heading, &scope);
                         scope.push(Scope::Heading(level));
                     }
                     Tag::BlockQuote(..) => {
+                        self.ensure_spacing_before(Block::BlockQuote, &scope);
                         scope.push(Scope::BlockQuote);
+                        let quote_depth = scope
+                            .iter()
+                            .filter(|s| matches!(s, Scope::BlockQuote))
+                            .count();
+                        let quote_prefix = self.glyph_theme.quote_prefix.repeat(quote_depth);
+                        let styled_prefix = self.color_theme.quote_prefix.apply(&quote_prefix);
+                        para.set_line_prefix(format!("{styled_prefix} "));
                     }
                     Tag::CodeBlock(kind) => {
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::CodeBlock, &scope);
                         let lang = match kind {
                             pulldown_cmark::CodeBlockKind::Indented => "".to_string(),
                             pulldown_cmark::CodeBlockKind::Fenced(l) => l.into_string(),
@@ -101,6 +157,9 @@ impl<B: ImageBackend> Renderer<B> {
                         scope.push(Scope::CodeBlock(lang));
                     }
                     Tag::List(start) => {
+                        // Ensure any running paragraph text is finished before a nested list begins
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::List, &scope);
                         let kind = match start {
                             Some(n) => ListKind::Ordered { next: n },
                             None => ListKind::Unordered,
@@ -108,20 +167,35 @@ impl<B: ImageBackend> Renderer<B> {
                         scope.push(Scope::List(kind));
                     }
                     Tag::Item => {
+                        self.ensure_spacing_before(Block::ListItem, &scope);
                         let depth = scope.iter().filter(|s| matches!(s, Scope::List(_))).count();
-                        let bullet = match scope.iter().rev().find_map(|s| match s {
-                            Scope::List(ListKind::Ordered { next }) => Some(next.to_string() + "."),
-                            Scope::List(ListKind::Unordered) => Some(
-                                self.theme
-                                    .bullet_for_depth(depth.saturating_sub(1))
-                                    .to_string(),
-                            ),
-                            _ => None,
-                        }) {
-                            Some(s) => s,
-                            None => String::from("-"),
-                        };
-                        para.set_prefix(format!("{bullet} "));
+                        let (bullet_text, bullet_styled) =
+                            match scope.iter().rev().find_map(|s| match s {
+                                Scope::List(ListKind::Ordered { next }) => {
+                                    let text = format!("{next}.");
+                                    Some((text.clone(), self.color_theme.list_number.apply(&text)))
+                                }
+                                Scope::List(ListKind::Unordered) => {
+                                    let text = self
+                                        .glyph_theme
+                                        .bullet_for_depth(depth.saturating_sub(1))
+                                        .to_string();
+                                    Some((text.clone(), self.color_theme.list_bullet.apply(&text)))
+                                }
+                                _ => None,
+                            }) {
+                                Some((text, styled)) => (text, styled),
+                                None => ("-".to_string(), self.color_theme.list_bullet.apply("-")),
+                            };
+
+                        // Use consistent prefix formatting; base indent handles positioning
+                        const MIN_PREFIX_CELLS: usize = 2;
+                        let bullet_cells = str_width(&bullet_text).max(1);
+                        let padding_needed = MIN_PREFIX_CELLS.saturating_sub(bullet_cells);
+                        let prefix = format!("{bullet_styled}{} ", " ".repeat(padding_needed));
+
+                        para.set_prefix(prefix);
+
                         scope.push(Scope::ListItem);
                     }
                     Tag::Emphasis => scope.push(Scope::Italic),
@@ -142,19 +216,21 @@ impl<B: ImageBackend> Renderer<B> {
                                 &scope,
                                 self.cfg.width,
                                 &text,
-                                &flush_line,
+                                &mut self.sink,
                                 &str_width,
                             );
                             continue;
                         }
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::Image, &scope);
 
                         let raw = dest_url.into_string();
                         let path = Self::resolve_image_path(&raw, file_path);
                         match std::fs::read(&path) {
                             Ok(bytes) => match image::load_from_memory(&bytes) {
                                 Ok(img) => {
-                                    let base_indent: usize = scope.iter().map(|s| s.indent()).sum();
+                                    let base_indent: usize =
+                                        scope.iter().map(|s| s.indent().0).sum();
                                     let indent = base_indent + para.hanging_extra;
                                     let available = self.cfg.width.0.saturating_sub(indent);
                                     let resized_png = self
@@ -162,16 +238,20 @@ impl<B: ImageBackend> Renderer<B> {
                                         .resize_for_width(&img, available)
                                         .unwrap_or(bytes);
                                     let _ = self.images.render_inline(&resized_png, indent as u16);
-                                    println!();
+                                    self.last_block = Some(Block::Image);
                                     if !title.is_empty() {
                                         para.wrap_and_push(
                                             &scope,
                                             self.cfg.width,
                                             &title,
-                                            &flush_line,
+                                            &mut self.sink,
                                             &str_width,
                                         );
-                                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                                        para.flush_paragraph(
+                                            &scope,
+                                            self.cfg.width,
+                                            &mut self.sink,
+                                        );
                                     }
                                 }
                                 Err(e) => {
@@ -187,39 +267,51 @@ impl<B: ImageBackend> Renderer<B> {
                 },
                 Event::End(tag) => match tag {
                     TagEnd::Paragraph => {
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.last_block = Some(Block::Paragraph);
                     }
                     TagEnd::Heading(_) => {
                         if !para.is_empty() {
-                            let base_indent: usize = scope.iter().map(|s| s.indent()).sum();
-                            let line = Style::new()
-                                .bold()
-                                .paint(para.as_str().to_string())
-                                .to_string();
-                            flush_line(&line, base_indent);
+                            let base_indent: usize = scope.iter().map(|s| s.indent().0).sum();
+                            let line = self.color_theme.heading.apply(para.as_str());
+                            let _ = self.sink.write_line(&line, base_indent);
                             para.clear();
                         }
-                        println!();
                         scope.pop();
+                        self.last_block = Some(Block::Heading);
                     }
                     TagEnd::BlockQuote(..) => {
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                         scope.pop();
+                        self.last_block = Some(Block::BlockQuote);
+                        let quote_depth = scope
+                            .iter()
+                            .filter(|s| matches!(s, Scope::BlockQuote))
+                            .count();
+                        if quote_depth > 0 {
+                            let quote_prefix = self.glyph_theme.quote_prefix.repeat(quote_depth);
+                            let styled_prefix = self.color_theme.quote_prefix.apply(&quote_prefix);
+                            para.set_line_prefix(format!("{styled_prefix} "));
+                        } else {
+                            para.clear_line_prefix();
+                        }
                     }
                     TagEnd::List(..) => {
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                         scope.pop();
+                        self.last_block = Some(Block::List);
                     }
                     TagEnd::Item => {
-                        para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                         scope.pop();
+                        self.last_block = Some(Block::ListItem);
                         if let Some(Scope::List(ListKind::Ordered { next })) = scope.last_mut() {
                             *next += 1;
                         }
                         para.hanging_extra = 0;
                     }
                     TagEnd::CodeBlock => {
-                        let indent: usize = scope.iter().map(|s| s.indent()).sum();
+                        let indent: usize = scope.iter().map(|s| s.indent().0).sum();
                         if self.cfg.syncat {
                             let mut child = std::process::Command::new("syncat")
                                 .arg("-l")
@@ -238,18 +330,19 @@ impl<B: ImageBackend> Renderer<B> {
                                 if let Ok(output) = ch.wait_with_output() {
                                     let text = String::from_utf8_lossy(&output.stdout);
                                     for line in text.lines() {
-                                        flush_line(line, indent);
+                                        let _ = self.sink.write_line(line, indent);
                                     }
                                 }
                             }
                         } else {
                             for line in code_buffer.lines() {
-                                flush_line(line, indent);
+                                let styled_line = self.color_theme.code_block.apply(line);
+                                let _ = self.sink.write_line(&styled_line, indent);
                             }
                         }
                         code_buffer.clear();
-                        println!();
                         scope.pop();
+                        self.last_block = Some(Block::Heading);
                     }
                     TagEnd::Link => {
                         if let Some(Scope::Link { dest_url, title }) = scope.pop() {
@@ -259,7 +352,7 @@ impl<B: ImageBackend> Renderer<B> {
                                     &scope,
                                     self.cfg.width,
                                     &text,
-                                    &flush_line,
+                                    &mut self.sink,
                                     &str_width,
                                 );
                             } else if !dest_url.is_empty() && !self.cfg.hide_urls {
@@ -268,7 +361,7 @@ impl<B: ImageBackend> Renderer<B> {
                                     &scope,
                                     self.cfg.width,
                                     &text,
-                                    &flush_line,
+                                    &mut self.sink,
                                     &str_width,
                                 );
                             } else if !title.is_empty() {
@@ -277,7 +370,7 @@ impl<B: ImageBackend> Renderer<B> {
                                     &scope,
                                     self.cfg.width,
                                     &text,
-                                    &flush_line,
+                                    &mut self.sink,
                                     &str_width,
                                 );
                             }
@@ -291,34 +384,44 @@ impl<B: ImageBackend> Renderer<B> {
                     if let Some(Scope::CodeBlock(..)) = scope.last() {
                         code_buffer.push_str(&text);
                     } else {
-                        para.wrap_and_push(&scope, self.cfg.width, &text, &flush_line, &str_width);
+                        let styled_text = self.apply_text_styling(&text, &scope);
+                        para.wrap_and_push(
+                            &scope,
+                            self.cfg.width,
+                            &styled_text,
+                            &mut self.sink,
+                            &str_width,
+                        );
                     }
                 }
                 Event::Code(text) => {
-                    let styled = Style::new().reverse().paint(text.to_string()).to_string();
-                    para.wrap_and_push(&scope, self.cfg.width, &styled, &flush_line, &str_width);
+                    let styled = self.color_theme.code.apply(&text);
+                    para.wrap_and_push(&scope, self.cfg.width, &styled, &mut self.sink, &str_width);
                 }
                 Event::Rule => {
-                    para.flush_paragraph(&scope, self.cfg.width, &flush_line);
-                    println!("{}", self.theme.hr.to_string().repeat(self.cfg.width.0));
-                    println!();
+                    para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                    self.ensure_spacing_before(Block::Rule, &scope);
+                    let hr_line = self.glyph_theme.hr.to_string().repeat(self.cfg.width.0);
+                    let styled_hr = self.color_theme.rule.apply(&hr_line);
+                    let _ = self.sink.write_line(&styled_hr, 0);
+                    self.last_block = Some(Block::Rule);
                 }
                 Event::SoftBreak => {
-                    para.wrap_and_push(&scope, self.cfg.width, " ", &flush_line, &str_width);
+                    para.wrap_and_push(&scope, self.cfg.width, " ", &mut self.sink, &str_width);
                 }
                 Event::HardBreak => {
-                    para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+                    para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                 }
                 Event::TaskListMarker(checked) => {
                     let text = if checked { "[✓] " } else { "[ ] " };
-                    para.wrap_and_push(&scope, self.cfg.width, text, &flush_line, &str_width);
+                    para.wrap_and_push(&scope, self.cfg.width, text, &mut self.sink, &str_width);
                 }
                 _ => {}
             }
         }
 
         if !para.is_empty() {
-            para.flush_paragraph(&scope, self.cfg.width, &flush_line);
+            para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
         }
         Ok(())
     }
