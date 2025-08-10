@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use clap::{CommandFactory, Parser as _};
+use clap::{ArgAction, CommandFactory, Parser as _};
 use clap_complete::Shell;
 use std::fs;
 use std::io::{self, Read};
@@ -15,48 +15,57 @@ use paper_terminal::{Cells, ColorThemeName, Config, Renderer, ThemeName};
 #[derive(clap::Parser, Debug)]
 #[clap(
     name = "paper",
-    about = "Minimal terminal Markdown renderer with inline images (Kitty/iTerm2/Sixel)"
+    about = "Minimal terminal Markdown renderer with inline images (Kitty/iTerm2/Sixel)",
+    rename_all = "kebab-case"
 )]
-#[clap(rename_all = "kebab-case")]
 pub struct Opts {
     /// Target width (in terminal cells)
-    #[structopt(short = 'w', long, default_value = "92")]
+    #[arg(short = 'w', long, default_value_t = 92)]
     pub width: usize,
 
     /// Print input without Markdown parsing
-    #[structopt(short = 'p', long)]
+    #[arg(short = 'p', long, action = ArgAction::SetTrue)]
     pub plain: bool,
 
     /// The length to consider tabs as.
-    #[structopt(short, long, default_value = "4")]
+    #[arg(short, long, default_value_t = 4)]
     pub tab_length: usize,
 
     /// Hide link URLs
-    #[structopt(short = 'U', long)]
+    #[arg(short = 'U', long, action = ArgAction::SetTrue)]
     pub hide_urls: bool,
 
     /// Disable inline images
-    #[structopt(short = 'I', long)]
+    #[arg(short = 'I', long, action = ArgAction::SetTrue)]
     pub no_images: bool,
 
-    /// Use syncat to highlight fenced code blocks
+    /// Use syntax highlighting for fenced code blocks
+    /// Backward-compatible alias: --syncat
     #[cfg_attr(
         feature = "syntax-highlighting",
-        structopt(short, long, default_value = "true")
+        arg(
+            short = 'H',
+            long = "highlight",
+            visible_alias = "syncat",
+            default_value_t = true
+        )
     )]
-    #[cfg_attr(not(feature = "syntax-highlighting"), structopt(short, long))]
-    pub syncat: bool,
+    #[cfg_attr(
+        not(feature = "syntax-highlighting"),
+        arg(short = 'H', long = "highlight", visible_alias = "syncat", action = ArgAction::SetTrue)
+    )]
+    pub highlight: bool,
 
     /// Print parser events (debug)
-    #[structopt(long)]
+    #[arg(long, action = ArgAction::SetTrue)]
     pub dev: bool,
 
     /// Files to print
-    #[structopt(name = "FILE")]
+    #[arg(name = "FILE")]
     pub files: Vec<PathBuf>,
 
     /// Generate shell completions
-    #[structopt(long)]
+    #[arg(long)]
     completions: Option<Shell>,
 
     /// GlyphTheme for bullets and rules
@@ -108,7 +117,7 @@ where
         tab_length: opts.tab_length,
         hide_urls: opts.hide_urls,
         no_images: opts.no_images,
-        syncat: opts.syncat,
+        syncat: opts.highlight,
         dev: opts.dev,
         theme: opts.theme,
         color_theme: opts.color_theme,

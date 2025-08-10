@@ -30,8 +30,7 @@ Features include:
 
 5.  Rules
 6.  `Inline code`
-7.  Code blocks, with [syncat][] integration for syntax highlighting. Note that you must install
-    syncat and make the syncat executable available on your path for this to work.
+7.  Code blocks, with optional syntax highlighting (via `bat`) using `--highlight`.
     ```rust
     fn main() {
         println!("Hello world");
@@ -72,7 +71,7 @@ Not a very good comparison... this is more of an example of a table!
 
 ## Styling
 
-By default, headings are bold; inline code is reversed. If you want syntax highlighting for fenced blocks, enable `--syncat` and ensure `syncat` is installed and on PATH.
+By default, headings are bold; inline code is reversed. If you want syntax highlighting for fenced blocks, pass `--highlight` (uses `bat` under the hood).
 
 ## Installation
 
@@ -109,7 +108,7 @@ Options:
   -t, --tab-length <TAB_LENGTH>    Tab length [default: 4]
   -U, --hide-urls                  Hide link URLs
   -I, --no-images                  Disable images
-  -s, --syncat                     Use syncat to highlight fenced code blocks
+  -H, --highlight                  Use syntax highlighting for fenced code blocks
       --dev                        Print parser events (debug)
       --completions <COMPLETIONS>  Generate shell completions [bash, elvish, fish, powershell, zsh]
   -h, --help                       Print help
