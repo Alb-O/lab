@@ -39,6 +39,9 @@ enum Scope {
         title: String,
         alt: String,
     },
+    DefinitionList,
+    DefinitionTitle,
+    DefinitionDesc,
 }
 
 impl IndentedScope for Scope {
@@ -50,6 +53,9 @@ impl IndentedScope for Scope {
             Scope::BlockQuote => Indent(2),
             Scope::CodeBlock(..) => Indent(2),
             Scope::Heading(..) => Indent(0),
+            Scope::DefinitionList => Indent(0),
+            Scope::DefinitionTitle => Indent(0),
+            Scope::DefinitionDesc => Indent(2),
             _ => Indent(0),
         }
     }
@@ -171,7 +177,11 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                         scope.push(Scope::Heading(level));
                     }
                     Tag::BlockQuote(..) => {
-                        self.ensure_spacing_before(Block::BlockQuote, &scope);
+                        // Only add spacing before top-level blockquotes, not nested ones
+                        let already_in_quote = scope.iter().any(|s| matches!(s, Scope::BlockQuote));
+                        if !already_in_quote {
+                            self.ensure_spacing_before(Block::BlockQuote, &scope);
+                        }
                         scope.push(Scope::BlockQuote);
                         let quote_depth = scope
                             .iter()
@@ -193,15 +203,20 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     Tag::List(start) => {
                         // Ensure any running paragraph text is finished before a nested list begins
                         para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
-                        self.ensure_spacing_before(Block::List, &scope);
+                        // Don't add spacing when starting a nested list directly under a list item
+                        let inside_item = scope.iter().any(|s| matches!(s, Scope::ListItem));
+                        if !inside_item {
+                            self.ensure_spacing_before(Block::List, &scope);
+                        }
                         let kind = match start {
                             Some(n) => ListKind::Ordered { next: n },
                             None => ListKind::Unordered,
                         };
                         scope.push(Scope::List(kind));
+                        // Mark that we are now in a list to suppress extra spacing for first item
+                        self.last_block = Some(Block::List);
                     }
                     Tag::Item => {
-                        self.ensure_spacing_before(Block::ListItem, &scope);
                         let depth = scope.iter().filter(|s| matches!(s, Scope::List(_))).count();
                         let (bullet_text, bullet_styled) =
                             match scope.iter().rev().find_map(|s| match s {
@@ -231,6 +246,23 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                         para.set_prefix(prefix);
 
                         scope.push(Scope::ListItem);
+                    }
+                    Tag::DefinitionList => {
+                        // Similar to lists: suppress spacing when nested under an item
+                        let inside_item = scope.iter().any(|s| matches!(s, Scope::ListItem));
+                        if !inside_item {
+                            self.ensure_spacing_before(Block::List, &scope);
+                        }
+                        scope.push(Scope::DefinitionList);
+                        self.last_block = Some(Block::List);
+                    }
+                    Tag::DefinitionListTitle => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.push(Scope::DefinitionTitle);
+                    }
+                    Tag::DefinitionListDefinition => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.push(Scope::DefinitionDesc);
                     }
                     Tag::Emphasis => scope.push(Scope::Italic),
                     Tag::Strong => scope.push(Scope::Bold),
@@ -288,6 +320,19 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                         para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
                         scope.pop();
                         self.last_block = Some(Block::List);
+                    }
+                    TagEnd::DefinitionList => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        let _ = scope.pop();
+                        self.last_block = Some(Block::List);
+                    }
+                    TagEnd::DefinitionListTitle => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        let _ = scope.pop();
+                    }
+                    TagEnd::DefinitionListDefinition => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        let _ = scope.pop();
                     }
                     TagEnd::Item => {
                         para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
