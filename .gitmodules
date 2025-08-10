@@ -1,3 +1,6 @@
 [submodule "crates/comfy-table"]
 	path = crates/comfy-table
 	url = https://github.com/nukesor/comfy-table
+[submodule "crates/bat"]
+	path = crates/bat
+	url = https://github.com/sharkdp/bat

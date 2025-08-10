@@ -108,7 +108,7 @@ impl Paragraph {
     ) {
         if !self.buffer.is_empty() {
             let base_indent = Self::current_indent(scope);
-            let mut indent = base_indent + self.hanging_extra;
+            let indent = base_indent + self.hanging_extra;
             let mut line = self.buffer.clone();
             let mut write_indent = indent;
             if let Some(prefix) = self.pending_prefix.take() {
@@ -117,7 +117,6 @@ impl Paragraph {
                 let prefix_width = str_width(&prefix);
                 self.hanging_extra = prefix_width;
                 write_indent = base_indent;
-                indent = base_indent + self.hanging_extra;
             }
             if !self.line_prefix.is_empty() {
                 line = format!("{}{line}", self.line_prefix);

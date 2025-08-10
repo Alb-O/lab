@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::io;
+
+#[cfg(feature = "syntax-highlighting")]
+use bat::{Input, PrettyPrinter};
 use std::path::{Path, PathBuf};
 
 use comfy_table::{ContentArrangement, Table, presets};
@@ -393,33 +396,15 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     }
                     TagEnd::CodeBlock => {
                         let indent: usize = scope.iter().map(|s| s.indent().0).sum();
+                        #[cfg(feature = "syntax-highlighting")]
                         if self.cfg.syncat {
-                            let mut child = std::process::Command::new("syncat")
-                                .arg("-l")
-                                .arg("")
-                                .arg("-w")
-                                .arg(self.cfg.width.0.to_string())
-                                .stdin(std::process::Stdio::piped())
-                                .stdout(std::process::Stdio::piped())
-                                .spawn();
-                            if let Ok(ch) = child.as_mut() {
-                                if let Some(mut stdin) = ch.stdin.take() {
-                                    let _ = write!(stdin, "{code_buffer}");
-                                }
-                            }
-                            if let Ok(ch) = child {
-                                if let Ok(output) = ch.wait_with_output() {
-                                    let text = String::from_utf8_lossy(&output.stdout);
-                                    for line in text.lines() {
-                                        let _ = self.sink.write_line(line, indent);
-                                    }
-                                }
-                            }
+                            self.render_highlighted_code_block(&code_buffer, &scope, indent);
                         } else {
-                            for line in code_buffer.lines() {
-                                let styled_line = self.color_theme.code_block.apply(line);
-                                let _ = self.sink.write_line(&styled_line, indent);
-                            }
+                            self.render_plain_code_block(&code_buffer, indent);
+                        }
+                        #[cfg(not(feature = "syntax-highlighting"))]
+                        {
+                            self.render_plain_code_block(&code_buffer, indent);
                         }
                         code_buffer.clear();
                         scope.pop();
@@ -693,6 +678,61 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
             para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
         }
         Ok(())
+    }
+
+    /// Render a code block with syntax highlighting using bat
+    #[cfg(feature = "syntax-highlighting")]
+    fn render_highlighted_code_block(&mut self, code_buffer: &str, scope: &[Scope], indent: usize) {
+        if let Some(Scope::CodeBlock(lang)) = scope.last() {
+            let mut output_buffer = String::new();
+
+            let mut printer = PrettyPrinter::new();
+            printer
+                .header(false)
+                .grid(false)
+                .line_numbers(false)
+                .rule(false)
+                .use_italics(true)
+                .tab_width(Some(4));
+
+            // Set language if specified
+            if !lang.is_empty() {
+                printer.language(lang);
+            }
+
+            // Use appropriate theme for dark terminals
+            printer.theme("OneHalfDark");
+
+            let input = Input::from_bytes(code_buffer.as_bytes()).name("code-block");
+
+            printer.input(input);
+
+            match printer.print_with_writer(Some(&mut output_buffer)) {
+                Ok(_) => {
+                    // Split the output into lines and write with proper indentation
+                    for line in output_buffer.lines() {
+                        let _ = self.sink.write_line(line, indent);
+                    }
+                }
+                Err(_) => {
+                    // Fall back to plain styling if bat fails
+                    self.render_plain_code_block(code_buffer, indent);
+                }
+            }
+        }
+    }
+
+    /// Render a plain code block without syntax highlighting
+    fn render_plain_code_block(&mut self, code_buffer: &str, indent: usize) {
+        for line in code_buffer.lines() {
+            self.render_plain_code_line(line, indent);
+        }
+    }
+
+    /// Render a single line of code with the default code block styling
+    fn render_plain_code_line(&mut self, line: &str, indent: usize) {
+        let styled_line = self.color_theme.code_block.apply(line);
+        let _ = self.sink.write_line(&styled_line, indent);
     }
 
     fn resolve_image_path(raw: &str, file_path: Option<&Path>) -> PathBuf {

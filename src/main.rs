@@ -40,7 +40,11 @@ pub struct Opts {
     pub no_images: bool,
 
     /// Use syncat to highlight fenced code blocks
-    #[structopt(short, long)]
+    #[cfg_attr(
+        feature = "syntax-highlighting",
+        structopt(short, long, default_value = "true")
+    )]
+    #[cfg_attr(not(feature = "syntax-highlighting"), structopt(short, long))]
     pub syncat: bool,
 
     /// Print parser events (debug)

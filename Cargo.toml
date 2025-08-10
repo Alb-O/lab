@@ -27,4 +27,9 @@ unicode-width = "0.2"
 cjk = "0.2"
 clap_complete = "4.5"
 rasteroid = { path = "crates/mcat/crates/rasteroid" }
-comfy-table = { path = "crates/comfy-table", features = ["custom_styling"] }
+comfy-table = { version = "7.1", features = ["custom_styling"] }
+bat = { version = "0.25", optional = true }
+
+[features]
+default = ["syntax-highlighting"]
+syntax-highlighting = ["bat"]
