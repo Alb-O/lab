@@ -1,11 +1,14 @@
 use crate::str_width;
 use crate::table::Table;
-use crate::termpix;
+// replaced termpix-based rendering with rasteroid inline rendering
 use crate::words::Words;
 use ansi_term::Style;
 use console::AnsiCodeIterator;
 use image::{self, GenericImageView as _};
 use pulldown_cmark::{Alignment, BlockQuoteKind, CodeBlockKind, Event, HeadingLevel, Tag, TagEnd};
+use rasteroid::image_extended::InlineImage as _;
+use rasteroid::term_misc::EnvIdentifiers;
+use rasteroid::{InlineEncoder, inline_an_image};
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read as _, Write as _};
 use std::process::{Command, Stdio};
@@ -780,36 +783,80 @@ impl<'a> Printer<'a> {
                             // Try to resolve the image path
                             let image_path = self.resolve_image_path(dest_url.as_ref());
 
-                            match image::open(&image_path) {
-                                Ok(image) => {
-                                    let (mut width, mut height) = image.dimensions();
-                                    if width > available_width as u32 {
-                                        let scale = available_width as f64 / width as f64;
-                                        width = (width as f64 * scale) as u32;
-                                        height = (height as f64 * scale) as u32;
-                                    }
-                                    let mut vec = vec![];
-                                    termpix::print_image(image, true, width, height, &mut vec);
-                                    let string = String::from_utf8(vec).unwrap();
+                            match std::fs::read(&image_path) {
+                                Ok(bytes) => {
+                                    // Load image and resize to fit available content width (in cells)
+                                    match image::load_from_memory(&bytes) {
+                                        Ok(dyn_img) => {
+                                            // Resize using cell-based width so it fits the paper content area
+                                            let dim = format!("{available_width}c");
+                                            let (resized_png, _center_offset, _w, _h) =
+                                                match dyn_img.resize_plus(
+                                                    Some(&dim),
+                                                    None,
+                                                    false,
+                                                    false,
+                                                ) {
+                                                    Ok(v) => v,
+                                                    Err(e) => {
+                                                        self.handle_text(format!(
+                                                            "[Image resize failed: {e}]"
+                                                        ));
+                                                        self.scope.push(Scope::Caption);
+                                                        self.flush();
+                                                        return;
+                                                    }
+                                                };
 
-                                    for line in string.lines() {
-                                        let (prefix, _) = self.prefix();
-                                        let (suffix, _) = self.suffix();
-                                        println!(
-                                            "{}{}{}{}{}{}{}",
-                                            self.centering,
-                                            self.margin,
-                                            prefix,
-                                            line,
-                                            suffix,
-                                            self.margin,
-                                            self.shadow(),
-                                        );
-                                    }
+                                            // Compute left offset to align image within the paper area
+                                            let centering_cells = crate::str_width(self.centering);
+                                            let margin_cells = crate::str_width(self.margin);
+                                            let prefix_cells = self.prefix_len();
+                                            let left_offset: u16 =
+                                                (centering_cells + margin_cells + prefix_cells)
+                                                    as u16;
 
-                                    self.scope.push(Scope::Indent);
-                                    self.scope.push(Scope::Caption);
-                                    self.handle_text(title);
+                                            // Detect encoder and render inline
+                                            let mut env = EnvIdentifiers::new();
+                                            let encoder = InlineEncoder::auto_detect(
+                                                false, false, false, false, &mut env,
+                                            );
+                                            let mut out = std::io::stdout();
+                                            if let Err(e) = inline_an_image(
+                                                &resized_png,
+                                                &mut out,
+                                                Some(left_offset),
+                                                None,
+                                                &encoder,
+                                            ) {
+                                                self.handle_text(format!(
+                                                    "[Image render failed: {e}]"
+                                                ));
+                                                self.scope.push(Scope::Caption);
+                                                self.flush();
+                                                return;
+                                            }
+                                            let _ = out.flush();
+
+                                            // Caption
+                                            self.scope.push(Scope::Indent);
+                                            self.scope.push(Scope::Caption);
+                                            self.handle_text(title);
+                                        }
+                                        Err(error) => {
+                                            self.handle_text("Cannot open image ");
+                                            self.scope.push(Scope::Indent);
+                                            self.scope.push(Scope::Link {
+                                                dest_url: "".to_owned(),
+                                                title: "".to_owned(),
+                                            });
+                                            self.handle_text(dest_url);
+                                            self.scope.pop();
+                                            self.handle_text(format!(": {error}"));
+                                            self.scope.push(Scope::Caption);
+                                            self.flush();
+                                        }
+                                    }
                                 }
                                 Err(error) => {
                                     self.handle_text("Cannot open image ");

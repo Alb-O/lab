@@ -14,7 +14,6 @@ mod dirs;
 mod printer;
 mod str_width;
 mod table;
-mod termpix;
 mod words;
 
 use printer::Printer;
