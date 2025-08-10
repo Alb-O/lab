@@ -4,16 +4,15 @@
 [ttscoff/mdless]: https://github.com/ttscoff/mdless
 [lunaryorn/mdcat]: https://github.com/lunaryorn/mdcat
 
-# Paper terminal
+# paper-terminal
 
 [![dependency status](https://deps.rs/repo/github/foxfriends/paper-terminal/status.svg)](https://deps.rs/repo/github/foxfriends/paper-terminal)
 
 <!-- Here's a comment -->
 
-See [paper.png](./paper.png) to see what this looks like!
+Minimal, idiomatic terminal Markdown printer. Clean, wrapped text with optional inline images via inline terminal protocols (Kitty / iTerm2 / Sixel).
 
-Writes a file to a paper in your terminal. *Especially* if that file is Markdown! Features supported
-include:
+Features include:
 
 1.  The usual text, and paragraphs with automatic line-wrapping. You can manually wrap with
     hard breaks as expected.
@@ -63,43 +62,17 @@ include:
 
 Not a very good comparison... this is more of an example of a table!
 
-| Tool                 | CommonMark | Paper | Paging | Wrapping | Syntax     | Images    | Tables | Looks good\* |
-| :------------------- | :--------- | :---- | :----- | :------- | :--------- | :-------- | :----- | :----------- |
+| Tool                          | CommonMark | Paper | Paging | Wrapping | Syntax     | Images    | Tables | Looks good\* |
+| :---------------------------- | :--------- | :---- | :----- | :------- | :--------- | :-------- | :----- | :----------- |
 | [foxfriends/paper-terminal][] | Yes        | Yes   | No     | Yes      | syncat     | Pixelated | Yes    | Yes          |
-| [ttscoff/mdless][]   | Yes        | No    | Yes    | No       | pygmentize | Sometimes | Yes    | No           |
-| [lunaryorn/mdcat][]  | Yes        | No    | No     | No       | syntect    | Sometimes | No     | No           |
+| [ttscoff/mdless][]            | Yes        | No    | Yes    | No       | pygmentize | Sometimes | Yes    | No           |
+| [lunaryorn/mdcat][]           | Yes        | No    | No     | No       | syntect    | Sometimes | No     | No           |
 
 \* subjective
 
 ## Styling
 
-Paper uses [syncat stylesheets][] to allow full customization of styling. See the default stylesheet (`src/default.syncat`)
-as an example of how this works. To override the default styles, create `paper.syncat` in your active syncat theme.
-
-*   Different scopes are represented as nodes, inspired by the corresponding HTML tag names.
-
-    *   `h1` through `h6`
-    *   `strong`
-    *   `emphasis`
-    *   `strikethrough`
-    *   `code`
-    *   `blockquote` (alert style blockquotes are represented separately, using the custom tags `note-blockquote`, `tip-blockquote`, `important-blockquote`, `warning-blockquote`, and `caution-blockquote`)
-    *   `ul`, `ol`, `li`
-    *   `dl`, `dt`, `dd`
-    *   `footnote-ref`, `footnote-def`, `footnote`
-    *   `table`
-    *   `caption`
-    *   `link`
-
-*   The paper and shadow can be matched with `paper` and `shadow`. Styles applied to `paper` are applied to everything.
-*   The `"prefix"` and `"suffix"` tokens can be used to match the decorations
-    *   List item bullets
-    *   Blockquote (and alert) markers
-    *   Code block margins
-*   The `"lang-tag"` token matches the language name written in the bottom corner of the code block
-*   You can apply styles to code blocks with a specific language by using the language name as the token
-
-For now, the prefix/suffix contents are not customizable, but this may be added in future if it is desired.
+By default, headings are bold; inline code is reversed. If you want syntax highlighting for fenced blocks, enable `--syncat` and ensure `syncat` is installed and on PATH.
 
 ## Installation
 
@@ -118,12 +91,12 @@ paper --help
 # Render README.md
 paper README.md
 
-# Render README.md, with syntax highlighting
-paper README.md -s
+# Render README.md
+paper README.md
 ```
 
 ```
-Prints papers in your terminal
+Markdown to terminal renderer
 
 Usage: paper [OPTIONS] [FILE]...
 
@@ -131,18 +104,13 @@ Arguments:
   [FILE]...  Files to print
 
 Options:
-  -m, --margin <MARGIN>            Margin (shortcut for horizontal and vertical margin set to the same value) [default: 6]
-      --h-margin <H_MARGIN>        Horizontal margin (overrides --margin)
-      --v-margin <V_MARGIN>        Vertical margin (overrides --margin)
-  -w, --width <WIDTH>              The width of the paper (including the space used for the margin) [default: 92]
-  -p, --plain                      Don't parse as Markdown, just render the plain text on a paper
-  -t, --tab-length <TAB_LENGTH>    The length to consider tabs as [default: 4]
+  -w, --width <WIDTH>              Target width in cells [default: 92]
+  -p, --plain                      Print input without Markdown parsing
+  -t, --tab-length <TAB_LENGTH>    Tab length [default: 4]
   -U, --hide-urls                  Hide link URLs
-  -I, --no-images                  Disable drawing images
-  -l, --left                       Position paper on the left edge of the terminal, instead of centred
-  -r, --right                      Position paper on the right edge of the terminal, instead of centred
-  -s, --syncat                     Use syncat to highlight code blocks. Requires you have syncat installed
-      --dev                        Print in debug mode
-      --completions <COMPLETIONS>  Generate shell completions [possible values: bash, elvish, fish, powershell, zsh]
+  -I, --no-images                  Disable images
+  -s, --syncat                     Use syncat to highlight fenced code blocks
+      --dev                        Print parser events (debug)
+      --completions <COMPLETIONS>  Generate shell completions [bash, elvish, fish, powershell, zsh]
   -h, --help                       Print help
 ```

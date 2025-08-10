@@ -1,47 +1,29 @@
-use ansi_term::Style;
+#![allow(dead_code)]
+
 use clap::{CommandFactory, Parser as _};
 use clap_complete::Shell;
-use console::strip_ansi_codes;
-use pulldown_cmark::{Options, Parser};
-use std::convert::TryInto;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
-use syncat_stylesheet::Stylesheet;
 use terminal_size::{Width, terminal_size};
 
-mod dirs;
-mod printer;
-mod str_width;
-mod table;
-mod words;
+// use the library crate API
 
-use printer::Printer;
-use str_width::str_width;
-use words::Words;
+use paper_terminal::{Cells, Config, Renderer, ThemeName};
 
-/// Prints papers in your terminal
+/// Minimal terminal Markdown renderer with optional inline images
 #[derive(clap::Parser, Debug)]
-#[clap(name = "paper")]
+#[clap(
+    name = "paper",
+    about = "Minimal terminal Markdown renderer with inline images (Kitty/iTerm2/Sixel)"
+)]
 #[clap(rename_all = "kebab-case")]
 pub struct Opts {
-    /// Margin (shortcut for horizontal and vertical margin set to the same value)
-    #[structopt(short = 'm', long, default_value = "6")]
-    pub margin: usize,
-
-    /// Horizontal margin (overrides --margin)
-    #[structopt(long)]
-    pub h_margin: Option<usize>,
-
-    /// Vertical margin (overrides --margin)
-    #[structopt(long)]
-    pub v_margin: Option<usize>,
-
-    /// The width of the paper (including the space used for the margin)
+    /// Target width (in terminal cells)
     #[structopt(short = 'w', long, default_value = "92")]
     pub width: usize,
 
-    /// Don't parse as Markdown, just render the plain text on a paper
+    /// Print input without Markdown parsing
     #[structopt(short = 'p', long)]
     pub plain: bool,
 
@@ -53,23 +35,15 @@ pub struct Opts {
     #[structopt(short = 'U', long)]
     pub hide_urls: bool,
 
-    /// Disable drawing images
+    /// Disable inline images
     #[structopt(short = 'I', long)]
     pub no_images: bool,
 
-    /// Position paper on the left edge of the terminal, instead of centred.
-    #[structopt(short = 'l', long)]
-    pub left: bool,
-
-    /// Position paper on the right edge of the terminal, instead of centred.
-    #[structopt(short = 'r', long)]
-    pub right: bool,
-
-    /// Use syncat to highlight code blocks. Requires you have syncat installed.
+    /// Use syncat to highlight fenced code blocks
     #[structopt(short, long)]
     pub syncat: bool,
 
-    /// Print in debug mode
+    /// Print parser events (debug)
     #[structopt(long)]
     pub dev: bool,
 
@@ -80,6 +54,10 @@ pub struct Opts {
     /// Generate shell completions
     #[structopt(long)]
     completions: Option<Shell>,
+
+    /// Theme for bullets and rules
+    #[arg(long, value_enum, default_value = "unicode")]
+    pub theme: ThemeName,
 }
 
 fn normalize(tab_len: usize, source: &str) -> String {
@@ -87,7 +65,6 @@ fn normalize(tab_len: usize, source: &str) -> String {
         .lines()
         .map(|line| {
             let mut len = 0;
-            let line = strip_ansi_codes(line);
             if line.contains('\t') {
                 line.chars()
                     .flat_map(|ch| {
@@ -101,9 +78,8 @@ fn normalize(tab_len: usize, source: &str) -> String {
                         }
                     })
                     .collect::<String>()
-                    .into()
             } else {
-                line
+                line.to_string()
             }
         })
         .map(|line| format!("{line}\n"))
@@ -114,44 +90,22 @@ fn print<I>(opts: Opts, sources: I)
 where
     I: Iterator<Item = (PathBuf, Result<String, std::io::Error>)>,
 {
-    let h_margin = opts.h_margin.unwrap_or(opts.margin);
-    let v_margin = opts.v_margin.unwrap_or(opts.margin);
     let terminal_width = terminal_size()
         .map(|(Width(width), _)| width)
         .unwrap_or(opts.width as u16) as usize;
-    let width = usize::min(opts.width, terminal_width - 1);
+    let width = usize::min(opts.width, terminal_width.saturating_sub(1));
 
-    if width < h_margin * 2 + 40 {
-        eprintln!("The width is too short!");
-        return;
+    let cfg = Config {
+        width: Cells(width),
+        tab_length: opts.tab_length,
+        hide_urls: opts.hide_urls,
+        no_images: opts.no_images,
+        syncat: opts.syncat,
+        dev: opts.dev,
+        theme: opts.theme,
     }
-
-    let left_space = match (opts.left, opts.right) {
-        (true, false) => "".to_owned(),
-        (false, true) => " ".repeat(terminal_width.saturating_sub(width) - 1),
-        _ => " ".repeat((terminal_width.saturating_sub(width)) / 2),
-    };
-
-    let stylesheet = Stylesheet::from_file(dirs::active_color().join("paper.syncat"))
-        .unwrap_or_else(|_| {
-            include_str!("default.syncat")
-                .parse::<Stylesheet>()
-                .unwrap()
-        });
-    let paper_style: Style = stylesheet
-        .style(&"paper".into())
-        .unwrap_or_default()
-        .try_into()
-        .unwrap_or_default();
-    let shadow_style: Style = stylesheet
-        .style(&"shadow".into())
-        .unwrap_or_default()
-        .try_into()
-        .unwrap_or_default();
-    let blank_line = format!("{}", paper_style.paint(" ".repeat(width)));
-    let end_shadow = format!("{}", shadow_style.paint(" "));
-    let margin = format!("{}", paper_style.paint(" ".repeat(h_margin)));
-    let available_width = width - 2 * h_margin;
+    .validate();
+    let mut renderer = Renderer::<paper_terminal::media::RasteroidBackend>::new(cfg);
     for (file_path, source) in sources {
         let source = match source {
             Ok(source) => normalize(opts.tab_length, &source),
@@ -161,84 +115,10 @@ where
             }
         };
         if opts.plain {
-            println!("{left_space}{blank_line}");
-            for _ in 0..v_margin {
-                println!("{left_space}{blank_line}{end_shadow}");
-            }
-
-            for line in source.lines() {
-                let mut buffer = String::new();
-                let mut indent = None;
-                for word in Words::preserving_whitespace(line) {
-                    if str_width(&buffer) + str_width(&word) > available_width {
-                        println!(
-                            "{}{}{}{}{}{}",
-                            left_space,
-                            margin,
-                            paper_style.paint(&buffer),
-                            paper_style.paint(
-                                " ".repeat(available_width.saturating_sub(str_width(&buffer)))
-                            ),
-                            margin,
-                            shadow_style.paint(" "),
-                        );
-                        buffer.clear();
-                    }
-                    if buffer.is_empty() {
-                        if indent.is_none() {
-                            let indent_len =
-                                word.chars().take_while(|ch| ch.is_whitespace()).count();
-                            indent = Some(word[0..indent_len].to_string());
-                        }
-                        buffer.push_str(indent.as_ref().unwrap());
-                        buffer.push_str(word.trim());
-                    } else {
-                        buffer.push_str(&word);
-                    }
-                }
-                println!(
-                    "{}{}{}{}{}{}",
-                    left_space,
-                    margin,
-                    paper_style.paint(&buffer),
-                    paper_style
-                        .paint(" ".repeat(available_width.saturating_sub(str_width(&buffer)))),
-                    margin,
-                    shadow_style.paint(" "),
-                );
-            }
-            for _ in 0..v_margin {
-                println!("{left_space}{blank_line}{end_shadow}");
-            }
-            println!("{} {}", left_space, shadow_style.paint(" ".repeat(width)));
-        } else if opts.dev {
-            let parser = Parser::new_ext(&source, Options::all());
-            for event in parser {
-                println!("{event:?}");
-            }
+            // Just print normalized text as-is
+            print!("{source}");
         } else {
-            let parser = Parser::new_ext(&source, Options::all());
-            println!("{left_space}{blank_line}");
-            for _ in 0..v_margin {
-                println!("{left_space}{blank_line}{end_shadow}");
-            }
-
-            let mut printer = Printer::new(
-                &left_space,
-                &margin,
-                available_width,
-                &stylesheet,
-                &opts,
-                Some(file_path.clone()), // Pass the markdown file path
-            );
-            for event in parser {
-                printer.handle(event);
-            }
-
-            for _ in 0..v_margin {
-                println!("{left_space}{blank_line}{end_shadow}");
-            }
-            println!("{} {}", left_space, shadow_style.paint(" ".repeat(width)));
+            let _ = renderer.render_markdown(&source, Some(&file_path));
         }
     }
 }

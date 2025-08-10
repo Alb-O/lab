@@ -17,15 +17,13 @@ name = "paper"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 terminal_size = "0.4"
 pulldown-cmark = "0.12"
 ansi_term = "0.12"
 image = "0.25"
-console = { version = "0.15", features = ["unicode-width"] }
-directories-next = "2.0"
-syncat-stylesheet = { version = "3.5.0", features = ["ansi_term"] }
+console = { version = "0.16", features = ["unicode-width"] }
 unicode-width = "0.2"
 cjk = "0.2"
-clap_complete = "4.5.40"
+clap_complete = "4.5"
 rasteroid = { path = "crates/mcat/crates/rasteroid" }
