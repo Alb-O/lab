@@ -151,6 +151,7 @@ pub struct Printer<'a> {
     content: String,
     scope: Vec<Scope>,
     empty_queued: bool,
+    markdown_file_path: Option<std::path::PathBuf>,
 }
 
 impl<'a> Printer<'a> {
@@ -160,6 +161,7 @@ impl<'a> Printer<'a> {
         width: usize,
         stylesheet: &'a Stylesheet,
         opts: &'a crate::Opts,
+        markdown_file_path: Option<std::path::PathBuf>,
     ) -> Printer<'a> {
         Printer {
             centering,
@@ -172,6 +174,7 @@ impl<'a> Printer<'a> {
             content: String::new(),
             scope: vec![Scope::Paper],
             empty_queued: false,
+            markdown_file_path,
         }
     }
 
@@ -256,6 +259,38 @@ impl<'a> Printer<'a> {
 
     fn style(&self) -> Style {
         self.style2(None)
+    }
+
+    /// Resolves an image path by trying two methods:
+    /// 1. Relative to the current working directory
+    /// 2. Relative to the markdown file's directory (if available)
+    fn resolve_image_path(&self, image_path: &str) -> std::path::PathBuf {
+        use std::path::Path;
+
+        let path = Path::new(image_path);
+        
+        // If the path is already absolute, return it as is
+        if path.is_absolute() {
+            return path.to_path_buf();
+        }
+        
+        // Method 1: Check relative to the current working directory
+        if path.exists() {
+            return path.to_path_buf();
+        }
+        
+        // Method 2: Check relative to the markdown file's directory
+        if let Some(markdown_path) = &self.markdown_file_path {
+            if let Some(parent) = markdown_path.parent() {
+                let relative_path = parent.join(path);
+                if relative_path.exists() {
+                    return relative_path;
+                }
+            }
+        }
+        
+        // If neither method works, return the original path
+        path.to_path_buf()
     }
 
     fn shadow(&self) -> String {
@@ -741,7 +776,11 @@ impl<'a> Printer<'a> {
                                 .width
                                 .saturating_sub(self.prefix_len())
                                 .saturating_sub(self.suffix_len());
-                            match image::open(dest_url.as_ref()) {
+                            
+                            // Try to resolve the image path
+                            let image_path = self.resolve_image_path(dest_url.as_ref());
+                            
+                            match image::open(&image_path) {
                                 Ok(image) => {
                                     let (mut width, mut height) = image.dimensions();
                                     if width > available_width as u32 {

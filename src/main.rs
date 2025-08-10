@@ -113,7 +113,7 @@ fn normalize(tab_len: usize, source: &str) -> String {
 
 fn print<I>(opts: Opts, sources: I)
 where
-    I: Iterator<Item = Result<String, std::io::Error>>,
+    I: Iterator<Item = (PathBuf, Result<String, std::io::Error>)>,
 {
     let h_margin = opts.h_margin.unwrap_or(opts.margin);
     let v_margin = opts.v_margin.unwrap_or(opts.margin);
@@ -153,7 +153,7 @@ where
     let end_shadow = format!("{}", shadow_style.paint(" "));
     let margin = format!("{}", paper_style.paint(" ".repeat(h_margin)));
     let available_width = width - 2 * h_margin;
-    for source in sources {
+    for (file_path, source) in sources {
         let source = match source {
             Ok(source) => normalize(opts.tab_length, &source),
             Err(error) => {
@@ -224,8 +224,14 @@ where
                 println!("{left_space}{blank_line}{end_shadow}");
             }
 
-            let mut printer =
-                Printer::new(&left_space, &margin, available_width, &stylesheet, &opts);
+            let mut printer = Printer::new(
+                &left_space,
+                &margin,
+                available_width,
+                &stylesheet,
+                &opts,
+                Some(file_path.clone()), // Pass the markdown file path
+            );
             for event in parser {
                 printer.handle(event);
             }
@@ -252,13 +258,16 @@ fn main() {
     if opts.files.is_empty() {
         let mut string = String::new();
         io::stdin().read_to_string(&mut string).unwrap();
-        print(opts, vec![Ok(string)].into_iter());
+        print(opts, vec![(PathBuf::new(), Ok(string))].into_iter());
     } else {
         let sources = opts
             .files
             .clone()
             .into_iter()
-            .map(|path| fs::read_to_string(&path));
+            .map(|path| {
+                let source = fs::read_to_string(&path);
+                (path, source)
+            });
         print(opts, sources);
     }
 }
