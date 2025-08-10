@@ -24,13 +24,21 @@ enum Scope {
     Italic,
     Bold,
     Strikethrough,
-    Link { dest_url: String, title: String },
+    Link {
+        dest_url: String,
+        title: String,
+    },
     List(ListKind),
     ListItem,
     Code,
     CodeBlock(String),
     BlockQuote,
     Heading(HeadingLevel),
+    ImageCollect {
+        url: String,
+        title: String,
+        alt: String,
+    },
 }
 
 impl IndentedScope for Scope {
@@ -94,6 +102,32 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
         for _ in 0..n {
             let _ = self.sink.write_blank_line();
         }
+    }
+
+    fn wrap_caption_lines(&self, text: &str, max_cells: usize) -> Vec<String> {
+        // Simple greedy wrapper aware of cell widths
+        let mut lines = Vec::new();
+        let mut buf = String::new();
+        for part in text.split_inclusive(char::is_whitespace) {
+            let cur = crate::str_width::str_width(&buf);
+            let pw = crate::str_width::str_width(part);
+            if cur + pw > max_cells && !buf.is_empty() {
+                lines.push(buf.trim_end().to_string());
+                buf.clear();
+            }
+            if buf.is_empty() {
+                buf.push_str(part.trim_start());
+            } else {
+                buf.push_str(part);
+            }
+        }
+        if !buf.is_empty() {
+            lines.push(buf.trim_end().to_string());
+        }
+        if lines.is_empty() {
+            lines.push(text.trim().to_string());
+        }
+        lines
     }
 
     /// Apply styling to text based on the current scope stack
@@ -210,58 +244,12 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     Tag::Image {
                         dest_url, title, ..
                     } => {
-                        if self.cfg.no_images {
-                            let text = format!("[Image: {title}]");
-                            para.wrap_and_push(
-                                &scope,
-                                self.cfg.width,
-                                &text,
-                                &mut self.sink,
-                                &str_width,
-                            );
-                            continue;
-                        }
-                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
-                        self.ensure_spacing_before(Block::Image, &scope);
-
-                        let raw = dest_url.into_string();
-                        let path = Self::resolve_image_path(&raw, file_path);
-                        match std::fs::read(&path) {
-                            Ok(bytes) => match image::load_from_memory(&bytes) {
-                                Ok(img) => {
-                                    let base_indent: usize =
-                                        scope.iter().map(|s| s.indent().0).sum();
-                                    let indent = base_indent + para.hanging_extra;
-                                    let available = self.cfg.width.0.saturating_sub(indent);
-                                    let resized_png = self
-                                        .images
-                                        .resize_for_width(&img, available)
-                                        .unwrap_or(bytes);
-                                    let _ = self.images.render_inline(&resized_png, indent as u16);
-                                    self.last_block = Some(Block::Image);
-                                    if !title.is_empty() {
-                                        para.wrap_and_push(
-                                            &scope,
-                                            self.cfg.width,
-                                            &title,
-                                            &mut self.sink,
-                                            &str_width,
-                                        );
-                                        para.flush_paragraph(
-                                            &scope,
-                                            self.cfg.width,
-                                            &mut self.sink,
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    eprintln!("Cannot decode image {}: {e}", path.display());
-                                }
-                            },
-                            Err(e) => {
-                                eprintln!("Cannot open image {}: {e}", path.display());
-                            }
-                        }
+                        // Defer rendering until we collect alt text content between Start and End
+                        scope.push(Scope::ImageCollect {
+                            url: dest_url.into_string(),
+                            title: title.into_string(),
+                            alt: String::new(),
+                        });
                     }
                     _ => {}
                 },
@@ -376,6 +364,140 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                             }
                         }
                     }
+                    TagEnd::Image => {
+                        if let Some(Scope::ImageCollect {
+                            url,
+                            title: _title_attr,
+                            alt,
+                        }) = scope.pop()
+                        {
+                            if self.cfg.no_images {
+                                if !alt.is_empty() {
+                                    let styled = self.color_theme.link.apply(&alt);
+                                    para.wrap_and_push(
+                                        &scope,
+                                        self.cfg.width,
+                                        &styled,
+                                        &mut self.sink,
+                                        &str_width,
+                                    );
+                                }
+                                if !self.cfg.hide_urls && !url.is_empty() {
+                                    let t = if !alt.is_empty() {
+                                        format!(" <{url}>")
+                                    } else {
+                                        format!("<{url}>")
+                                    };
+                                    para.wrap_and_push(
+                                        &scope,
+                                        self.cfg.width,
+                                        &t,
+                                        &mut self.sink,
+                                        &str_width,
+                                    );
+                                }
+                            } else {
+                                // Render image and caption
+                                para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                                self.ensure_spacing_before(Block::Image, &scope);
+                                let path = Self::resolve_image_path(&url, file_path);
+                                match std::fs::read(&path) {
+                                    Ok(bytes) => match image::load_from_memory(&bytes) {
+                                        Ok(img) => {
+                                            let base_indent: usize =
+                                                scope.iter().map(|s| s.indent().0).sum();
+                                            let indent = base_indent + para.hanging_extra;
+                                            let available = self.cfg.width.0.saturating_sub(indent);
+                                            let (resized_png, used_cells) = self
+                                                .images
+                                                .resize_for_width(&img, available)
+                                                .unwrap_or((bytes, available));
+                                            let _ = self
+                                                .images
+                                                .render_inline(&resized_png, indent as u16);
+                                            self.last_block = Some(Block::Image);
+
+                                            let caption = alt.trim();
+                                            if !caption.is_empty() {
+                                                self.ensure_spacing_before(Block::Caption, &scope);
+                                                for line in
+                                                    self.wrap_caption_lines(caption, used_cells)
+                                                {
+                                                    let lw = str_width(&line);
+                                                    let extra_pad =
+                                                        used_cells.saturating_sub(lw) / 2;
+                                                    let column = indent + extra_pad;
+                                                    let styled =
+                                                        self.color_theme.caption.apply(&line);
+                                                    let _ = self
+                                                        .sink
+                                                        .write_line_absolute(&styled, column);
+                                                }
+                                                self.last_block = Some(Block::Caption);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "Cannot decode image {}: {e}",
+                                                path.display()
+                                            );
+                                            if !alt.is_empty() {
+                                                let styled = self.color_theme.link.apply(&alt);
+                                                para.wrap_and_push(
+                                                    &scope,
+                                                    self.cfg.width,
+                                                    &styled,
+                                                    &mut self.sink,
+                                                    &str_width,
+                                                );
+                                            }
+                                            if !self.cfg.hide_urls && !url.is_empty() {
+                                                let t = if !alt.is_empty() {
+                                                    format!(" <{url}>")
+                                                } else {
+                                                    format!("<{url}>")
+                                                };
+                                                para.wrap_and_push(
+                                                    &scope,
+                                                    self.cfg.width,
+                                                    &t,
+                                                    &mut self.sink,
+                                                    &str_width,
+                                                );
+                                            }
+                                        }
+                                    },
+                                    Err(e) => {
+                                        eprintln!("Cannot open image {}: {e}", path.display());
+                                        if !alt.is_empty() {
+                                            let styled = self.color_theme.link.apply(&alt);
+                                            para.wrap_and_push(
+                                                &scope,
+                                                self.cfg.width,
+                                                &styled,
+                                                &mut self.sink,
+                                                &str_width,
+                                            );
+                                        }
+                                        if !self.cfg.hide_urls && !url.is_empty() {
+                                            let t = if !alt.is_empty() {
+                                                format!(" <{url}>")
+                                            } else {
+                                                format!("<{url}>")
+                                            };
+                                            para.wrap_and_push(
+                                                &scope,
+                                                self.cfg.width,
+                                                &t,
+                                                &mut self.sink,
+                                                &str_width,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     _ => {
                         let _ = scope.pop();
                     }
@@ -383,6 +505,8 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                 Event::Text(text) => {
                     if let Some(Scope::CodeBlock(..)) = scope.last() {
                         code_buffer.push_str(&text);
+                    } else if let Some(Scope::ImageCollect { alt, .. }) = scope.last_mut() {
+                        alt.push_str(&text);
                     } else {
                         let styled_text = self.apply_text_styling(&text, &scope);
                         para.wrap_and_push(
@@ -395,8 +519,18 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
                     }
                 }
                 Event::Code(text) => {
-                    let styled = self.color_theme.code.apply(&text);
-                    para.wrap_and_push(&scope, self.cfg.width, &styled, &mut self.sink, &str_width);
+                    if let Some(Scope::ImageCollect { alt, .. }) = scope.last_mut() {
+                        alt.push_str(&text);
+                    } else {
+                        let styled = self.color_theme.code.apply(&text);
+                        para.wrap_and_push(
+                            &scope,
+                            self.cfg.width,
+                            &styled,
+                            &mut self.sink,
+                            &str_width,
+                        );
+                    }
                 }
                 Event::Rule => {
                     para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);

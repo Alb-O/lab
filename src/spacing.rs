@@ -9,6 +9,7 @@ pub enum Block {
     Rule,
     BlockQuote,
     Image,
+    Caption,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +56,8 @@ impl SpacingPolicy for DefaultSpacingPolicy {
 
             // Images: treat like blocks
             (_, Image) => BlankLines(1),
+            (Some(Image), Caption) => BlankLines(1),
+            (Some(Caption), _) => BlankLines(1),
             (Some(Image), _) => BlankLines(1),
 
             // Lists relative to paragraphs and headings

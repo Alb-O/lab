@@ -7,7 +7,12 @@ use rasteroid::{InlineEncoder, inline_an_image};
 
 pub trait ImageBackend {
     fn render_inline(&mut self, png_bytes: &[u8], left_offset_cells: u16) -> io::Result<()>;
-    fn resize_for_width(&self, img: &DynamicImage, available_cells: usize) -> io::Result<Vec<u8>>;
+    /// Resize to fit available cell width; returns PNG bytes and the target cell width used
+    fn resize_for_width(
+        &self,
+        img: &DynamicImage,
+        available_cells: usize,
+    ) -> io::Result<(Vec<u8>, usize)>;
 }
 
 pub struct RasteroidBackend;
@@ -28,11 +33,21 @@ impl ImageBackend for RasteroidBackend {
         out.flush()
     }
 
-    fn resize_for_width(&self, img: &DynamicImage, available_cells: usize) -> io::Result<Vec<u8>> {
+    fn resize_for_width(
+        &self,
+        img: &DynamicImage,
+        available_cells: usize,
+    ) -> io::Result<(Vec<u8>, usize)> {
         let dim = format!("{available_cells}c");
-        let (resized_png, _offset, _w, _h) = img
+        let (resized_png, _offset, w_px, _h_px) = img
             .resize_plus(Some(&dim), None, false, false)
             .map_err(|e| io::Error::other(e.to_string()))?;
-        Ok(resized_png)
+        // Convert resulting pixel width to terminal cells for accurate caption centering
+        let cols = rasteroid::term_misc::dim_to_cells(
+            &format!("{w_px}px"),
+            rasteroid::term_misc::SizeDirection::Width,
+        )
+        .unwrap_or(available_cells as u32) as usize;
+        Ok((resized_png, cols))
     }
 }

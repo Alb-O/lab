@@ -198,6 +198,7 @@ pub struct ColorTheme {
     pub list_bullet: TextStyle,  // • - bullets
     pub list_number: TextStyle,  // 1. 2. numbers
     pub quote_prefix: TextStyle, // ┃ > prefixes
+    pub caption: TextStyle,      // image captions
 }
 
 impl ColorTheme {
@@ -265,6 +266,12 @@ impl ColorTheme {
                 bold: true,
                 ..Default::default()
             },
+            caption: TextStyle {
+                fg: Some(palette.text_muted),
+                dim: true,
+                italic: false,
+                ..Default::default()
+            },
         }
     }
 
@@ -328,6 +335,11 @@ impl ColorTheme {
                 bold: true,
                 ..Default::default()
             },
+            caption: TextStyle {
+                fg: Some(palette.text_secondary),
+                dim: true,
+                ..Default::default()
+            },
         }
     }
 
@@ -375,6 +387,10 @@ impl ColorTheme {
             },
             quote_prefix: TextStyle {
                 bold: true,
+                ..Default::default()
+            },
+            caption: TextStyle {
+                dim: true,
                 ..Default::default()
             },
         }
