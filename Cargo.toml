@@ -28,3 +28,4 @@ syncat-stylesheet = { version = "3.5.0", features = ["ansi_term"] }
 unicode-width = "0.2"
 cjk = "0.2"
 clap_complete = "4.5.40"
+rasteroid = { path = "crates/mcat/crates/rasteroid" }

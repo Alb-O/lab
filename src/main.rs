@@ -260,14 +260,10 @@ fn main() {
         io::stdin().read_to_string(&mut string).unwrap();
         print(opts, vec![(PathBuf::new(), Ok(string))].into_iter());
     } else {
-        let sources = opts
-            .files
-            .clone()
-            .into_iter()
-            .map(|path| {
-                let source = fs::read_to_string(&path);
-                (path, source)
-            });
+        let sources = opts.files.clone().into_iter().map(|path| {
+            let source = fs::read_to_string(&path);
+            (path, source)
+        });
         print(opts, sources);
     }
 }

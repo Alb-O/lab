@@ -268,17 +268,17 @@ impl<'a> Printer<'a> {
         use std::path::Path;
 
         let path = Path::new(image_path);
-        
+
         // If the path is already absolute, return it as is
         if path.is_absolute() {
             return path.to_path_buf();
         }
-        
+
         // Method 1: Check relative to the current working directory
         if path.exists() {
             return path.to_path_buf();
         }
-        
+
         // Method 2: Check relative to the markdown file's directory
         if let Some(markdown_path) = &self.markdown_file_path {
             if let Some(parent) = markdown_path.parent() {
@@ -288,7 +288,7 @@ impl<'a> Printer<'a> {
                 }
             }
         }
-        
+
         // If neither method works, return the original path
         path.to_path_buf()
     }
@@ -776,10 +776,10 @@ impl<'a> Printer<'a> {
                                 .width
                                 .saturating_sub(self.prefix_len())
                                 .saturating_sub(self.suffix_len());
-                            
+
                             // Try to resolve the image path
                             let image_path = self.resolve_image_path(dest_url.as_ref());
-                            
+
                             match image::open(&image_path) {
                                 Ok(image) => {
                                     let (mut width, mut height) = image.dimensions();
