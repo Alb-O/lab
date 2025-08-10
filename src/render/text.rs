@@ -33,6 +33,7 @@ impl<B: crate::media::ImageBackend, S: crate::sink::Sink> Renderer<B, S> {
             styled_text = match s {
                 Scope::Italic => self.color_theme.emphasis.apply(&styled_text),
                 Scope::Bold => self.color_theme.strong.apply(&styled_text),
+                Scope::Strikethrough => self.color_theme.strikethrough.apply(&styled_text),
                 Scope::Link { .. } => self.color_theme.link.apply(&styled_text),
                 _ => styled_text,
             };

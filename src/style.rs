@@ -53,6 +53,7 @@ pub struct TextStyle {
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
+    pub strikethrough: bool,
     pub dim: bool,
     pub reverse: bool,
 }
@@ -79,6 +80,9 @@ impl TextStyle {
         }
         if self.underline {
             style.attributes.set(Attribute::Underlined);
+        }
+        if self.strikethrough {
+            style.attributes.set(Attribute::CrossedOut);
         }
         if self.dim {
             style.attributes.set(Attribute::Dim);
@@ -186,13 +190,14 @@ pub struct ColorTheme {
     // Core markdown elements
     pub text: TextStyle,
     pub heading: TextStyle,
-    pub emphasis: TextStyle,   // *italic*
-    pub strong: TextStyle,     // **bold**
-    pub code: TextStyle,       // `inline code`
-    pub code_block: TextStyle, // ```code blocks```
-    pub link: TextStyle,       // [links](url)
-    pub quote: TextStyle,      // > blockquotes
-    pub rule: TextStyle,       // ---
+    pub emphasis: TextStyle,      // *italic*
+    pub strong: TextStyle,        // **bold**
+    pub strikethrough: TextStyle, // ~~strike~~
+    pub code: TextStyle,          // `inline code`
+    pub code_block: TextStyle,    // ```code blocks```
+    pub link: TextStyle,          // [links](url)
+    pub quote: TextStyle,         // > blockquotes
+    pub rule: TextStyle,          // ---
 
     // UI elements
     pub list_bullet: TextStyle,  // • - bullets
@@ -226,6 +231,11 @@ impl ColorTheme {
             strong: TextStyle {
                 fg: Some(palette.text_primary),
                 bold: true,
+                ..Default::default()
+            },
+            strikethrough: TextStyle {
+                fg: Some(palette.text_secondary),
+                strikethrough: true,
                 ..Default::default()
             },
             code: TextStyle {
@@ -297,6 +307,11 @@ impl ColorTheme {
                 bold: true,
                 ..Default::default()
             },
+            strikethrough: TextStyle {
+                fg: Some(palette.text_secondary),
+                strikethrough: true,
+                ..Default::default()
+            },
             code: TextStyle {
                 fg: Some(palette.accent),
                 bg: Some(palette.background_subtle),
@@ -361,6 +376,10 @@ impl ColorTheme {
             },
             strong: TextStyle {
                 bold: true,
+                ..Default::default()
+            },
+            strikethrough: TextStyle {
+                strikethrough: true,
                 ..Default::default()
             },
             code: TextStyle {

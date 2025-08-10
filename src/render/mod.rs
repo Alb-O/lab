@@ -117,8 +117,6 @@ impl<B: ImageBackend, S: Sink> Renderer<B, S> {
         }
     }
 
-    // helpers now live in submodules
-
     pub fn render_markdown(&mut self, source: &str, file_path: Option<&Path>) -> io::Result<()> {
         if self.cfg.dev {
             for e in Parser::new_ext(source, Options::all()) {
