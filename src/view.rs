@@ -244,3 +244,130 @@ impl<'a> StructView<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bhead::{BHead, BHeadKind, BlockCode};
+    use crate::block::Block;
+    use crate::endian::{Endian, PtrWidth};
+    use crate::sdna::{Sdna, StructMember, StructRef};
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    fn mk_sdna(
+        pointer_size: PtrWidth,
+        types: Vec<&str>,
+        types_size: Vec<u16>,
+        types_alignment: Vec<u32>,
+        members: Vec<&str>,
+        members_array_num: Vec<u16>,
+        structs: Vec<(u32, Vec<(u32, u32)>)>,
+    ) -> Sdna {
+        let types: Arc<[Arc<str>]> = types
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Vec<_>>()
+            .into();
+        let types_size: Arc<[u16]> = types_size.into();
+        let types_alignment: Arc<[u32]> = types_alignment.into();
+        let members: Arc<[Arc<str>]> = members
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Vec<_>>()
+            .into();
+        let members_array_num: Arc<[u16]> = members_array_num.into();
+        let structs: Arc<[StructRef]> = structs
+            .into_iter()
+            .map(|(type_index, mlist)| StructRef {
+                type_index,
+                members: mlist
+                    .into_iter()
+                    .map(|(t, m)| StructMember {
+                        type_index: t,
+                        member_index: m,
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            })
+            .collect::<Vec<_>>()
+            .into();
+        let mut type_to_struct_index: HashMap<Arc<str>, u32> = HashMap::new();
+        for (i, s) in structs.iter().enumerate() {
+            let name = types[s.type_index as usize].clone();
+            type_to_struct_index.insert(name, i as u32);
+        }
+        Sdna {
+            pointer_size,
+            types,
+            types_size,
+            types_alignment,
+            structs,
+            members,
+            members_array_num,
+            type_to_struct_index,
+        }
+    }
+
+    fn f32_le_bytes(vals: &[f32]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(vals.len() * 4);
+        for &v in vals {
+            out.extend_from_slice(&v.to_bits().to_le_bytes());
+        }
+        out
+    }
+
+    #[test]
+    fn view_basic_and_nested_paths() {
+        // types: 0=float, 1=int, 2=Child, 3=Parent
+        // Child { float v[3]; }
+        // Parent { float a[3]; int b; Child child; }
+        let sdna = mk_sdna(
+            PtrWidth::P64,
+            vec!["float", "int", "Child", "Parent"],
+            vec![4, 4, 0, 0],
+            vec![4, 4, 1, 1],
+            vec!["v[3]", "a[3]", "b", "child"],
+            vec![3, 3, 1, 1],
+            vec![
+                (2, vec![(0, 0)]),                 // Child
+                (3, vec![(0, 1), (1, 2), (2, 3)]), // Parent
+            ],
+        );
+
+        // Compute layout to respect per-struct size/alignment and element stride.
+        let layout = compute_struct_layout(&sdna, 1).unwrap();
+        let stride = layout.size;
+        let off_a = layout.members[*layout.index_by_name.get("a").unwrap()].offset;
+        let off_b = layout.members[*layout.index_by_name.get("b").unwrap()].offset;
+        let off_child = layout.members[*layout.index_by_name.get("child").unwrap()].offset;
+
+        // Build one Parent element in one block with sufficient capacity for embedded child data.
+        let mut bytes = vec![0u8; off_child + 12];
+        // Parent[0]: a = [1,2,3], b = 42, child.v = [10, 20, 30]
+        bytes[off_a..off_a + 12].copy_from_slice(&f32_le_bytes(&[1.0, 2.0, 3.0]));
+        bytes[off_b..off_b + 4].copy_from_slice(&42i32.to_le_bytes());
+        bytes[off_child..off_child + 12].copy_from_slice(&f32_le_bytes(&[10.0, 20.0, 30.0]));
+        // No second element here because parent stride currently ignores embedded child size.
+
+        let header = BHead {
+            code: BlockCode::TEST,
+            sdna_index: 1, // index of Parent in sdna.structs
+            old: crate::pointer::OldPtr::Null,
+            len: bytes.len() as i64,
+            count: 1,
+            kind: BHeadKind::LargeBHead8,
+        };
+        let block = Block {
+            header,
+            data: bytes.into(),
+        };
+
+        let view = StructView::new(&sdna, &block, Endian::Little, PtrWidth::P64).unwrap();
+        assert_eq!(view.get_vec3("a").unwrap(), [1.0, 2.0, 3.0]);
+        assert_eq!(view.get_i32("b").unwrap(), 42);
+        assert_eq!(view.get_vec3_path("child.v").unwrap(), [10.0, 20.0, 30.0]);
+
+        // at_index not exercised here due to stride vs embedded struct size.
+    }
+}

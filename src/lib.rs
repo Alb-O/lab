@@ -8,6 +8,7 @@ pub mod block;
 pub mod endian;
 pub mod error;
 pub mod header;
+pub mod header_decode;
 pub mod id;
 pub mod index;
 pub mod layout;

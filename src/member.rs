@@ -98,3 +98,57 @@ impl MemberNameSpec {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_pointer_and_arrays() {
+        let m = MemberNameSpec::parse("*next").unwrap();
+        assert_eq!(m.base, "next");
+        assert_eq!(m.kind, MemberKind::Pointer(1));
+        assert!(m.array.dims().is_empty());
+
+        let m = MemberNameSpec::parse("**parent").unwrap();
+        assert_eq!(m.base, "parent");
+        assert_eq!(m.kind, MemberKind::Pointer(2));
+
+        let m = MemberNameSpec::parse("mat[4][4]").unwrap();
+        assert_eq!(m.base, "mat");
+        assert_eq!(m.kind, MemberKind::Value);
+        assert_eq!(m.array.dims(), &[4, 4]);
+        assert_eq!(m.array.len(), 16);
+        assert!(!m.array.is_empty());
+    }
+
+    #[test]
+    fn array_dims_semantics() {
+        let a = ArrayDims(vec![]);
+        assert_eq!(a.len(), 1);
+        assert!(!a.is_empty());
+
+        let a = ArrayDims(vec![3]);
+        assert_eq!(a.len(), 3);
+        assert!(!a.is_empty());
+
+        let a = ArrayDims(vec![3, 4]);
+        assert_eq!(a.len(), 12);
+        assert!(!a.is_empty());
+
+        let a = ArrayDims(vec![0, 4]);
+        // Zero-dimension denotes empty in our semantics.
+        assert!(a.is_empty());
+        // len() is clamped to at least 1 for safe offset math.
+        assert_eq!(a.len(), 1);
+    }
+
+    #[test]
+    fn invalid_names() {
+        assert!(MemberNameSpec::parse("").is_err());
+        assert!(MemberNameSpec::parse("***").is_err());
+        assert!(MemberNameSpec::parse("name[").is_err());
+        assert!(MemberNameSpec::parse("name[xx]").is_err());
+        assert!(MemberNameSpec::parse("[3]").is_err());
+    }
+}

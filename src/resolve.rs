@@ -87,3 +87,169 @@ impl<'a> Resolver<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bhead::{BHead, BHeadKind, BlockCode};
+    use crate::block::Block;
+    use crate::registry::BlockRegistry;
+    use crate::sdna::{Sdna, StructMember, StructRef};
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    fn mk_sdna() -> Sdna {
+        // types: 0=Node, 1=ListBase, 2=Owner
+        let types: Arc<[Arc<str>]> = vec!["Node", "ListBase", "Owner"]
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Vec<_>>()
+            .into();
+        let types_size: Arc<[u16]> = vec![0u16, 0, 0].into();
+        let types_alignment: Arc<[u32]> = vec![1u32, 1, 1].into();
+        let members: Arc<[Arc<str>]> = vec!["*next", "*first", "*last", "lb"]
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Vec<_>>()
+            .into();
+        let members_array_num: Arc<[u16]> = vec![1u16, 1, 1, 1].into();
+        let structs: Arc<[StructRef]> = vec![
+            StructRef {
+                type_index: 0,
+                members: vec![StructMember {
+                    type_index: 0,
+                    member_index: 0,
+                }]
+                .into(),
+            },
+            StructRef {
+                type_index: 1,
+                members: vec![
+                    StructMember {
+                        type_index: 0,
+                        member_index: 1,
+                    },
+                    StructMember {
+                        type_index: 0,
+                        member_index: 2,
+                    },
+                ]
+                .into(),
+            },
+            StructRef {
+                type_index: 2,
+                members: vec![StructMember {
+                    type_index: 1,
+                    member_index: 3,
+                }]
+                .into(),
+            },
+        ]
+        .into();
+        let mut type_to_struct_index: HashMap<Arc<str>, u32> = HashMap::new();
+        for (i, s) in structs.iter().enumerate() {
+            let name = types[s.type_index as usize].clone();
+            type_to_struct_index.insert(name, i as u32);
+        }
+        Sdna {
+            pointer_size: PtrWidth::P64,
+            types,
+            types_size,
+            types_alignment,
+            structs,
+            members,
+            members_array_num,
+            type_to_struct_index,
+        }
+    }
+
+    fn le64(x: u64) -> [u8; 8] {
+        x.to_le_bytes()
+    }
+
+    #[test]
+    fn listbase_traversal_linear_and_cycle_protection() {
+        let sdna = mk_sdna();
+        let registry = BlockRegistry::default();
+        // Create three Node blocks with next pointers.
+        let addr1 = OldPtr::Ptr64(0x1000);
+        let addr2 = OldPtr::Ptr64(0x2000);
+        let addr3 = OldPtr::Ptr64(0x3000);
+        let make_node = |old: OldPtr, next: OldPtr| -> Arc<Block> {
+            let mut data = vec![0u8; 8];
+            match next {
+                OldPtr::Ptr64(v) => data[..8].copy_from_slice(&le64(v)),
+                OldPtr::Ptr32(v) => data[..4].copy_from_slice(&v.to_le_bytes()),
+                OldPtr::Null => {}
+            }
+            Arc::new(Block {
+                header: BHead {
+                    code: BlockCode::TEST,
+                    sdna_index: 0, // Node struct index
+                    old,
+                    len: data.len() as i64,
+                    count: 1,
+                    kind: BHeadKind::LargeBHead8,
+                },
+                data: data.into(),
+            })
+        };
+        let n1 = make_node(addr1, addr2);
+        let n2 = make_node(addr2, addr3);
+        let n3 = make_node(addr3, OldPtr::Null);
+        registry.insert(n1);
+        registry.insert(n2);
+        registry.insert(n3.clone());
+
+        // Owner block with ListBase.lb.first = addr1
+        let mut owner_bytes = vec![0u8; 8 * 2];
+        owner_bytes[0..8].copy_from_slice(&le64(match addr1 {
+            OldPtr::Ptr64(v) => v,
+            _ => 0,
+        }));
+        owner_bytes[8..16].copy_from_slice(&le64(match OldPtr::Ptr64(0x3000) {
+            OldPtr::Ptr64(v) => v,
+            _ => 0,
+        }));
+        let owner = Block {
+            header: BHead {
+                code: BlockCode::TEST,
+                sdna_index: 2, // Owner struct index
+                old: OldPtr::Null,
+                len: owner_bytes.len() as i64,
+                count: 1,
+                kind: BHeadKind::LargeBHead8,
+            },
+            data: owner_bytes.into(),
+        };
+
+        let resolver = Resolver {
+            sdna: &sdna,
+            registry: &registry,
+            endian: Endian::Little,
+            ptr_width: PtrWidth::P64,
+        };
+        let owner_view = resolver.view_for_block(&owner).unwrap();
+        let items = resolver.listbase_items(&owner_view, "lb", "next", Some("Node"));
+        assert_eq!(items.len(), 3);
+        // Now create a cycle: point n3.next back to n2
+        let n3_cycled = Arc::new(Block {
+            header: BHead {
+                code: BlockCode::TEST,
+                sdna_index: 0,
+                old: addr3,
+                len: 8,
+                count: 1,
+                kind: BHeadKind::LargeBHead8,
+            },
+            data: Arc::from(le64(match addr2 {
+                OldPtr::Ptr64(v) => v,
+                _ => 0,
+            })),
+        });
+        registry.insert(n3_cycled);
+        let items = resolver.listbase_items(&owner_view, "lb", "next", Some("Node"));
+        // Should stop on visiting a repeated node due to cycle protection
+        assert!(items.len() >= 2);
+    }
+}

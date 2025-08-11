@@ -115,3 +115,124 @@ pub fn compute_struct_layout(sdna: &Sdna, struct_index: u32) -> Result<StructLay
         index_by_name: by_name,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::endian::PtrWidth;
+    use crate::sdna::{Sdna, StructMember, StructRef};
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    fn mk_sdna(
+        pointer_size: PtrWidth,
+        types: Vec<&str>,
+        types_size: Vec<u16>,
+        types_alignment: Vec<u32>,
+        members: Vec<&str>,
+        members_array_num: Vec<u16>,
+        structs: Vec<(u32, Vec<(u32, u32)>)>,
+    ) -> Sdna {
+        let types: Arc<[Arc<str>]> = types
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Vec<_>>()
+            .into();
+        let types_size: Arc<[u16]> = types_size.into();
+        let types_alignment: Arc<[u32]> = types_alignment.into();
+        let members: Arc<[Arc<str>]> = members
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Vec<_>>()
+            .into();
+        let members_array_num: Arc<[u16]> = members_array_num.into();
+        let structs: Arc<[StructRef]> = structs
+            .into_iter()
+            .map(|(type_index, mlist)| StructRef {
+                type_index,
+                members: mlist
+                    .into_iter()
+                    .map(|(t, m)| StructMember {
+                        type_index: t,
+                        member_index: m,
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            })
+            .collect::<Vec<_>>()
+            .into();
+        let mut type_to_struct_index: HashMap<Arc<str>, u32> = HashMap::new();
+        for (i, s) in structs.iter().enumerate() {
+            let name = types[s.type_index as usize].clone();
+            type_to_struct_index.insert(name, i as u32);
+        }
+        Sdna {
+            pointer_size,
+            types,
+            types_size,
+            types_alignment,
+            structs,
+            members,
+            members_array_num,
+            type_to_struct_index,
+        }
+    }
+
+    #[test]
+    fn layout_with_pointers_and_scalars() {
+        // types: 0=float(4), 1=int(4), 2=Node, 3=HasPtr
+        let sdna = mk_sdna(
+            PtrWidth::P64,
+            vec!["float", "int", "Node", "HasPtr"],
+            vec![4, 4, 0, 0],
+            vec![4, 4, 1, 1],
+            vec!["*next", "val"],
+            vec![1, 1],
+            vec![
+                // struct Node { /* empty for this test */ }
+                (2, vec![]),
+                // struct HasPtr { Node *next; int val; }
+                (3, vec![(2, 0), (1, 1)]),
+            ],
+        );
+
+        let layout = compute_struct_layout(&sdna, 1).unwrap();
+        assert_eq!(layout.size % 8, 0, "struct aligned to pointer size");
+        assert_eq!(layout.members.len(), 2);
+        let m_next = &layout.members[0];
+        assert_eq!(m_next.name, "next");
+        assert_eq!(m_next.offset, 0);
+        assert_eq!(m_next.size, 8);
+        assert!(matches!(m_next.kind, MemberKind::Pointer(1)));
+
+        let m_val = &layout.members[1];
+        assert_eq!(m_val.name, "val");
+        assert_eq!(m_val.size, 4);
+        assert_eq!(m_val.align, 4);
+        // offset should be 8 due to pointer size alignment
+        assert_eq!(m_val.offset, 8);
+    }
+
+    #[test]
+    fn layout_with_arrays_and_alignment() {
+        // types: 0=float(4), 1=MatHolder
+        // struct MatHolder { float mat[4][4]; }
+        let sdna = mk_sdna(
+            PtrWidth::P64,
+            vec!["float", "MatHolder"],
+            vec![4, 0],
+            vec![4, 1],
+            vec!["mat[4][4]"],
+            vec![16],
+            vec![(1, vec![(0, 0)])],
+        );
+        let layout = compute_struct_layout(&sdna, 0).unwrap();
+        assert_eq!(layout.members.len(), 1);
+        let m = &layout.members[0];
+        assert_eq!(m.name, "mat");
+        assert_eq!(m.size, 4 * 16);
+        assert_eq!(m.align, 4);
+        assert_eq!(m.offset, 0);
+        assert_eq!(layout.size, 64);
+    }
+}

@@ -71,3 +71,49 @@ pub fn read_f64(endian: Endian, bytes: &[u8]) -> f64 {
     let bits = read_u64(endian, bytes);
     f64::from_bits(bits)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn endian_readers_u16_u32_u64() {
+        // Value 0x1122 in both endian arrangements
+        let le16 = [0x22, 0x11];
+        let be16 = [0x11, 0x22];
+        assert_eq!(read_u16(Endian::Little, &le16), 0x1122);
+        assert_eq!(read_u16(Endian::Big, &be16), 0x1122);
+
+        let le32 = [0x78, 0x56, 0x34, 0x12];
+        let be32 = [0x12, 0x34, 0x56, 0x78];
+        assert_eq!(read_u32(Endian::Little, &le32), 0x12345678);
+        assert_eq!(read_u32(Endian::Big, &be32), 0x12345678);
+
+        let le64 = [0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01];
+        let be64 = [0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF];
+        assert_eq!(read_u64(Endian::Little, &le64), 0x0123456789ABCDEF);
+        assert_eq!(read_u64(Endian::Big, &be64), 0x0123456789ABCDEF);
+    }
+
+    #[test]
+    fn endian_readers_i32_f32_f64() {
+        let le32 = [0x78, 0x56, 0x34, 0x12];
+        let be32 = [0x12, 0x34, 0x56, 0x78];
+        assert_eq!(read_i32(Endian::Little, &le32), 0x12345678);
+        assert_eq!(read_i32(Endian::Big, &be32), 0x12345678);
+
+        let f32_val: f32 = 123.25;
+        let f32_bits = f32_val.to_bits();
+        let le = f32_bits.to_le_bytes();
+        let be = f32_bits.to_be_bytes();
+        assert!((read_f32(Endian::Little, &le) - f32_val).abs() < 1e-6);
+        assert!((read_f32(Endian::Big, &be) - f32_val).abs() < 1e-6);
+
+        let f64_val: f64 = -42.625;
+        let f64_bits = f64_val.to_bits();
+        let le = f64_bits.to_le_bytes();
+        let be = f64_bits.to_be_bytes();
+        assert!((read_f64(Endian::Little, &le) - f64_val).abs() < 1e-12);
+        assert!((read_f64(Endian::Big, &be) - f64_val).abs() < 1e-12);
+    }
+}
