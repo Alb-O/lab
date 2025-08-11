@@ -13,6 +13,9 @@ path = "src/lib.rs"
 [features]
 serde = ["dep:serde", "dep:serde_repr"]
 
+[workspace]
+members = [".", "crates/blendfile_dev"]
+
 [dependencies]
 ahash = "0.8"
 dashmap = { version = "7.0.0-rc2", default-features = false, features = [
