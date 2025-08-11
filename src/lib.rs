@@ -14,6 +14,7 @@ pub mod index;
 pub mod layout;
 pub mod member;
 pub mod pointer;
+pub mod reader;
 pub mod registry;
 pub mod resolve;
 pub mod sdna;
