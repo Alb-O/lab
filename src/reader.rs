@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::Arc;
 
 // Core constants mirrored from Blender's BLO_core_bhead.hh
 pub mod codes {
@@ -82,17 +83,17 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-pub struct BlendFile<'a> {
-    data: &'a [u8],
+pub struct BlendFile {
+    data: Arc<[u8]>,
     pub header: Header,
     cursor: usize, // position just after file header
     bhead_type: BHeadType,
     endian: Endian,
 }
 
-impl<'a> BlendFile<'a> {
-    pub fn from_bytes(data: &'a [u8]) -> Result<Self, Error> {
-        let (header, cursor) = decode_header(data)?;
+impl BlendFile {
+    pub fn from_bytes_arc(data: Arc<[u8]>) -> Result<Self, Error> {
+        let (header, cursor) = decode_header(&data)?;
         Ok(Self {
             data,
             bhead_type: header.bhead_type(),
@@ -102,19 +103,21 @@ impl<'a> BlendFile<'a> {
         })
     }
 
-    pub fn from_bytes_auto_decompress<'b>(raw: &'b [u8]) -> Result<BlendFile<'b>, Error> {
+    pub fn from_bytes_auto_decompress(raw: Arc<[u8]>) -> Result<BlendFile, Error> {
         // Zstd magic: 0x28 B5 2F FD
         let looks_like_zstd = raw.len() >= 4 && raw[0..4] == [0x28, 0xB5, 0x2F, 0xFD];
         if looks_like_zstd {
-            let mut decoder = zstd::stream::read::Decoder::new(raw).map_err(|e| Error::Decode(format!("zstd init: {}", e)))?;
+            let mut decoder = zstd::stream::read::Decoder::new(&*raw)
+                .map_err(|e| Error::Decode(format!("zstd init: {}", e)))?;
             let mut buf = Vec::new();
             use std::io::Read;
-            decoder.read_to_end(&mut buf).map_err(|e| Error::Decode(format!("zstd decode: {}", e)))?;
-            // Construct owned data BlendFile by leaking the Vec (simplify CLI). In a library we would avoid this.
-            let leaked: &'b [u8] = Box::leak(buf.into_boxed_slice());
-            return BlendFile::from_bytes(leaked);
+            decoder
+                .read_to_end(&mut buf)
+                .map_err(|e| Error::Decode(format!("zstd decode: {}", e)))?;
+            let arc: Arc<[u8]> = buf.into_boxed_slice().into();
+            return BlendFile::from_bytes_arc(arc);
         }
-        BlendFile::from_bytes(raw)
+        BlendFile::from_bytes_arc(raw)
     }
 
     pub fn next_block(&mut self) -> Option<BHead> {
@@ -123,9 +126,9 @@ impl<'a> BlendFile<'a> {
         }
         let start = self.cursor;
         let bh = match self.bhead_type {
-            BHeadType::BHead4 => read_bhead4(self.data, start, self.endian),
-            BHeadType::SmallBHead8 => read_small_bhead8(self.data, start, self.endian),
-            BHeadType::LargeBHead8 => read_large_bhead8(self.data, start, self.endian),
+            BHeadType::BHead4 => read_bhead4(&self.data, start, self.endian),
+            BHeadType::SmallBHead8 => read_small_bhead8(&self.data, start, self.endian),
+            BHeadType::LargeBHead8 => read_large_bhead8(&self.data, start, self.endian),
         };
         let mut bh = match bh {
             Ok(v) => v,
@@ -140,7 +143,7 @@ impl<'a> BlendFile<'a> {
         Some(bh)
     }
 
-    pub fn read_block_payload(&self, bh: &BHead) -> Result<&'a [u8], Error> {
+    pub fn read_block_payload(&self, bh: &BHead) -> Result<&[u8], Error> {
         let start = bh.data_offset;
         let end = start.checked_add(bh.len as usize).ok_or_else(|| Error::Decode("overflow".into()))?;
         if end > self.data.len() { return Err(Error::Eof); }
