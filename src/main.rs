@@ -25,12 +25,10 @@ fn collect_inputs(args: &[String]) -> (Option<usize>, Vec<PathBuf>) {
                 eprintln!("--jobs requires a number");
                 std::process::exit(2);
             }
-            let n = args[i + 1]
-                .parse::<usize>()
-                .unwrap_or_else(|_| {
-                    eprintln!("invalid --jobs value: {}", args[i + 1]);
-                    std::process::exit(2);
-                });
+            let n = args[i + 1].parse::<usize>().unwrap_or_else(|_| {
+                eprintln!("invalid --jobs value: {}", args[i + 1]);
+                std::process::exit(2);
+            });
             jobs = Some(n.max(1));
             i += 2;
             continue;
@@ -118,7 +116,7 @@ fn main() -> io::Result<()> {
                                                 .ok();
                                             }
                                             Err(e) => {
-                                                writeln!(&mut out, "SDNA decode error: {}", e).ok();
+                                                writeln!(&mut out, "SDNA decode error: {e}").ok();
                                             }
                                         }
                                         saw_dna = true;
@@ -130,13 +128,13 @@ fn main() -> io::Result<()> {
                                 }
                             }
                             Err(e) => {
-                                writeln!(&mut out, "Error: {}", e).ok();
+                                writeln!(&mut out, "Error: {e}").ok();
                             }
                         }
                     }
                     Err(e) => {
                         writeln!(&mut out, "-- {} --", path_buf.display()).ok();
-                        writeln!(&mut out, "Error reading file: {}", e).ok();
+                        writeln!(&mut out, "Error reading file: {e}").ok();
                     }
                 }
                 let s = String::from_utf8(out).unwrap_or_else(|_| String::from("<non-utf8 output>"));
@@ -147,7 +145,10 @@ fn main() -> io::Result<()> {
     };
 
     let mut results: Vec<(String, String)> = if let Some(n) = jobs {
-        let pool = rayon::ThreadPoolBuilder::new().num_threads(n).build().unwrap();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(n)
+            .build()
+            .unwrap();
         pool.install(|| process(files))
     } else {
         process(files)
@@ -155,7 +156,7 @@ fn main() -> io::Result<()> {
 
     results.sort_by(|a, b| a.0.cmp(&b.0));
     for (_path, s) in results.into_iter() {
-        print!("{}", s);
+        print!("{s}");
     }
 
     Ok(())
