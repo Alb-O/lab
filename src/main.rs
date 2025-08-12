@@ -1,4 +1,4 @@
-mod reader;
+use blendreader::{format, reader};
 
 use std::env;
 use std::fs::File;
@@ -89,7 +89,7 @@ fn main() -> io::Result<()> {
                         writeln!(&mut out, "-- {} --", path_buf.display()).ok();
                         let arc: Arc<[u8]> = data.into_boxed_slice().into();
                         match reader::BlendFile::from_bytes_auto_decompress(arc) {
-                            Ok(mut bf) => {
+                            Ok(bf) => {
                                 let hdr = &bf.header;
                                 writeln!(
                                     &mut out,
@@ -98,8 +98,8 @@ fn main() -> io::Result<()> {
                                 )
                                 .ok();
                                 let mut saw_dna = false;
-                                while let Some(bh) = bf.next_block() {
-                                    if bh.code == reader::codes::BLO_CODE_DNA1 {
+                                for bh in bf.blocks() {
+                                    if bh.code == format::codes::BLO_CODE_DNA1 {
                                         writeln!(
                                             &mut out,
                                             "Found DNA1: len={} SDNAnr={} nr={}",
