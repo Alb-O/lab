@@ -1,0 +1,4 @@
+/target
+/blendfiles/**
+!/blendfiles/
+!/blendfiles/blendfiles_map.json
