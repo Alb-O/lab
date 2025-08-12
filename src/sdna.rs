@@ -1,6 +1,7 @@
 use crate::{Error, format::Endian};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SdnaInfo {
     pub names_len: usize,
     pub types_len: usize,

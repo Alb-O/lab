@@ -1,17 +1,19 @@
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Endian {
     Little,
     Big,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BHeadType {
     BHead4,
     SmallBHead8,
     LargeBHead8,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Header {
     pub pointer_size: u8,         // 4 or 8
     pub endian: Endian,           // Little or Big
@@ -74,7 +76,7 @@ pub mod codes {
     pub const BLO_CODE_LS: u32 = blend_make_id(b'L', b'S', b'\0', b'\0');
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlockInfo {
     pub name: &'static str,
     pub description: &'static str,
@@ -276,8 +278,8 @@ impl BlockInfo {
                 typical_size_range: None,
             },
             codes::BLO_CODE_GR => BlockInfo {
-                name: "Group",
-                description: "Object group data",
+                name: "Collection",
+                description: "Collection data",
                 is_data_block: true,
                 is_system_block: false,
                 typical_size_range: None,
@@ -335,10 +337,10 @@ impl BlockInfo {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockCode(pub u32);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BHead {
     pub code: u32,
     pub sdn_anr: i64,

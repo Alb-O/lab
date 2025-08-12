@@ -1,5 +1,6 @@
 use blendreader::{
-    AnalysisOptions, BlendFile, FileAnalysis, detailed_block_info, format, get_interesting_blocks,
+    AnalysisOptions, BlendFile, FileAnalysis, get_interesting_blocks, serialize_blend_file,
+    serialize_multiple_files, serialize_to_json, serialize_to_json_compact, table_format,
 };
 
 use clap::{Parser, ValueHint};
@@ -18,12 +19,16 @@ BlendReader analyzes Blender .blend files and provides detailed information abou
 By default, it shows user data blocks (Objects, Meshes, Materials, etc.) and filters out 
 system blocks (file structure, metadata). Use --include-system to see all blocks.
 
+Output is formatted in beautiful tables for easy reading, or can be exported as JSON for
+programmatic processing.
+
 EXAMPLES:
-    blendreader file.blend                    # Analyze a single file
+    blendreader file.blend                    # Analyze a single file (table format)
     blendreader path/to/files/                # Analyze all .blend files in directory  
     blendreader -j 4 *.blend                  # Use 4 parallel threads
     blendreader --include-system file.blend   # Show system blocks too
     blendreader --max-blocks 25 file.blend    # Show more block details
+    blendreader --format json file.blend      # Export as JSON
 ")]
 #[command(version)]
 struct Cli {
@@ -61,6 +66,12 @@ struct Cli {
     #[arg(long = "no-invalid-warnings")]
     #[arg(help = "Hide warnings about invalid block sizes")]
     no_invalid_warnings: bool,
+
+    /// Output format
+    #[arg(long = "format", value_name = "FORMAT", default_value = "text")]
+    #[arg(help = "Output format: text, json, json-compact")]
+    #[arg(value_parser = ["text", "json", "json-compact"])]
+    output_format: String,
 }
 
 fn read_all(path: &Path) -> io::Result<Vec<u8>> {
@@ -114,125 +125,156 @@ fn main() -> io::Result<()> {
         std::process::exit(1);
     }
 
-    let process = |paths: Vec<PathBuf>, opts: AnalysisOptions| {
+    let process = |paths: Vec<PathBuf>, opts: AnalysisOptions, format: &str| {
         use rayon::prelude::*;
-        let results: Vec<(String, String)> = paths
-            .into_par_iter()
-            .map(|path_buf| {
-                let path_str = path_buf.to_string_lossy().into_owned();
-                let mut out = Vec::new();
-                match read_all(&path_buf) {
-                    Ok(data) => {
-                        writeln!(&mut out, "-- {} --", path_buf.display()).ok();
-                        let arc: Arc<[u8]> = data.into_boxed_slice().into();
-                        match BlendFile::from_bytes_auto_decompress(arc) {
-                            Ok(bf) => {
-                                let hdr = &bf.header;
-                                writeln!(
-                                    &mut out,
-                                    "Header: ptr_size={} endian={} file_version={} format_version={}",
-                                    hdr.pointer_size, hdr.endian as u8, hdr.file_version, hdr.file_format_version
-                                )
-                                .ok();
-                                
-                                let analysis = FileAnalysis::analyze_with_options(&bf, &opts);
-                                writeln!(&mut out, "\n=== File Analysis ===").ok();
-                                writeln!(&mut out, "Total blocks: {}", analysis.total_blocks).ok();
-                                writeln!(&mut out, "Data blocks: {} | Meta blocks: {}", analysis.data_blocks, analysis.meta_blocks).ok();
-                                writeln!(&mut out, "Total size: {} bytes ({:.1} KB)", analysis.total_size, analysis.total_size as f64 / 1024.0).ok();
-                                
-                                if opts.show_warnings && !analysis.warnings.is_empty() {
-                                    writeln!(&mut out, "\n=== Warnings ===").ok();
-                                    for warning in &analysis.warnings {
-                                        writeln!(&mut out, "⚠️  {warning}").ok();
-                                    }
+
+        match format {
+            "json" | "json-compact" => {
+                let paths_clone = paths.clone();
+                let results: Vec<Result<blendreader::BlendFileData, String>> = paths
+                    .into_par_iter()
+                    .map(|path_buf| {
+                        let path_str = path_buf.to_string_lossy().into_owned();
+                        match read_all(&path_buf) {
+                            Ok(data) => {
+                                let arc: Arc<[u8]> = data.into_boxed_slice().into();
+                                match BlendFile::from_bytes_auto_decompress(arc) {
+                                    Ok(bf) => match serialize_blend_file(&path_str, &bf, &opts) {
+                                        Ok(data) => Ok(data),
+                                        Err(e) => Err(format!("Serialization error: {e}")),
+                                    },
+                                    Err(e) => Err(format!("Parse error: {e}")),
                                 }
-                                
-                                writeln!(&mut out, "\n=== Notable Blocks ===").ok();
-                                let interesting_blocks = get_interesting_blocks(&bf, &opts);
-                                let mut saw_dna = false;
-                                
-                                for bh in interesting_blocks {
-                                    if bh.code == format::codes::BLO_CODE_DNA1 {
-                                        writeln!(&mut out, "{}", detailed_block_info(&bh)).ok();
-                                        match bf.read_dna_block(&bh) {
-                                            Ok(info) => {
-                                                writeln!(
-                                                    &mut out,
-                                                    "  SDNA: names={} types={} structs={}",
-                                                    info.names_len, info.types_len, info.structs_len
-                                                )
-                                                .ok();
-                                            }
-                                            Err(e) => {
-                                                writeln!(&mut out, "  SDNA decode error: {e}").ok();
-                                            }
+                            }
+                            Err(e) => Err(format!("Read error: {e}")),
+                        }
+                    })
+                    .collect();
+
+                let mut success_files = Vec::new();
+                let mut errors = Vec::new();
+
+                for (i, result) in results.into_iter().enumerate() {
+                    match result {
+                        Ok(data) => success_files.push(data),
+                        Err(e) => errors.push((paths_clone[i].to_string_lossy().to_string(), e)),
+                    }
+                }
+
+                if success_files.len() == 1 {
+                    let output = if format == "json-compact" {
+                        serialize_to_json_compact(&success_files[0])
+                    } else {
+                        serialize_to_json(&success_files[0])
+                    };
+
+                    match output {
+                        Ok(json) => {
+                            println!("{json}");
+                            if !errors.is_empty() {
+                                eprintln!("\nErrors:");
+                                for (path, error) in errors {
+                                    eprintln!("{path}: {error}");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("JSON serialization error: {e}");
+                        }
+                    }
+                } else {
+                    let multi_data = serialize_multiple_files(success_files);
+                    let output = if format == "json-compact" {
+                        serde_json::to_string(&multi_data)
+                    } else {
+                        serde_json::to_string_pretty(&multi_data)
+                    };
+
+                    match output {
+                        Ok(json) => {
+                            println!("{json}");
+                            if !errors.is_empty() {
+                                eprintln!("\nErrors:");
+                                for (path, error) in errors {
+                                    eprintln!("{path}: {error}");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("JSON serialization error: {e}");
+                        }
+                    }
+                }
+            }
+            _ => {
+                let mut results: Vec<(String, String)> = paths
+                    .into_par_iter()
+                    .map(|path_buf| {
+                        let path_str = path_buf.to_string_lossy().into_owned();
+                        let mut out = Vec::new();
+                        match read_all(&path_buf) {
+                            Ok(data) => {
+                                let arc: Arc<[u8]> = data.into_boxed_slice().into();
+                                match BlendFile::from_bytes_auto_decompress(arc) {
+                                    Ok(bf) => {
+                                        let path_str = path_buf.display().to_string();
+                                        writeln!(&mut out, "{}", table_format::format_file_header(&path_str, &bf.header)).ok();
+
+                                        let analysis = FileAnalysis::analyze_with_options(&bf, &opts);
+                                        writeln!(&mut out, "\n{}", table_format::format_file_analysis(&analysis)).ok();
+
+                                        if opts.show_warnings && !analysis.warnings.is_empty() {
+                                            writeln!(&mut out, "\n{}", table_format::format_warnings(&analysis.warnings)).ok();
                                         }
-                                        saw_dna = true;
-                                    } else {
-                                        writeln!(&mut out, "{}", detailed_block_info(&bh)).ok();
+
+                                        let interesting_blocks = get_interesting_blocks(&bf, &opts);
+                                        if !interesting_blocks.is_empty() {
+                                            writeln!(&mut out, "\n{}", table_format::format_section_header("Notable Blocks")).ok();
+                                            writeln!(&mut out, "{}", table_format::format_blocks_table(&interesting_blocks, &bf, &opts)).ok();
+                                        }
+
+                                        if analysis.total_blocks > opts.max_blocks_to_show {
+                                            let remaining = analysis.total_blocks - opts.max_blocks_to_show;
+                                            writeln!(&mut out, "\nNote: {remaining} additional blocks not shown (use --max-blocks to show more)").ok();
+                                        }
+
+                                        writeln!(&mut out, "\n{}", table_format::format_section_header("Block Type Summary")).ok();
+                                        writeln!(&mut out, "{}", table_format::format_block_type_summary(&analysis.block_type_stats, &opts)).ok();
                                     }
-                                }
-                                
-                                if analysis.total_blocks > opts.max_blocks_to_show {
-                                    let remaining = analysis.total_blocks - opts.max_blocks_to_show;
-                                    writeln!(&mut out, "... and {remaining} more blocks (use --max-blocks to show more)").ok();
-                                }
-                                
-                                writeln!(&mut out, "\n=== Block Type Summary ===").ok();
-                                let mut types: Vec<_> = analysis.block_type_stats.iter().collect();
-                                types.sort_by(|a, b| b.1.count.cmp(&a.1.count));
-                                let mut system_blocks_count = 0;
-                                let mut system_blocks_size = 0;
-                                
-                                for (block_type, stats) in types.iter().take(10) {
-                                    let is_system = matches!(block_type.as_str(), 
-                                        "DATA" | "GLOB" | "DNA1" | "REND" | "USER" | "ENDB" | "WindowManager" | "Screen" | "TEST");
-                                    
-                                    if !opts.include_system_blocks && is_system {
-                                        system_blocks_count += stats.count;
-                                        system_blocks_size += stats.total_size;
-                                    } else {
-                                        writeln!(&mut out, "{:12}: {:3} blocks, {:8} bytes total", 
-                                            block_type, stats.count, stats.total_size).ok();
+                                    Err(e) => {
+                                        let path_str = path_buf.display().to_string();
+                                        writeln!(&mut out, "{}", table_format::format_section_header(&format!("Error: {path_str}"))).ok();
+                                        writeln!(&mut out, "ERROR: {e}").ok();
                                     }
-                                }
-                                
-                                if !opts.include_system_blocks && system_blocks_count > 0 {
-                                    writeln!(&mut out, "{:12}: {:3} blocks, {:8} bytes (filtered, use --include-system)", 
-                                        "System", system_blocks_count, system_blocks_size).ok();
                                 }
                             }
                             Err(e) => {
-                                writeln!(&mut out, "Error: {e}").ok();
+                                let path_str = path_buf.display().to_string();
+                                writeln!(&mut out, "{}", table_format::format_section_header(&format!("Error: {path_str}"))).ok();
+                                writeln!(&mut out, "ERROR: Error reading file: {e}").ok();
                             }
                         }
-                    }
-                    Err(e) => {
-                        writeln!(&mut out, "-- {} --", path_buf.display()).ok();
-                        writeln!(&mut out, "Error reading file: {e}").ok();
-                    }
+                        let s = String::from_utf8(out).unwrap_or_else(|_| String::from("<non-utf8 output>"));
+                        (path_str, s)
+                    })
+                    .collect();
+
+                results.sort_by(|a, b| a.0.cmp(&b.0));
+                for (_path, s) in results.into_iter() {
+                    print!("{s}");
                 }
-                let s = String::from_utf8(out).unwrap_or_else(|_| String::from("<non-utf8 output>"));
-                (path_str, s)
-            })
-            .collect();
-        results
+            }
+        }
     };
 
-    let mut results: Vec<(String, String)> = if let Some(n) = cli.jobs {
+    if let Some(n) = cli.jobs {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(n as usize)
             .build()
             .unwrap();
-        pool.install(|| process(files, options.clone()))
+        pool.install(|| process(files, options.clone(), &cli.output_format))
     } else {
-        process(files, options)
-    };
-
-    results.sort_by(|a, b| a.0.cmp(&b.0));
-    for (_path, s) in results.into_iter() {
-        print!("{s}");
+        process(files, options, &cli.output_format)
     }
 
     Ok(())

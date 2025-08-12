@@ -1,12 +1,18 @@
 use crate::format::{BHead, codes};
 use crate::reader::BlendFile;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+/// Configuration options for file analysis and display
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisOptions {
+    /// Whether to include system blocks (DNA1, GLOB, etc.) in output
     pub include_system_blocks: bool,
+    /// Maximum number of blocks to show in detailed view
     pub max_blocks_to_show: usize,
+    /// Whether to show warnings about invalid block sizes
     pub show_invalid_blocks: bool,
+    /// Whether to show analysis warnings
     pub show_warnings: bool,
 }
 
@@ -21,12 +27,18 @@ impl Default for AnalysisOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+/// Statistics for a particular block type
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockStats {
+    /// Number of blocks of this type
     pub count: usize,
+    /// Total size of all blocks of this type in bytes
     pub total_size: usize,
+    /// Average size per block in bytes
     pub avg_size: usize,
+    /// Smallest block size in bytes
     pub min_size: usize,
+    /// Largest block size in bytes
     pub max_size: usize,
 }
 
@@ -50,23 +62,33 @@ impl BlockStats {
     }
 }
 
-#[derive(Debug)]
+/// Complete analysis results for a .blend file
+#[derive(Debug, Serialize, Deserialize)]
 pub struct FileAnalysis {
+    /// Total number of blocks in the file
     pub total_blocks: usize,
+    /// Number of data blocks (Objects, Meshes, etc.)
     pub data_blocks: usize,
+    /// Number of metadata blocks (DNA1, GLOB, etc.)
     pub meta_blocks: usize,
+    /// Total file size in bytes
     pub total_size: usize,
+    /// Statistics grouped by block type
     pub block_type_stats: HashMap<String, BlockStats>,
+    /// List of blocks with invalid/suspicious sizes
     pub invalid_blocks: Vec<String>,
+    /// Analysis warnings and issues found
     pub warnings: Vec<String>,
 }
 
 impl FileAnalysis {
+    /// Analyze a .blend file with default options
     pub fn analyze(bf: &BlendFile) -> Self {
         Self::analyze_with_options(bf, &AnalysisOptions::default())
     }
 
-    pub fn analyze_with_options(bf: &BlendFile, options: &AnalysisOptions) -> Self {
+    /// Analyze a .blend file with custom options
+    pub fn analyze_with_options(bf: &BlendFile, _options: &AnalysisOptions) -> Self {
         let mut analysis = FileAnalysis {
             total_blocks: 0,
             data_blocks: 0,
@@ -141,120 +163,9 @@ impl FileAnalysis {
                 .push("No data blocks found - file appears empty".to_string());
         }
     }
-
-    pub fn print_summary(&self) {
-        self.print_summary_with_options(&AnalysisOptions::default())
-    }
-
-    pub fn print_summary_with_options(&self, options: &AnalysisOptions) {
-        println!("=== Block Analysis Summary ===");
-        println!("Total blocks: {}", self.total_blocks);
-        println!(
-            "Data blocks: {} | Meta blocks: {}",
-            self.data_blocks, self.meta_blocks
-        );
-        println!(
-            "Total size: {} bytes ({:.2} KB)",
-            self.total_size,
-            self.total_size as f64 / 1024.0
-        );
-
-        if options.show_warnings && !self.warnings.is_empty() {
-            println!("\n=== Warnings ===");
-            for warning in &self.warnings {
-                println!("⚠️  {warning}");
-            }
-        }
-
-        if options.show_invalid_blocks && !self.invalid_blocks.is_empty() {
-            println!("\n=== Invalid Block Sizes ===");
-            for invalid in &self.invalid_blocks {
-                println!("❌ {invalid}");
-            }
-        }
-    }
-
-    pub fn print_detailed(&self) {
-        self.print_detailed_with_options(&AnalysisOptions::default())
-    }
-
-    pub fn print_detailed_with_options(&self, options: &AnalysisOptions) {
-        self.print_summary_with_options(options);
-
-        println!("\n=== Block Type Statistics ===");
-        let mut types: Vec<_> = self.block_type_stats.iter().collect();
-        types.sort_by(|a, b| b.1.total_size.cmp(&a.1.total_size));
-
-        let mut system_blocks_count = 0;
-        let mut system_blocks_size = 0;
-
-        for (block_type, stats) in types {
-            // Check if this is a system block type
-            let is_system = matches!(
-                block_type.as_str(),
-                "DATA"
-                    | "GLOB"
-                    | "DNA1"
-                    | "REND"
-                    | "USER"
-                    | "ENDB"
-                    | "WindowManager"
-                    | "Screen"
-                    | "TEST"
-            );
-
-            if !options.include_system_blocks && is_system {
-                system_blocks_count += stats.count;
-                system_blocks_size += stats.total_size;
-                continue;
-            }
-
-            println!(
-                "{:15} | Count: {:4} | Total: {:8} bytes | Avg: {:6} | Min: {:6} | Max: {:8}",
-                block_type,
-                stats.count,
-                stats.total_size,
-                stats.avg_size,
-                stats.min_size,
-                stats.max_size
-            );
-        }
-
-        if !options.include_system_blocks && system_blocks_count > 0 {
-            println!(
-                "System (filtered)| Count: {system_blocks_count:4} | Total: {system_blocks_size:8} bytes (use --include-system to show details)"
-            );
-        }
-    }
 }
 
-pub fn detailed_block_info(bh: &BHead) -> String {
-    detailed_block_info_with_options(bh, &AnalysisOptions::default())
-}
-
-pub fn detailed_block_info_with_options(bh: &BHead, _options: &AnalysisOptions) -> String {
-    let info = bh.block_info();
-    let block_type = if info.is_system_block {
-        "System"
-    } else {
-        "User Data"
-    };
-
-    format!(
-        "Block: {} ({}) - {}\n  Size: {} bytes ({}) | Type: {}\n  SDN: {} | OldPtr: 0x{:X} | Nr: {}\n  Valid: {}",
-        info.name,
-        bh.code_string(),
-        info.description,
-        bh.len,
-        bh.size_category(),
-        block_type,
-        bh.sdn_anr,
-        bh.old_ptr,
-        bh.nr,
-        if bh.is_valid_size() { "✓" } else { "❌" }
-    )
-}
-
+/// Determine if a block should be shown based on analysis options
 pub fn should_show_block(bh: &BHead, options: &AnalysisOptions) -> bool {
     if !options.include_system_blocks && bh.is_system_block() {
         return false;
@@ -262,6 +173,10 @@ pub fn should_show_block(bh: &BHead, options: &AnalysisOptions) -> bool {
     true
 }
 
+/// Get the most interesting blocks from a file for display
+///
+/// This function selects blocks to show based on the analysis options,
+/// prioritizing user data blocks and optionally including system blocks.
 pub fn get_interesting_blocks(bf: &BlendFile, options: &AnalysisOptions) -> Vec<BHead> {
     let mut blocks = Vec::new();
     let mut seen_count = 0;
@@ -297,13 +212,8 @@ pub fn get_interesting_blocks(bf: &BlendFile, options: &AnalysisOptions) -> Vec<
             continue;
         }
 
-        // Show user data blocks (actual blend file content)
-        if !bh.is_system_block() {
-            blocks.push(bh);
-            seen_count += 1;
-        }
-        // Show system blocks if requested
-        else if options.include_system_blocks {
+        // Show user data blocks or system blocks if requested
+        if !bh.is_system_block() || options.include_system_blocks {
             blocks.push(bh);
             seen_count += 1;
         }

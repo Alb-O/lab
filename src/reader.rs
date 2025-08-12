@@ -40,7 +40,7 @@ impl BlendFile {
         }
         let start = self.cursor;
         let bh = format::read_bhead(&self.data, start, self.endian, self.bhead_type);
-        let mut bh = match bh {
+        let bh = match bh {
             Ok(v) => v,
             Err(_) => return None,
         };
@@ -48,8 +48,7 @@ impl BlendFile {
         // header begins immediately after the payload per Blender's reader.
         let data_end = bh.data_offset + (bh.len as usize);
         self.cursor = data_end;
-        // Mark data_offset at payload start
-        bh.data_offset = bh.data_offset;
+        // data_offset is already set correctly by format::read_bhead
         Some(bh)
     }
 
