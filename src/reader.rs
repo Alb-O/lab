@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::compress::maybe_decompress;
 use crate::error::Error;
-use crate::format::{self, codes, BHead, BHeadType, Endian, Header};
-use crate::sdna::{decode_sdna, SdnaInfo};
+use crate::format::{self, BHead, BHeadType, Endian, Header, codes};
+use crate::sdna::{SdnaInfo, decode_sdna};
 
 // BHead now provided by format module
 

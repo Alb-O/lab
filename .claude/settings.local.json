@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(rustc --version)",
+      "Bash(rustc:*)",
+      "Bash(./target/debug/blendreader.exe:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

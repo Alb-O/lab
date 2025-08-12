@@ -1,4 +1,4 @@
-use crate::{format::Endian, Error};
+use crate::{Error, format::Endian};
 
 #[derive(Clone, Debug)]
 pub struct SdnaInfo {
@@ -112,5 +112,3 @@ pub fn decode_sdna(bytes: &[u8], endian: Endian) -> Result<SdnaInfo, Error> {
         structs_len: structs_count as usize,
     })
 }
-
-

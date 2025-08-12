@@ -35,5 +35,3 @@ pub fn maybe_decompress(raw: Arc<[u8]>) -> Result<Arc<[u8]>, Error> {
     }
     Ok(raw)
 }
-
-
