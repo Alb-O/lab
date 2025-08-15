@@ -1,0 +1,632 @@
+/* Blender Builds Plugin - Modern Obsidian UI Styles */
+
+/* Status display styles */
+.blender-status-display {
+    font-size: var(--font-ui-small);
+    padding-left: var(--size-4-4);
+    padding-right: var(--size-4-4);
+}
+
+.blender-status-display * {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.blender-status-line {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+}
+
+.blender-status-icon {
+    display: inline-block;
+    width: 1.2em;
+    text-align: center;
+    margin-right: 0.7em;
+}
+
+.blender-status-label {
+    display: inline-block;
+}
+
+.blender-status-indicator {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-weight-medium);
+    padding: var(--size-2-1) var(--size-4-2);
+    border-radius: var(--radius-s);
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+}
+
+/* Status states */
+.blender-status-clean {
+    color: var(--text-success);
+}
+
+.blender-status-refreshing {
+    color: var(--text-warning);
+}
+
+.blender-status-error {
+    color: var(--text-error);
+}
+
+.blender-status-loading {
+	color: var(--text-muted);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	display: block;
+	width: 100%;
+}
+
+.blender-status-active {
+	color: var(--text-accent);
+	font-weight: var(--font-weight-medium);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	display: block;
+	width: 100%;
+}
+
+.blender-status-idle {
+	color: var(--text-muted);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	display: block;
+	width: 100%;
+}
+
+/* Status message styling - consistent colors for all status elements */
+
+/* Builds list styles */
+.blender-content-area {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0 var(--size-4-3) var(--size-4-8);
+}
+
+.blender-builds-list {
+    list-style: none;
+    margin-top: var(--size-4-2);
+    overflow-y: auto;
+    flex: 1;
+    /* Performance optimizations for large lists */
+    contain: layout style paint; /* Simplified from strict */
+    will-change: scroll-position;
+    overflow-anchor: none;
+}
+
+.blender-build-item {
+    display: flex;
+    border-bottom: 1px solid var(--background-modifier-border-hover);
+    padding: var(--size-4-2);
+    gap: var(--size-4-2);
+    position: relative;
+
+    /* Virtual scrolling hints for large lists */
+    @supports (content-visibility: auto) {
+        content-visibility: auto;
+        contain-intrinsic-size: 0 60px; /* Approximate height of build item */
+    }
+}
+
+.blender-build-item.blender-build-pinned {
+    border-top: 1px solid var(--background-modifier-border-hover);
+    border-right: 1px solid var(--background-modifier-border-hover);
+    border-radius: var(--radius-s);
+}
+
+.blender-build-installed {
+    border-left: 4px solid var(--background-modifier-success);
+}
+
+/* Orphaned build styles */
+.blender-build-item.orphaned {
+    opacity: 0.8;
+    border-left: 3px solid var(--text-warning);
+    padding-left: var(--size-4-2);
+}
+
+.blender-build-item.orphaned .blender-build-info {
+    position: relative;
+}
+
+.blender-build-item.orphaned .blender-build-info::after {
+    content: " (local only)";
+    font-size: var(--font-ui-smaller);
+    color: var(--text-warning);
+    font-style: italic;
+}
+
+/* Styling for highlighted search matches (e.g., using <mark> tag) */
+.blender-build-item mark {
+    background-color: transparent; /* Remove default browser background */
+    color: inherit; /* Inherit text color from parent */
+    font-weight: bold;
+}
+
+.blender-build-item:hover {
+    background: var(--background-modifier-hover);
+}
+
+.blender-build-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.blender-build-version {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-normal);
+    margin: 1px var(--size-2-2);
+    margin-left: 0;
+}
+
+.blender-version-text {
+    font-weight: var(--font-weight-semibold);
+}
+
+.blender-build-hash {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    background: var(--background-modifier-border);
+    padding: 1px var(--size-2-2);
+    margin: 1px var(--size-2-2);
+    border-radius: var(--radius-s);
+    /* Performance optimization for hash display */
+    flex-shrink: 0;
+    max-width: 100px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.blender-build-branch {
+    display: flex;
+    align-items: center;
+    min-width: 80px;
+}
+
+.blender-branch-tag {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-on-accent);
+    background: var(--interactive-accent);
+    padding: 1px var(--size-2-2);
+    margin: 1px var(--size-2-2);
+    border-radius: var(--radius-s);
+}
+
+/* Branch-specific colors */
+.blender-branch-tag.branch-main,
+.blender-branch-tag.branch-master {
+    background: var(--color-accent);
+}
+
+.blender-branch-tag.branch-lts {
+    background: var(--color-green);
+}
+
+.blender-branch-tag.branch-alpha,
+.blender-branch-tag.branch-beta {
+    background: var(--color-orange);
+}
+
+.blender-branch-tag.branch-experimental {
+    background: var(--color-purple);
+}
+
+.blender-build-date {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    white-space: nowrap;
+    margin: 1px var(--size-2-2);
+    /* Performance optimization for date display */
+    flex-shrink: 0;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.blender-date-text {
+    font-weight: var(--font-weight-medium);
+}
+
+.blender-time-text {
+    opacity: 0.8;
+}
+
+.blender-build-actions {
+    position: absolute;
+    top: 50%;
+    right: var(--size-4-2);
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--size-2-1);
+    opacity: 0;
+    visibility: hidden;
+    background: var(--background-primary);
+    padding: var(--size-2-2);
+    border-radius: var(--radius-s);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.blender-build-item:hover .blender-build-actions {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Main line and filename styling with performance optimizations */
+.blender-build-main-line {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+    overflow: hidden;
+    min-width: 0;
+    /* Performance optimization */
+    contain: layout style;
+}
+
+.blender-build-filename {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    /* Performance optimizations for long filenames */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    contain: layout style;
+}
+
+.blender-toolbar .clickable-icon:disabled {
+    color: var(--text-faint);
+    pointer-events: none;
+}
+
+/* Custom loading animation for refresh button - spinning icon */
+.blender-refreshing {
+	position: relative !important;
+}
+
+/* Make the SVG icon spin when loading - more specific selector */
+.blender-refreshing svg,
+.blender-refreshing .svg-icon,
+.blender-refreshing .lucide {
+	animation: 2s linear infinite loading;
+    transform-origin: 50% 50%;
+    display: inline-block;
+}
+
+@keyframes blender-refresh-spin {
+	0% { transform: rotate(0deg); }
+	100% { transform: rotate(360deg); }
+}
+
+/* Filters section */
+.blender-filters {
+    padding: var(--size-4-2);
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    display: flex;
+    gap: var(--size-4-3);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.blender-filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+}
+
+.blender-filter-group label {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-normal);
+    white-space: nowrap;
+}
+
+.blender-filter-group input,
+.blender-filter-group select {
+    padding: var(--size-2-1) var(--size-2-3);
+    border-radius: var(--radius-s);
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+}
+
+/* Footer and stats */
+.blender-builds-footer {
+    padding: var(--size-4-2);
+    border-top: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--size-2-2);
+}
+
+.blender-builds-stats {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    display: flex;
+    gap: var(--size-4-2);
+    align-items: center;
+}
+
+.blender-last-update {
+    font-style: italic;
+}
+
+/* Empty state */
+.blender-empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: var(--size-4-6);
+}
+
+.blender-empty-state p {
+    margin-bottom: var(--size-2-2);
+}
+
+/* Loading states */
+.blender-loading {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: var(--size-4-6);
+}
+
+.blender-loading-small {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Modal styles */
+.blender-builds-modal .modal-content {
+    max-width: 900px;
+    max-height: 80vh;
+}
+
+.blender-builds-modal .modal-header {
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: var(--size-4-2);
+    margin-bottom: var(--size-4-3);
+}
+
+.blender-builds-modal .modal-title {
+    font-size: var(--font-ui-large);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-normal);
+}
+
+/* Progress modal */
+.blender-download-progress-modal {
+    text-align: center;
+}
+
+.blender-download-status {
+    font-size: var(--font-ui-medium);
+    color: var(--text-normal);
+    margin: var(--size-4-3) 0;
+    min-height: 2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Build info modal */
+.blender-build-info-modal .modal-content {
+    max-width: 600px;
+}
+
+.blender-info-item {
+    font-size: var(--font-ui-smaller);
+    margin-bottom: var(--size-4-2);
+    display: flex;
+    gap: var(--size-2-1);
+}
+
+.blender-build-content {
+    overflow: hidden;
+    white-space: nowrap;
+    /* Performance optimization for text overflow */
+    contain: layout style;
+    min-width: 0;
+    flex: 1;
+}
+
+.blender-build-details-line {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    max-width: 100%;
+    display: block;
+    /* Performance optimizations for long text */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    contain: layout style;
+}
+
+.blender-info-item:last-child {
+    margin-bottom: 0;
+}
+
+.blender-info-item strong {
+    font-weight: var(--font-weight-medium);
+    min-width: 120px;
+    flex-shrink: 0;
+    color: var(--text-normal);
+}
+
+.blender-info-item span {
+    color: var(--text-muted);
+    flex: 1;
+    word-break: break-word;
+}
+
+.blender-info-url {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-accent);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.blender-info-url:hover {
+    color: var(--text-accent-hover);
+}
+
+/* Delete button styling */
+.blender-trash-button {
+    color: var(--text-error) !important;
+}
+
+.blender-trash-button svg {
+    color: inherit;
+}
+
+/* Filter container */
+.blender-filter-container {
+    width: 100%;
+    height: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-3);
+    padding: var(--size-4-2) var(--size-4-4);
+    font-size: var(--font-ui-small);
+    flex-shrink: 0;
+}
+
+/* Horizontal flex for label and dropdown */
+.blender-type-filter-dropdown {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    width: 100%;
+    gap: var(--size-2-2);
+}
+
+.blender-type-filter-dropdown > .blender-filter-label {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.blender-type-filter-dropdown > .dropdown {
+    flex: 0 0 auto;
+    margin-left: auto;
+    min-width: 0;
+}
+
+/* Force search bar onto its own full-width row */
+.blender-type-filter-dropdown > .blender-search-container {
+    flex: 1 1 100%;
+    margin-top: var(--size-2-2);
+    min-width: 0;
+}
+
+
+.blender-search-container {
+    width: 100%;
+    min-width: 0;
+}
+
+/* Search highlighting - optimized for performance */
+/* Performance utilities */
+.blender-performance-mode .blender-builds-list {
+    /* Additional optimizations for performance mode */
+    contain: strict;
+    content-visibility: auto;
+    contain-intrinsic-size: 0 500px;
+}
+
+/* Installed-only toggle styles */
+.blender-installed-toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--size-2-2);
+}
+
+.blender-installed-toggle {
+    margin-right: var(--size-2-2);
+}
+
+.blender-installed-toggle-label {
+    font-size: var(--font-ui-small);
+    color: var(--text-normal);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Toggle container for "Show installed only" */
+.blender-toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: var(--size-2-2);
+    padding: var(--size-2-1) 0;
+}
+
+.blender-toggle-container > .blender-filter-label {
+    flex: 1;
+    margin-right: var(--size-2-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Pinned build container styles */
+.blender-pinned-builds-container {
+	padding: var(--size-4-2);
+	background: var(--background-modifier-hover);
+	border-radius: var(--radius-m);
+}
+
+.blender-pinned-header {
+	display: flex;
+	align-items: center;
+	padding-bottom: var(--size-2-2);
+}
+
+.blender-pinned-title {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-weight-medium);
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.blender-pinned-builds-list {
+	/* Remove default margins for pinned container */
+	margin: 0;
+}
+
+.blender-pinned-empty-message {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	padding: var(--size-4-2);
+}

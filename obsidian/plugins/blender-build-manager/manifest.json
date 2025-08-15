@@ -1,0 +1,11 @@
+{
+	"id": "blender-build-manager",
+	"name": "Blender Build Manager",
+	"version": "0.4.1",
+	"minAppVersion": "1.18.10",
+	"description": "Download and manage Blender builds (stable, daily, experimental) directly within your vault.",
+	"author": "Albert O'Shea",
+	"authorUrl": "https://github.com/AMC-Albert",
+	"fundingUrl": "https://github.com/sponsors/AMC-Albert",
+	"isDesktopOnly": true
+}
