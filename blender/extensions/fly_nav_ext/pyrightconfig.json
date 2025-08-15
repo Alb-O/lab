@@ -1,0 +1,25 @@
+{
+    "include": [
+        "."
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/.git"
+    ],
+    "extraPaths": [
+        // Example: "${env:APPDATA}/Blender Foundation/Blender/4.0/scripts/modules",
+        // Add path to Blender's Python modules if needed for better intellisense
+        // You might need to find the correct path for your Blender installation
+    ],
+    "typeCheckingMode": "basic",
+    "useLibraryCodeForTypes": true,
+    "autoImportCompletions": true,
+    "autoSearchPaths": true,
+    "reportMissingImports": "warning", // Changed to warning to see potential issues
+    "reportMissingModuleSource": "none",
+    "reportGeneralTypeIssues": "information", // Changed for more feedback
+    "reportOptionalMemberAccess": "none",
+    "reportOptionalSubscript": "none",
+    "reportPrivateImportUsage": "none",
+    "pythonVersion": "3.11" // Match Blender's Python version
+}
