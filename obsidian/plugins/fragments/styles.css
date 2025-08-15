@@ -1,0 +1,74 @@
+/* Hide controls by default */
+video::-webkit-media-controls {
+  opacity: 0 !important;
+  transition: opacity 0.3s ease;
+}
+/* Show only on hover or JS 'hovered' */
+video.hovered::-webkit-media-controls,
+video:hover::-webkit-media-controls {
+  opacity: 1 !important;
+}
+
+body {
+  --vfrag-timeline-playable: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0.5);
+  --vfrag-timeline-playable-fade: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
+  --vfrag-timeline-playable-right: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
+  --vfrag-timeline-bg: hsl(var(--accent-h), var(--accent-s), var(--accent-l), 0);
+}
+
+.vfrag-textarea {
+  field-sizing: content;
+  resize: none;
+}
+
+.vfrag-modal-row {
+  display: grid;
+  grid-template-columns: 64px 120px 32px auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.vfrag-modal-label {
+  min-width: 80px;
+  max-width: 120px;
+  text-align: left;
+}
+
+.mod-vfrag-set-fragment textarea {
+  resize: none;
+  width: 120px;
+  min-width: 80px;
+  max-width: 130px;
+  vertical-align: middle;
+}
+
+.mod-vfrag-set-fragment button:not(.vfrag-use-current-btn):not(.vfrag-remove-btn) {
+  min-width: 32px;
+  vertical-align: middle;
+}
+
+.mod-vfrag-set-fragment button.vfrag-remove-btn {
+  width: 32px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.mod-vfrag-set-fragment button.vfrag-use-current-btn {
+  width: fit-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-button-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vfrag-current-time-display {
+  flex: 1 1 auto;
+  text-align: left;
+}
