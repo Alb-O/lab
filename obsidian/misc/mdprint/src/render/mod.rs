@@ -1,0 +1,667 @@
+use std::io;
+use std::path::Path;
+
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+
+use crate::config::Config;
+use crate::media::{ImageBackend, RasteroidBackend};
+use crate::sink::Sink;
+use crate::spacing::{BlankLines, Block, DefaultSpacingPolicy, SpacingPolicy};
+use crate::str_width::str_width;
+use crate::style::ColorTheme;
+use crate::theme::GlyphTheme;
+use crate::types::{Column, Indent};
+use crate::wrap::{IndentedScope, Paragraph};
+
+mod code;
+mod image;
+mod table;
+mod text;
+
+#[derive(Debug)]
+enum ListKind {
+    Ordered { next: u64 },
+    Unordered,
+}
+
+#[derive(Debug)]
+enum Scope {
+    Italic,
+    Bold,
+    Strikethrough,
+    Link {
+        dest_url: String,
+        title: String,
+    },
+    List(ListKind),
+    ListItem,
+    Code,
+    CodeBlock(String),
+    BlockQuote,
+    Heading(HeadingLevel),
+    ImageCollect {
+        url: String,
+        title: String,
+        alt: String,
+    },
+    DefinitionList,
+    DefinitionTitle,
+    DefinitionDesc,
+    // Collects Markdown table content until the table ends
+    TableCollect(TableState),
+}
+
+impl IndentedScope for Scope {
+    fn indent(&self) -> Indent {
+        match self {
+            // Indent per list nesting level; items use hanging indent for bullets
+            Scope::List(..) => Indent(2),
+            Scope::ListItem => Indent(0),
+            Scope::BlockQuote => Indent(2),
+            Scope::CodeBlock(..) => Indent(2),
+            Scope::Heading(..) => Indent(0),
+            Scope::DefinitionList => Indent(0),
+            Scope::DefinitionTitle => Indent(0),
+            Scope::DefinitionDesc => Indent(2),
+            _ => Indent(0),
+        }
+    }
+}
+
+pub struct Renderer<B: ImageBackend = RasteroidBackend, S: Sink = crate::sink::StdoutSink> {
+    cfg: Config,
+    glyph_theme: GlyphTheme,
+    color_theme: ColorTheme,
+    images: B,
+    sink: S,
+    spacing: DefaultSpacingPolicy,
+    last_block: Option<Block>,
+}
+
+impl<B: ImageBackend + Default, S: Sink + Default> Renderer<B, S> {
+    pub fn new(cfg: Config) -> Self {
+        let glyph_theme = GlyphTheme::from_name(cfg.glyph_theme);
+        let color_theme = ColorTheme::from_name(cfg.color_theme);
+        Self {
+            cfg,
+            glyph_theme,
+            color_theme,
+            images: B::default(),
+            sink: S::default(),
+            spacing: DefaultSpacingPolicy,
+            last_block: None,
+        }
+    }
+
+    pub fn with_sink(cfg: Config, sink: S) -> Self {
+        let glyph_theme = GlyphTheme::from_name(cfg.glyph_theme);
+        let color_theme = ColorTheme::from_name(cfg.color_theme);
+        Self {
+            cfg,
+            glyph_theme,
+            color_theme,
+            images: B::default(),
+            sink,
+            spacing: DefaultSpacingPolicy,
+            last_block: None,
+        }
+    }
+}
+
+impl<B: ImageBackend, S: Sink> Renderer<B, S> {
+    fn ensure_spacing_before(&mut self, next: Block, scope: &[Scope]) {
+        let in_list = scope.iter().any(|s| matches!(s, Scope::List(_)));
+        let BlankLines(n) = self.spacing.between(self.last_block, next, in_list);
+        for _ in 0..n {
+            let _ = self.sink.write_blank_line();
+        }
+    }
+
+    pub fn render_markdown(&mut self, source: &str, file_path: Option<&Path>) -> io::Result<()> {
+        if self.cfg.dev {
+            for e in Parser::new_ext(source, Options::all()) {
+                eprintln!("{e:?}");
+            }
+            return Ok(());
+        }
+
+        let mut scope: Vec<Scope> = vec![];
+        let mut para = Paragraph::new();
+        let mut code_buffer = String::new();
+
+        for event in Parser::new_ext(source, Options::all()) {
+            match event {
+                Event::Start(tag) => match tag {
+                    Tag::Table(alignments) => {
+                        // Finish any running paragraph, then prepare table collection
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::Table, &scope);
+                        let mut st = TableState::new();
+                        st.alignments = alignments.into_iter().collect();
+                        scope.push(Scope::TableCollect(st));
+                    }
+                    Tag::TableHead => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.in_head = true;
+                        }
+                    }
+                    Tag::TableRow => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.start_row();
+                        }
+                    }
+                    Tag::TableCell => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.start_cell();
+                        }
+                    }
+                    Tag::Paragraph => {
+                        self.ensure_spacing_before(Block::Paragraph, &scope);
+                    }
+                    Tag::Heading { level, .. } => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::Heading, &scope);
+                        scope.push(Scope::Heading(level));
+                    }
+                    Tag::BlockQuote(..) => {
+                        // Only add spacing before top-level blockquotes, not nested ones
+                        let already_in_quote = scope.iter().any(|s| matches!(s, Scope::BlockQuote));
+                        if !already_in_quote {
+                            self.ensure_spacing_before(Block::BlockQuote, &scope);
+                        }
+                        scope.push(Scope::BlockQuote);
+                        let quote_depth = scope
+                            .iter()
+                            .filter(|s| matches!(s, Scope::BlockQuote))
+                            .count();
+                        let quote_prefix = self.glyph_theme.quote_prefix.repeat(quote_depth);
+                        let styled_prefix = self.color_theme.quote_prefix.apply(&quote_prefix);
+                        para.set_line_prefix(format!("{styled_prefix} "));
+                    }
+                    Tag::CodeBlock(kind) => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.ensure_spacing_before(Block::CodeBlock, &scope);
+                        let lang = match kind {
+                            pulldown_cmark::CodeBlockKind::Indented => "".to_string(),
+                            pulldown_cmark::CodeBlockKind::Fenced(l) => l.into_string(),
+                        };
+                        scope.push(Scope::CodeBlock(lang));
+                    }
+                    Tag::List(start) => {
+                        // Ensure any running paragraph text is finished before a nested list begins
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        // Don't add spacing when starting a nested list directly under a list item
+                        let inside_item = scope.iter().any(|s| matches!(s, Scope::ListItem));
+                        if !inside_item {
+                            self.ensure_spacing_before(Block::List, &scope);
+                        }
+                        let kind = match start {
+                            Some(n) => ListKind::Ordered { next: n },
+                            None => ListKind::Unordered,
+                        };
+                        scope.push(Scope::List(kind));
+                        // Mark that we are now in a list to suppress extra spacing for first item
+                        self.last_block = Some(Block::List);
+                    }
+                    Tag::Item => {
+                        let depth = scope.iter().filter(|s| matches!(s, Scope::List(_))).count();
+                        let (bullet_text, bullet_styled) =
+                            match scope.iter().rev().find_map(|s| match s {
+                                Scope::List(ListKind::Ordered { next }) => {
+                                    let text = format!("{next}.");
+                                    Some((text.clone(), self.color_theme.list_number.apply(&text)))
+                                }
+                                Scope::List(ListKind::Unordered) => {
+                                    let text = self
+                                        .glyph_theme
+                                        .bullet_for_depth(depth.saturating_sub(1))
+                                        .to_string();
+                                    Some((text.clone(), self.color_theme.list_bullet.apply(&text)))
+                                }
+                                _ => None,
+                            }) {
+                                Some((text, styled)) => (text, styled),
+                                None => ("-".to_string(), self.color_theme.list_bullet.apply("-")),
+                            };
+
+                        // Use consistent prefix formatting; base indent handles positioning
+                        const MIN_PREFIX_CELLS: usize = 2;
+                        let bullet_cells = str_width(&bullet_text).max(1);
+                        let padding_needed = MIN_PREFIX_CELLS.saturating_sub(bullet_cells);
+                        let prefix = format!("{bullet_styled}{} ", " ".repeat(padding_needed));
+
+                        para.set_prefix(prefix);
+
+                        scope.push(Scope::ListItem);
+                    }
+                    Tag::DefinitionList => {
+                        // Similar to lists: suppress spacing when nested under an item
+                        let inside_item = scope.iter().any(|s| matches!(s, Scope::ListItem));
+                        if !inside_item {
+                            self.ensure_spacing_before(Block::List, &scope);
+                        }
+                        scope.push(Scope::DefinitionList);
+                        self.last_block = Some(Block::List);
+                    }
+                    Tag::DefinitionListTitle => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.push(Scope::DefinitionTitle);
+                    }
+                    Tag::DefinitionListDefinition => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.push(Scope::DefinitionDesc);
+                    }
+                    Tag::Emphasis => scope.push(Scope::Italic),
+                    Tag::Strong => scope.push(Scope::Bold),
+                    Tag::Strikethrough => scope.push(Scope::Strikethrough),
+                    Tag::Link {
+                        dest_url, title, ..
+                    } => scope.push(Scope::Link {
+                        dest_url: dest_url.into_string(),
+                        title: title.into_string(),
+                    }),
+                    Tag::Image {
+                        dest_url, title, ..
+                    } => {
+                        // Defer rendering until we collect alt text content between Start and End
+                        scope.push(Scope::ImageCollect {
+                            url: dest_url.into_string(),
+                            title: title.into_string(),
+                            alt: String::new(),
+                        });
+                    }
+                    _ => {}
+                },
+                Event::End(tag) => match tag {
+                    TagEnd::TableCell => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.finish_cell();
+                        }
+                    }
+                    TagEnd::TableRow => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.finish_row();
+                        }
+                    }
+                    TagEnd::TableHead => {
+                        if let Some(Scope::TableCollect(state)) = scope.last_mut() {
+                            state.in_head = false;
+                        }
+                    }
+                    TagEnd::Table => {
+                        // Render the collected table using comfy-table
+                        if let Some(Scope::TableCollect(state)) = scope.pop() {
+                            self.render_table(state, &scope)?;
+                            self.last_block = Some(Block::Table);
+                        }
+                    }
+                    TagEnd::Paragraph => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        self.last_block = Some(Block::Paragraph);
+                    }
+                    TagEnd::Heading(_) => {
+                        if !para.is_empty() {
+                            let base_indent: usize = scope.iter().map(|s| s.indent().0).sum();
+                            let line = self.color_theme.heading.apply(para.as_str());
+                            let _ = self.sink.write_line(&line, base_indent);
+                            para.clear();
+                        }
+                        scope.pop();
+                        self.last_block = Some(Block::Heading);
+                    }
+                    TagEnd::BlockQuote(..) => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.pop();
+                        self.last_block = Some(Block::BlockQuote);
+                        let quote_depth = scope
+                            .iter()
+                            .filter(|s| matches!(s, Scope::BlockQuote))
+                            .count();
+                        if quote_depth > 0 {
+                            let quote_prefix = self.glyph_theme.quote_prefix.repeat(quote_depth);
+                            let styled_prefix = self.color_theme.quote_prefix.apply(&quote_prefix);
+                            para.set_line_prefix(format!("{styled_prefix} "));
+                        } else {
+                            para.clear_line_prefix();
+                        }
+                    }
+                    TagEnd::List(..) => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.pop();
+                        self.last_block = Some(Block::List);
+                    }
+                    TagEnd::DefinitionList => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        let _ = scope.pop();
+                        self.last_block = Some(Block::List);
+                    }
+                    TagEnd::DefinitionListTitle => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        let _ = scope.pop();
+                    }
+                    TagEnd::DefinitionListDefinition => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        let _ = scope.pop();
+                    }
+                    TagEnd::Item => {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                        scope.pop();
+                        self.last_block = Some(Block::ListItem);
+                        if let Some(Scope::List(ListKind::Ordered { next })) = scope.last_mut() {
+                            *next += 1;
+                        }
+                        para.hanging_extra = 0;
+                    }
+                    TagEnd::CodeBlock => {
+                        let indent: usize = scope.iter().map(|s| s.indent().0).sum();
+                        #[cfg(feature = "syntax-highlighting")]
+                        if self.cfg.syncat {
+                            self.render_highlighted_code_block(&code_buffer, &scope, indent);
+                        } else {
+                            self.render_plain_code_block(&code_buffer, indent);
+                        }
+                        #[cfg(not(feature = "syntax-highlighting"))]
+                        {
+                            self.render_plain_code_block(&code_buffer, indent);
+                        }
+                        code_buffer.clear();
+                        scope.pop();
+                        self.last_block = Some(Block::Heading);
+                    }
+                    TagEnd::Link => {
+                        if let Some(Scope::Link { dest_url, title }) = scope.pop() {
+                            let text_opt =
+                                if !title.is_empty() && !dest_url.is_empty() && !self.cfg.hide_urls
+                                {
+                                    Some(format!(" <{title}: {dest_url}>"))
+                                } else if !dest_url.is_empty() && !self.cfg.hide_urls {
+                                    Some(format!(" <{dest_url}>"))
+                                } else if !title.is_empty() {
+                                    Some(format!(" <{title}>"))
+                                } else {
+                                    None
+                                };
+
+                            if let Some(text) = text_opt {
+                                // If we are inside a table, append link trail to the current cell
+                                let mut pushed_into_table = false;
+                                if let Some(table_state) =
+                                    scope.iter_mut().rev().find_map(|s| match s {
+                                        Scope::TableCollect(st) => Some(st),
+                                        _ => None,
+                                    })
+                                {
+                                    table_state.push_text(&text);
+                                    pushed_into_table = true;
+                                }
+                                if !pushed_into_table {
+                                    para.wrap_and_push(
+                                        &scope,
+                                        self.cfg.width,
+                                        &text,
+                                        &mut self.sink,
+                                        &str_width,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    TagEnd::Image => {
+                        if let Some(Scope::ImageCollect {
+                            url,
+                            title: _title_attr,
+                            alt,
+                        }) = scope.pop()
+                        {
+                            if self.cfg.no_images {
+                                if !alt.is_empty() {
+                                    let styled = self.color_theme.link.apply(&alt);
+                                    para.wrap_and_push(
+                                        &scope,
+                                        self.cfg.width,
+                                        &styled,
+                                        &mut self.sink,
+                                        &str_width,
+                                    );
+                                }
+                                if !self.cfg.hide_urls && !url.is_empty() {
+                                    let t = if !alt.is_empty() {
+                                        format!(" <{url}>")
+                                    } else {
+                                        format!("<{url}>")
+                                    };
+                                    para.wrap_and_push(
+                                        &scope,
+                                        self.cfg.width,
+                                        &t,
+                                        &mut self.sink,
+                                        &str_width,
+                                    );
+                                }
+                            } else {
+                                // Render image and caption
+                                para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                                self.ensure_spacing_before(Block::Image, &scope);
+                                let path = image::resolve_image_path(&url, file_path);
+                                match std::fs::read(&path) {
+                                    Ok(bytes) => match ::image::load_from_memory(&bytes) {
+                                        Ok(img) => {
+                                            let base_indent: usize =
+                                                scope.iter().map(|s| s.indent().0).sum();
+                                            let indent = base_indent + para.hanging_extra;
+                                            let available = self.cfg.width.0.saturating_sub(indent);
+                                            let (resized_png, used_cells) = self
+                                                .images
+                                                .resize_for_width(&img, available)
+                                                .unwrap_or((bytes, available));
+                                            let _ = self
+                                                .images
+                                                .render_inline(&resized_png, indent as u16);
+                                            self.last_block = Some(Block::Image);
+
+                                            let caption = alt.trim();
+                                            if !caption.is_empty() {
+                                                self.ensure_spacing_before(Block::Caption, &scope);
+                                                for line in
+                                                    self.wrap_caption_lines(caption, used_cells)
+                                                {
+                                                    let lw = str_width(&line);
+                                                    let extra_pad =
+                                                        used_cells.saturating_sub(lw) / 2;
+                                                    let column = Column(indent + extra_pad);
+                                                    let styled =
+                                                        self.color_theme.caption.apply(&line);
+                                                    let _ = self
+                                                        .sink
+                                                        .write_line_absolute(&styled, column);
+                                                }
+                                                self.last_block = Some(Block::Caption);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "Cannot decode image {}: {e}",
+                                                path.display()
+                                            );
+                                            if !alt.is_empty() {
+                                                let styled = self.color_theme.link.apply(&alt);
+                                                para.wrap_and_push(
+                                                    &scope,
+                                                    self.cfg.width,
+                                                    &styled,
+                                                    &mut self.sink,
+                                                    &str_width,
+                                                );
+                                            }
+                                            if !self.cfg.hide_urls && !url.is_empty() {
+                                                let t = if !alt.is_empty() {
+                                                    format!(" <{url}>")
+                                                } else {
+                                                    format!("<{url}>")
+                                                };
+                                                para.wrap_and_push(
+                                                    &scope,
+                                                    self.cfg.width,
+                                                    &t,
+                                                    &mut self.sink,
+                                                    &str_width,
+                                                );
+                                            }
+                                        }
+                                    },
+                                    Err(e) => {
+                                        eprintln!("Cannot open image {}: {e}", path.display());
+                                        if !alt.is_empty() {
+                                            let styled = self.color_theme.link.apply(&alt);
+                                            para.wrap_and_push(
+                                                &scope,
+                                                self.cfg.width,
+                                                &styled,
+                                                &mut self.sink,
+                                                &str_width,
+                                            );
+                                        }
+                                        if !self.cfg.hide_urls && !url.is_empty() {
+                                            let t = if !alt.is_empty() {
+                                                format!(" <{url}>")
+                                            } else {
+                                                format!("<{url}>")
+                                            };
+                                            para.wrap_and_push(
+                                                &scope,
+                                                self.cfg.width,
+                                                &t,
+                                                &mut self.sink,
+                                                &str_width,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        let _ = scope.pop();
+                    }
+                },
+                Event::Text(text) => {
+                    if let Some(Scope::CodeBlock(..)) = scope.last() {
+                        code_buffer.push_str(&text);
+                    } else if let Some(Scope::ImageCollect { alt, .. }) = scope.last_mut() {
+                        alt.push_str(&text);
+                    } else if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        let styled_text = self.apply_text_styling(&text, &scope);
+                        let styled_text = styled_text.replace("\\n", "\n");
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text(&styled_text);
+                        }
+                    } else {
+                        let styled_text = self.apply_text_styling(&text, &scope);
+                        match self.cfg.wrap_mode {
+                            crate::config::WrapMode::Greedy => para.wrap_and_push(
+                                &scope,
+                                self.cfg.width,
+                                &styled_text,
+                                &mut self.sink,
+                                &str_width,
+                            ),
+                            crate::config::WrapMode::None => para.push_raw(&styled_text),
+                        }
+                    }
+                }
+                Event::Code(text) => {
+                    if let Some(Scope::ImageCollect { alt, .. }) = scope.last_mut() {
+                        alt.push_str(&text);
+                    } else if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        let styled = self.color_theme.code.apply(&text);
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text(&styled);
+                        }
+                    } else {
+                        let styled = self.color_theme.code.apply(&text);
+                        match self.cfg.wrap_mode {
+                            crate::config::WrapMode::Greedy => para.wrap_and_push(
+                                &scope,
+                                self.cfg.width,
+                                &styled,
+                                &mut self.sink,
+                                &str_width,
+                            ),
+                            crate::config::WrapMode::None => para.push_raw(&styled),
+                        }
+                    }
+                }
+                Event::Rule => {
+                    para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                    self.ensure_spacing_before(Block::Rule, &scope);
+                    let hr_line = self.glyph_theme.hr.to_string().repeat(self.cfg.width.0);
+                    let styled_hr = self.color_theme.rule.apply(&hr_line);
+                    let _ = self.sink.write_line(&styled_hr, 0);
+                    self.last_block = Some(Block::Rule);
+                }
+                Event::SoftBreak => {
+                    if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text("\n");
+                        }
+                    } else {
+                        match self.cfg.wrap_mode {
+                            crate::config::WrapMode::Greedy => para.wrap_and_push(
+                                &scope,
+                                self.cfg.width,
+                                " ",
+                                &mut self.sink,
+                                &str_width,
+                            ),
+                            crate::config::WrapMode::None => para.push_raw(" "),
+                        }
+                    }
+                }
+                Event::HardBreak => {
+                    if let Some(idx) = scope
+                        .iter()
+                        .rposition(|s| matches!(s, Scope::TableCollect(_)))
+                    {
+                        if let Scope::TableCollect(state) = scope.get_mut(idx).unwrap() {
+                            state.push_text("\n");
+                        }
+                    } else {
+                        para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+                    }
+                }
+                Event::TaskListMarker(checked) => {
+                    let text = if checked { "[✓] " } else { "[ ] " };
+                    match self.cfg.wrap_mode {
+                        crate::config::WrapMode::Greedy => para.wrap_and_push(
+                            &scope,
+                            self.cfg.width,
+                            text,
+                            &mut self.sink,
+                            &str_width,
+                        ),
+                        crate::config::WrapMode::None => para.push_raw(text),
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if !para.is_empty() {
+            para.flush_paragraph(&scope, self.cfg.width, &mut self.sink);
+        }
+        Ok(())
+    }
+
+    // rendering helpers moved to submodules
+}
+
+use table::TableState;

@@ -1,0 +1,37 @@
+[package]
+name = "paper-terminal"
+description = """
+Writes a file to a paper in your terminal. Especially if that file is Markdown.
+"""
+repository = "https://github.com/foxfriends/paper-terminal"
+homepage = "https://github.com/foxfriends/paper-terminal"
+license = "MIT"
+readme = "README.md"
+version = "3.1.0"
+authors = ["Cameron Eldridge <cam.eldridge@gmail.com>"]
+edition = "2024"
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "paper"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+terminal_size = "0.4"
+pulldown-cmark = "0.12"
+crossterm = "0.29"
+image = "0.25"
+console = { version = "0.16", features = ["unicode-width"] }
+unicode-width = "0.2"
+cjk = "0.2"
+clap_complete = "4.5"
+rasteroid = { path = "crates/mcat/crates/rasteroid" }
+comfy-table = { version = "7.1", features = ["custom_styling"] }
+bat = { version = "0.25", optional = true, default-features = false, features = [
+    "minimal-application",
+] }
+
+[features]
+default = ["syntax-highlighting"]
+syntax-highlighting = ["bat"]
