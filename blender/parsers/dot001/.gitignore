@@ -1,0 +1,9 @@
+/target
+/tmp
+*.local.*
+
+# .blend files and associated resources
+*.blend
+*.ogg
+blendfiles/**/textures/
+

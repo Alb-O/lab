@@ -1,0 +1,23 @@
+[workspace]
+members = [
+    "lib",
+    "crates/dot001_cli",
+    "crates/dot001_diff",
+    "crates/dot001_editor",
+    "crates/dot001_events",
+    "crates/dot001_parser",
+    "crates/dot001_tracer",
+    "crates/dot001_writer",
+    "crates/dot001_checkpoint",
+    "crates/dot001_watcher",
+    "crates/dot001_dev",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# shared deps can be declared here if desired
