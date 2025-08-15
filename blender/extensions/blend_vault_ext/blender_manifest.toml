@@ -1,0 +1,40 @@
+schema_version = "1.0.0"
+
+id = "blend_vault"
+version = "0.4.1"
+name = "Blend Vault"
+tagline = "Relink and manage libraries/assets with Obsidian integration"
+maintainer = "Albert O'Shea"
+type = "add-on"
+
+tags = ["Development", "Pipeline", "Import-Export", "System"]
+
+blender_version_min = "4.0.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+# Optional: Add website if you have one
+# website = "https://github.com/yourusername/blend-vault"
+
+# Python Wheels (for bundling external dependencies)
+# Pillow wheels for all supported platforms
+wheels = [
+	"./wheels/pillow-10.4.0-cp311-cp311-win_amd64.whl",
+	"./wheels/pillow-10.4.0-cp311-cp311-macosx_11_0_arm64.whl",
+	"./wheels/pillow-10.4.0-cp311-cp311-manylinux_2_28_x86_64.whl",
+]
+
+# If your addon needs internet access (for Obsidian integration)
+[permissions]
+network = "Allow network access for Obsidian integration features"
+files = "Access local files for preview image management"
+
+# Optional: build settings
+[build]
+paths_exclude_pattern = [
+	"__pycache__/",
+	"*.pyc",
+	"*.ps1",
+	"download_wheels.ps1",
+	"extracted_wheels/",
+]
