@@ -251,7 +251,7 @@ cmd_create() {
         fi
     fi
     
-    # Validate template if specified
+    # Validate template if specified - BEFORE creating any branches
     if [ -n "$template_type" ]; then
         local available_templates=($(discover_templates))
         local template_found=false
@@ -267,6 +267,29 @@ cmd_create() {
             cmd_templates
             exit 1
         fi
+        
+        # Additional validation: check if template can actually be instantiated
+        case "$template_type" in
+            rust-nix-template)
+                # Check if Nix is available and template files exist
+                if ! command -v nix-build &> /dev/null; then
+                    log_error "Template '$template_type' requires Nix but nix-build is not available"
+                    exit 1
+                fi
+                if [ ! -f "$TEMPLATES_DIR/nix/template-engine.nix" ]; then
+                    log_error "Template engine not found at $TEMPLATES_DIR/nix/template-engine.nix"
+                    exit 1
+                fi
+                ;;
+            *)
+                # For other templates, check basic existence
+                local template_path="$TEMPLATES_DIR/template-projects/$template_type"
+                if [ ! -d "$template_path" ]; then
+                    log_error "Template directory not found: $template_path"
+                    exit 1
+                fi
+                ;;
+        esac
     fi
     
     # Check if branch already exists
@@ -637,6 +660,4 @@ main() {
 cd "$LAB_ROOT"
 
 # Run main function
-main "$@"# Test comment
-# Test comment 2
-# Test comment 3
+main "$@"
