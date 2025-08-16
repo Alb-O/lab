@@ -1,0 +1,15 @@
+# Lab Manager Configuration
+# Copy this file to .lab-config to customize defaults
+
+# Default author information
+LAB_DEFAULT_AUTHOR="Your Name"
+LAB_DEFAULT_EMAIL="your.email@example.com"
+
+# Default base branch to checkout from when creating new projects
+# (The actual project branch will be named after the project path)
+LAB_DEFAULT_BASE_BRANCH="main"
+
+# You can also set these via environment variables:
+# export LAB_DEFAULT_AUTHOR="Your Name"
+# export LAB_DEFAULT_EMAIL="your.email@example.com"
+# export LAB_DEFAULT_BASE_BRANCH="main"
