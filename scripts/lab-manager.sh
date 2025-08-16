@@ -64,6 +64,27 @@ log_error() {
     echo "ERROR: $*" >&2
 }
 
+normalize_project_path() {
+    local path="$1"
+    
+    # Remove trailing slashes
+    path="${path%/}"
+    
+    # Remove leading ./ if present
+    path="${path#./}"
+    
+    # Remove leading workbench/ if present (in case user includes it)
+    path="${path#workbench/}"
+    
+    # Ensure path is not empty after normalization
+    if [ -z "$path" ]; then
+        log_error "Project path cannot be empty"
+        exit 1
+    fi
+    
+    echo "$path"
+}
+
 validate_project_path() {
     local path="$1"
     if [[ ! "$path" =~ ^[a-zA-Z0-9/_-]+$ ]]; then
@@ -216,7 +237,8 @@ cmd_create() {
         shift
     done
     
-    # Validate inputs
+    # Normalize and validate inputs
+    project_path=$(normalize_project_path "$project_path")
     validate_project_path "$project_path"
     
     local workbench_path="workbench/$project_path"
@@ -350,6 +372,8 @@ cmd_delete() {
         shift
     done
     
+    # Normalize and validate inputs
+    project_path=$(normalize_project_path "$project_path")
     validate_project_path "$project_path"
     
     local workbench_path="workbench/$project_path"
@@ -478,6 +502,9 @@ cmd_status() {
     fi
     
     project_path="$1"
+    
+    # Normalize and validate inputs
+    project_path=$(normalize_project_path "$project_path")
     validate_project_path "$project_path"
     
     local workbench_path="workbench/$project_path"
