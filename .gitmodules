@@ -1,0 +1,6 @@
+[submodule "ref/blender"]
+	path = ref/blender
+	url = https://projects.blender.org/blender/blender
+[submodule "ref/blender-asset-tracer"]
+	path = ref/blender-asset-tracer
+	url = https://projects.blender.org/blender/blender-asset-tracer
