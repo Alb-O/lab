@@ -103,7 +103,7 @@ rec {
 
   # Rust project template processor
   rustTemplate = createTemplateProcessor {
-    templatePath = ../templates/rust/rust-nix-template;
+    templatePath = ../template-projects/rust-nix-template;
     defaultVariables = {
       package-name = "my-rust-project";
       author = "Your Name";

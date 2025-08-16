@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , template ? "rust-nix-template"
-, templatePath ? ../templates/rust/rust-nix-template
+, templatePath ? ../template-projects/rust-nix-template
 , params ? {}
 }:
 

@@ -6,6 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATES_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Default values
 PROJECT_NAME="${1:-my-rust-project}"
@@ -25,7 +26,7 @@ mkdir -p "$OUTPUT_DIR"
 # Use the template engine to instantiate the template
 RESULT=$(nix-build --no-out-link -E "
 let
-  templateEngine = import $SCRIPT_DIR/template-engine.nix {};
+  templateEngine = import $TEMPLATES_DIR/nix/template-engine.nix {};
 in
 templateEngine.createRustProject {
   name = \"$PROJECT_NAME\";
