@@ -8,23 +8,23 @@
     };
 
     # https://omnix.page/om/init.html#spec
-    om.templates.rust-nix-template = {
+    om.templates."{{package-name}}" = {
       template = templates.default;
       params = [
         {
           name = "package-name";
           description = "Name of the Rust package";
-          placeholder = "rust-nix-template";
+          placeholder = "{{package-name}}";
         }
         {
           name = "author";
           description = "Author name";
-          placeholder = "Sridhar Ratnakumar";
+          placeholder = "{{author}}";
         }
         {
           name = "author-email";
           description = "Author email";
-          placeholder = "srid@srid.ca";
+          placeholder = "{{author-email}}";
         }
         {
           name = "vscode";

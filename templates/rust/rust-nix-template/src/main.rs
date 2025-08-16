@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[clap(author = "Sridhar Ratnakumar", version, about)]
+#[clap(author = "{{author}}", version, about)]
 /// Application configuration
 struct Args {
     /// whether to be verbose
@@ -19,7 +19,7 @@ fn main() {
         println!("DEBUG {args:?}");
     }
     println!(
-        "Hello {} (from rust-nix-template)!",
+        "Hello {} (from {{package-name}})!",
         args.name.unwrap_or("world".to_string())
     );
 }

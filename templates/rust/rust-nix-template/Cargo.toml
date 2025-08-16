@@ -1,9 +1,9 @@
 [package]
-authors = ["Sridhar Ratnakumar <srid@srid.ca>"]
+authors = ["{{author}} <{{author-email}}>"]
 edition = "2021"
-# If you change the name here, you must also do it in flake.nix (and run `cargo generate-lockfile` afterwards)
-name = "rust-nix-template"
-description = "A simple Rust project using Nix"
+# Package name automatically managed by template variables
+name = "{{package-name}}"
+description = "{{description}}"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

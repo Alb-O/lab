@@ -1,18 +1,15 @@
-A template Rust project with fully functional and no-frills Nix support, as well as builtin VSCode configuration to get IDE experience without any manual setup (just [install direnv](https://nixos.asia/en/direnv), open in VSCode and accept the suggestions). It uses [crane](https://crane.dev/), via [rust-flake](https://github.com/juspay/rust-flake).
+# {{package-name}}
+
+{{description}}
+
+A Rust project with fully functional and no-frills Nix support, as well as builtin VSCode configuration to get IDE experience without any manual setup (just [install direnv](https://nixos.asia/en/direnv), open in VSCode and accept the suggestions). It uses [crane](https://crane.dev/), via [rust-flake](https://github.com/juspay/rust-flake).
 
 > [!NOTE]
 > If you are looking for the original template based on [this blog post](https://srid.ca/rust-nix)'s use of `crate2nix`, browse from [this tag](https://github.com/srid/rust-nix-template/tree/crate2nix). The evolution of this template can be gleaned from [releases](https://github.com/srid/rust-nix-template/releases).
 
 ## Usage
 
-You can use [omnix](https://omnix.page/om/init.html)[^omnix] to initialize this template:
-```
-nix run nixpkgs#omnix -- init github:srid/rust-nix-template -o ~/my-rust-project
-```
-
-[^omnix]: If initializing manually, make sure to:
-    - Change `name` in Cargo.toml.
-    - Run `cargo generate-lockfile` in the nix shelld
+This template is designed for automated instantiation with proper variable substitution. All project-specific values use `{{variable-name}}` syntax and will be replaced during template processing.
 
 ## Adapting this template
 
@@ -39,7 +36,7 @@ We also provide a [`justfile`](https://just.systems/) for Makefile'esque command
 
 - Run `nix flake update` to update all flake inputs.
 - Run `nix --accept-flake-config run github:juspay/omnix ci` to build _all_ outputs.
-- [pre-commit] hooks will automatically be setup in Nix shell. You can also run `pre-commit run -a` manually to run the hooks (e.g.: to autoformat the project tree using `rustfmt`, `nixpkgs-fmt`, etc.).
+- [pre-commit] hooks will automatically be setup in Nix shell. You can also run `pre-commit run -a` to run the hooks (e.g.: to autoformat the project tree using `rustfmt`, `nixpkgs-fmt`, etc.).
 
 ## Discussion
 

@@ -2,7 +2,7 @@
 {
   perSystem = { config, self', pkgs, lib, ... }: {
     devShells.default = pkgs.mkShell {
-      name = "rust-nix-template-shell";
+      name = "{{package-name}}-shell";
       inputsFrom = [
         self'.devShells.rust
         config.pre-commit.devShell # See ./nix/modules/pre-commit.nix
