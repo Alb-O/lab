@@ -125,6 +125,45 @@ discover_templates() {
     printf '%s\n' "${templates[@]}"
 }
 
+# Smart template name resolution - handles optional -template suffix
+resolve_template_name() {
+    local input_name="$1"
+    local available_templates=($(discover_templates))
+    
+    # First, try exact match
+    for tmpl in "${available_templates[@]}"; do
+        if [ "$tmpl" = "$input_name" ]; then
+            echo "$tmpl"
+            return 0
+        fi
+    done
+    
+    # If input doesn't have -template suffix, try adding it
+    if [[ ! "$input_name" =~ -template$ ]]; then
+        local with_suffix="${input_name}-template"
+        for tmpl in "${available_templates[@]}"; do
+            if [ "$tmpl" = "$with_suffix" ]; then
+                echo "$tmpl"
+                return 0
+            fi
+        done
+    fi
+    
+    # If input has -template suffix, try removing it
+    if [[ "$input_name" =~ -template$ ]]; then
+        local without_suffix="${input_name%-template}"
+        for tmpl in "${available_templates[@]}"; do
+            if [ "$tmpl" = "$without_suffix" ]; then
+                echo "$tmpl"
+                return 0
+            fi
+        done
+    fi
+    
+    # No match found
+    return 1
+}
+
 get_template_type() {
     local template_name="$1"
     
@@ -186,7 +225,7 @@ templateEngine.createRustProject {
         echo "$template_result"
     else
         log_error "Failed to instantiate template"
-        exit 1
+        return 1
     fi
 }
 
@@ -252,17 +291,14 @@ cmd_create() {
     fi
     
     # Validate template if specified - BEFORE creating any branches
+    local template_temp_dir=""
     if [ -n "$template_type" ]; then
-        local available_templates=($(discover_templates))
-        local template_found=false
-        for tmpl in "${available_templates[@]}"; do
-            if [ "$tmpl" = "$template_type" ]; then
-                template_found=true
-                break
-            fi
-        done
-        
-        if [ "$template_found" = false ]; then
+        # Resolve template name with smart matching
+        local resolved_template_name
+        if resolved_template_name=$(resolve_template_name "$template_type"); then
+            template_type="$resolved_template_name"
+            log_info "Resolved template: $template_type"
+        else
             log_error "Template '$template_type' not found. Available templates:"
             cmd_templates
             exit 1
@@ -290,6 +326,24 @@ cmd_create() {
                 fi
                 ;;
         esac
+        
+        # Pre-instantiate template in temporary directory to avoid chicken-and-egg problem
+        template_temp_dir=$(mktemp -d)
+        log_info "Pre-instantiating template in temporary directory..."
+        
+        # Save current directory and switch to temp dir for instantiation
+        local original_dir="$(pwd)"
+        cd "$template_temp_dir"
+        
+        if ! instantiate_template "$template_type" "$project_name" "$author" "$email" "$description"; then
+            cd "$original_dir"
+            rm -rf "$template_temp_dir"
+            log_error "Failed to instantiate template"
+            exit 1
+        fi
+        
+        cd "$original_dir"
+        log_info "Template instantiated successfully in temporary directory"
     fi
     
     # Check if branch already exists
@@ -315,6 +369,12 @@ cmd_create() {
     # Create directory structure
     mkdir -p "$(dirname "$workbench_path")"
     
+    # Stash any uncommitted changes to preserve them across branch operations
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        log_info "Stashing uncommitted changes (use 'git stash pop' to restore later)..."
+        git stash push -m "Auto-stash before creating project $project_path"
+    fi
+    
     # Create orphan branch
     log_info "Creating branch '$project_path'..."
     git checkout --orphan "$project_path"
@@ -325,14 +385,26 @@ cmd_create() {
         log_warn "Cleaning up failed branch creation..."
         git checkout "$base_branch" 2>/dev/null || true
         git branch -D "$project_path" 2>/dev/null || true
+        # Clean up temporary template directory if it exists
+        if [ -n "$template_temp_dir" ] && [ -d "$template_temp_dir" ]; then
+            rm -rf "$template_temp_dir"
+        fi
         exit 1
     }
     
     if [ -n "$template_type" ]; then
-        # Use template system with error handling
-        if ! instantiate_template "$template_type" "$project_name" "$author" "$email" "$description"; then
+        # Copy pre-instantiated template files
+        log_info "Copying template files to project..."
+        if [ -d "$template_temp_dir" ] && [ -n "$(ls -A "$template_temp_dir" 2>/dev/null)" ]; then
+            cp -r "$template_temp_dir"/* . 2>/dev/null || true
+            cp -r "$template_temp_dir"/.[!.]* . 2>/dev/null || true  # Copy hidden files
+        else
+            log_error "Template directory is empty or doesn't exist"
             cleanup_failed_branch
         fi
+        
+        # Clean up temporary directory
+        rm -rf "$template_temp_dir"
         
         # Add all template files
         git add .
