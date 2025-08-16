@@ -149,15 +149,13 @@ instantiate_template() {
     local email="$4"
     local description="$5"
     
-    local template_type=$(get_template_type "$template_name")
-    
-    case "$template_type" in
-        rust-nix)
+    case "$template_name" in
+        rust-nix-template)
             instantiate_rust_nix_template "$template_name" "$project_name" "$author" "$email" "$description"
             ;;
         *)
-            log_error "Template type '$template_type' not supported yet"
-            exit 1
+            log_error "Template '$template_name' not supported yet"
+            return 1
             ;;
     esac
 }
@@ -299,26 +297,42 @@ cmd_create() {
     git checkout --orphan "$project_path"
     git rm -rf . 2>/dev/null || true
     
+    # Set up error recovery function
+    cleanup_failed_branch() {
+        log_warn "Cleaning up failed branch creation..."
+        git checkout "$base_branch" 2>/dev/null || true
+        git branch -D "$project_path" 2>/dev/null || true
+        exit 1
+    }
+    
     if [ -n "$template_type" ]; then
-        # Use template system
-        instantiate_template "$template_type" "$project_name" "$author" "$email" "$description"
+        # Use template system with error handling
+        if ! instantiate_template "$template_type" "$project_name" "$author" "$email" "$description"; then
+            cleanup_failed_branch
+        fi
         
         # Add all template files
         git add .
-        git commit -m "Initialize from $template_type template
+        if ! git commit -m "Initialize from $template_type template
 
 Generated with Lab template system
 
 Author: $author <$email>
 Template: $template_type
-Description: $description"
+Description: $description"; then
+            log_error "Failed to commit template files"
+            cleanup_failed_branch
+        fi
     else
         # Create basic README
         echo "# $project_path" > README.md
         echo "" >> README.md
         echo "$description" >> README.md
         git add README.md
-        git commit -m "Initial commit for $project_path"
+        if ! git commit -m "Initial commit for $project_path"; then
+            log_error "Failed to commit initial files"
+            cleanup_failed_branch
+        fi
     fi
     
     # Switch back to base branch
