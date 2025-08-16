@@ -638,3 +638,4 @@ cd "$LAB_ROOT"
 
 # Run main function
 main "$@"# Test comment
+# Test comment 2
