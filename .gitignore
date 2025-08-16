@@ -1,0 +1,6 @@
+# Workbench directory contains git worktrees for individual projects
+# These are managed separately with their own branches and histories
+workbench/
+
+# Archive directory for storing completed or deprecated projects
+archive/
