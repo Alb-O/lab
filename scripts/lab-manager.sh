@@ -637,4 +637,4 @@ main() {
 cd "$LAB_ROOT"
 
 # Run main function
-main "$@"
+main "$@"# Test comment
